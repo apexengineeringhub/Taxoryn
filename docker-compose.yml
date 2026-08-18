@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taxoryn_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taxoryn_db}
+      POSTGRES_USER: ${POSTGRES_USER:-taxoryn_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taxoryn_secret}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - taxoryn_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taxoryn_user} -d ${POSTGRES_DB:-taxoryn_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taxoryn-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: taxoryn_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@taxoryn.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - taxoryn-network
+    profiles:
+      - tools
+
+volumes:
+  taxoryn_pgdata:
+    driver: local
+
+networks:
+  taxoryn-network:
+    driver: bridge
