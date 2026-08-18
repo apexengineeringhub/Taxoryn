@@ -89,6 +89,20 @@ chmod +x scripts/setup-db.sh
 
 ## 📡 REST API Reference
 
+### Client Management 360 Endpoints (`/api/clients` and `/api/v1/clients`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `POST` | `/api/v1/clients` | Create client across 9 constitution types | `CLIENT_CREATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/clients` | List & search clients with filters & pagination | `CLIENT_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/clients/{id}` | Get client details by ID | `CLIENT_VIEW` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/clients/{id}` | Update client profile & tax numbers | `CLIENT_UPDATE` / `ORG_ADMIN` |
+| `PATCH` | `/api/v1/clients/{id}/status` | Update client status (`ACTIVE`, `INACTIVE`, `PROSPECT`, `ARCHIVED`) | `CLIENT_UPDATE` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/clients/{id}/assigned-employee` | Assign / Reassign practitioner employee | `CLIENT_UPDATE` / `ORG_ADMIN` |
+| `DELETE` | `/api/v1/clients/{id}` | Archive client | `CLIENT_DELETE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/clients/{id}/overview` | **Client 360-Degree Unified Overview Dashboard** | `CLIENT_VIEW` / `ORG_ADMIN` |
+| `POST` | `/api/v1/clients/{id}/notes` | Add communication note (Call, Meeting, Follow-up) | `CLIENT_UPDATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/clients/{id}/notes` | List communication history & notes | `CLIENT_VIEW` / `ORG_ADMIN` |
+
 ### Employee Endpoints (`/api/employees` and `/api/v1/employees`)
 | HTTP Method | Endpoint | Description | Security / Role |
 |---|---|---|---|
@@ -131,13 +145,19 @@ chmod +x scripts/setup-db.sh
 - **`V2__organization_module_enhancement.sql`**: Organization address fields and `organization_settings` table.
 - **`V3__rbac_roles_permissions_enhancement.sql`**: Granular permissions catalog and 7 default system roles with permission mappings.
 - **`V4__employee_module_enhancement.sql`**: Employee contact details, names, manager hierarchy constraint, and indexes.
+- **`V5__client_module_enhancement.sql`**: Client 360 profile fields, tax numbers (PAN, GSTIN, TAN, CIN), assigned employee relationship, indexes, and `client_notes` table for communication history.
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **66 automated tests** covering unit, integration, and security layers:
-- **Employee CRUD & Lifecycle**: Creation, updating, status changes, and deactivation.
+Taxoryn includes **77 automated tests** covering unit, integration, and security layers:
+- **Client 360 & Constitution Types**: All 9 client types, statutory numbers, assigned practitioner, and contact hierarchy.
+- **Client 360-Degree Overview**: Aggregated single-screen overview covering tasks, compliance, documents, billing, and notes.
+- **Communication History**: Call, meeting, email, and follow-up interaction note logging and retrieval.
+- **Employee CRUD & Workload Analytics**: Workload counts for assigned, pending, overdue, and completed tasks.
+- **Tenant Isolation**: Cross-tenant entity lookups strictly return 404 NOT FOUND.
+- **System Role Immutability**: System default roles cannot be altered or deleted.
 - **Search & Filtering**: Multi-field query search (name, email, code, phone) and filtering by department/status.
 - **Workload Analytics**: Accurate counts for assigned, pending, overdue, and completed tasks.
 - **Tenant Isolation**: Cross-tenant employee queries return 404 NOT FOUND.

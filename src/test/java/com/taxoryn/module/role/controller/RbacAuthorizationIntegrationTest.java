@@ -215,7 +215,7 @@ class RbacAuthorizationIntegrationTest {
         // POST /api/v1/clients is denied for Viewer (lacks CLIENT_CREATE)
         CreateClientRequest createClient = CreateClientRequest.builder()
                 .displayName("New Client Co")
-                .clientType(ClientType.COMPANY)
+                .clientType(ClientType.PRIVATE_LIMITED)
                 .email("client@company.com")
                 .build();
 

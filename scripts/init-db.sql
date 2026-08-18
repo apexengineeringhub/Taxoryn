@@ -169,10 +169,26 @@ CREATE TABLE IF NOT EXISTS clients (
     organization_id UUID NOT NULL,
     client_type VARCHAR(50) NOT NULL DEFAULT 'INDIVIDUAL',
     display_name VARCHAR(255) NOT NULL,
+    legal_name VARCHAR(255),
+    trade_name VARCHAR(255),
     pan VARCHAR(10),
     gstin VARCHAR(15),
+    tan VARCHAR(10),
+    cin VARCHAR(21),
+    date_of_incorporation DATE,
     email VARCHAR(255),
     phone VARCHAR(20),
+    alt_phone VARCHAR(20),
+    contact_person_name VARCHAR(100),
+    contact_person_designation VARCHAR(100),
+    address_line1 VARCHAR(255),
+    address_line2 VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(100),
+    country VARCHAR(100) DEFAULT 'India',
+    pincode VARCHAR(20),
+    assigned_employee_id UUID,
+    notes TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -180,12 +196,40 @@ CREATE TABLE IF NOT EXISTS clients (
     updated_by VARCHAR(255),
     version BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT fk_clients_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_clients_assigned_employee FOREIGN KEY (assigned_employee_id) REFERENCES employees(id) ON DELETE SET NULL,
     CONSTRAINT uq_clients_org_pan UNIQUE (organization_id, pan)
 );
 
 CREATE INDEX IF NOT EXISTS idx_clients_organization_id ON clients(organization_id);
 CREATE INDEX IF NOT EXISTS idx_clients_pan ON clients(pan);
 CREATE INDEX IF NOT EXISTS idx_clients_gstin ON clients(gstin);
+CREATE INDEX IF NOT EXISTS idx_clients_tan ON clients(tan);
+CREATE INDEX IF NOT EXISTS idx_clients_assigned_emp ON clients(assigned_employee_id);
+CREATE INDEX IF NOT EXISTS idx_clients_type ON clients(client_type);
+CREATE INDEX IF NOT EXISTS idx_clients_city ON clients(city);
+CREATE INDEX IF NOT EXISTS idx_clients_state ON clients(state);
+
+-- 11. Client Notes / Communication History
+CREATE TABLE IF NOT EXISTS client_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL,
+    client_id UUID NOT NULL,
+    author_id UUID,
+    author_name VARCHAR(100),
+    note_type VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    version BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT fk_client_notes_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_client_notes_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_notes_org_client ON client_notes(organization_id, client_id);
+CREATE INDEX IF NOT EXISTS idx_client_notes_created_at ON client_notes(created_at);
 
 -- 11. Tasks
 CREATE TABLE IF NOT EXISTS tasks (
