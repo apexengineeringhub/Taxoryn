@@ -38,30 +38,52 @@ com.taxoryn
 
 ---
 
-## 👔 Employee Management Module
+## 🗄 Database Scripts & Dev Setup
 
-The Employee module enables tax firms to manage their practitioners, hierarchy, and workload:
+### 1. Database Provisioning & Scripts
+Located under the [`scripts/`](file:///d:/Projects/Taxoryn/scripts) directory:
+- **[`init-db.sql`](file:///d:/Projects/Taxoryn/scripts/init-db.sql)**: Complete consolidated PostgreSQL 16 DDL schema with extensions, constraints, tables, indexes, permissions catalog, and default system roles.
+- **[`seed-dev-data.sql`](file:///d:/Projects/Taxoryn/scripts/seed-dev-data.sql)**: Pre-populated demo tenant ("Apex Tax Advisors LLP") with admin, manager, tax professional, accountant, employees, clients, and workflow tasks.
+- **[`setup-db.ps1`](file:///d:/Projects/Taxoryn/scripts/setup-db.ps1)**: One-click PowerShell tool for Windows.
+- **[`setup-db.sh`](file:///d:/Projects/Taxoryn/scripts/setup-db.sh)**: One-click Bash tool for Linux / macOS / WSL.
 
-### 1. Employee Data Model
-- `id` (UUID): Primary Key
-- `organizationId` (UUID): Tenant ID (Strict multi-tenancy)
-- `userId` (UUID): Optional link to User login account
-- `employeeCode` (String): Unique employee identifier within tenant (e.g. `EMP-001`)
-- `firstName` & `lastName` (String): Full practitioner name
-- `email` (String): Official contact email (Unique per tenant)
-- `phone` (String): Contact phone number
-- `department` (String): Department (e.g. `Taxation`, `Audit`, `Accounting`)
-- `designation` (String): Job title (e.g. `Partner`, `Senior Tax Manager`, `Audit Associate`)
-- `joiningDate` (LocalDate): Employment start date
-- `status` (Enum): `ACTIVE`, `INACTIVE`, `ON_LEAVE`, `RESIGNED`, `TERMINATED`
-- `managerId` (UUID): Self-referential foreign key for reporting manager hierarchy within the tenant
+### 2. Automated DB Provisioning Commands
+```powershell
+# Windows PowerShell (Provision DB + Seed Demo Data)
+.\scripts\setup-db.ps1 -SeedData
 
-### 2. Employee Workload Analytics (`GET /api/employees/{id}/workload`)
-Computes real-time workload metrics across assigned workflow tasks:
-- `totalAssignedTasks`: Total active tasks assigned to employee (excluding cancelled)
-- `pendingTasks`: Tasks in `TODO`, `IN_PROGRESS`, or `UNDER_REVIEW`
-- `overdueTasks`: Pending tasks where `dueDate < CURRENT_DATE`
-- `completedTasks`: Tasks in `COMPLETED` status
+# Windows PowerShell (Reset and rebuild DB from scratch)
+.\scripts\setup-db.ps1 -Reset -SeedData
+```
+
+```bash
+# Linux / macOS / WSL
+chmod +x scripts/setup-db.sh
+./scripts/setup-db.sh --seed
+```
+
+### 3. Demo Credentials (from `seed-dev-data.sql`)
+| Role | Email | Password |
+|---|---|---|
+| **Org Admin** | `admin@apextax.com` | `Password123!` |
+| **Practice Manager** | `manager@apextax.com` | `Password123!` |
+| **Senior Tax Pro** | `taxpro@apextax.com` | `Password123!` |
+| **Staff Accountant** | `accountant@apextax.com` | `Password123!` |
+| **Firm Staff** | `staff@apextax.com` | `Password123!` |
+
+---
+
+## 👥 Organization-Level RBAC
+
+| Role Code | Role Name | Scope & Responsibilities |
+|---|---|---|
+| `SUPER_ADMIN` | Platform Super Administrator | Full platform administrative access across all tenants |
+| `ORG_ADMIN` | Organization Administrator | Full administrative authority within the tenant organization |
+| `MANAGER` | Practice Manager | Manages clients, workflows, task assignments, GST/ITR review, and billing |
+| `TAX_PROFESSIONAL` | Senior Tax Practitioner | Prepares GST and ITR returns, manages client filings, documents, and tasks |
+| `ACCOUNTANT` | Staff Accountant | Prepares GST filings, invoices, receipts, and client data entry |
+| `EMPLOYEE` | Firm Employee / Staff | Executes assigned tasks, reviews documents, and views client work |
+| `VIEWER` | Read-Only Viewer | Read-only viewing permissions across all practice modules |
 
 ---
 
@@ -130,9 +152,9 @@ mvn clean test
 
 ## 🚀 Quick Start
 
-### 1. Run PostgreSQL with Docker Compose
-```bash
-docker compose up -d postgres
+### 1. Provision Database & Seed Demo Data
+```powershell
+.\scripts\setup-db.ps1 -SeedData
 ```
 
 ### 2. Run Application
