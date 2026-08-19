@@ -87,7 +87,23 @@ chmod +x scripts/setup-db.sh
 
 ---
 
-## 📡 REST API Reference
+### GST Management Endpoints (`/api/gst` and `/api/v1/gst`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `POST` | `/api/v1/gst/profiles` | Register GST profile / GSTIN for client | `GST_CREATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/gst/profiles` | List & search GST profiles with filters | `GST_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/gst/profiles/{id}` | Get GST profile details | `GST_VIEW` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/gst/profiles/{id}` | Update GST profile & assigned practitioner | `GST_UPDATE` / `ORG_ADMIN` |
+| `PATCH` | `/api/v1/gst/profiles/{id}/status` | Update GST profile status (`ACTIVE`, `SUSPENDED`, etc.) | `GST_UPDATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/gst/filings` | Create / schedule return filing (GSTR-1, GSTR-3B, GSTR-9, CMP-08) | `GST_CREATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/gst/filings` | List & filter filings by return type, period, and status | `GST_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/gst/filings/{id}` | Get filing details by ID | `GST_VIEW` / `ORG_ADMIN` |
+| `PATCH` | `/api/v1/gst/filings/{id}/status` | Update filing status (`FILED`, etc.) & record ARN | `GST_UPDATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/gst/filings/batch-generate` | Batch auto-generate return filings for all active practice clients | `GST_CREATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/gst/summaries` | Save monthly sales, purchase, ITC, and liability computation | `GST_CREATE` / `GST_UPDATE` |
+| `GET` | `/api/v1/gst/summaries` | Get monthly computation summary | `GST_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/gst/dashboard/workload` | **GST Practice & Employee Workload Dashboard** | `GST_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/gst/clients/{clientId}/history` | Client GST return filing history | `GST_VIEW` / `ORG_ADMIN` |
 
 ### Client Management 360 Endpoints (`/api/clients` and `/api/v1/clients`)
 | HTTP Method | Endpoint | Description | Security / Role |
@@ -146,12 +162,14 @@ chmod +x scripts/setup-db.sh
 - **`V3__rbac_roles_permissions_enhancement.sql`**: Granular permissions catalog and 7 default system roles with permission mappings.
 - **`V4__employee_module_enhancement.sql`**: Employee contact details, names, manager hierarchy constraint, and indexes.
 - **`V5__client_module_enhancement.sql`**: Client 360 profile fields, tax numbers (PAN, GSTIN, TAN, CIN), assigned employee relationship, indexes, and `client_notes` table for communication history.
+- **`V6__gst_module.sql`**: GST Profiles & Registrations, GST Return Filings (GSTR-1, GSTR-3B, GSTR-9, CMP-08), and Monthly Summaries (Sales, Purchase, ITC, Tax Liability).
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **77 automated tests** covering unit, integration, and security layers:
+Taxoryn includes **85 automated tests** covering unit, integration, and security layers:
+- **GST Compliance & Workload**: GST profile registration, GSTR-1 & GSTR-3B lifecycle, ARN tracking, ITC/liability calculation, batch period generator, and workload dashboard.
 - **Client 360 & Constitution Types**: All 9 client types, statutory numbers, assigned practitioner, and contact hierarchy.
 - **Client 360-Degree Overview**: Aggregated single-screen overview covering tasks, compliance, documents, billing, and notes.
 - **Communication History**: Call, meeting, email, and follow-up interaction note logging and retrieval.
