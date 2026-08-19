@@ -87,6 +87,25 @@ chmod +x scripts/setup-db.sh
 
 ---
 
+### ITR Management Endpoints (`/api/itr` and `/api/v1/itr`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `POST` | `/api/v1/itr/profiles` | Create ITR profile for client | `ITR_CREATE` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/itr/profiles/{id}` | Update ITR profile | `ITR_UPDATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/profiles/{id}` | Get ITR profile by ID | `ITR_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/profiles/clients/{clientId}` | Get ITR profile for client | `ITR_VIEW` / `ORG_ADMIN` |
+| `POST` | `/api/v1/itr/returns` | Create ITR return filing record (AY, FY, ITR Form) | `ITR_CREATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/returns` | List & search ITR returns with filters & pagination | `ITR_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/returns/{id}` | Get ITR return details by ID | `ITR_VIEW` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/itr/returns/{id}` | Update ITR return record | `ITR_UPDATE` / `ORG_ADMIN` |
+| `PATCH` | `/api/v1/itr/returns/{id}/status` | Update workflow status (`DOCUMENTS_PENDING` -> `DATA_ENTRY` -> `UNDER_REVIEW` -> `READY_TO_FILE` -> `FILED` -> `VERIFICATION_PENDING` -> `COMPLETED`) | `ITR_UPDATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/itr/returns/{id}/filing-details` | Record e-filing submission date & ACK/ITR-V number | `ITR_UPDATE` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/itr/returns/{id}/assigned-employee` | Assign / Reassign practitioner employee | `ITR_UPDATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/returns/upcoming` | List upcoming ITR returns approaching due date | `ITR_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/returns/overdue` | List overdue ITR returns past due date | `ITR_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/clients/{clientId}/history` | Client ITR filing history across assessment years | `ITR_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/itr/dashboard/workload` | **ITR Practice & Employee Workload Dashboard** | `ITR_VIEW` / `ORG_ADMIN` |
+
 ### GST Management Endpoints (`/api/gst` and `/api/v1/gst`)
 | HTTP Method | Endpoint | Description | Security / Role |
 |---|---|---|---|
@@ -163,12 +182,14 @@ chmod +x scripts/setup-db.sh
 - **`V4__employee_module_enhancement.sql`**: Employee contact details, names, manager hierarchy constraint, and indexes.
 - **`V5__client_module_enhancement.sql`**: Client 360 profile fields, tax numbers (PAN, GSTIN, TAN, CIN), assigned employee relationship, indexes, and `client_notes` table for communication history.
 - **`V6__gst_module.sql`**: GST Profiles & Registrations, GST Return Filings (GSTR-1, GSTR-3B, GSTR-9, CMP-08), and Monthly Summaries (Sales, Purchase, ITC, Tax Liability).
+- **`V7__itr_module.sql`**: ITR Profiles (PAN, Taxpayer Type, Default ITR Form) and ITR Return Filings (Assessment Year, Due Date, Status Workflow, ACK Number).
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **85 automated tests** covering unit, integration, and security layers:
+Taxoryn includes **96 automated tests** covering unit, integration, and security layers:
+- **ITR Compliance & Workload**: ITR client profile registration, return creation across AYs, 8-stage status workflow (`DOCUMENTS_PENDING` -> `COMPLETED`), e-filing ACK number tracking, upcoming/overdue queries, and Practice Workload Dashboard.
 - **GST Compliance & Workload**: GST profile registration, GSTR-1 & GSTR-3B lifecycle, ARN tracking, ITC/liability calculation, batch period generator, and workload dashboard.
 - **Client 360 & Constitution Types**: All 9 client types, statutory numbers, assigned practitioner, and contact hierarchy.
 - **Client 360-Degree Overview**: Aggregated single-screen overview covering tasks, compliance, documents, billing, and notes.
@@ -176,14 +197,10 @@ Taxoryn includes **85 automated tests** covering unit, integration, and security
 - **Employee CRUD & Workload Analytics**: Workload counts for assigned, pending, overdue, and completed tasks.
 - **Tenant Isolation**: Cross-tenant entity lookups strictly return 404 NOT FOUND.
 - **System Role Immutability**: System default roles cannot be altered or deleted.
-- **Search & Filtering**: Multi-field query search (name, email, code, phone) and filtering by department/status.
-- **Workload Analytics**: Accurate counts for assigned, pending, overdue, and completed tasks.
-- **Tenant Isolation**: Cross-tenant employee queries return 404 NOT FOUND.
-- **System Role Immutability**: System roles cannot be updated or deleted by tenant admins (HTTP 403 `FORBIDDEN`).
 
 ```bash
 mvn clean test
-# Results: Tests run: 66, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
+# Results: Tests run: 96, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
 ```
 
 ---
