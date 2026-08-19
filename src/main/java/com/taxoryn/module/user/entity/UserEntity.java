@@ -19,6 +19,7 @@ import lombok.Setter;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -43,6 +44,9 @@ public class UserEntity extends TenantAuditableEntity {
 
     @Column(name = "phone", length = 20)
     private String phone;
+
+    @Column(name = "client_id")
+    private UUID clientId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)

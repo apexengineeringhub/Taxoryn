@@ -238,6 +238,7 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getId(),
                 organization.getId(),
+                user.getClientId(),
                 user.getEmail(),
                 roleCodes,
                 permissionCodes
@@ -246,6 +247,7 @@ public class AuthServiceImpl implements AuthService {
         String refreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getId(),
                 organization.getId(),
+                user.getClientId(),
                 user.getEmail()
         );
 

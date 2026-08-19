@@ -84,8 +84,28 @@ chmod +x scripts/setup-db.sh
 | `ACCOUNTANT` | Staff Accountant | Prepares GST filings, invoices, receipts, and client data entry |
 | `EMPLOYEE` | Firm Employee / Staff | Executes assigned tasks, reviews documents, and views client work |
 | `VIEWER` | Read-Only Viewer | Read-only viewing permissions across all practice modules |
+| `CLIENT_ADMIN` | Client Administrator | Primary client contact with full access to client portal, documents, profile, and client users |
+| `CLIENT_USER` | Client Staff User | Client staff with access to view compliance status and upload documents |
 
 ---
+
+### Client Portal Endpoints (`/api/portal` and `/api/v1/portal`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `POST` | `/api/v1/portal/users` | Register client portal user linked to client record | `ORG_ADMIN` / `CLIENT_ADMIN` |
+| `GET` | `/api/v1/portal/dashboard` | **Client Compliance Dashboard** (overview, pending docs, tasks, practitioner info) | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/profile` | Client profile details | `CLIENT_PORTAL_PROFILE_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `PUT` | `/api/v1/portal/profile` | Update client contact & address | `CLIENT_PORTAL_PROFILE_UPDATE` / `CLIENT_ADMIN` |
+| `GET` | `/api/v1/portal/gst-status` | Client GST return filing statuses & ARNs | `CLIENT_PORTAL_STATUS_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/itr-status` | Client ITR filing statuses & ACK numbers | `CLIENT_PORTAL_STATUS_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/documents` | Client private document vault | `CLIENT_PORTAL_DOCUMENT_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/pending-documents` | Pending document requests checklist | `CLIENT_PORTAL_DOCUMENT_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `POST` | `/api/v1/portal/documents/upload` | Upload document to client vault & fulfill request | `CLIENT_PORTAL_DOCUMENT_UPLOAD` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/documents/{id}/download` | Download client's own document | `CLIENT_PORTAL_DOCUMENT_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/tasks` | Client-visible tasks and deliverables | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/notifications` | Client compliance alerts & notifications | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `PATCH` | `/api/v1/portal/notifications/{id}/read` | Mark notification as read | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `POST` | `/api/v1/portal/document-requests` | Consultant requests compliance document from client | `CLIENT_UPDATE` / `ORG_ADMIN` |
 
 ### Document Management Endpoints (`/api/documents` and `/api/v1/documents`)
 | HTTP Method | Endpoint | Description | Security / Role |
@@ -213,12 +233,14 @@ chmod +x scripts/setup-db.sh
 - **`V7__itr_module.sql`**: ITR Profiles (PAN, Taxpayer Type, Default ITR Form) and ITR Return Filings (Assessment Year, Due Date, Status Workflow, ACK Number).
 - **`V8__compliance_calendar_module.sql`**: Configurable Compliance Rule Engine (due day, offsets, frequencies, applicability) and Compliance Obligations with automated task creation and dashboard analytics.
 - **`V9__document_management_module.sql`**: Multi-tenant Document Vault (`documents` table) linked to Clients, GST filings, ITR returns, and Tasks with storage abstraction (Local/S3).
+- **`V10__client_portal_module.sql`**: Client Portal authentication (`users.client_id`), `CLIENT_ADMIN` / `CLIENT_USER` roles, `client_notifications`, and `client_document_requests` pending checklists.
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **111 automated tests** covering unit, integration, and security layers:
+Taxoryn includes **122 automated tests** covering unit, integration, and security layers:
+- **Client Portal & Security Isolation**: Scoped client login, JWT `clientId` claims, client compliance dashboard, GST/ITR tracking, pending document checklists, and strict security isolation preventing client users from accessing foreign clients, employees, org admin, internal notes, or internal tasks (403 Forbidden).
 - **Document Management & Storage Abstraction**: Pluggable storage architecture (`DocumentStorageService`, `LocalDocumentStorageService`, `S3DocumentStorageService`), multipart file upload, SHA-256 integrity hashing, stream downloads, metadata tagging, client vault, and cross-tenant file isolation.
 - **Compliance Calendar & Rule Engine**: Dynamic due date evaluation, custom & system rule configuration, batch obligation generator, scheduled background overdue processing, actionable task creation, and Executive Dashboard metrics (Due Today, Due This Week, Overdue, Completed, Type Breakdown).
 - **ITR Compliance & Workload**: ITR client profile registration, return creation across AYs, 8-stage status workflow (`DOCUMENTS_PENDING` -> `COMPLETED`), e-filing ACK number tracking, upcoming/overdue queries, and Practice Workload Dashboard.
@@ -232,7 +254,7 @@ Taxoryn includes **111 automated tests** covering unit, integration, and securit
 
 ```bash
 mvn clean test
-# Results: Tests run: 111, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
+# Results: Tests run: 122, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
 ```
 
 ---

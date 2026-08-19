@@ -40,6 +40,19 @@ public final class SecurityUtils {
         return requireCurrentUser().getOrganizationId();
     }
 
+    public static Optional<UUID> getCurrentClientId() {
+        return getCurrentUser().map(SecurityUser::getClientId);
+    }
+
+    public static UUID requireCurrentClientId() {
+        return getCurrentClientId().orElseThrow(() ->
+                new UnauthorizedException("Authenticated user is not linked to any client record"));
+    }
+
+    public static boolean isClientPortalUser() {
+        return hasRole("CLIENT_ADMIN") || hasRole("CLIENT_USER") || getCurrentClientId().isPresent();
+    }
+
     public static boolean hasRole(String role) {
         return getCurrentUser()
                 .map(user -> user.getRoles().contains(role) || user.getRoles().contains("ROLE_" + role))

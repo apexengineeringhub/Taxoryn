@@ -18,6 +18,7 @@ public class SecurityUser implements UserDetails {
 
     private final UUID userId;
     private final UUID organizationId;
+    private final UUID clientId;
     private final String email;
     private final String password;
     private final boolean enabled;

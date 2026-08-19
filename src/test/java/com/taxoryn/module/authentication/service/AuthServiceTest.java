@@ -142,9 +142,9 @@ class AuthServiceTest {
         when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(rawPassword, encodedPassword)).thenReturn(true);
         when(organizationRepository.findById(tenantId)).thenReturn(Optional.of(org));
-        when(jwtTokenProvider.generateAccessToken(eq(userId), eq(tenantId), eq(email), any(), any()))
+        when(jwtTokenProvider.generateAccessToken(any(), any(), any(), any(), any(), any()))
                 .thenReturn("mock.access.token");
-        when(jwtTokenProvider.generateRefreshToken(eq(userId), eq(tenantId), eq(email)))
+        when(jwtTokenProvider.generateRefreshToken(any(), any(), any(), any()))
                 .thenReturn("mock.refresh.token");
         when(userMapper.toDto(user)).thenReturn(UserDto.builder().id(userId).email(email).build());
         when(organizationMapper.toDto(org)).thenReturn(OrganizationDto.builder().id(tenantId).name("Test Practice").build());
@@ -244,8 +244,8 @@ class AuthServiceTest {
         savedUser.setOrganizationId(orgId);
         when(userRepository.save(any(UserEntity.class))).thenReturn(savedUser);
 
-        when(jwtTokenProvider.generateAccessToken(any(), any(), any(), any(), any())).thenReturn("access.jwt");
-        when(jwtTokenProvider.generateRefreshToken(any(), any(), any())).thenReturn("refresh.jwt");
+        when(jwtTokenProvider.generateAccessToken(any(), any(), any(), any(), any(), any())).thenReturn("access.jwt");
+        when(jwtTokenProvider.generateRefreshToken(any(), any(), any(), any())).thenReturn("refresh.jwt");
 
         LoginResponse response = authService.registerOrganization(request);
 

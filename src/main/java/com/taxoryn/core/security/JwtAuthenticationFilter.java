@@ -41,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 UUID userId = tokenProvider.getUserIdFromToken(jwt);
                 UUID organizationId = tokenProvider.getOrganizationIdFromToken(jwt);
+                UUID clientId = tokenProvider.getClientIdFromToken(jwt);
                 String email = tokenProvider.getEmailFromToken(jwt);
                 Set<String> roles = tokenProvider.getRolesFromToken(jwt);
                 Set<String> permissions = tokenProvider.getPermissionsFromToken(jwt);
@@ -48,6 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityUser principal = SecurityUser.builder()
                         .userId(userId)
                         .organizationId(organizationId)
+                        .clientId(clientId)
                         .email(email)
                         .roles(roles)
                         .permissions(permissions)

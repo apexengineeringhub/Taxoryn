@@ -51,14 +51,22 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(UUID userId, UUID organizationId, String email, Set<String> roles, Set<String> permissions) {
-        return buildToken(userId, organizationId, email, roles, permissions, jwtExpirationMs, "ACCESS");
+        return generateAccessToken(userId, organizationId, null, email, roles, permissions);
+    }
+
+    public String generateAccessToken(UUID userId, UUID organizationId, UUID clientId, String email, Set<String> roles, Set<String> permissions) {
+        return buildToken(userId, organizationId, clientId, email, roles, permissions, jwtExpirationMs, "ACCESS");
     }
 
     public String generateRefreshToken(UUID userId, UUID organizationId, String email) {
-        return buildToken(userId, organizationId, email, Set.of(), Set.of(), jwtRefreshExpirationMs, "REFRESH");
+        return generateRefreshToken(userId, organizationId, null, email);
     }
 
-    private String buildToken(UUID userId, UUID organizationId, String email, Set<String> roles, Set<String> permissions, long expirationMs, String tokenType) {
+    public String generateRefreshToken(UUID userId, UUID organizationId, UUID clientId, String email) {
+        return buildToken(userId, organizationId, clientId, email, Set.of(), Set.of(), jwtRefreshExpirationMs, "REFRESH");
+    }
+
+    private String buildToken(UUID userId, UUID organizationId, UUID clientId, String email, Set<String> roles, Set<String> permissions, long expirationMs, String tokenType) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expirationMs);
         String jti = UUID.randomUUID().toString();
@@ -66,6 +74,9 @@ public class JwtTokenProvider {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId.toString());
         claims.put("organizationId", organizationId.toString());
+        if (clientId != null) {
+            claims.put("clientId", clientId.toString());
+        }
         claims.put("email", email);
         claims.put("roles", roles);
         claims.put("permissions", permissions);
@@ -107,6 +118,12 @@ public class JwtTokenProvider {
         Claims claims = getClaimsFromToken(token);
         String orgId = claims.get("organizationId", String.class);
         return orgId != null ? UUID.fromString(orgId) : null;
+    }
+
+    public UUID getClientIdFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        String clientId = claims.get("clientId", String.class);
+        return clientId != null ? UUID.fromString(clientId) : null;
     }
 
     public String getEmailFromToken(String token) {
