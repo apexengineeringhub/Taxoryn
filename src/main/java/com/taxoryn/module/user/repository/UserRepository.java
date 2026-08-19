@@ -21,4 +21,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Page<UserEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
 
     boolean existsByOrganizationIdAndEmailIgnoreCase(UUID organizationId, String email);
+
+    long countByOrganizationId(UUID organizationId);
+
+    long countByOrganizationIdAndClientIdIsNull(UUID organizationId);
 }

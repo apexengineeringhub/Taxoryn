@@ -87,6 +87,7 @@ public class OrganizationEntity extends AuditableEntity {
     public enum SubscriptionPlan {
         STARTER,
         PROFESSIONAL,
+        BUSINESS,
         ENTERPRISE
     }
 }

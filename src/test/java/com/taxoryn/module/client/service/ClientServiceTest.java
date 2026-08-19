@@ -71,6 +71,9 @@ class ClientServiceTest {
     @Mock
     private TaskMapper taskMapper;
 
+    @Mock
+    private com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
+
     @InjectMocks
     private ClientServiceImpl clientService;
 

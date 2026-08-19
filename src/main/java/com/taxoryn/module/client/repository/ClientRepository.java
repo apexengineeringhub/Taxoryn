@@ -24,4 +24,6 @@ public interface ClientRepository extends JpaRepository<ClientEntity, UUID>, Jpa
     java.util.List<ClientEntity> findAllByOrganizationId(UUID organizationId);
 
     java.util.List<ClientEntity> findAllByOrganizationIdAndStatus(UUID organizationId, ClientEntity.ClientStatus status);
+
+    long countByOrganizationId(UUID organizationId);
 }

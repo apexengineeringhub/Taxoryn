@@ -56,6 +56,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
     private final OrganizationMapper organizationMapper;
+    private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
 
     @Value("${taxoryn.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
@@ -140,6 +141,9 @@ public class AuthServiceImpl implements AuthService {
         UserEntity savedUser = userRepository.save(adminUser);
         log.info("Created initial admin user: id={}, email={} for tenant={}", savedUser.getId(), savedUser.getEmail(), savedOrg.getId());
 
+        // 4. Create Initial STARTER SaaS Subscription
+        subscriptionService.createInitialSubscription(savedOrg.getId(), com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.STARTER);
+
         return createAuthResponse(savedUser, savedOrg);
     }
 
@@ -147,6 +151,10 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public UserDto registerUserByAdmin(RegisterUserByAdminRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        // Check MAX_USERS Subscription Limit
+        subscriptionService.checkUserLimit(organizationId);
+
         String email = request.getEmail().toLowerCase().trim();
 
         if (userRepository.findByEmailIgnoreCase(email).isPresent()) {

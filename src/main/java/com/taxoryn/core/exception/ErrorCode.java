@@ -11,6 +11,7 @@ public enum ErrorCode {
     INVALID_JSON(HttpStatus.BAD_REQUEST, "INVALID_JSON", "Malformed JSON request body"),
     INVALID_ARGUMENT(HttpStatus.BAD_REQUEST, "INVALID_ARGUMENT", "Invalid argument provided"),
     INVALID_PAGINATION(HttpStatus.BAD_REQUEST, "INVALID_PAGINATION", "Invalid pagination or sorting parameters"),
+    SUBSCRIPTION_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "SUBSCRIPTION_LIMIT_EXCEEDED", "Subscription limit exceeded for the active plan"),
 
     // 401 Unauthorized
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Full authentication is required to access this resource"),

@@ -76,6 +76,9 @@ class AuthServiceTest {
     @Mock
     private OrganizationMapper organizationMapper;
 
+    @Mock
+    private com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
+
     @InjectMocks
     private AuthServiceImpl authService;
 

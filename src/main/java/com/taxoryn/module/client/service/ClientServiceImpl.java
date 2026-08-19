@@ -55,6 +55,7 @@ public class ClientServiceImpl implements ClientService {
     private final ClientNoteRepository clientNoteRepository;
     private final EmployeeRepository employeeRepository;
     private final TaskRepository taskRepository;
+    private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
 
@@ -62,6 +63,9 @@ public class ClientServiceImpl implements ClientService {
     @Transactional
     public ClientDto createClient(CreateClientRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        // Check MAX_CLIENTS Subscription Limit
+        subscriptionService.checkClientLimit(organizationId);
 
         if (StringUtils.hasText(request.getPan())
                 && clientRepository.existsByOrganizationIdAndPan(organizationId, request.getPan().toUpperCase().trim())) {

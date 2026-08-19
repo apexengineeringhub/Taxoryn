@@ -44,6 +44,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentStorageService storageService;
     private final ClientRepository clientRepository;
+    private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final DocumentMapper documentMapper;
 
     @Override
@@ -54,6 +55,9 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        // Check MAX_STORAGE Subscription Limit
+        subscriptionService.checkStorageLimit(organizationId, file.getSize());
 
         if (request.getClientId() != null) {
             clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)

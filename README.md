@@ -120,6 +120,16 @@ chmod +x scripts/setup-db.sh
 | `GET` | `/api/v1/billing/clients/{clientId}/history` | **Client Billing History & Outstanding Summary** (total billed, total paid, balance, invoices) | `BILLING_VIEW` / `ORG_ADMIN` |
 | `GET` | `/api/v1/billing/dashboard/stats` | **Billing Executive Dashboard** (Total Billed, Total Collected, Total Outstanding, Service Breakdown) | `BILLING_VIEW` / `ORG_ADMIN` |
 
+### SaaS Subscription & Tier Management Endpoints (`/api/subscriptions` and `/api/v1/subscriptions`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `GET` | `/api/v1/subscriptions/current` | Get active subscription tier, renewal date, limits, and pricing | `ORGANIZATION_VIEW` / `ORG_ADMIN` / `SUPER_ADMIN` |
+| `GET` | `/api/v1/subscriptions/usage` | **Real-Time Quota Usage** (`MAX_USERS`, `MAX_CLIENTS`, `MAX_STORAGE` usage % and threshold flags) | `ORGANIZATION_VIEW` / `ORG_ADMIN` / `SUPER_ADMIN` |
+| `GET` | `/api/v1/subscriptions/plans` | Public catalog of all subscription tiers (`STARTER`, `PROFESSIONAL`, `BUSINESS`, `ENTERPRISE`) | Public / PermitAll |
+| `POST` | `/api/v1/subscriptions/change-plan` | Upgrade / downgrade subscription plan tier & update limits | `ORGANIZATION_UPDATE` / `ORG_ADMIN` / `SUPER_ADMIN` |
+| `POST` | `/api/v1/subscriptions/cancel` | Cancel subscription & disable auto-renewal | `ORGANIZATION_UPDATE` / `ORG_ADMIN` / `SUPER_ADMIN` |
+| `POST` | `/api/v1/subscriptions/renew` | Renew subscription & extend renewal period | `ORGANIZATION_UPDATE` / `ORG_ADMIN` / `SUPER_ADMIN` |
+
 ### Document Management Endpoints (`/api/documents` and `/api/v1/documents`)
 | HTTP Method | Endpoint | Description | Security / Role |
 |---|---|---|---|
@@ -248,12 +258,14 @@ chmod +x scripts/setup-db.sh
 - **`V9__document_management_module.sql`**: Multi-tenant Document Vault (`documents` table) linked to Clients, GST filings, ITR returns, and Tasks with storage abstraction (Local/S3).
 - **`V10__client_portal_module.sql`**: Client Portal authentication (`users.client_id`), `CLIENT_ADMIN` / `CLIENT_USER` roles, `client_notifications`, and `client_document_requests` pending checklists.
 - **`V11__billing_module.sql`**: Client Invoicing & Billing (`invoices`, `invoice_items`, `invoice_payments`) with multi-service pricing, partial payment receipts, and balance due tracking.
+- **`V12__saas_subscription_module.sql`**: SaaS Subscription Management (`subscriptions` table) with multi-tier plan definitions (`STARTER`, `PROFESSIONAL`, `BUSINESS`, `ENTERPRISE`), auto-renewal, and resource quota enforcement (`MAX_USERS`, `MAX_CLIENTS`, `MAX_STORAGE`).
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **131 automated tests** covering unit, integration, and security layers:
+Taxoryn includes **143 automated tests** covering unit, integration, and security layers:
+- **SaaS Subscription & Quota Enforcement**: Tier definitions (`STARTER`, `PROFESSIONAL`, `BUSINESS`, `ENTERPRISE`), subscription lifecycle (get active, usage metrics, upgrade/downgrade, renewal, cancellation), and hard quota limit enforcement for `MAX_USERS`, `MAX_CLIENTS`, and `MAX_STORAGE` returning `400 SUBSCRIPTION_LIMIT_EXCEEDED`.
 - **Client Billing & Payment Receipts**: Multi-service professional line items (GST, ITR, TDS, Accounting, Consulting), auto-calculated 18% GST tax, subtotal & total, invoice issuing (`DRAFT` -> `ISSUED`), partial & full payment receipts, automatic balance due settlement (`PARTIALLY_PAID` / `PAID`), client billing history ledger, practice billing dashboard KPIs, and cross-tenant billing isolation.
 - **Client Portal & Security Isolation**: Scoped client login, JWT `clientId` claims, client compliance dashboard, GST/ITR tracking, pending document checklists, and strict security isolation preventing client users from accessing foreign clients, employees, org admin, internal notes, or internal tasks (403 Forbidden).
 - **Document Management & Storage Abstraction**: Pluggable storage architecture (`DocumentStorageService`, `LocalDocumentStorageService`, `S3DocumentStorageService`), multipart file upload, SHA-256 integrity hashing, stream downloads, metadata tagging, client vault, and cross-tenant file isolation.
@@ -269,7 +281,7 @@ Taxoryn includes **131 automated tests** covering unit, integration, and securit
 
 ```bash
 mvn clean test
-# Results: Tests run: 131, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
+# Results: Tests run: 143, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
 ```
 
 ---

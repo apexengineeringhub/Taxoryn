@@ -54,6 +54,9 @@ class DocumentServiceTest {
     @Mock
     private DocumentMapper documentMapper;
 
+    @Mock
+    private com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
+
     @InjectMocks
     private DocumentServiceImpl documentService;
 
