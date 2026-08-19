@@ -102,10 +102,23 @@ chmod +x scripts/setup-db.sh
 | `GET` | `/api/v1/portal/pending-documents` | Pending document requests checklist | `CLIENT_PORTAL_DOCUMENT_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
 | `POST` | `/api/v1/portal/documents/upload` | Upload document to client vault & fulfill request | `CLIENT_PORTAL_DOCUMENT_UPLOAD` / `CLIENT_ADMIN` / `CLIENT_USER` |
 | `GET` | `/api/v1/portal/documents/{id}/download` | Download client's own document | `CLIENT_PORTAL_DOCUMENT_VIEW` / `CLIENT_ADMIN` / `CLIENT_USER` |
-| `GET` | `/api/v1/portal/tasks` | Client-visible tasks and deliverables | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
-| `GET` | `/api/v1/portal/notifications` | Client compliance alerts & notifications | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
-| `PATCH` | `/api/v1/portal/notifications/{id}/read` | Mark notification as read | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
 | `POST` | `/api/v1/portal/document-requests` | Consultant requests compliance document from client | `CLIENT_UPDATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/portal/invoices` | Client views issued invoices and payment receipts | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
+| `GET` | `/api/v1/portal/invoices/{id}` | Client views full invoice details and line items | `CLIENT_PORTAL_ACCESS` / `CLIENT_ADMIN` / `CLIENT_USER` |
+
+### Client Billing & Invoicing Endpoints (`/api/invoices`, `/api/v1/invoices`, `/api/v1/billing`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `POST` | `/api/v1/invoices` | Create professional invoice with multi-service line items (GST, ITR, TDS, Accounting, Consulting) | `BILLING_CREATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/invoices` | List & filter invoices with pagination (status, client, date range) | `BILLING_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/invoices/{id}` | Get invoice details, line items, and payment receipts | `BILLING_VIEW` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/invoices/{id}` | Update draft invoice (line items, pricing, due date) | `BILLING_UPDATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/invoices/{id}/issue` | Issue invoice to client and transition from DRAFT to ISSUED | `BILLING_UPDATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/invoices/{id}/cancel` | Cancel invoice | `BILLING_UPDATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/invoices/{id}/payments` | **Record Payment Receipt** (auto-updates balance due & status to `PAID` / `PARTIALLY_PAID`) | `BILLING_CREATE` / `BILLING_UPDATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/invoices/{id}/payments` | List payment receipts for invoice | `BILLING_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/billing/clients/{clientId}/history` | **Client Billing History & Outstanding Summary** (total billed, total paid, balance, invoices) | `BILLING_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/billing/dashboard/stats` | **Billing Executive Dashboard** (Total Billed, Total Collected, Total Outstanding, Service Breakdown) | `BILLING_VIEW` / `ORG_ADMIN` |
 
 ### Document Management Endpoints (`/api/documents` and `/api/v1/documents`)
 | HTTP Method | Endpoint | Description | Security / Role |
@@ -234,12 +247,14 @@ chmod +x scripts/setup-db.sh
 - **`V8__compliance_calendar_module.sql`**: Configurable Compliance Rule Engine (due day, offsets, frequencies, applicability) and Compliance Obligations with automated task creation and dashboard analytics.
 - **`V9__document_management_module.sql`**: Multi-tenant Document Vault (`documents` table) linked to Clients, GST filings, ITR returns, and Tasks with storage abstraction (Local/S3).
 - **`V10__client_portal_module.sql`**: Client Portal authentication (`users.client_id`), `CLIENT_ADMIN` / `CLIENT_USER` roles, `client_notifications`, and `client_document_requests` pending checklists.
+- **`V11__billing_module.sql`**: Client Invoicing & Billing (`invoices`, `invoice_items`, `invoice_payments`) with multi-service pricing, partial payment receipts, and balance due tracking.
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **122 automated tests** covering unit, integration, and security layers:
+Taxoryn includes **131 automated tests** covering unit, integration, and security layers:
+- **Client Billing & Payment Receipts**: Multi-service professional line items (GST, ITR, TDS, Accounting, Consulting), auto-calculated 18% GST tax, subtotal & total, invoice issuing (`DRAFT` -> `ISSUED`), partial & full payment receipts, automatic balance due settlement (`PARTIALLY_PAID` / `PAID`), client billing history ledger, practice billing dashboard KPIs, and cross-tenant billing isolation.
 - **Client Portal & Security Isolation**: Scoped client login, JWT `clientId` claims, client compliance dashboard, GST/ITR tracking, pending document checklists, and strict security isolation preventing client users from accessing foreign clients, employees, org admin, internal notes, or internal tasks (403 Forbidden).
 - **Document Management & Storage Abstraction**: Pluggable storage architecture (`DocumentStorageService`, `LocalDocumentStorageService`, `S3DocumentStorageService`), multipart file upload, SHA-256 integrity hashing, stream downloads, metadata tagging, client vault, and cross-tenant file isolation.
 - **Compliance Calendar & Rule Engine**: Dynamic due date evaluation, custom & system rule configuration, batch obligation generator, scheduled background overdue processing, actionable task creation, and Executive Dashboard metrics (Due Today, Due This Week, Overdue, Completed, Type Breakdown).
@@ -254,7 +269,7 @@ Taxoryn includes **122 automated tests** covering unit, integration, and securit
 
 ```bash
 mvn clean test
-# Results: Tests run: 122, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
+# Results: Tests run: 131, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
 ```
 
 ---

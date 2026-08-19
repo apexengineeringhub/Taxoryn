@@ -48,4 +48,8 @@ public interface ClientPortalService {
     void markNotificationRead(UUID notificationId);
 
     ClientDocumentRequestDto requestDocumentFromClient(CreateClientDocumentRequest request);
+
+    List<com.taxoryn.module.billing.dto.InvoiceDto> getClientInvoices();
+
+    com.taxoryn.module.billing.dto.InvoiceDto getClientInvoiceById(UUID invoiceId);
 }

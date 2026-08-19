@@ -77,6 +77,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final TaskRepository taskRepository;
     private final ClientNotificationRepository notificationRepository;
     private final ClientDocumentRequestRepository docRequestRepository;
+    private final com.taxoryn.module.billing.repository.InvoiceRepository invoiceRepository;
+    private final com.taxoryn.module.billing.mapper.InvoiceMapper invoiceMapper;
     private final ClientPortalMapper mapper;
 
     @Override
@@ -175,6 +177,29 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         List<ClientNotificationDto> notifications = mapper.toNotificationDtoList(
                 notificationRepository.findTop10ByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId));
 
+        // Billing & Invoices
+        List<com.taxoryn.module.billing.entity.InvoiceEntity> clientInvoices = invoiceRepository.findAllByOrganizationIdAndClientIdOrderByInvoiceDateDesc(organizationId, clientId);
+        java.math.BigDecimal outstanding = java.math.BigDecimal.ZERO;
+        long unpaidCount = 0;
+        for (com.taxoryn.module.billing.entity.InvoiceEntity inv : clientInvoices) {
+            if (inv.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.DRAFT && inv.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.CANCELLED) {
+                outstanding = outstanding.add(inv.getBalanceDue());
+                if (inv.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.PAID) {
+                    unpaidCount++;
+                }
+            }
+        }
+        List<com.taxoryn.module.billing.dto.InvoiceDto> latestInvoices = clientInvoices.stream()
+                .filter(inv -> inv.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.DRAFT)
+                .limit(5)
+                .map(inv -> {
+                    com.taxoryn.module.billing.dto.InvoiceDto dto = invoiceMapper.toDto(inv);
+                    dto.setClientName(client.getDisplayName());
+                    dto.setClientGstin(client.getGstin());
+                    dto.setClientPan(client.getPan());
+                    return dto;
+                }).toList();
+
         return ClientPortalDashboardDto.builder()
                 .clientId(client.getId())
                 .displayName(client.getDisplayName())
@@ -190,11 +215,14 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .pendingTasksCount(pendingTasks)
                 .activeGstReturnsCount(gstList.size())
                 .activeItrReturnsCount(itrList.size())
+                .unpaidInvoicesCount(unpaidCount)
+                .outstandingBalance(outstanding)
                 .latestGstFilings(gstList)
                 .latestItrReturns(itrList)
                 .pendingDocumentRequests(docRequests)
                 .pendingTasks(clientTasks)
                 .recentNotifications(notifications)
+                .latestInvoices(latestInvoices)
                 .build();
     }
 
@@ -395,6 +423,59 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 NotificationType.DOCUMENT_REQUESTED);
 
         return mapper.toDocRequestDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.billing.dto.InvoiceDto> getClientInvoices() {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        return invoiceRepository.findAllByOrganizationIdAndClientIdOrderByInvoiceDateDesc(organizationId, clientId).stream()
+                .filter(inv -> inv.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.DRAFT)
+                .map(inv -> {
+                    com.taxoryn.module.billing.dto.InvoiceDto dto = invoiceMapper.toDto(inv);
+                    dto.setClientName(client.getDisplayName());
+                    dto.setClientGstin(client.getGstin());
+                    dto.setClientPan(client.getPan());
+                    if (inv.getItems() != null) {
+                        dto.setItems(invoiceMapper.toItemDtoList(inv.getItems()));
+                    }
+                    if (inv.getPayments() != null) {
+                        dto.setPayments(invoiceMapper.toPaymentDtoList(inv.getPayments()));
+                    }
+                    return dto;
+                }).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.billing.dto.InvoiceDto getClientInvoiceById(UUID invoiceId) {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        com.taxoryn.module.billing.entity.InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(invoiceId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", invoiceId));
+
+        if (!Objects.equals(invoice.getClientId(), clientId)) {
+            throw new ForbiddenException("Access denied: You can only view invoices issued to your account");
+        }
+
+        com.taxoryn.module.billing.dto.InvoiceDto dto = invoiceMapper.toDto(invoice);
+        dto.setClientName(client.getDisplayName());
+        dto.setClientGstin(client.getGstin());
+        dto.setClientPan(client.getPan());
+        if (invoice.getItems() != null) {
+            dto.setItems(invoiceMapper.toItemDtoList(invoice.getItems()));
+        }
+        if (invoice.getPayments() != null) {
+            dto.setPayments(invoiceMapper.toPaymentDtoList(invoice.getPayments()));
+        }
+        return dto;
     }
 
     // =========================================================================

@@ -190,7 +190,27 @@ public class ClientPortalController {
     }
 
     // =========================================================================
-    // 6. Firm Practitioner Actions for Client
+    // 6. Client Billing & Invoices
+    // =========================================================================
+
+    @GetMapping("/invoices")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Client invoices", description = "Retrieves all issued invoices and payment receipts for the authenticated client.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.billing.dto.InvoiceDto>>> getClientInvoices() {
+        List<com.taxoryn.module.billing.dto.InvoiceDto> invoices = clientPortalService.getClientInvoices();
+        return ResponseEntity.ok(ApiResponse.success("Invoices retrieved successfully", invoices));
+    }
+
+    @GetMapping("/invoices/{id}")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Get client invoice detail", description = "Retrieves invoice details, line items, and payment receipts for the authenticated client.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.billing.dto.InvoiceDto>> getClientInvoiceById(@PathVariable UUID id) {
+        com.taxoryn.module.billing.dto.InvoiceDto invoice = clientPortalService.getClientInvoiceById(id);
+        return ResponseEntity.ok(ApiResponse.success("Invoice retrieved successfully", invoice));
+    }
+
+    // =========================================================================
+    // 7. Firm Practitioner Actions for Client
     // =========================================================================
 
     @PostMapping("/document-requests")

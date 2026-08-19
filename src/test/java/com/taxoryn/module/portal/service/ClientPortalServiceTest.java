@@ -80,6 +80,10 @@ class ClientPortalServiceTest {
     @Mock
     private ClientDocumentRequestRepository docRequestRepository;
     @Mock
+    private com.taxoryn.module.billing.repository.InvoiceRepository invoiceRepository;
+    @Mock
+    private com.taxoryn.module.billing.mapper.InvoiceMapper invoiceMapper;
+    @Mock
     private ClientPortalMapper mapper;
 
     @InjectMocks

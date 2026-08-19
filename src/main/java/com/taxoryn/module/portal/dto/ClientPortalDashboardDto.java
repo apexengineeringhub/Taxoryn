@@ -33,10 +33,13 @@ public class ClientPortalDashboardDto {
     private long pendingTasksCount;
     private long activeGstReturnsCount;
     private long activeItrReturnsCount;
+    private long unpaidInvoicesCount;
+    private java.math.BigDecimal outstandingBalance;
 
     private List<ClientGstStatusDto> latestGstFilings;
     private List<ClientItrStatusDto> latestItrReturns;
     private List<ClientDocumentRequestDto> pendingDocumentRequests;
     private List<ClientTaskDto> pendingTasks;
     private List<ClientNotificationDto> recentNotifications;
+    private List<com.taxoryn.module.billing.dto.InvoiceDto> latestInvoices;
 }
