@@ -28,6 +28,10 @@ public final class SecurityUtils {
         return requireCurrentUser().getUserId();
     }
 
+    public static String getCurrentUserEmail() {
+        return requireCurrentUser().getEmail();
+    }
+
     public static UUID getCurrentOrganizationId() {
         UUID tenantId = TenantContext.getTenantId();
         if (tenantId != null) {

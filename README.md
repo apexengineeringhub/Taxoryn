@@ -87,6 +87,23 @@ chmod +x scripts/setup-db.sh
 
 ---
 
+### Compliance Calendar Endpoints (`/api/compliance` and `/api/v1/compliance`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `GET` | `/api/v1/compliance/calendar` | List & filter calendar compliance obligations with pagination | `TASK_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/compliance/upcoming` | List upcoming compliance obligations (next N days) | `TASK_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/compliance/overdue` | List overdue compliance obligations | `TASK_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/compliance/today` | List compliance obligations due today | `TASK_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/compliance/dashboard/stats` | **Compliance Executive Dashboard Metrics** (Due Today, Due This Week, Overdue, Completed, Type Breakdown) | `TASK_VIEW` / `ORG_ADMIN` |
+| `POST` | `/api/v1/compliance/obligations` | Create custom compliance obligation | `TASK_CREATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/compliance/obligations/{id}` | Get compliance obligation details | `TASK_VIEW` / `ORG_ADMIN` |
+| `PATCH` | `/api/v1/compliance/obligations/{id}/status` | Update obligation status (`COMPLETED`, `IN_PROGRESS`, etc.) | `TASK_UPDATE` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/compliance/obligations/{id}/assigned-employee` | Assign / Reassign practitioner to obligation | `TASK_ASSIGN` / `ORG_ADMIN` |
+| `POST` | `/api/v1/compliance/obligations/{id}/create-task` | Convert/link compliance obligation to actionable Task | `TASK_CREATE` / `ORG_ADMIN` |
+| `POST` | `/api/v1/compliance/generate` | Batch generate compliance obligations from rules for period | `TASK_CREATE` / `ORG_ADMIN` |
+| `GET` | `/api/v1/compliance/rules` | List active configurable compliance rules | `TASK_VIEW` / `ORG_ADMIN` |
+| `POST` | `/api/v1/compliance/rules` | Create custom configurable compliance rule | `ORG_ADMIN` / `SUPER_ADMIN` |
+
 ### ITR Management Endpoints (`/api/itr` and `/api/v1/itr`)
 | HTTP Method | Endpoint | Description | Security / Role |
 |---|---|---|---|
@@ -183,12 +200,14 @@ chmod +x scripts/setup-db.sh
 - **`V5__client_module_enhancement.sql`**: Client 360 profile fields, tax numbers (PAN, GSTIN, TAN, CIN), assigned employee relationship, indexes, and `client_notes` table for communication history.
 - **`V6__gst_module.sql`**: GST Profiles & Registrations, GST Return Filings (GSTR-1, GSTR-3B, GSTR-9, CMP-08), and Monthly Summaries (Sales, Purchase, ITC, Tax Liability).
 - **`V7__itr_module.sql`**: ITR Profiles (PAN, Taxpayer Type, Default ITR Form) and ITR Return Filings (Assessment Year, Due Date, Status Workflow, ACK Number).
+- **`V8__compliance_calendar_module.sql`**: Configurable Compliance Rule Engine (due day, offsets, frequencies, applicability) and Compliance Obligations with automated task creation and dashboard analytics.
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **96 automated tests** covering unit, integration, and security layers:
+Taxoryn includes **105 automated tests** covering unit, integration, and security layers:
+- **Compliance Calendar & Rule Engine**: Dynamic due date evaluation, custom & system rule configuration, batch obligation generator, scheduled background overdue processing, actionable task creation, and Executive Dashboard metrics (Due Today, Due This Week, Overdue, Completed, Type Breakdown).
 - **ITR Compliance & Workload**: ITR client profile registration, return creation across AYs, 8-stage status workflow (`DOCUMENTS_PENDING` -> `COMPLETED`), e-filing ACK number tracking, upcoming/overdue queries, and Practice Workload Dashboard.
 - **GST Compliance & Workload**: GST profile registration, GSTR-1 & GSTR-3B lifecycle, ARN tracking, ITC/liability calculation, batch period generator, and workload dashboard.
 - **Client 360 & Constitution Types**: All 9 client types, statutory numbers, assigned practitioner, and contact hierarchy.
@@ -200,7 +219,7 @@ Taxoryn includes **96 automated tests** covering unit, integration, and security
 
 ```bash
 mvn clean test
-# Results: Tests run: 96, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
+# Results: Tests run: 105, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
 ```
 
 ---

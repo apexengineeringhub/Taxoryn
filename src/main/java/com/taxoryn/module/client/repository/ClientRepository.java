@@ -20,4 +20,8 @@ public interface ClientRepository extends JpaRepository<ClientEntity, UUID>, Jpa
     boolean existsByOrganizationIdAndGstin(UUID organizationId, String gstin);
 
     Page<ClientEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
+
+    java.util.List<ClientEntity> findAllByOrganizationId(UUID organizationId);
+
+    java.util.List<ClientEntity> findAllByOrganizationIdAndStatus(UUID organizationId, ClientEntity.ClientStatus status);
 }

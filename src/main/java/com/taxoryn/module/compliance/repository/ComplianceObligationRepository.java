@@ -1,0 +1,35 @@
+package com.taxoryn.module.compliance.repository;
+
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.ComplianceStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface ComplianceObligationRepository extends JpaRepository<ComplianceObligationEntity, UUID>, JpaSpecificationExecutor<ComplianceObligationEntity> {
+
+    Optional<ComplianceObligationEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
+    Optional<ComplianceObligationEntity> findByOrganizationIdAndClientIdAndPeriodAndRuleId(
+            UUID organizationId, UUID clientId, String period, UUID ruleId);
+
+    boolean existsByOrganizationIdAndClientIdAndPeriodAndRuleId(
+            UUID organizationId, UUID clientId, String period, UUID ruleId);
+
+    List<ComplianceObligationEntity> findAllByOrganizationIdAndDueDateBetween(
+            UUID organizationId, LocalDate startDate, LocalDate endDate);
+
+    List<ComplianceObligationEntity> findAllByOrganizationIdAndDueDate(
+            UUID organizationId, LocalDate dueDate);
+
+    List<ComplianceObligationEntity> findAllByOrganizationIdAndStatus(
+            UUID organizationId, ComplianceStatus status);
+
+    long countByOrganizationIdAndStatus(UUID organizationId, ComplianceStatus status);
+}
