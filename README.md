@@ -87,6 +87,17 @@ chmod +x scripts/setup-db.sh
 
 ---
 
+### Document Management Endpoints (`/api/documents` and `/api/v1/documents`)
+| HTTP Method | Endpoint | Description | Security / Role |
+|---|---|---|---|
+| `POST` | `/api/v1/documents/upload` | Multipart file upload with metadata (Client, GST, ITR, Task) | `DOCUMENT_UPLOAD` / `ORG_ADMIN` |
+| `GET` | `/api/v1/documents/{id}/download` | Stream binary document file with MIME headers | `DOCUMENT_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/documents/{id}` | Get document metadata by ID | `DOCUMENT_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/documents` | List & filter documents with pagination | `DOCUMENT_VIEW` / `ORG_ADMIN` |
+| `GET` | `/api/v1/documents/clients/{clientId}` | **Client Document Vault** (all active client files) | `DOCUMENT_VIEW` / `ORG_ADMIN` |
+| `PUT` | `/api/v1/documents/{id}` | Update document metadata, tags, and notes | `DOCUMENT_UPLOAD` / `ORG_ADMIN` |
+| `DELETE` | `/api/v1/documents/{id}` | Delete document and purge from storage | `DOCUMENT_DELETE` / `ORG_ADMIN` |
+
 ### Compliance Calendar Endpoints (`/api/compliance` and `/api/v1/compliance`)
 | HTTP Method | Endpoint | Description | Security / Role |
 |---|---|---|---|
@@ -201,12 +212,14 @@ chmod +x scripts/setup-db.sh
 - **`V6__gst_module.sql`**: GST Profiles & Registrations, GST Return Filings (GSTR-1, GSTR-3B, GSTR-9, CMP-08), and Monthly Summaries (Sales, Purchase, ITC, Tax Liability).
 - **`V7__itr_module.sql`**: ITR Profiles (PAN, Taxpayer Type, Default ITR Form) and ITR Return Filings (Assessment Year, Due Date, Status Workflow, ACK Number).
 - **`V8__compliance_calendar_module.sql`**: Configurable Compliance Rule Engine (due day, offsets, frequencies, applicability) and Compliance Obligations with automated task creation and dashboard analytics.
+- **`V9__document_management_module.sql`**: Multi-tenant Document Vault (`documents` table) linked to Clients, GST filings, ITR returns, and Tasks with storage abstraction (Local/S3).
 
 ---
 
 ## 🧪 Verification & Testing Suite
 
-Taxoryn includes **105 automated tests** covering unit, integration, and security layers:
+Taxoryn includes **111 automated tests** covering unit, integration, and security layers:
+- **Document Management & Storage Abstraction**: Pluggable storage architecture (`DocumentStorageService`, `LocalDocumentStorageService`, `S3DocumentStorageService`), multipart file upload, SHA-256 integrity hashing, stream downloads, metadata tagging, client vault, and cross-tenant file isolation.
 - **Compliance Calendar & Rule Engine**: Dynamic due date evaluation, custom & system rule configuration, batch obligation generator, scheduled background overdue processing, actionable task creation, and Executive Dashboard metrics (Due Today, Due This Week, Overdue, Completed, Type Breakdown).
 - **ITR Compliance & Workload**: ITR client profile registration, return creation across AYs, 8-stage status workflow (`DOCUMENTS_PENDING` -> `COMPLETED`), e-filing ACK number tracking, upcoming/overdue queries, and Practice Workload Dashboard.
 - **GST Compliance & Workload**: GST profile registration, GSTR-1 & GSTR-3B lifecycle, ARN tracking, ITC/liability calculation, batch period generator, and workload dashboard.
@@ -219,7 +232,7 @@ Taxoryn includes **105 automated tests** covering unit, integration, and securit
 
 ```bash
 mvn clean test
-# Results: Tests run: 105, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
+# Results: Tests run: 111, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
 ```
 
 ---
