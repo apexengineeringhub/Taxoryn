@@ -20,4 +20,7 @@ public interface ItrProfileRepository extends JpaRepository<ItrProfileEntity, UU
     boolean existsByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 
     boolean existsByOrganizationIdAndPan(UUID organizationId, String pan);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(DISTINCT p.clientId) FROM ItrProfileEntity p WHERE p.organizationId = :organizationId")
+    long countDistinctClientsByOrganizationId(@org.springframework.data.repository.query.Param("organizationId") UUID organizationId);
 }

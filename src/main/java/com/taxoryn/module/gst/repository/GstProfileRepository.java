@@ -4,6 +4,8 @@ import com.taxoryn.module.gst.entity.GstProfileEntity;
 import com.taxoryn.module.gst.entity.GstProfileEntity.GstProfileStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -24,4 +26,7 @@ public interface GstProfileRepository extends JpaRepository<GstProfileEntity, UU
     boolean existsByOrganizationIdAndGstin(UUID organizationId, String gstin);
 
     Optional<GstProfileEntity> findByOrganizationIdAndGstin(UUID organizationId, String gstin);
+
+    @Query("SELECT COUNT(DISTINCT p.clientId) FROM GstProfileEntity p WHERE p.organizationId = :organizationId")
+    long countDistinctClientsByOrganizationId(@Param("organizationId") UUID organizationId);
 }

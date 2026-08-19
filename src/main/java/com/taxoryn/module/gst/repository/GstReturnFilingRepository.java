@@ -36,4 +36,11 @@ public interface GstReturnFilingRepository extends JpaRepository<GstReturnFiling
      */
     java.util.List<GstReturnFilingEntity> findAllByOrganizationIdAndDueDateBetweenAndFilingStatusNotIn(
             UUID organizationId, java.time.LocalDate fromDate, java.time.LocalDate toDate, java.util.Collection<GstFilingStatus> excludedStatuses);
+
+    @org.springframework.data.jpa.repository.Query("SELECT " +
+           "SUM(CASE WHEN f.filingStatus IN (com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.PENDING, com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.PREPARED, com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.UNDER_REVIEW) THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN f.filingStatus = com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.OVERDUE OR (f.filingStatus IN (com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.PENDING, com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.PREPARED, com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.UNDER_REVIEW) AND f.dueDate < :currentDate) THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN f.filingStatus = com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.FILED THEN 1L ELSE 0L END) " +
+           "FROM GstReturnFilingEntity f WHERE f.organizationId = :organizationId")
+    List<Object[]> getGstDashboardStats(@org.springframework.data.repository.query.Param("organizationId") UUID organizationId, @org.springframework.data.repository.query.Param("currentDate") java.time.LocalDate currentDate);
 }

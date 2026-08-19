@@ -27,4 +27,11 @@ public interface ItrReturnRepository extends JpaRepository<ItrReturnEntity, UUID
      */
     List<ItrReturnEntity> findAllByOrganizationIdAndDueDateBetweenAndStatusNotIn(
             UUID organizationId, java.time.LocalDate fromDate, java.time.LocalDate toDate, java.util.Collection<ItrReturnEntity.ItrStatus> excludedStatuses);
+
+    @org.springframework.data.jpa.repository.Query("SELECT " +
+           "SUM(CASE WHEN r.status IN (com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.DOCUMENTS_PENDING, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.DATA_ENTRY, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.UNDER_REVIEW, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.READY_TO_FILE, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.VERIFICATION_PENDING) THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN r.status IN (com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.FILED, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.COMPLETED) THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN r.status IN (com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.DOCUMENTS_PENDING, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.DATA_ENTRY, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.UNDER_REVIEW, com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.READY_TO_FILE) AND r.dueDate < :currentDate THEN 1L ELSE 0L END) " +
+           "FROM ItrReturnEntity r WHERE r.organizationId = :organizationId AND r.status != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.CANCELLED")
+    List<Object[]> getItrDashboardStats(@org.springframework.data.repository.query.Param("organizationId") UUID organizationId, @org.springframework.data.repository.query.Param("currentDate") java.time.LocalDate currentDate);
 }

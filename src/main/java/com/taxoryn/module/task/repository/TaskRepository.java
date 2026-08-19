@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -49,4 +50,19 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID> {
      * Tasks whose due date has already passed and are still open, for TASK_OVERDUE reminders.
      */
     java.util.List<TaskEntity> findAllByOrganizationIdAndDueDateBeforeAndStatusNotIn(UUID organizationId, LocalDate currentDate, Collection<TaskStatus> excludedStatuses);
+
+    @Query("SELECT COUNT(t), " +
+           "SUM(CASE WHEN t.status IN (com.taxoryn.module.task.entity.TaskEntity.TaskStatus.TODO, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.IN_PROGRESS, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.UNDER_REVIEW) THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN t.status IN (com.taxoryn.module.task.entity.TaskEntity.TaskStatus.TODO, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.IN_PROGRESS, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.UNDER_REVIEW) AND t.dueDate < :currentDate THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN t.status = com.taxoryn.module.task.entity.TaskEntity.TaskStatus.COMPLETED THEN 1L ELSE 0L END) " +
+           "FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.status != com.taxoryn.module.task.entity.TaskEntity.TaskStatus.CANCELLED")
+    List<Object[]> getTaskDashboardStats(@Param("organizationId") UUID organizationId, @Param("currentDate") LocalDate currentDate);
+
+    @Query("SELECT t.assignedTo, " +
+           "COUNT(t), " +
+           "SUM(CASE WHEN t.status IN (com.taxoryn.module.task.entity.TaskEntity.TaskStatus.TODO, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.IN_PROGRESS, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.UNDER_REVIEW) THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN t.status IN (com.taxoryn.module.task.entity.TaskEntity.TaskStatus.TODO, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.IN_PROGRESS, com.taxoryn.module.task.entity.TaskEntity.TaskStatus.UNDER_REVIEW) AND t.dueDate < :currentDate THEN 1L ELSE 0L END) " +
+           "FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.status != com.taxoryn.module.task.entity.TaskEntity.TaskStatus.CANCELLED AND t.assignedTo IS NOT NULL " +
+           "GROUP BY t.assignedTo")
+    List<Object[]> getEmployeeTaskWorkloadStats(@Param("organizationId") UUID organizationId, @Param("currentDate") LocalDate currentDate);
 }

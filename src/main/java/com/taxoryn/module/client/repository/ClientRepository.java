@@ -5,8 +5,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,9 +24,15 @@ public interface ClientRepository extends JpaRepository<ClientEntity, UUID>, Jpa
 
     Page<ClientEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
 
-    java.util.List<ClientEntity> findAllByOrganizationId(UUID organizationId);
+    List<ClientEntity> findAllByOrganizationId(UUID organizationId);
 
-    java.util.List<ClientEntity> findAllByOrganizationIdAndStatus(UUID organizationId, ClientEntity.ClientStatus status);
+    List<ClientEntity> findAllByOrganizationIdAndStatus(UUID organizationId, ClientEntity.ClientStatus status);
 
     long countByOrganizationId(UUID organizationId);
+
+    @Query("SELECT COUNT(c), " +
+           "SUM(CASE WHEN c.status = com.taxoryn.module.client.entity.ClientEntity.ClientStatus.ACTIVE THEN 1L ELSE 0L END), " +
+           "SUM(CASE WHEN c.status != com.taxoryn.module.client.entity.ClientEntity.ClientStatus.ACTIVE THEN 1L ELSE 0L END) " +
+           "FROM ClientEntity c WHERE c.organizationId = :organizationId")
+    List<Object[]> getClientDashboardStats(@Param("organizationId") UUID organizationId);
 }

@@ -36,4 +36,11 @@ public interface InvoiceRepository extends JpaRepository<InvoiceEntity, UUID>, J
 
     @Query("SELECT COUNT(i) FROM InvoiceEntity i WHERE i.organizationId = :organizationId")
     long countByOrganizationId(@Param("organizationId") UUID organizationId);
+
+    @Query("SELECT " +
+           "COALESCE(SUM(i.total), 0), " +
+           "COALESCE(SUM(i.paidAmount), 0), " +
+           "COALESCE(SUM(i.balanceDue), 0) " +
+           "FROM InvoiceEntity i WHERE i.organizationId = :organizationId AND i.status != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.CANCELLED")
+    List<Object[]> getBillingDashboardStatsSummary(@Param("organizationId") UUID organizationId);
 }
