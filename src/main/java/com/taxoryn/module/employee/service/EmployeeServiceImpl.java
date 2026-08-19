@@ -43,6 +43,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final EmployeeMapper employeeMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional
@@ -86,7 +87,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Created employee record: id={}, code={} for tenant={}", saved.getId(), saved.getEmployeeCode(), organizationId);
-        return enrichDto(saved);
+        EmployeeDto result = enrichDto(saved);
+        auditService.logEvent("EMPLOYEE_CREATED", "EMPLOYEE", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -95,6 +98,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+
+        EmployeeDto oldSnapshot = enrichDto(employee);
 
         String email = request.getEmail().toLowerCase().trim();
         if (!email.equalsIgnoreCase(employee.getEmail())
@@ -132,7 +137,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Updated employee: id={} for tenant={}", saved.getId(), organizationId);
-        return enrichDto(saved);
+        EmployeeDto result = enrichDto(saved);
+        auditService.logEvent("EMPLOYEE_UPDATED", "EMPLOYEE", saved.getId().toString(), oldSnapshot, result);
+        return result;
     }
 
     @Override
@@ -196,10 +203,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
 
+        EmployeeStatus oldStatus = employee.getStatus();
         employee.setStatus(request.getStatus());
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Updated employee status: id={}, newStatus={} for tenant={}", employeeId, request.getStatus(), organizationId);
-        return enrichDto(saved);
+        EmployeeDto result = enrichDto(saved);
+        auditService.logEvent("EMPLOYEE_STATUS_UPDATED", "EMPLOYEE", employeeId.toString(), oldStatus != null ? oldStatus.name() : null, request.getStatus().name());
+        return result;
     }
 
     @Override
@@ -209,9 +219,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
 
+        EmployeeStatus oldStatus = employee.getStatus();
         employee.setStatus(EmployeeStatus.TERMINATED);
         employeeRepository.save(employee);
         log.info("Deactivated/Terminated employee: id={} for tenant={}", employeeId, organizationId);
+        auditService.logEvent("EMPLOYEE_DELETED", "EMPLOYEE", employeeId.toString(), oldStatus != null ? oldStatus.name() : null, EmployeeStatus.TERMINATED.name());
     }
 
     @Override
@@ -245,7 +257,11 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private EmployeeDto enrichDto(EmployeeEntity employee) {
+        if (employee == null) return null;
         EmployeeDto dto = employeeMapper.toDto(employee);
+        if (dto == null) {
+            return null;
+        }
         dto.setFullName(employee.getFullName());
 
         if (employee.getManagerId() != null) {

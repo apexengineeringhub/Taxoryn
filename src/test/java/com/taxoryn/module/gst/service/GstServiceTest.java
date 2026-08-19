@@ -72,6 +72,9 @@ class GstServiceTest {
     @Mock
     private GstMapper gstMapper;
 
+    @Mock
+    private com.taxoryn.module.audit.service.AuditService auditService;
+
     @InjectMocks
     private GstServiceImpl gstService;
 

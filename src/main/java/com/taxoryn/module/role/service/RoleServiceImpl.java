@@ -40,6 +40,7 @@ public class RoleServiceImpl implements RoleService {
     private final PermissionRepository permissionRepository;
     private final UserRepository userRepository;
     private final RoleMapper roleMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -97,7 +98,9 @@ public class RoleServiceImpl implements RoleService {
 
         RoleEntity saved = roleRepository.save(role);
         log.info("Created custom role: id={}, code={} for tenant={}", saved.getId(), saved.getCode(), organizationId);
-        return roleMapper.toDto(saved);
+        RoleDto result = roleMapper.toDto(saved);
+        auditService.logEvent("ROLE_CREATED", "ROLE", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -112,6 +115,8 @@ public class RoleServiceImpl implements RoleService {
 
         validateTenantAccess(role.getOrganizationId());
 
+        RoleDto oldSnapshot = roleMapper.toDto(role);
+
         List<PermissionEntity> matchedPermissions = permissionRepository.findByCodeIn(request.getPermissionCodes());
         if (matchedPermissions.isEmpty()) {
             throw new BusinessValidationException("At least one valid permission code must be provided");
@@ -125,7 +130,9 @@ public class RoleServiceImpl implements RoleService {
 
         RoleEntity saved = roleRepository.save(role);
         log.info("Updated custom role: id={} for tenant={}", saved.getId(), role.getOrganizationId());
-        return roleMapper.toDto(saved);
+        RoleDto result = roleMapper.toDto(saved);
+        auditService.logEvent("ROLE_UPDATED", "ROLE", saved.getId().toString(), oldSnapshot, result);
+        return result;
     }
 
     @Override
@@ -140,8 +147,10 @@ public class RoleServiceImpl implements RoleService {
 
         validateTenantAccess(role.getOrganizationId());
 
+        RoleDto oldSnapshot = roleMapper.toDto(role);
         roleRepository.delete(role);
         log.info("Deleted custom role: id={} for tenant={}", roleId, role.getOrganizationId());
+        auditService.logEvent("ROLE_DELETED", "ROLE", roleId.toString(), oldSnapshot, null);
     }
 
     @Override
@@ -156,10 +165,12 @@ public class RoleServiceImpl implements RoleService {
             throw new BusinessValidationException("At least one valid role must be assigned");
         }
 
+        Set<String> oldRoles = user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet());
         user.setRoles(new HashSet<>(roles));
         UserEntity saved = userRepository.save(user);
 
         log.info("Assigned {} roles to user {} in tenant {}", roles.size(), userId, organizationId);
+        auditService.logEvent("USER_ROLES_ASSIGNED", "USER_ROLE", userId.toString(), oldRoles, request.getRoleCodes());
         return buildUserRolesResponse(saved);
     }
 
@@ -181,6 +192,7 @@ public class RoleServiceImpl implements RoleService {
 
         UserEntity saved = userRepository.save(user);
         log.info("Removed role {} from user {} in tenant {}", roleId, userId, organizationId);
+        auditService.logEvent("USER_ROLE_REMOVED", "USER_ROLE", userId.toString(), roleId.toString(), "Role removed");
         return buildUserRolesResponse(saved);
     }
 

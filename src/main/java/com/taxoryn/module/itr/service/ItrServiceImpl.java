@@ -54,6 +54,7 @@ public class ItrServiceImpl implements ItrService {
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
     private final ItrMapper itrMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     // =========================================================================
     // 1. ITR Profile Management
@@ -101,7 +102,9 @@ public class ItrServiceImpl implements ItrService {
         }
 
         log.info("Created ITR Profile: id={}, pan={} for tenant={}", saved.getId(), saved.getPan(), organizationId);
-        return enrichProfileDto(saved);
+        ItrProfileDto result = enrichProfileDto(saved);
+        auditService.logEvent("ITR_PROFILE_CREATED", "ITR_PROFILE", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -110,6 +113,8 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrProfileEntity profile = itrProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Profile", "id", id));
+
+        ItrProfileDto oldSnapshot = enrichProfileDto(profile);
 
         String newPan = request.getPan().toUpperCase().trim();
         if (!newPan.equalsIgnoreCase(profile.getPan())
@@ -135,7 +140,9 @@ public class ItrServiceImpl implements ItrService {
 
         ItrProfileEntity saved = itrProfileRepository.save(profile);
         log.info("Updated ITR Profile: id={} for tenant={}", saved.getId(), organizationId);
-        return enrichProfileDto(saved);
+        ItrProfileDto result = enrichProfileDto(saved);
+        auditService.logEvent("ITR_PROFILE_UPDATED", "ITR_PROFILE", saved.getId().toString(), oldSnapshot, result);
+        return result;
     }
 
     @Override
@@ -212,7 +219,9 @@ public class ItrServiceImpl implements ItrService {
 
         ItrReturnEntity saved = itrReturnRepository.save(entity);
         log.info("Created ITR Return: id={}, client={}, AY={} for tenant={}", saved.getId(), client.getDisplayName(), saved.getAssessmentYear(), organizationId);
-        return enrichReturnDto(saved);
+        ItrReturnDto result = enrichReturnDto(saved);
+        auditService.logEvent("ITR_RETURN_CREATED", "ITR_RETURN", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -221,6 +230,8 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+
+        ItrReturnDto oldSnapshot = enrichReturnDto(itrReturn);
 
         if (request.getAssignedEmployeeId() != null) {
             employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
@@ -244,7 +255,9 @@ public class ItrServiceImpl implements ItrService {
 
         ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
         log.info("Updated ITR Return: id={} for tenant={}", saved.getId(), organizationId);
-        return enrichReturnDto(saved);
+        ItrReturnDto result = enrichReturnDto(saved);
+        auditService.logEvent("ITR_RETURN_UPDATED", "ITR_RETURN", saved.getId().toString(), oldSnapshot, result);
+        return result;
     }
 
     @Override
@@ -325,6 +338,7 @@ public class ItrServiceImpl implements ItrService {
         ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
+        ItrStatus oldStatus = itrReturn.getStatus();
         itrReturn.setStatus(request.getStatus());
 
         if (request.getStatus() == ItrStatus.FILED && itrReturn.getFilingDate() == null) {
@@ -338,7 +352,9 @@ public class ItrServiceImpl implements ItrService {
 
         ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
         log.info("Updated ITR Return status: id={}, newStatus={} for tenant={}", id, request.getStatus(), organizationId);
-        return enrichReturnDto(saved);
+        ItrReturnDto result = enrichReturnDto(saved);
+        auditService.logEvent("ITR_RETURN_STATUS_UPDATED", "ITR_RETURN", id.toString(), oldStatus != null ? oldStatus.name() : null, request.getStatus().name());
+        return result;
     }
 
     @Override
@@ -348,6 +364,7 @@ public class ItrServiceImpl implements ItrService {
         ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
+        ItrStatus oldStatus = itrReturn.getStatus();
         itrReturn.setFilingDate(request.getFilingDate() != null ? request.getFilingDate() : LocalDate.now());
         itrReturn.setAcknowledgementNumber(request.getAcknowledgementNumber().trim());
 
@@ -365,7 +382,9 @@ public class ItrServiceImpl implements ItrService {
 
         ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
         log.info("Recorded ITR filing details: id={}, ackNo={}, status={} for tenant={}", id, request.getAcknowledgementNumber(), saved.getStatus(), organizationId);
-        return enrichReturnDto(saved);
+        ItrReturnDto result = enrichReturnDto(saved);
+        auditService.logEvent("ITR_RETURN_FILED", "ITR_RETURN", id.toString(), oldStatus != null ? oldStatus.name() : null, result);
+        return result;
     }
 
     @Override
@@ -378,10 +397,13 @@ public class ItrServiceImpl implements ItrService {
         employeeRepository.findByIdAndOrganizationId(request.getEmployeeId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.getEmployeeId()));
 
+        UUID oldEmpId = itrReturn.getAssignedEmployeeId();
         itrReturn.setAssignedEmployeeId(request.getEmployeeId());
         ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
         log.info("Assigned employee {} to ITR Return {} for tenant {}", request.getEmployeeId(), id, organizationId);
-        return enrichReturnDto(saved);
+        ItrReturnDto result = enrichReturnDto(saved);
+        auditService.logEvent("ITR_EMPLOYEE_ASSIGNED", "ITR_RETURN", id.toString(), oldEmpId != null ? oldEmpId.toString() : null, request.getEmployeeId().toString());
+        return result;
     }
 
     // =========================================================================
@@ -536,7 +558,9 @@ public class ItrServiceImpl implements ItrService {
     // =========================================================================
 
     private ItrProfileDto enrichProfileDto(ItrProfileEntity profile) {
+        if (profile == null) return null;
         ItrProfileDto dto = itrMapper.toProfileDto(profile);
+        if (dto == null) return null;
         clientRepository.findByIdAndOrganizationId(profile.getClientId(), profile.getOrganizationId())
                 .ifPresent(c -> dto.setClientName(c.getDisplayName()));
 
@@ -548,7 +572,9 @@ public class ItrServiceImpl implements ItrService {
     }
 
     private ItrReturnDto enrichReturnDto(ItrReturnEntity entity) {
+        if (entity == null) return null;
         ItrReturnDto dto = itrMapper.toReturnDto(entity);
+        if (dto == null) return null;
         clientRepository.findByIdAndOrganizationId(entity.getClientId(), entity.getOrganizationId())
                 .ifPresent(c -> {
                     dto.setClientName(c.getDisplayName());

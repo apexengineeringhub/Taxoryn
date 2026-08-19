@@ -58,6 +58,7 @@ public class ClientServiceImpl implements ClientService {
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional
@@ -111,7 +112,9 @@ public class ClientServiceImpl implements ClientService {
 
         ClientEntity saved = clientRepository.save(client);
         log.info("Created client: id={}, displayName={} for tenant={}", saved.getId(), saved.getDisplayName(), organizationId);
-        return enrichDto(saved);
+        ClientDto result = enrichDto(saved);
+        auditService.logEvent("CLIENT_CREATED", "CLIENT", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -120,6 +123,8 @@ public class ClientServiceImpl implements ClientService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        ClientDto oldSnapshot = enrichDto(client);
 
         if (StringUtils.hasText(request.getPan())) {
             String newPan = request.getPan().toUpperCase().trim();
@@ -176,7 +181,9 @@ public class ClientServiceImpl implements ClientService {
 
         ClientEntity saved = clientRepository.save(client);
         log.info("Updated client: id={} for tenant={}", saved.getId(), organizationId);
-        return enrichDto(saved);
+        ClientDto updatedDto = enrichDto(saved);
+        auditService.logEvent("CLIENT_UPDATED", "CLIENT", saved.getId().toString(), oldSnapshot, updatedDto);
+        return updatedDto;
     }
 
     @Override
@@ -255,10 +262,13 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        ClientStatus oldStatus = client.getStatus();
         client.setStatus(request.getStatus());
         ClientEntity saved = clientRepository.save(client);
         log.info("Updated client status: id={}, newStatus={} for tenant={}", clientId, request.getStatus(), organizationId);
-        return enrichDto(saved);
+        ClientDto result = enrichDto(saved);
+        auditService.logEvent("CLIENT_STATUS_UPDATED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, request.getStatus().name());
+        return result;
     }
 
     @Override
@@ -271,10 +281,13 @@ public class ClientServiceImpl implements ClientService {
         employeeRepository.findByIdAndOrganizationId(request.getEmployeeId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.getEmployeeId()));
 
+        UUID oldEmployeeId = client.getAssignedEmployeeId();
         client.setAssignedEmployeeId(request.getEmployeeId());
         ClientEntity saved = clientRepository.save(client);
         log.info("Assigned employee {} to client {} for tenant {}", request.getEmployeeId(), clientId, organizationId);
-        return enrichDto(saved);
+        ClientDto result = enrichDto(saved);
+        auditService.logEvent("CLIENT_EMPLOYEE_ASSIGNED", "CLIENT", clientId.toString(), oldEmployeeId != null ? oldEmployeeId.toString() : null, request.getEmployeeId().toString());
+        return result;
     }
 
     @Override
@@ -284,9 +297,11 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        ClientStatus oldStatus = client.getStatus();
         client.setStatus(ClientStatus.ARCHIVED);
         clientRepository.save(client);
         log.info("Archived client: id={} for tenant={}", clientId, organizationId);
+        auditService.logEvent("CLIENT_DELETED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, ClientStatus.ARCHIVED.name());
     }
 
     @Override

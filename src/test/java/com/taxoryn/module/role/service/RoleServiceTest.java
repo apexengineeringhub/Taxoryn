@@ -58,6 +58,9 @@ class RoleServiceTest {
     @Mock
     private RoleMapper roleMapper;
 
+    @Mock
+    private com.taxoryn.module.audit.service.AuditService auditService;
+
     @InjectMocks
     private RoleServiceImpl roleService;
 

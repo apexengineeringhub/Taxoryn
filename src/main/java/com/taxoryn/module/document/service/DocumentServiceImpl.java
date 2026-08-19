@@ -46,6 +46,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final ClientRepository clientRepository;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final DocumentMapper documentMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional
@@ -102,7 +103,9 @@ public class DocumentServiceImpl implements DocumentService {
         log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={} for tenant={}",
                 saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), organizationId);
 
-        return enrichDto(saved);
+        DocumentDto result = enrichDto(saved);
+        auditService.logEvent("DOCUMENT_UPLOADED", "DOCUMENT", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -117,6 +120,7 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         byte[] data = storageService.retrieve(document.getStorageKey());
+        auditService.logEvent("DOCUMENT_DOWNLOADED", "DOCUMENT", id.toString(), null, document.getFileName());
 
         return DocumentDownloadDto.builder()
                 .fileName(document.getFileName())
@@ -218,10 +222,12 @@ public class DocumentServiceImpl implements DocumentService {
         storageService.delete(document.getStorageKey());
 
         // Soft delete metadata
+        DocumentStatus oldStatus = document.getStatus();
         document.setStatus(DocumentStatus.DELETED);
         documentRepository.save(document);
 
         log.info("Deleted document: id={}, key={} for tenant={}", id, document.getStorageKey(), organizationId);
+        auditService.logEvent("DOCUMENT_DELETED", "DOCUMENT", id.toString(), oldStatus != null ? oldStatus.name() : null, DocumentStatus.DELETED.name());
     }
 
     @Override
@@ -230,6 +236,8 @@ public class DocumentServiceImpl implements DocumentService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        DocumentDto oldSnapshot = enrichDto(document);
 
         if (request.getDocumentType() != null) {
             document.setDocumentType(request.getDocumentType());
@@ -249,7 +257,9 @@ public class DocumentServiceImpl implements DocumentService {
 
         DocumentEntity saved = documentRepository.save(document);
         log.info("Updated document metadata: id={} for tenant={}", id, organizationId);
-        return enrichDto(saved);
+        DocumentDto result = enrichDto(saved);
+        auditService.logEvent("DOCUMENT_UPDATED", "DOCUMENT", id.toString(), oldSnapshot, result);
+        return result;
     }
 
     // =========================================================================
@@ -257,7 +267,9 @@ public class DocumentServiceImpl implements DocumentService {
     // =========================================================================
 
     private DocumentDto enrichDto(DocumentEntity entity) {
+        if (entity == null) return null;
         DocumentDto dto = documentMapper.toDto(entity);
+        if (dto == null) return null;
         dto.setFileSizeFormatted(formatFileSize(entity.getFileSize()));
         dto.setUploadedBy(entity.getCreatedBy());
         dto.setUploadedAt(entity.getCreatedAt());

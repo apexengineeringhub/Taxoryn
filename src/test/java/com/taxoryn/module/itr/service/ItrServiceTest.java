@@ -64,6 +64,9 @@ class ItrServiceTest {
     @Mock
     private ItrMapper itrMapper;
 
+    @Mock
+    private com.taxoryn.module.audit.service.AuditService auditService;
+
     @InjectMocks
     private ItrServiceImpl itrService;
 

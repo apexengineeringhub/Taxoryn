@@ -66,6 +66,8 @@ class InvoiceServiceTest {
     private ClientNotificationRepository notificationRepository;
     @Mock
     private InvoiceMapper invoiceMapper;
+    @Mock
+    private com.taxoryn.module.audit.service.AuditService auditService;
 
     @InjectMocks
     private InvoiceServiceImpl invoiceService;

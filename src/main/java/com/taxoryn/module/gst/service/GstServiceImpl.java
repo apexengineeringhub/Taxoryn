@@ -64,6 +64,7 @@ public class GstServiceImpl implements GstService {
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
     private final GstMapper gstMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     // =========================================================================
     // 1. Profile Management
@@ -115,7 +116,9 @@ public class GstServiceImpl implements GstService {
         }
 
         log.info("Created GST Profile: id={}, gstin={} for tenant={}", saved.getId(), saved.getGstin(), organizationId);
-        return enrichProfileDto(saved);
+        GstProfileDto result = enrichProfileDto(saved);
+        auditService.logEvent("GST_PROFILE_CREATED", "GST_PROFILE", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -124,6 +127,8 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", id));
+
+        GstProfileDto oldSnapshot = enrichProfileDto(profile);
 
         String newGstin = request.getGstin().toUpperCase().trim();
         if (!newGstin.equalsIgnoreCase(profile.getGstin())
@@ -151,7 +156,9 @@ public class GstServiceImpl implements GstService {
 
         GstProfileEntity saved = gstProfileRepository.save(profile);
         log.info("Updated GST Profile: id={} for tenant={}", saved.getId(), organizationId);
-        return enrichProfileDto(saved);
+        GstProfileDto result = enrichProfileDto(saved);
+        auditService.logEvent("GST_PROFILE_UPDATED", "GST_PROFILE", saved.getId().toString(), oldSnapshot, result);
+        return result;
     }
 
     @Override
@@ -217,10 +224,13 @@ public class GstServiceImpl implements GstService {
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", id));
 
+        GstProfileStatus oldStatus = profile.getStatus();
         profile.setStatus(request.getStatus());
         GstProfileEntity saved = gstProfileRepository.save(profile);
         log.info("Updated GST Profile status: id={}, status={} for tenant={}", id, request.getStatus(), organizationId);
-        return enrichProfileDto(saved);
+        GstProfileDto result = enrichProfileDto(saved);
+        auditService.logEvent("GST_PROFILE_STATUS_UPDATED", "GST_PROFILE", id.toString(), oldStatus != null ? oldStatus.name() : null, request.getStatus().name());
+        return result;
     }
 
     // =========================================================================
@@ -265,7 +275,9 @@ public class GstServiceImpl implements GstService {
 
         GstReturnFilingEntity saved = gstReturnFilingRepository.save(filing);
         log.info("Created GST filing: id={}, type={}, period={} for tenant={}", saved.getId(), saved.getReturnType(), saved.getReturnPeriod(), organizationId);
-        return enrichFilingDto(saved, profile);
+        GstReturnFilingDto result = enrichFilingDto(saved, profile);
+        auditService.logEvent("GST_FILING_CREATED", "GST_FILING", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -275,6 +287,8 @@ public class GstServiceImpl implements GstService {
 
         GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", id));
+
+        GstFilingStatus oldStatus = filing.getFilingStatus();
 
         filing.setFilingStatus(request.getFilingStatus());
         if (request.getFilingDate() != null) {
@@ -307,7 +321,9 @@ public class GstServiceImpl implements GstService {
 
         GstReturnFilingEntity saved = gstReturnFilingRepository.save(filing);
         log.info("Updated GST filing status: id={}, newStatus={} for tenant={}", saved.getId(), saved.getFilingStatus(), organizationId);
-        return enrichFilingDto(saved, null);
+        GstReturnFilingDto result = enrichFilingDto(saved, null);
+        auditService.logEvent("GST_FILING_STATUS_UPDATED", "GST_FILING", saved.getId().toString(), oldStatus != null ? oldStatus.name() : null, saved.getFilingStatus().name());
+        return result;
     }
 
     @Override
@@ -407,6 +423,7 @@ public class GstServiceImpl implements GstService {
         }
 
         log.info("Batch generated {} GST return filings for period {} in tenant {}", createdFilings.size(), request.getReturnPeriod(), organizationId);
+        auditService.logEvent("GST_FILING_BATCH_GENERATED", "GST_FILING", request.getReturnPeriod(), null, "Generated " + createdFilings.size() + " filings");
         return createdFilings;
     }
 
@@ -473,7 +490,9 @@ public class GstServiceImpl implements GstService {
 
         GstMonthlySummaryEntity saved = gstMonthlySummaryRepository.save(entity);
         log.info("Saved GST monthly summary: id={}, profile={}, period={} for tenant={}", saved.getId(), profile.getId(), request.getPeriod(), organizationId);
-        return enrichSummaryDto(saved, profile);
+        GstMonthlySummaryDto result = enrichSummaryDto(saved, profile);
+        auditService.logEvent("GST_SUMMARY_SAVED", "GST_SUMMARY", saved.getId().toString(), existing.isPresent() ? "UPDATED" : "CREATED", result);
+        return result;
     }
 
     @Override

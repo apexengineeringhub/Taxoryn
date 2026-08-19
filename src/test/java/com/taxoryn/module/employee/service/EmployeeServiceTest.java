@@ -56,6 +56,9 @@ class EmployeeServiceTest {
     @Mock
     private EmployeeMapper employeeMapper;
 
+    @Mock
+    private com.taxoryn.module.audit.service.AuditService auditService;
+
     @InjectMocks
     private EmployeeServiceImpl employeeService;
 

@@ -74,6 +74,9 @@ class ClientServiceTest {
     @Mock
     private com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
 
+    @Mock
+    private com.taxoryn.module.audit.service.AuditService auditService;
+
     @InjectMocks
     private ClientServiceImpl clientService;
 

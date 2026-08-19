@@ -56,6 +56,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final ClientRepository clientRepository;
     private final ClientNotificationRepository notificationRepository;
     private final InvoiceMapper invoiceMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional
@@ -125,7 +126,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         log.info("Created invoice: id={}, number={}, total={} for client={} in tenant={}",
                 saved.getId(), saved.getInvoiceNumber(), saved.getTotal(), client.getId(), organizationId);
 
-        return enrichDto(saved);
+        InvoiceDto result = enrichDto(saved);
+        auditService.logEvent("INVOICE_CREATED", "INVOICE", saved.getId().toString(), null, result);
+        return result;
     }
 
     @Override
@@ -182,6 +185,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", id));
 
+        InvoiceDto oldSnapshot = enrichDto(invoice);
+
         if (invoice.getStatus() != InvoiceStatus.DRAFT && request.getItems() != null && !request.getItems().isEmpty()) {
             throw new BadRequestException("Line items can only be modified when invoice is in DRAFT status");
         }
@@ -236,7 +241,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         InvoiceEntity saved = invoiceRepository.save(invoice);
         log.info("Updated invoice: id={} for tenant={}", saved.getId(), organizationId);
-        return enrichDto(saved);
+        InvoiceDto result = enrichDto(saved);
+        auditService.logEvent("INVOICE_UPDATED", "INVOICE", saved.getId().toString(), oldSnapshot, result);
+        return result;
     }
 
     @Override
@@ -265,7 +272,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         notificationRepository.save(notification);
 
         log.info("Issued invoice: id={}, number={} for tenant={}", saved.getId(), saved.getInvoiceNumber(), organizationId);
-        return enrichDto(saved);
+        InvoiceDto result = enrichDto(saved);
+        auditService.logEvent("INVOICE_STATUS_UPDATED", "INVOICE", saved.getId().toString(), "DRAFT", "ISSUED");
+        return result;
     }
 
     @Override
@@ -279,10 +288,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new BadRequestException("Fully paid invoices cannot be cancelled");
         }
 
+        InvoiceStatus oldStatus = invoice.getStatus();
         invoice.setStatus(InvoiceStatus.CANCELLED);
         InvoiceEntity saved = invoiceRepository.save(invoice);
         log.info("Cancelled invoice: id={} for tenant={}", saved.getId(), organizationId);
-        return enrichDto(saved);
+        InvoiceDto result = enrichDto(saved);
+        auditService.logEvent("INVOICE_STATUS_UPDATED", "INVOICE", saved.getId().toString(), oldStatus.name(), "CANCELLED");
+        return result;
     }
 
     @Override
@@ -343,7 +355,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         log.info("Recorded payment: id={}, amount={}, invoice={}, newStatus={} for tenant={}",
                 savedPayment.getId(), savedPayment.getAmount(), invoice.getInvoiceNumber(), invoice.getStatus(), organizationId);
 
-        return invoiceMapper.toPaymentDto(savedPayment);
+        InvoicePaymentDto paymentDto = invoiceMapper.toPaymentDto(savedPayment);
+        auditService.logEvent("INVOICE_PAYMENT_RECORDED", "INVOICE", invoiceId.toString(), null, paymentDto);
+        return paymentDto;
     }
 
     @Override
@@ -480,7 +494,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     // =========================================================================
 
     private InvoiceDto enrichDto(InvoiceEntity entity) {
+        if (entity == null) return null;
         InvoiceDto dto = invoiceMapper.toDto(entity);
+        if (dto == null) return null;
         clientRepository.findByIdAndOrganizationId(entity.getClientId(), entity.getOrganizationId())
                 .ifPresent(client -> {
                     dto.setClientName(client.getDisplayName());
