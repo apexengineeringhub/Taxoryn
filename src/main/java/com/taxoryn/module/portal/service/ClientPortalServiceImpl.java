@@ -19,6 +19,7 @@ import com.taxoryn.module.gst.entity.GstReturnFilingEntity;
 import com.taxoryn.module.gst.repository.GstReturnFilingRepository;
 import com.taxoryn.module.itr.entity.ItrReturnEntity;
 import com.taxoryn.module.itr.repository.ItrReturnRepository;
+import com.taxoryn.module.notification.service.NotificationService;
 import com.taxoryn.module.portal.dto.ClientDocumentRequestDto;
 import com.taxoryn.module.portal.dto.ClientGstStatusDto;
 import com.taxoryn.module.portal.dto.ClientItrStatusDto;
@@ -80,6 +81,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final com.taxoryn.module.billing.repository.InvoiceRepository invoiceRepository;
     private final com.taxoryn.module.billing.mapper.InvoiceMapper invoiceMapper;
     private final ClientPortalMapper mapper;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -415,12 +417,32 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
         ClientDocumentRequestEntity saved = docRequestRepository.save(entity);
 
-        // Notify client
+        // Notify client (client-portal notification feed)
         createNotification(organizationId, client.getId(),
                 "Document Requested: " + request.getTitle(),
                 "Your tax consultant has requested the following document: " + request.getTitle() +
                         (request.getDueDate() != null ? " (Due by: " + request.getDueDate() + ")" : ""),
                 NotificationType.DOCUMENT_REQUESTED);
+
+        // Also raise it through the central multi-channel notification engine so the client
+        // is optionally reached over email/SMS/WhatsApp in addition to the in-app portal feed.
+        try {
+            notificationService.notify(
+                    organizationId, null, client.getId(),
+                    com.taxoryn.module.notification.entity.NotificationEntity.NotificationType.DOCUMENT_REQUIRED,
+                    "Document Requested: " + request.getTitle(),
+                    "Your tax consultant has requested the following document: " + request.getTitle() +
+                            (request.getDueDate() != null ? " (Due by: " + request.getDueDate() + ")" : ""),
+                    Set.of(
+                            com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel.IN_APP,
+                            com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel.EMAIL
+                    ),
+                    "/portal/documents/requests/" + saved.getId(),
+                    "{\"documentRequestId\":\"" + saved.getId() + "\"}"
+            );
+        } catch (Exception ex) {
+            log.error("Failed to raise DOCUMENT_REQUIRED notification for request {}: {}", saved.getId(), ex.getMessage(), ex);
+        }
 
         return mapper.toDocRequestDto(saved);
     }

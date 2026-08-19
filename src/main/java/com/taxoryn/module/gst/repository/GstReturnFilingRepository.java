@@ -30,4 +30,10 @@ public interface GstReturnFilingRepository extends JpaRepository<GstReturnFiling
 
     boolean existsByOrganizationIdAndGstProfileIdAndReturnTypeAndReturnPeriod(
             UUID organizationId, UUID gstProfileId, GstReturnType returnType, String returnPeriod);
+
+    /**
+     * Filings due within a date window and not yet in a terminal status, for GST_DUE reminders.
+     */
+    java.util.List<GstReturnFilingEntity> findAllByOrganizationIdAndDueDateBetweenAndFilingStatusNotIn(
+            UUID organizationId, java.time.LocalDate fromDate, java.time.LocalDate toDate, java.util.Collection<GstFilingStatus> excludedStatuses);
 }

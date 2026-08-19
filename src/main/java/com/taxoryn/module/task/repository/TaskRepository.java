@@ -39,4 +39,14 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID> {
 
     @Query("SELECT COUNT(t) FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.assignedTo IN :assigneeIds AND t.status IN :statuses AND t.dueDate < :currentDate")
     long countOverdueTasks(@Param("organizationId") UUID organizationId, @Param("assigneeIds") Collection<UUID> assigneeIds, @Param("statuses") Collection<TaskStatus> statuses, @Param("currentDate") LocalDate currentDate);
+
+    /**
+     * Tasks due on a specific date (e.g. today/tomorrow) that are still open, for TASK_DUE reminders.
+     */
+    java.util.List<TaskEntity> findAllByOrganizationIdAndDueDateAndStatusNotIn(UUID organizationId, LocalDate dueDate, Collection<TaskStatus> excludedStatuses);
+
+    /**
+     * Tasks whose due date has already passed and are still open, for TASK_OVERDUE reminders.
+     */
+    java.util.List<TaskEntity> findAllByOrganizationIdAndDueDateBeforeAndStatusNotIn(UUID organizationId, LocalDate currentDate, Collection<TaskStatus> excludedStatuses);
 }

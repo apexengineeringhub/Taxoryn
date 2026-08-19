@@ -21,4 +21,10 @@ public interface ItrReturnRepository extends JpaRepository<ItrReturnEntity, UUID
     List<ItrReturnEntity> findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(UUID organizationId, UUID clientId);
 
     List<ItrReturnEntity> findAllByOrganizationIdAndAssessmentYear(UUID organizationId, String assessmentYear);
+
+    /**
+     * Returns due within a date window and not yet in a terminal status, for ITR_DUE reminders.
+     */
+    List<ItrReturnEntity> findAllByOrganizationIdAndDueDateBetweenAndStatusNotIn(
+            UUID organizationId, java.time.LocalDate fromDate, java.time.LocalDate toDate, java.util.Collection<ItrReturnEntity.ItrStatus> excludedStatuses);
 }
