@@ -1,0 +1,85 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AppShell } from './components/layout/AppShell';
+
+// Pages
+import { LoginPage } from './pages/LoginPage';
+import { RegisterOrgPage } from './pages/RegisterOrgPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { ClientsPage } from './pages/ClientsPage';
+import { TasksPage } from './pages/TasksPage';
+import { GstCompliancePage } from './pages/GstCompliancePage';
+import { ItrCompliancePage } from './pages/ItrCompliancePage';
+import { ComplianceCalendarPage } from './pages/ComplianceCalendarPage';
+import { DocumentsPage } from './pages/DocumentsPage';
+import { BillingPage } from './pages/BillingPage';
+import { ClientPortalManagementPage } from './pages/ClientPortalManagementPage';
+import { TeamManagementPage } from './pages/TeamManagementPage';
+import { AuditLogsPage } from './pages/AuditLogsPage';
+import { SubscriptionsPage } from './pages/SubscriptionsPage';
+
+// Protected Route Guard
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-900 text-white text-xs">
+        <div className="flex items-center gap-2">
+          <svg className="animate-spin h-5 w-5 text-brand-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span>Authenticating practice context...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+export const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Auth Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterOrgPage />} />
+
+          {/* Protected Application Routes */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppShell />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/gst" element={<GstCompliancePage />} />
+            <Route path="/itr" element={<ItrCompliancePage />} />
+            <Route path="/calendar" element={<ComplianceCalendarPage />} />
+            <Route path="/documents" element={<DocumentsPage />} />
+            <Route path="/billing" element={<BillingPage />} />
+            <Route path="/portal" element={<ClientPortalManagementPage />} />
+            <Route path="/team" element={<TeamManagementPage />} />
+            <Route path="/audit-logs" element={<AuditLogsPage />} />
+            <Route path="/settings/subscription" element={<SubscriptionsPage />} />
+          </Route>
+
+          {/* Catch all redirect */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+};

@@ -23,8 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_itr_returns_org_client_ay ON itr_returns(organiza
 -- 5. Clients & Employees Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_clients_org_status ON clients(organization_id, status);
 CREATE INDEX IF NOT EXISTS idx_employees_org_status ON employees(organization_id, status);
-CREATE INDEX IF NOT EXISTS idx_client_contacts_client_id ON client_contacts(client_id);
 
 -- 6. Documents & Notifications Indexes
 CREATE INDEX IF NOT EXISTS idx_documents_org_client ON documents(organization_id, client_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_org_user_status ON notifications(organization_id, user_id, status);
+CREATE INDEX IF NOT EXISTS idx_notifications_org_user_read ON notifications(organization_id, user_id, is_read);
