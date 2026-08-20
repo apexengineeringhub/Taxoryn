@@ -232,10 +232,11 @@ export const BulkTasksGeneratorPage: React.FC = () => {
             assignedTo: assignedEmployeeId || undefined,
             title: taskTitle.trim(),
             description: description.trim() || undefined,
+            taskCategory: taskCategory,
             category: taskCategory,
             priority: taskPriority,
             dueDate,
-          });
+          } as any);
           created.push(t);
         } catch (err: any) {
           errors.push(`Client ${cId}: ${err.response?.data?.message || err.message}`);
@@ -378,14 +379,29 @@ export const BulkTasksGeneratorPage: React.FC = () => {
           }
         }
 
-        const t = await taskApi.create({
+        const normalizeCategory = (cat: string) => {
+          const c = (cat || '').toUpperCase().trim();
+          if (['GST', 'ITR', 'AUDIT', 'COMPLIANCE', 'BILLING', 'OTHER'].includes(c)) return c;
+          return 'OTHER';
+        };
+
+        const normalizePriority = (prio: string) => {
+          const p = (prio || '').toUpperCase().trim();
+          if (['LOW', 'MEDIUM', 'HIGH', 'URGENT'].includes(p)) return p;
+          return 'MEDIUM';
+        };
+
+        const taskPayload: any = {
           clientId: clientId || undefined,
-          title: item.title,
-          category: item.category,
-          priority: item.priority,
-          dueDate: item.dueDate,
-          description: item.description,
-        });
+          title: item.title.trim(),
+          taskCategory: normalizeCategory(item.category),
+          category: normalizeCategory(item.category),
+          priority: normalizePriority(item.priority),
+          dueDate: item.dueDate ? item.dueDate.trim() : undefined,
+          description: item.description ? item.description.trim() : undefined,
+        };
+
+        const t = await taskApi.create(taskPayload);
         created.push(t);
       } catch (err: any) {
         errors.push(`Row ${item.id} (${item.title}): ${err.response?.data?.message || err.message}`);
