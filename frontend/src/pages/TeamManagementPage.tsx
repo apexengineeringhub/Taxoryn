@@ -5,6 +5,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
 import { teamApi } from '../api/endpoints';
 import { Employee, Role } from '../types';
+import { useBranding } from '../context/BrandingContext';
 
 export const TeamManagementPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -32,15 +33,51 @@ export const TeamManagementPage: React.FC = () => {
     }
   };
 
+  const { getEmployeeAvatar, setEmployeeAvatar, currentTheme } = useBranding();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [targetEmployeeEmail, setTargetEmployeeEmail] = useState<string | null>(null);
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && targetEmployeeEmail) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEmployeeAvatar(targetEmployeeEmail, reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const employeeColumns: Column<Employee>[] = [
     {
-      header: 'Employee Name & Code',
-      accessor: (row) => (
-        <div>
-          <span className="font-bold text-slate-900 block">{row.firstName} {row.lastName || ''}</span>
-          <span className="font-mono text-[10px] text-slate-400 block">{row.employeeCode}</span>
-        </div>
-      ),
+      header: 'Staff Member',
+      accessor: (row) => {
+        const avatar = getEmployeeAvatar(row.email || row.id);
+        return (
+          <div className="flex items-center gap-3">
+            <div className="relative group shrink-0">
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt={row.firstName}
+                  className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
+                />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full text-white font-bold text-xs flex items-center justify-center shadow-2xs"
+                  style={{ backgroundColor: currentTheme.primaryColor }}
+                >
+                  {row.firstName ? row.firstName.charAt(0).toUpperCase() : 'E'}
+                </div>
+              )}
+            </div>
+            <div>
+              <span className="font-bold text-slate-900 block">{row.firstName} {row.lastName || ''}</span>
+              <span className="font-mono text-[10px] text-slate-400 block">{row.employeeCode} • {row.designation}</span>
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: 'Email Address',
@@ -48,16 +85,27 @@ export const TeamManagementPage: React.FC = () => {
     },
     {
       header: 'Department',
-      accessor: (row) => <span className="text-xs font-medium text-slate-700">{row.department}</span>,
-    },
-    {
-      header: 'Designation',
-      accessor: (row) => <span className="text-xs text-slate-600">{row.designation}</span>,
+      accessor: (row) => <span className="text-xs font-medium text-slate-700">{row.department || 'General Tax'}</span>,
     },
     {
       header: 'Status',
       accessor: (row) => <StatusBadge status={row.status} size="sm" />,
       align: 'center',
+    },
+    {
+      header: 'Actions',
+      align: 'right',
+      cell: (row) => (
+        <button
+          onClick={() => {
+            setTargetEmployeeEmail(row.email || row.id);
+            fileInputRef.current?.click();
+          }}
+          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+        >
+          Change Photo
+        </button>
+      ),
     },
   ];
 
@@ -131,6 +179,15 @@ export const TeamManagementPage: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Hidden File Input for Avatar Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/png, image/jpeg, image/webp"
+        onChange={handleAvatarFileChange}
+        className="hidden"
+      />
     </div>
   );
 };

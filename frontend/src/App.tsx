@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { BrandingProvider } from './context/BrandingContext';
 import { AppShell } from './components/layout/AppShell';
 
 // Pages
@@ -17,6 +18,7 @@ import { BillingPage } from './pages/BillingPage';
 import { ClientPortalManagementPage } from './pages/ClientPortalManagementPage';
 import { TeamManagementPage } from './pages/TeamManagementPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
+import { PracticeBrandingPage } from './pages/PracticeBrandingPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 
 // Protected Route Guard
@@ -47,39 +49,42 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 export const App: React.FC = () => {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Auth Routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterOrgPage />} />
+      <BrandingProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Auth Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterOrgPage />} />
 
-          {/* Protected Application Routes */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <AppShell />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/clients" element={<ClientsPage />} />
-            <Route path="/tasks" element={<TasksPage />} />
-            <Route path="/gst" element={<GstCompliancePage />} />
-            <Route path="/itr" element={<ItrCompliancePage />} />
-            <Route path="/calendar" element={<ComplianceCalendarPage />} />
-            <Route path="/documents" element={<DocumentsPage />} />
-            <Route path="/billing" element={<BillingPage />} />
-            <Route path="/portal" element={<ClientPortalManagementPage />} />
-            <Route path="/team" element={<TeamManagementPage />} />
-            <Route path="/audit-logs" element={<AuditLogsPage />} />
-            <Route path="/settings/subscription" element={<SubscriptionsPage />} />
-          </Route>
+            {/* Protected Application Routes */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppShell />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/gst" element={<GstCompliancePage />} />
+              <Route path="/itr" element={<ItrCompliancePage />} />
+              <Route path="/calendar" element={<ComplianceCalendarPage />} />
+              <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/billing" element={<BillingPage />} />
+              <Route path="/portal" element={<ClientPortalManagementPage />} />
+              <Route path="/team" element={<TeamManagementPage />} />
+              <Route path="/audit-logs" element={<AuditLogsPage />} />
+              <Route path="/settings/branding" element={<PracticeBrandingPage />} />
+              <Route path="/settings/subscription" element={<SubscriptionsPage />} />
+            </Route>
 
-          {/* Catch all redirect */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Catch all redirect */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </BrandingProvider>
     </AuthProvider>
   );
 };

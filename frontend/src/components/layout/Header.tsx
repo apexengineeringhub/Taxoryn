@@ -1,9 +1,13 @@
 import React from 'react';
 import { Search, Bell, Plus, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useBranding } from '../../context/BrandingContext';
 
 export const Header: React.FC = () => {
-  const { user, practiceName } = useAuth();
+  const { user } = useAuth();
+  const { currentTheme, getEmployeeAvatar } = useBranding();
+
+  const userAvatar = getEmployeeAvatar(user?.email || user?.id);
 
   return (
     <header className="h-16 px-6 glass-header flex items-center justify-between gap-4 sticky top-0 z-30 select-none">
@@ -25,7 +29,10 @@ export const Header: React.FC = () => {
       {/* Actions & Alerts */}
       <div className="flex items-center gap-3">
         {/* Quick Action Button */}
-        <button className="hidden sm:inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-colors">
+        <button
+          style={{ backgroundColor: currentTheme.primaryColor }}
+          className="hidden sm:inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+        >
           <Plus className="w-4 h-4" />
           <span>New Action</span>
         </button>
@@ -42,18 +49,35 @@ export const Header: React.FC = () => {
         {/* Vertical Divider */}
         <div className="h-6 w-px bg-slate-200" />
 
-        {/* Role Pill */}
-        <div className="hidden md:flex items-center gap-1.5 bg-slate-100 border border-slate-200/80 rounded-full px-3 py-1 text-xs text-slate-700 font-medium">
-          <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
-          <span>
-            {(() => {
-              if (!user?.roles || (Array.isArray(user.roles) && user.roles.length === 0)) return 'CA Admin';
-              const r = Array.isArray(user.roles) ? user.roles[0] : user.roles;
-              if (typeof r === 'string') return r;
-              if (typeof r === 'object' && r !== null) return (r as any).name || (r as any).code || 'CA Admin';
-              return 'CA Admin';
-            })()}
-          </span>
+        {/* User Avatar & Role Pill */}
+        <div className="flex items-center gap-2">
+          {userAvatar ? (
+            <img
+              src={userAvatar}
+              alt={user?.firstName}
+              className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
+            />
+          ) : (
+            <div
+              className="w-8 h-8 rounded-full text-white font-bold text-xs flex items-center justify-center shadow-2xs"
+              style={{ backgroundColor: currentTheme.primaryColor }}
+            >
+              {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
+            </div>
+          )}
+
+          <div className="hidden md:flex items-center gap-1.5 bg-slate-100 border border-slate-200/80 rounded-full px-3 py-1 text-xs text-slate-700 font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
+            <span>
+              {(() => {
+                if (!user?.roles || (Array.isArray(user.roles) && user.roles.length === 0)) return 'CA Admin';
+                const r = Array.isArray(user.roles) ? user.roles[0] : user.roles;
+                if (typeof r === 'string') return r;
+                if (typeof r === 'object' && r !== null) return (r as any).name || (r as any).code || 'CA Admin';
+                return 'CA Admin';
+              })()}
+            </span>
+          </div>
         </div>
       </div>
     </header>
