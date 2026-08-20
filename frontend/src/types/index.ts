@@ -137,6 +137,22 @@ export interface ClientContact {
   isPrimary: boolean;
 }
 
+export interface BulkImportResult {
+  totalProcessed: number;
+  totalSuccess: number;
+  totalFailed: number;
+  totalSkipped: number;
+  importedClients: Client[];
+  errors: BulkImportError[];
+}
+
+export interface BulkImportError {
+  rowNumber: number;
+  clientName: string;
+  pan: string;
+  reason: string;
+}
+
 // 4. Task Management
 export interface Task {
   id: string;

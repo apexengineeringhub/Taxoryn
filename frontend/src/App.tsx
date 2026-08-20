@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterOrgPage } from './pages/RegisterOrgPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ClientsPage } from './pages/ClientsPage';
+import { ClientMigrationHubPage } from './pages/ClientMigrationHubPage';
 import { TasksPage } from './pages/TasksPage';
 import { GstCompliancePage } from './pages/GstCompliancePage';
 import { ItrCompliancePage } from './pages/ItrCompliancePage';
@@ -67,6 +68,7 @@ export const App: React.FC = () => {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/clients/migration" element={<ClientMigrationHubPage />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/gst" element={<GstCompliancePage />} />
               <Route path="/itr" element={<ItrCompliancePage />} />

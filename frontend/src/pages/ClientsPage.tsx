@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Edit2, Trash2, Building2, User } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Eye, Edit2, Trash2, Building2, User, FileSpreadsheet } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -169,9 +170,16 @@ export const ClientsPage: React.FC = () => {
             Centralized repository for corporate and individual clients, GSTINs, PANs, and filing histories.
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
-          Add New Client
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <Link to="/clients/migration">
+            <Button variant="outline" leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}>
+              Migrate / Bulk Import
+            </Button>
+          </Link>
+          <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
+            Add New Client
+          </Button>
+        </div>
       </div>
 
       {/* Data Table */}

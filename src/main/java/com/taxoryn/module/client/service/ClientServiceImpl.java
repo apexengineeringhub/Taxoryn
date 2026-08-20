@@ -416,6 +416,117 @@ public class ClientServiceImpl implements ClientService {
         return clientMapper.toNoteDtoList(notes);
     }
 
+    @Override
+    @Transactional
+    public com.taxoryn.module.client.dto.BulkImportResultDto bulkCreateClients(List<CreateClientRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.client.dto.BulkImportResultDto result = com.taxoryn.module.client.dto.BulkImportResultDto.builder()
+                .totalProcessed(requests != null ? requests.size() : 0)
+                .build();
+
+        if (requests == null || requests.isEmpty()) {
+            return result;
+        }
+
+        int rowNum = 1;
+        for (CreateClientRequest req : requests) {
+            rowNum++;
+            if (!StringUtils.hasText(req.getDisplayName())) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName("Unknown")
+                        .pan(req.getPan())
+                        .reason("Display name / Business name is required")
+                        .build());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+                continue;
+            }
+
+            if (!StringUtils.hasText(req.getPan())) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(req.getDisplayName())
+                        .pan("MISSING")
+                        .reason("PAN number is required")
+                        .build());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+                continue;
+            }
+
+            String pan = req.getPan().toUpperCase().trim();
+            if (!pan.matches("^[A-Z]{5}[0-9]{4}[A-Z]{1}$")) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(req.getDisplayName())
+                        .pan(pan)
+                        .reason("Invalid PAN format (expected 5 letters, 4 digits, 1 letter)")
+                        .build());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+                continue;
+            }
+
+            if (clientRepository.existsByOrganizationIdAndPan(organizationId, pan)) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(req.getDisplayName())
+                        .pan(pan)
+                        .reason("Duplicate client with PAN " + pan + " already exists")
+                        .build());
+                result.setTotalSkipped(result.getTotalSkipped() + 1);
+                continue;
+            }
+
+            String gstin = StringUtils.hasText(req.getGstin()) ? req.getGstin().toUpperCase().trim() : null;
+            if (gstin != null && !gstin.matches("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$")) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(req.getDisplayName())
+                        .pan(pan)
+                        .reason("Invalid GSTIN format: " + gstin)
+                        .build());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+                continue;
+            }
+
+            try {
+                subscriptionService.checkClientLimit(organizationId);
+
+                ClientEntity client = ClientEntity.builder()
+                        .clientType(req.getClientType() != null ? req.getClientType() : ClientEntity.ClientType.PRIVATE_LIMITED)
+                        .displayName(req.getDisplayName().trim())
+                        .legalName(StringUtils.hasText(req.getLegalName()) ? req.getLegalName().trim() : null)
+                        .tradeName(StringUtils.hasText(req.getTradeName()) ? req.getTradeName().trim() : null)
+                        .pan(pan)
+                        .gstin(gstin)
+                        .email(StringUtils.hasText(req.getEmail()) ? req.getEmail().trim() : null)
+                        .phone(StringUtils.hasText(req.getPhone()) ? req.getPhone().trim() : null)
+                        .city(StringUtils.hasText(req.getCity()) ? req.getCity().trim() : null)
+                        .state(StringUtils.hasText(req.getState()) ? req.getState().trim() : null)
+                        .pincode(StringUtils.hasText(req.getPincode()) ? req.getPincode().trim() : null)
+                        .status(ClientStatus.ACTIVE)
+                        .build();
+                client.setOrganizationId(organizationId);
+
+                ClientEntity saved = clientRepository.save(client);
+                result.getImportedClients().add(enrichDto(saved));
+                result.setTotalSuccess(result.getTotalSuccess() + 1);
+            } catch (Exception ex) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(req.getDisplayName())
+                        .pan(pan)
+                        .reason(ex.getMessage())
+                        .build());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Completed bulk client import for orgId={}: {} success, {} failed, {} skipped",
+                organizationId, result.getTotalSuccess(), result.getTotalFailed(), result.getTotalSkipped());
+
+        return result;
+    }
+
     private ClientDto enrichDto(ClientEntity client) {
         ClientDto dto = clientMapper.toDto(client);
         if (client.getAssignedEmployeeId() != null) {

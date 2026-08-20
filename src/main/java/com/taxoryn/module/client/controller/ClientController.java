@@ -68,6 +68,15 @@ public class ClientController {
                 .body(ApiResponse.created("Client created successfully", created));
     }
 
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk import clients", description = "Imports a batch of client records from CSV or Excel migrations with validation and duplicate skipping.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.BulkImportResultDto>> bulkCreateClients(@RequestBody List<CreateClientRequest> requests) {
+        com.taxoryn.module.client.dto.BulkImportResultDto result = clientService.bulkCreateClients(requests);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ApiResponse.success("Bulk client migration batch processed successfully", result));
+    }
+
     @PutMapping("/{clientId}")
     @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update client", description = "Updates client profile, statutory numbers, address, and assignment within the authenticated tenant.")

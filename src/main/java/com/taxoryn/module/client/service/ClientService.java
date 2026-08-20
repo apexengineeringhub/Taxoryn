@@ -35,4 +35,6 @@ public interface ClientService {
     ClientNoteDto addClientNote(UUID clientId, CreateClientNoteRequest request);
 
     List<ClientNoteDto> getClientNotes(UUID clientId);
+
+    com.taxoryn.module.client.dto.BulkImportResultDto bulkCreateClients(List<CreateClientRequest> requests);
 }
