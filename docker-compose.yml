@@ -1,6 +1,38 @@
 version: '3.8'
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taxoryn_app
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-8088}:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-taxoryn_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-taxoryn_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-taxoryn_secret}
+      JWT_SECRET: ${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-LOCAL}
+      STORAGE_LOCAL_BASE_DIR: /app/data/documents
+    volumes:
+      - taxoryn_documents:/app/data/documents
+      - taxoryn_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - taxoryn-network
+
   postgres:
     image: postgres:16-alpine
     container_name: taxoryn_postgres
@@ -40,6 +72,10 @@ services:
 
 volumes:
   taxoryn_pgdata:
+    driver: local
+  taxoryn_documents:
+    driver: local
+  taxoryn_logs:
     driver: local
 
 networks:

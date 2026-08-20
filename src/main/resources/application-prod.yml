@@ -1,0 +1,71 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/taxoryn_db}
+    username: ${SPRING_DATASOURCE_USERNAME:taxoryn_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:taxoryn_secret}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:25}
+      minimum-idle: ${HIKARI_MIN_IDLE:10}
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+      pool-name: TaxorynHikariPool
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        generate_statistics: false
+        jdbc:
+          batch_size: 50
+          order_inserts: true
+          order_updates: true
+
+# Hardened Security & Rate Limiting
+taxoryn:
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
+    issuer: ${JWT_ISSUER:taxoryn-platform}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://app.taxoryn.com,https://portal.taxoryn.com}
+    allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    auth-limit: ${RATE_LIMIT_AUTH:15}
+    api-limit: ${RATE_LIMIT_API:300}
+  storage:
+    provider: ${STORAGE_PROVIDER:LOCAL}
+    local:
+      base-dir: ${STORAGE_LOCAL_BASE_DIR:./data/documents}
+    s3:
+      bucket-name: ${STORAGE_S3_BUCKET:taxoryn-production-documents}
+      region: ${STORAGE_S3_REGION:ap-south-1}
+      access-key: ${STORAGE_S3_ACCESS_KEY:}
+      secret-key: ${STORAGE_S3_SECRET_KEY:}
+
+# Production Observability & Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+
+# Clean Production Logging
+logging:
+  level:
+    root: INFO
+    com.taxoryn: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
