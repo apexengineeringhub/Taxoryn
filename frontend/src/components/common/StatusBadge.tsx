@@ -40,6 +40,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
       );
 
     case 'OVERDUE':
+    case 'SUSPENDED':
     case 'FAILED':
     case 'REJECTED':
     case 'CANCELLED':

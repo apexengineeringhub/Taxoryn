@@ -62,6 +62,10 @@ export const clientApi = {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${id}`);
     return res.data;
   },
+  updateStatus: async (id: string, status: string) => {
+    const res = await apiClient.patch<ApiResponse<Client>>(`/v1/clients/${id}/status`, { status });
+    return res.data.data;
+  },
   bulkImport: async (clients: Partial<Client>[]) => {
     const res = await apiClient.post<ApiResponse<any>>('/v1/clients/bulk', clients);
     return res.data.data;

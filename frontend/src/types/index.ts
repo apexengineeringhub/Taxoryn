@@ -119,7 +119,7 @@ export interface Client {
   tan?: string;
   cin?: string;
   clientType: 'INDIVIDUAL' | 'PROPRIETORSHIP' | 'PARTNERSHIP' | 'LLP' | 'PRIVATE_LIMITED' | 'PUBLIC_LIMITED' | 'TRUST' | 'HUF' | 'OTHER';
-  status: 'ACTIVE' | 'INACTIVE' | 'PROSPECT' | 'ARCHIVED';
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PROSPECT' | 'ARCHIVED';
   email?: string;
   phone?: string;
   assignedEmployeeId?: string;

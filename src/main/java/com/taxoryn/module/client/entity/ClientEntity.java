@@ -113,6 +113,7 @@ public class ClientEntity extends TenantAuditableEntity {
     public enum ClientStatus {
         ACTIVE,
         INACTIVE,
+        SUSPENDED,
         PROSPECT,
         ARCHIVED
     }
