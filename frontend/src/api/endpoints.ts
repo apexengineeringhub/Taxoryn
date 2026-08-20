@@ -90,6 +90,22 @@ export const taskApi = {
     const res = await apiClient.patch<ApiResponse<Task>>(`/v1/tasks/${id}/status`, { status });
     return res.data.data;
   },
+  generateBulk: async (payload: {
+    clientIds: string[];
+    assignedTo?: string;
+    title: string;
+    description?: string;
+    taskCategory: string;
+    priority: string;
+    dueDate?: string;
+  }) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/tasks/bulk-generator', payload);
+    return res.data.data;
+  },
+  bulkImport: async (tasks: Partial<Task>[]) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/tasks/bulk', tasks);
+    return res.data.data;
+  },
 };
 
 // --- 5. GST Compliance ---

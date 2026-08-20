@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, CheckSquare, List, LayoutGrid, AlertCircle, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, CheckSquare, List, LayoutGrid, AlertCircle, Clock, Sparkles } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -125,6 +126,11 @@ export const TasksPage: React.FC = () => {
               <LayoutGrid className="w-4 h-4" />
             </button>
           </div>
+          <Link to="/tasks/bulk">
+            <Button variant="outline" leftIcon={<Sparkles className="w-4 h-4 text-brand-600" />}>
+              ⚡ Bulk Task Generator
+            </Button>
+          </Link>
           <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
             Create Task
           </Button>

@@ -19,4 +19,8 @@ public interface TaskService {
     TaskDto updateTask(UUID taskId, UpdateTaskRequest request);
 
     void deleteTask(UUID taskId);
+
+    com.taxoryn.module.task.dto.BulkTaskImportResultDto generateBulkTasks(com.taxoryn.module.task.dto.BulkTaskCreateRequest request);
+
+    com.taxoryn.module.task.dto.BulkTaskImportResultDto bulkCreateTasks(java.util.List<CreateTaskRequest> requests);
 }

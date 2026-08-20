@@ -136,4 +136,96 @@ public class TaskServiceImpl implements TaskService {
         taskRepository.save(task);
         log.info("Cancelled task {} for organization {}", taskId, organizationId);
     }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.task.dto.BulkTaskImportResultDto generateBulkTasks(com.taxoryn.module.task.dto.BulkTaskCreateRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.task.dto.BulkTaskImportResultDto result = com.taxoryn.module.task.dto.BulkTaskImportResultDto.builder()
+                .totalProcessed(request.getClientIds() != null ? request.getClientIds().size() : 0)
+                .build();
+
+        if (request.getClientIds() == null || request.getClientIds().isEmpty()) {
+            return result;
+        }
+
+        for (UUID clientId : request.getClientIds()) {
+            try {
+                TaskEntity task = TaskEntity.builder()
+                        .clientId(clientId)
+                        .assignedTo(request.getAssignedTo())
+                        .title(request.getTitle().trim())
+                        .description(request.getDescription())
+                        .taskCategory(request.getTaskCategory())
+                        .status(TaskStatus.TODO)
+                        .priority(request.getPriority())
+                        .dueDate(request.getDueDate())
+                        .build();
+                task.setOrganizationId(organizationId);
+
+                TaskEntity saved = taskRepository.save(task);
+                result.getCreatedTasks().add(taskMapper.toDto(saved));
+                result.setTotalCreated(result.getTotalCreated() + 1);
+
+                if (saved.getAssignedTo() != null) {
+                    notifyTaskAssigned(organizationId, saved);
+                }
+            } catch (Exception ex) {
+                result.getErrors().add("Client " + clientId + ": " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Generated bulk tasks for orgId={}: {} created, {} failed",
+                organizationId, result.getTotalCreated(), result.getTotalFailed());
+
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.task.dto.BulkTaskImportResultDto bulkCreateTasks(java.util.List<CreateTaskRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.task.dto.BulkTaskImportResultDto result = com.taxoryn.module.task.dto.BulkTaskImportResultDto.builder()
+                .totalProcessed(requests != null ? requests.size() : 0)
+                .build();
+
+        if (requests == null || requests.isEmpty()) {
+            return result;
+        }
+
+        int row = 1;
+        for (CreateTaskRequest req : requests) {
+            row++;
+            try {
+                TaskEntity task = TaskEntity.builder()
+                        .clientId(req.getClientId())
+                        .assignedTo(req.getAssignedTo())
+                        .title(req.getTitle().trim())
+                        .description(req.getDescription())
+                        .taskCategory(req.getTaskCategory() != null ? req.getTaskCategory() : TaskEntity.TaskCategory.OTHER)
+                        .status(TaskStatus.TODO)
+                        .priority(req.getPriority() != null ? req.getPriority() : TaskEntity.TaskPriority.MEDIUM)
+                        .dueDate(req.getDueDate())
+                        .build();
+                task.setOrganizationId(organizationId);
+
+                TaskEntity saved = taskRepository.save(task);
+                result.getCreatedTasks().add(taskMapper.toDto(saved));
+                result.setTotalCreated(result.getTotalCreated() + 1);
+
+                if (saved.getAssignedTo() != null) {
+                    notifyTaskAssigned(organizationId, saved);
+                }
+            } catch (Exception ex) {
+                result.getErrors().add("Row " + row + " (" + req.getTitle() + "): " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Bulk imported tasks for orgId={}: {} created, {} failed",
+                organizationId, result.getTotalCreated(), result.getTotalFailed());
+
+        return result;
+    }
 }

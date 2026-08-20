@@ -172,6 +172,24 @@ export interface Task {
   actualHours?: number;
 }
 
+export interface BulkTaskCreateRequest {
+  clientIds: string[];
+  assignedTo?: string;
+  title: string;
+  description?: string;
+  taskCategory: 'GST' | 'ITR' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  dueDate?: string;
+}
+
+export interface BulkTaskImportResult {
+  totalProcessed: number;
+  totalCreated: number;
+  totalFailed: number;
+  createdTasks: Task[];
+  errors: string[];
+}
+
 // 5. GST Compliance
 export interface GstProfile {
   id: string;

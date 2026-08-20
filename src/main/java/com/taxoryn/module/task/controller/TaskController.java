@@ -61,6 +61,22 @@ public class TaskController {
                 .body(ApiResponse.created("Task created successfully", created));
     }
 
+    @PostMapping("/bulk-generator")
+    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Generate bulk tasks across multiple clients", description = "Generates recurring compliance tasks for all selected clients in a single batch.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.task.dto.BulkTaskImportResultDto>> generateBulkTasks(@Valid @RequestBody com.taxoryn.module.task.dto.BulkTaskCreateRequest request) {
+        com.taxoryn.module.task.dto.BulkTaskImportResultDto result = taskService.generateBulkTasks(request);
+        return ResponseEntity.ok(ApiResponse.success("Bulk task generation batch completed", result));
+    }
+
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk import tasks from spreadsheet", description = "Imports a list of task records from CSV or Excel sheets.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.task.dto.BulkTaskImportResultDto>> bulkCreateTasks(@RequestBody java.util.List<CreateTaskRequest> requests) {
+        com.taxoryn.module.task.dto.BulkTaskImportResultDto result = taskService.bulkCreateTasks(requests);
+        return ResponseEntity.ok(ApiResponse.success("Bulk task import completed", result));
+    }
+
     @PutMapping("/{taskId}")
     @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update task", description = "Updates task status and details within the authenticated tenant.")
