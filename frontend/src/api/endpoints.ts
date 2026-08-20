@@ -205,6 +205,14 @@ export const teamApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<Employee>>>('/v1/employees', { params });
     return res.data.data;
   },
+  createEmployee: async (payload: Partial<Employee>) => {
+    const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees', payload);
+    return res.data.data;
+  },
+  bulkImportEmployees: async (employees: Partial<Employee>[]) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/employees/bulk', employees);
+    return res.data.data;
+  },
   getRoles: async () => {
     const res = await apiClient.get<ApiResponse<Role[]>>('/v1/roles');
     return res.data.data;

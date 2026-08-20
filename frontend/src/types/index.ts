@@ -360,6 +360,15 @@ export interface Employee {
   roleName?: string;
 }
 
+export interface BulkEmployeeImportResult {
+  totalProcessed: number;
+  totalCreated: number;
+  totalFailed: number;
+  totalSkipped: number;
+  createdEmployees: Employee[];
+  errors: string[];
+}
+
 export interface Role {
   id: string;
   code: string;

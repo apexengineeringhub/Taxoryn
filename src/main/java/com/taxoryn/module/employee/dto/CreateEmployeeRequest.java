@@ -50,18 +50,22 @@ public class CreateEmployeeRequest {
     @NotBlank(message = "Department is required")
     @Size(max = 100, message = "Department cannot exceed 100 characters")
     @Schema(description = "Department name", example = "Taxation")
-    private String department;
+    @Builder.Default
+    private String department = "Taxation";
 
     @NotBlank(message = "Designation is required")
     @Size(max = 100, message = "Designation cannot exceed 100 characters")
     @Schema(description = "Designation / Role Title", example = "Senior Tax Associate")
-    private String designation;
+    @Builder.Default
+    private String designation = "Tax Associate";
 
     @Schema(description = "Date of joining", example = "2024-04-01")
-    private LocalDate joiningDate;
+    @Builder.Default
+    private LocalDate joiningDate = LocalDate.now();
 
     @Schema(description = "Initial employment status", defaultValue = "ACTIVE")
-    private EmployeeStatus status;
+    @Builder.Default
+    private EmployeeStatus status = EmployeeStatus.ACTIVE;
 
     @Schema(description = "Reporting manager employee ID")
     private UUID managerId;

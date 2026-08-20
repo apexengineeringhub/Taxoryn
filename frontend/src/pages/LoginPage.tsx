@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Lock, Mail, ArrowRight, Sparkles } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, Sparkles, Building2, User } from 'lucide-react';
 import { Button } from '../components/common/Button';
 
 export const LoginPage: React.FC = () => {
@@ -12,23 +12,34 @@ export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Auto recall last registered or logged in email
+    const savedEmail = localStorage.getItem('taxoryn_last_user_email') || 'pawanadv@gmail.com';
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setPassword('Password123!');
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
+      localStorage.setItem('taxoryn_last_user_email', email.trim());
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid email or password');
+      setError(err.response?.data?.message || 'Invalid email or password. Please verify credentials.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleQuickFill = (roleEmail = 'admin@apextax.com') => {
-    setEmail(roleEmail);
+  const handleQuickFill = (demoEmail: string) => {
+    setEmail(demoEmail);
     setPassword('Password123!');
+    setError('');
   };
 
   return (
@@ -44,6 +55,39 @@ export const LoginPage: React.FC = () => {
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Sign in to Taxoryn</h2>
           <p className="text-xs text-slate-500">Enterprise Multi-Tenant Tax Practice Management</p>
+        </div>
+
+        {/* Quick Demo Fill Pills */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+            ⚡ 1-Click Quick Fill Demo Accounts
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickFill('pawanadv@gmail.com')}
+              className={`px-2.5 py-1.5 rounded-lg border text-left text-xs font-semibold transition-all ${
+                email === 'pawanadv@gmail.com'
+                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <span className="block font-bold text-[11px] truncate">Maa Mundeshwari</span>
+              <span className="block text-[10px] text-slate-500 truncate">pawanadv@gmail.com</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('admin@apextax.com')}
+              className={`px-2.5 py-1.5 rounded-lg border text-left text-xs font-semibold transition-all ${
+                email === 'admin@apextax.com'
+                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <span className="block font-bold text-[11px] truncate">Apex Tax Advisors</span>
+              <span className="block text-[10px] text-slate-500 truncate">admin@apextax.com</span>
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -89,14 +133,8 @@ export const LoginPage: React.FC = () => {
         </form>
 
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <button
-            type="button"
-            onClick={() => handleQuickFill()}
-            className="text-brand-600 hover:text-brand-700 font-semibold inline-flex items-center gap-1"
-          >
-            <Sparkles className="w-3.5 h-3.5" /> Quick Fill Demo Admin
-          </button>
-          <Link to="/register" className="hover:text-slate-800 font-semibold">
+          <span className="text-[11px]">Default Password: <code className="font-mono font-bold text-slate-700">Password123!</code></span>
+          <Link to="/register" className="hover:text-slate-800 font-semibold text-brand-600">
             Register Firm →
           </Link>
         </div>

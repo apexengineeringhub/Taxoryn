@@ -19,6 +19,7 @@ import { DocumentsPage } from './pages/DocumentsPage';
 import { BillingPage } from './pages/BillingPage';
 import { ClientPortalManagementPage } from './pages/ClientPortalManagementPage';
 import { TeamManagementPage } from './pages/TeamManagementPage';
+import { BulkEmployeeOnboardingPage } from './pages/BulkEmployeeOnboardingPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { PracticeBrandingPage } from './pages/PracticeBrandingPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
@@ -79,6 +80,7 @@ export const App: React.FC = () => {
               <Route path="/billing" element={<BillingPage />} />
               <Route path="/portal" element={<ClientPortalManagementPage />} />
               <Route path="/team" element={<TeamManagementPage />} />
+              <Route path="/team/bulk" element={<BulkEmployeeOnboardingPage />} />
               <Route path="/audit-logs" element={<AuditLogsPage />} />
               <Route path="/settings/branding" element={<PracticeBrandingPage />} />
               <Route path="/settings/subscription" element={<SubscriptionsPage />} />

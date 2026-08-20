@@ -271,4 +271,79 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         return dto;
     }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto bulkCreateEmployees(java.util.List<CreateEmployeeRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto result = com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto.builder()
+                .totalProcessed(requests != null ? requests.size() : 0)
+                .build();
+
+        if (requests == null || requests.isEmpty()) {
+            return result;
+        }
+
+        int row = 1;
+        for (CreateEmployeeRequest req : requests) {
+            row++;
+            try {
+                String code = req.getEmployeeCode() != null ? req.getEmployeeCode().trim() : ("EMP-" + (System.currentTimeMillis() % 100000));
+                String email = req.getEmail() != null ? req.getEmail().toLowerCase().trim() : null;
+
+                if (email == null || email.isBlank()) {
+                    result.getErrors().add("Row " + row + ": Email is required");
+                    result.setTotalFailed(result.getTotalFailed() + 1);
+                    continue;
+                }
+
+                if (employeeRepository.existsByOrganizationIdAndEmployeeCode(organizationId, code)) {
+                    result.getErrors().add("Row " + row + " (Code: " + code + "): Employee code already exists, skipped");
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                if (employeeRepository.existsByOrganizationIdAndEmail(organizationId, email)) {
+                    result.getErrors().add("Row " + row + " (Email: " + email + "): Employee email already exists, skipped");
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                EmployeeEntity employee = EmployeeEntity.builder()
+                        .userId(req.getUserId())
+                        .employeeCode(code)
+                        .firstName(req.getFirstName() != null ? req.getFirstName().trim() : "Staff")
+                        .lastName(req.getLastName() != null ? req.getLastName().trim() : null)
+                        .email(email)
+                        .phone(req.getPhone())
+                        .department(req.getDepartment() != null ? req.getDepartment().trim() : "Taxation")
+                        .designation(req.getDesignation() != null ? req.getDesignation().trim() : "Tax Associate")
+                        .joiningDate(req.getJoiningDate() != null ? req.getJoiningDate() : LocalDate.now())
+                        .status(req.getStatus() != null ? req.getStatus() : EmployeeStatus.ACTIVE)
+                        .managerId(req.getManagerId())
+                        .build();
+                employee.setOrganizationId(organizationId);
+
+                EmployeeEntity saved = employeeRepository.save(employee);
+                result.getCreatedEmployees().add(enrichDto(saved));
+                result.setTotalCreated(result.getTotalCreated() + 1);
+
+                auditService.logEvent(
+                        "CREATE_EMPLOYEE",
+                        "EMPLOYEE",
+                        saved.getId().toString(),
+                        null,
+                        "Bulk onboarded employee: " + saved.getFullName() + " (" + saved.getEmployeeCode() + ")"
+                );
+            } catch (Exception ex) {
+                result.getErrors().add("Row " + row + " (" + req.getEmail() + "): " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Bulk imported employees for orgId={}: {} created, {} skipped, {} failed",
+                organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
+
+        return result;
+    }
 }

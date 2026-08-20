@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { UserCheck, Shield, Plus, Mail, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { UserCheck, Shield, Plus, Mail, Phone, Sparkles } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -119,7 +120,14 @@ export const TeamManagementPage: React.FC = () => {
             Manage practice partners, senior accountants, staff privileges, and role permissions.
           </p>
         </div>
-        <Button leftIcon={<Plus className="w-4 h-4" />}>Add Team Member</Button>
+        <div className="flex items-center gap-2">
+          <Link to="/team/bulk">
+            <Button variant="outline" leftIcon={<Sparkles className="w-4 h-4 text-brand-600" />}>
+              ⚡ Bulk Onboard Team
+            </Button>
+          </Link>
+          <Button leftIcon={<Plus className="w-4 h-4" />}>Add Team Member</Button>
+        </div>
       </div>
 
       {/* Tabs */}

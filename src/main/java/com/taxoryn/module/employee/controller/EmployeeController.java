@@ -64,6 +64,14 @@ public class EmployeeController {
                 .body(ApiResponse.created("Employee created successfully", created));
     }
 
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAuthority('EMPLOYEE_CREATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk onboard practice employees and practitioners", description = "Onboards multiple staff members in a batch from spreadsheets.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto>> bulkCreateEmployees(@RequestBody java.util.List<CreateEmployeeRequest> requests) {
+        com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto result = employeeService.bulkCreateEmployees(requests);
+        return ResponseEntity.ok(ApiResponse.success("Bulk employee onboarding completed", result));
+    }
+
     @PutMapping("/{employeeId}")
     @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update employee", description = "Updates employee profile and reporting hierarchy within the authenticated tenant.")
