@@ -1,0 +1,12 @@
+Client PAN,Task Title,Category,Priority,Due Date,Description
+AAACZ1234D,GSTR-3B Monthly Return Filing & Tax Payment,GST,HIGH,2026-08-20,Reconciliation of GSTR-2B ITC and tax payment
+AAALB5678E,GSTR-1 Monthly Outward Supplies Filing,GST,HIGH,2026-08-11,Monthly B2B invoices and B2CS sales summary upload
+ABCPJ9876M,Annual ITR-2 Return Filing AY 2026-27,ITR,MEDIUM,2026-07-31,Salaried and capital gains AIS/TIS reconciliation
+AABFM1122K,GSTR-3B Monthly Return Filing,GST,HIGH,2026-08-20,Monthly turnover tax computation and GSTR-3B return
+AAACA4321C,Tax Audit Report Form 3CA/3CD Filing,AUDIT,URGENT,2026-09-30,Statutory tax audit under section 44AB
+AABFS7788P,Quarterly TDS 26Q Return Q1,COMPLIANCE,HIGH,2026-07-31,Non-salary contractor and professional fee TDS
+AHIPS3456L,ITR-1 Sahaj Return AY 2026-27,ITR,LOW,2026-07-31,Form 16 salary income tax return
+AAALS9988Q,Quarterly Advance Tax Installment Q2,COMPLIANCE,HIGH,2026-09-15,Advance tax computation and challan generation
+AAACM6655B,Annual ITR-6 Corporate Tax Return AY 2026-27,ITR,URGENT,2026-10-31,Corporate income tax return with MAT
+AAATR1199F,Form 10B Audit Report & ITR-7,AUDIT,HIGH,2026-09-30,Educational trust statutory audit and exemption filing
+AAAFS5544H,HUF Annual Tax Return Filing,ITR,MEDIUM,2026-07-31,Karta income computation and return submission

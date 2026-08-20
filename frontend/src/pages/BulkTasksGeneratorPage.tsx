@@ -703,23 +703,33 @@ export const BulkTasksGeneratorPage: React.FC = () => {
             </Card>
 
             <Card
-              title="Task Import Template"
-              subtitle="Quick reference format"
+              title="Task Import Templates"
+              subtitle="Pre-populated with sample practice tasks"
               className="lg:col-span-1"
             >
-              <div className="space-y-4 text-xs">
+              <div className="space-y-3 text-xs">
                 <p className="text-slate-600">
                   Tasks are automatically mapped to clients using their <strong>10-digit PAN number</strong>.
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  leftIcon={<Download className="w-3.5 h-3.5" />}
-                  onClick={handleDownloadTaskTemplate}
-                >
-                  Download Tasks CSV Template
-                </Button>
+                <div className="space-y-2 pt-1">
+                  <a
+                    href="/Taxoryn_Sample_Tasks_Bulk_Upload.xlsx"
+                    download="Taxoryn_Sample_Tasks_Bulk_Upload.xlsx"
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold transition-colors shadow-2xs"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span>Download Excel (.xlsx)</span>
+                  </a>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    leftIcon={<Download className="w-3.5 h-3.5" />}
+                    onClick={handleDownloadTaskTemplate}
+                  >
+                    Download CSV (.csv)
+                  </Button>
+                </div>
               </div>
             </Card>
           </div>
