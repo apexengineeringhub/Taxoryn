@@ -3,21 +3,23 @@ import { Search, Bell, Plus, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const Header: React.FC = () => {
-  const { user } = useAuth();
+  const { user, practiceName } = useAuth();
 
   return (
     <header className="h-16 px-6 glass-header flex items-center justify-between gap-4 sticky top-0 z-30 select-none">
       {/* Search Input (Global Search) */}
-      <div className="relative w-72 md:w-96">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          placeholder="Quick search clients, GSTIN, PAN, tasks... (Ctrl+K)"
-          className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-100/70 border border-slate-200/80 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400"
-        />
-        <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 rounded shadow-2xs">
-          ⌘K
-        </kbd>
+      <div className="flex items-center gap-3">
+        <div className="relative w-64 md:w-80">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Quick search clients, GSTIN, PAN... (Ctrl+K)"
+            className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-100/70 border border-slate-200/80 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400"
+          />
+          <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 rounded shadow-2xs">
+            ⌘K
+          </kbd>
+        </div>
       </div>
 
       {/* Actions & Alerts */}

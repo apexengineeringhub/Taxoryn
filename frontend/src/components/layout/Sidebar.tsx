@@ -24,7 +24,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, practiceName, practiceInitials, subscriptionPlan } = useAuth();
 
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -43,25 +43,28 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
   return (
     <aside className="w-64 bg-obsidian-900 border-r border-obsidian-800 text-slate-300 flex flex-col h-screen select-none shrink-0 transition-all">
-      {/* Brand Header */}
-      <div className="h-16 px-6 flex items-center justify-between border-b border-obsidian-800 bg-obsidian-950/40">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-brand-500/20 font-black text-lg">
-            TX
+      {/* Dynamic Practice Brand Header */}
+      <div className="h-16 px-4 flex items-center justify-between border-b border-obsidian-800 bg-obsidian-950/40">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/20 font-black text-sm shrink-0 tracking-wider">
+            {practiceInitials}
           </div>
-          <div>
-            <span className="font-extrabold text-base tracking-tight text-white block">Taxoryn</span>
-            <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase block">Practice SaaS</span>
+          <div className="min-w-0">
+            <span className="font-black text-xs tracking-tight text-white block truncate" title={practiceName}>
+              {practiceName}
+            </span>
+            <span className="text-[9px] text-slate-400 font-bold tracking-wider uppercase block truncate">
+              Tax & Accounting Practice
+            </span>
           </div>
         </div>
       </div>
 
       {/* Tenant Indicator */}
-      <div className="px-4 py-3 border-b border-obsidian-800/80 bg-obsidian-800/20 flex items-center justify-between">
+      <div className="px-4 py-2.5 border-b border-obsidian-800/80 bg-obsidian-800/20 flex items-center justify-between">
         <div className="truncate">
-          <p className="text-xs font-semibold text-white truncate">{user?.organizationName || 'Tax Practice Hub'}</p>
-          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
-            <Sparkles className="w-3 h-3" /> Professional Plan
+          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">
+            <Sparkles className="w-3 h-3" /> {subscriptionPlan} Plan
           </span>
         </div>
       </div>

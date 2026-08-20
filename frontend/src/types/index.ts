@@ -22,6 +22,19 @@ export interface PagedResponse<T> {
 }
 
 // 1. Auth & User
+export interface Organization {
+  id: string;
+  name: string;
+  legalName?: string;
+  tradeName?: string;
+  email?: string;
+  phone?: string;
+  pan?: string;
+  gstin?: string;
+  subscriptionPlan?: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+}
+
 export interface User {
   id: string;
   organizationId: string;
@@ -31,7 +44,7 @@ export interface User {
   lastName?: string;
   phone?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-  roles: string[];
+  roles: string[] | { id?: string; code: string; name: string }[];
   permissions: string[];
   isClientUser?: boolean;
 }
@@ -42,6 +55,7 @@ export interface AuthTokens {
   tokenType: string;
   expiresIn: number;
   user: User;
+  organization?: Organization;
 }
 
 // 2. Organization Dashboard
