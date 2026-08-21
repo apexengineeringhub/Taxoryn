@@ -63,6 +63,18 @@ export function DataTable<T extends { id?: string | number }>({
 
   const totalPages = Math.ceil(totalElements / pageSize) || 1;
 
+  const displayData = React.useMemo(() => {
+    if (!searchQuery.trim() || onSearch) return data;
+    const q = searchQuery.toLowerCase().trim();
+    return data.filter((row: any) => {
+      return Object.values(row).some((val) => {
+        if (val === null || val === undefined) return false;
+        if (typeof val === 'object') return false;
+        return String(val).toLowerCase().includes(q);
+      });
+    });
+  }, [data, searchQuery, onSearch]);
+
   return (
     <div className="bg-white border border-slate-200/90 rounded-xl shadow-card overflow-hidden flex flex-col">
       {/* Table Toolbar */}
@@ -131,14 +143,14 @@ export function DataTable<T extends { id?: string | number }>({
                   </div>
                 </td>
               </tr>
-            ) : data.length === 0 ? (
+            ) : displayData.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center text-slate-400 font-medium">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
-              data.map((row, rowIdx) => (
+              displayData.map((row, rowIdx) => (
                 <tr
                   key={row.id || rowIdx}
                   onClick={() => onRowClick && onRowClick(row)}

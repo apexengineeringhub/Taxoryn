@@ -75,8 +75,28 @@ public class TaskServiceImpl implements TaskService {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
 
-            // Enforce RBAC/ABAC Task Isolation:
-            if (scope.isStaff()) {
+            // Enforce Assignee Filtering & RBAC/ABAC Task Isolation:
+            if (filterRequest.getAssignedTo() != null) {
+                Set<UUID> candidateIds = resolveCandidateAssigneeIds(filterRequest.getAssignedTo(), organizationId);
+                if (scope.isStaff()) {
+                    Set<UUID> selfIds = scope.getAccessibleAssigneeIds();
+                    if (selfIds != null && selfIds.stream().anyMatch(candidateIds::contains)) {
+                        predicates.add(root.get("assignedTo").in(candidateIds));
+                    } else {
+                        predicates.add(cb.disjunction());
+                    }
+                } else if (scope.isDepartmentManager()) {
+                    Set<UUID> deptIds = scope.getAccessibleAssigneeIds();
+                    if (deptIds != null && deptIds.stream().anyMatch(candidateIds::contains)) {
+                        predicates.add(root.get("assignedTo").in(candidateIds));
+                    } else {
+                        predicates.add(cb.disjunction());
+                    }
+                } else {
+                    // Firm Admin
+                    predicates.add(root.get("assignedTo").in(candidateIds));
+                }
+            } else if (scope.isStaff()) {
                 // Staff / Article Assistant can ONLY see tasks assigned to them
                 Set<UUID> selfIds = scope.getAccessibleAssigneeIds();
                 if (selfIds != null && !selfIds.isEmpty()) {
@@ -86,27 +106,20 @@ public class TaskServiceImpl implements TaskService {
                 }
             } else if (scope.isDepartmentManager()) {
                 // Manager can see tasks assigned to staff in their department or direct reports
-                Set<UUID> deptIds = scope.getAccessibleAssigneeIds();
-                if (filterRequest.getAssignedTo() != null) {
-                    if (deptIds != null && deptIds.contains(filterRequest.getAssignedTo())) {
-                        predicates.add(cb.equal(root.get("assignedTo"), filterRequest.getAssignedTo()));
-                    } else {
-                        predicates.add(cb.disjunction()); // Outside department boundary
+                if (Boolean.TRUE.equals(filterRequest.getMyTasksOnly())) {
+                    Set<UUID> managerSelfIds = resolveCandidateAssigneeIds(scope.getUserId(), organizationId);
+                    predicates.add(root.get("assignedTo").in(managerSelfIds));
+                } else {
+                    Set<UUID> deptIds = scope.getAccessibleAssigneeIds();
+                    if (deptIds != null && !deptIds.isEmpty()) {
+                        predicates.add(root.get("assignedTo").in(deptIds));
                     }
-                } else if (Boolean.TRUE.equals(filterRequest.getMyTasksOnly())) {
-                    predicates.add(cb.equal(root.get("assignedTo"), scope.getUserId()));
-                } else if (deptIds != null && !deptIds.isEmpty()) {
-                    predicates.add(root.get("assignedTo").in(deptIds));
                 }
             } else {
                 // Firm Admin: unrestricted
                 if (Boolean.TRUE.equals(filterRequest.getMyTasksOnly()) && scope.getUserId() != null) {
-                    Set<UUID> adminIds = new HashSet<>();
-                    adminIds.add(scope.getUserId());
-                    if (scope.getEmployeeId() != null) adminIds.add(scope.getEmployeeId());
+                    Set<UUID> adminIds = resolveCandidateAssigneeIds(scope.getUserId(), organizationId);
                     predicates.add(root.get("assignedTo").in(adminIds));
-                } else if (filterRequest.getAssignedTo() != null) {
-                    predicates.add(cb.equal(root.get("assignedTo"), filterRequest.getAssignedTo()));
                 }
             }
 
@@ -157,6 +170,38 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return enrichDto(entity);
+    }
+
+    private Set<UUID> resolveCandidateAssigneeIds(UUID targetId, UUID organizationId) {
+        if (targetId == null) return java.util.Collections.emptySet();
+        Set<UUID> candidateIds = new HashSet<>();
+        candidateIds.add(targetId);
+
+        // If targetId is an Employee ID -> also include linked userId and any matching user account
+        employeeRepository.findByIdAndOrganizationId(targetId, organizationId)
+                .ifPresent(emp -> {
+                    if (emp.getUserId() != null) {
+                        candidateIds.add(emp.getUserId());
+                    }
+                    if (emp.getEmail() != null) {
+                        userRepository.findByEmailIgnoreCase(emp.getEmail().toLowerCase().trim())
+                                .ifPresent(user -> candidateIds.add(user.getId()));
+                    }
+                });
+
+        // If targetId is a User ID -> also include any Employee record linked to this user or email
+        employeeRepository.findByOrganizationIdAndUserId(organizationId, targetId)
+                .ifPresent(emp -> candidateIds.add(emp.getId()));
+
+        userRepository.findByIdAndOrganizationId(targetId, organizationId)
+                .ifPresent(user -> {
+                    if (user.getEmail() != null) {
+                        employeeRepository.findByOrganizationIdAndEmail(organizationId, user.getEmail().toLowerCase().trim())
+                                .ifPresent(emp -> candidateIds.add(emp.getId()));
+                    }
+                });
+
+        return candidateIds;
     }
 
     private UUID resolveAssigneeUserId(UUID assignedTo, UUID organizationId) {
