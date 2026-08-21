@@ -23,6 +23,7 @@ import { teamApi } from '../api/endpoints';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { Employee, BulkEmployeeImportResult } from '../types';
+import { parseSpreadsheetToRows } from '../utils/spreadsheetParser';
 import clsx from 'clsx';
 
 interface ParsedStaffRow {
@@ -70,98 +71,95 @@ export const BulkEmployeeOnboardingPage: React.FC = () => {
     }
   };
 
-  // CSV / Spreadsheet Parser
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Parse CSV or Excel (.xlsx / .xls) File in Browser
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setCsvFile(file);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const text = evt.target?.result as string;
-        const lines = text.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
-        if (lines.length <= 1) return;
-
-        // Clean & Normalize header columns
-        const headerCols = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
-        const codeIdx = headerCols.findIndex((h) => h.includes('code') || h.includes('id') || h.includes('emp'));
-        const firstIdx = headerCols.findIndex((h) => h.includes('first') || h.includes('fname') || h.includes('name'));
-        const lastIdx = headerCols.findIndex((h) => h.includes('last') || h.includes('lname') || h.includes('surname'));
-        const emailIdx = headerCols.findIndex((h) => h.includes('email') || h.includes('mail'));
-        const phoneIdx = headerCols.findIndex((h) => h.includes('phone') || h.includes('mob') || h.includes('contact'));
-        const deptIdx = headerCols.findIndex((h) => h.includes('dept') || h.includes('department'));
-        const desigIdx = headerCols.findIndex((h) => h.includes('desig') || h.includes('role') || h.includes('title'));
-        const statusIdx = headerCols.findIndex((h) => h.includes('status'));
-
-        const rows: ParsedStaffRow[] = [];
-        const seenCodes = new Set<string>();
-        const seenEmails = new Set<string>();
-
-        for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
-          if (cols.length < 2 || cols.every((c) => c === '')) continue;
-
-          const rawCode = (codeIdx >= 0 ? cols[codeIdx] : cols[0]) || `EMP-${100 + i}`;
-          const employeeCode = rawCode.trim().toUpperCase();
-
-          const firstName = (firstIdx >= 0 ? cols[firstIdx] : cols[1]) || '';
-          const lastName = (lastIdx >= 0 && lastIdx !== firstIdx ? cols[lastIdx] : cols[2]) || '';
-          const email = ((emailIdx >= 0 ? cols[emailIdx] : cols[3]) || '').toLowerCase().trim();
-          const phone = (phoneIdx >= 0 ? cols[phoneIdx] : cols[4]) || '';
-          const department = (deptIdx >= 0 ? cols[deptIdx] : cols[5]) || 'Taxation';
-          const designation = (desigIdx >= 0 ? cols[desigIdx] : cols[6]) || 'Tax Associate';
-          const statusRaw = ((statusIdx >= 0 ? cols[statusIdx] : cols[7]) || 'ACTIVE').toUpperCase();
-          const status = (['ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'].includes(statusRaw) ? statusRaw : 'ACTIVE') as any;
-
-          // Validations
-          let isValid = true;
-          let validationError = '';
-
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!firstName || firstName.length < 2) {
-            isValid = false;
-            validationError = 'First name required';
-          } else if (!email || !emailRegex.test(email)) {
-            isValid = false;
-            validationError = 'Valid email required';
-          } else if (seenCodes.has(employeeCode)) {
-            isValid = false;
-            validationError = `Duplicate Code in file (${employeeCode})`;
-          } else if (seenEmails.has(email)) {
-            isValid = false;
-            validationError = `Duplicate Email in file (${email})`;
-          }
-
-          seenCodes.add(employeeCode);
-          seenEmails.add(email);
-
-          // Check if already in DB
-          const isExisting = existingEmployees.some(
-            (e) => e.employeeCode?.toUpperCase() === employeeCode || e.email?.toLowerCase() === email
-          );
-
-          rows.push({
-            id: i,
-            employeeCode,
-            firstName,
-            lastName,
-            email,
-            phone,
-            department,
-            designation,
-            status,
-            isValid: isValid && !isExisting,
-            validationError: isExisting ? 'Already Onboarded' : validationError,
-            isExisting,
-          });
-        }
-        setParsedRows(rows);
-      } catch (err) {
-        alert('Failed to parse employee spreadsheet.');
+    try {
+      const rowsMatrix = await parseSpreadsheetToRows(file);
+      if (rowsMatrix.length <= 1) {
+        alert('File is empty or missing headers');
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      const headerCols = rowsMatrix[0].map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      const codeIdx = headerCols.findIndex((h) => h.includes('code') || h.includes('emp'));
+      const firstIdx = headerCols.findIndex((h) => h.includes('first') || h.includes('name'));
+      const lastIdx = headerCols.findIndex((h) => h.includes('last'));
+      const emailIdx = headerCols.findIndex((h) => h.includes('email') || h.includes('mail'));
+      const phoneIdx = headerCols.findIndex((h) => h.includes('phone') || h.includes('mobile'));
+      const deptIdx = headerCols.findIndex((h) => h.includes('dept') || h.includes('department'));
+      const desigIdx = headerCols.findIndex((h) => h.includes('desig') || h.includes('role') || h.includes('title'));
+      const statusIdx = headerCols.findIndex((h) => h.includes('status'));
+
+      const rows: ParsedStaffRow[] = [];
+      const seenCodes = new Set<string>();
+      const seenEmails = new Set<string>();
+
+      for (let i = 1; i < rowsMatrix.length; i++) {
+        const cols = rowsMatrix[i];
+        if (cols.length < 2 || cols.every((c) => c.trim() === '')) continue;
+
+        const rawCode = (codeIdx >= 0 ? cols[codeIdx] : cols[0]) || `EMP-${100 + i}`;
+        const employeeCode = rawCode.trim().toUpperCase();
+
+        const firstName = (firstIdx >= 0 ? cols[firstIdx] : cols[1]) || '';
+        const lastName = (lastIdx >= 0 && lastIdx !== firstIdx ? cols[lastIdx] : cols[2]) || '';
+        const email = ((emailIdx >= 0 ? cols[emailIdx] : cols[3]) || '').toLowerCase().trim();
+        const phone = (phoneIdx >= 0 ? cols[phoneIdx] : cols[4]) || '';
+        const department = (deptIdx >= 0 ? cols[deptIdx] : cols[5]) || 'Taxation';
+        const designation = (desigIdx >= 0 ? cols[desigIdx] : cols[6]) || 'Tax Associate';
+        const statusRaw = ((statusIdx >= 0 ? cols[statusIdx] : cols[7]) || 'ACTIVE').toUpperCase();
+        const status = (['ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'].includes(statusRaw) ? statusRaw : 'ACTIVE') as any;
+
+        // Validations
+        let isValid = true;
+        let validationError = '';
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!firstName || firstName.length < 2) {
+          isValid = false;
+          validationError = 'First name required';
+        } else if (!email || !emailRegex.test(email)) {
+          isValid = false;
+          validationError = 'Valid email required';
+        } else if (seenCodes.has(employeeCode)) {
+          isValid = false;
+          validationError = `Duplicate Code in file (${employeeCode})`;
+        } else if (seenEmails.has(email)) {
+          isValid = false;
+          validationError = `Duplicate Email in file (${email})`;
+        }
+
+        seenCodes.add(employeeCode);
+        seenEmails.add(email);
+
+        // Check if already in DB
+        const isExisting = existingEmployees.some(
+          (e) => e.employeeCode?.toUpperCase() === employeeCode || e.email?.toLowerCase() === email
+        );
+
+        rows.push({
+          id: i,
+          employeeCode,
+          firstName,
+          lastName,
+          email,
+          phone,
+          department,
+          designation,
+          status,
+          isValid: isValid && !isExisting,
+          validationError: isExisting ? 'Already Onboarded' : validationError,
+          isExisting,
+        });
+      }
+      setParsedRows(rows);
+    } catch (err) {
+      alert('Failed to parse employee spreadsheet.');
+    }
   };
 
   // Download Sample CSV Template

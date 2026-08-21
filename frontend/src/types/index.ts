@@ -227,6 +227,15 @@ export interface GstReturnFiling {
   notes?: string;
 }
 
+export interface BulkGstImportResult {
+  totalProcessed: number;
+  totalCreated: number;
+  totalSkipped: number;
+  totalFailed: number;
+  importedItems: string[];
+  errors: string[];
+}
+
 // 6. ITR Compliance
 export interface ItrProfile {
   id: string;

@@ -21,9 +21,11 @@ import java.util.UUID;
 @Schema(description = "Create / Schedule GST Return Filing Request Payload")
 public class CreateGstReturnFilingRequest {
 
-    @NotNull(message = "GST Profile ID is required")
-    @Schema(description = "GST Profile ID", example = "d1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    @Schema(description = "GST Profile ID (optional if GSTIN is provided)", example = "d1b2c3d4-e5f6-7890-abcd-ef1234567890")
     private UUID gstProfileId;
+
+    @Schema(description = "15-digit GSTIN (used to auto-resolve GST profile)", example = "27AAACZ1234D1Z8")
+    private String gstin;
 
     @NotNull(message = "Return type is required")
     @Schema(description = "Return type (GSTR1, GSTR3B, GSTR9, CMP08, etc.)", example = "GSTR3B")
@@ -41,7 +43,8 @@ public class CreateGstReturnFilingRequest {
     private LocalDate dueDate;
 
     @Schema(description = "Initial filing status", defaultValue = "PENDING")
-    private GstFilingStatus filingStatus;
+    @Builder.Default
+    private GstFilingStatus filingStatus = GstFilingStatus.PENDING;
 
     @Schema(description = "Total taxable value")
     private BigDecimal totalTaxableValue;
@@ -60,6 +63,9 @@ public class CreateGstReturnFilingRequest {
 
     @Schema(description = "Assigned practitioner employee ID")
     private UUID assignedEmployeeId;
+
+    @Schema(description = "GST Portal Acknowledgement reference number (ARN)", example = "AA2707261234567")
+    private String acknowledgementNumber;
 
     @Schema(description = "Practitioner notes or remarks")
     private String notes;

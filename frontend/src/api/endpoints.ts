@@ -110,7 +110,7 @@ export const taskApi = {
 
 // --- 5. GST Compliance ---
 export const gstApi = {
-  getProfiles: async (params?: { clientId?: string }) => {
+  getProfiles: async (params?: { clientId?: string; search?: string; status?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<GstProfile>>>('/v1/gst/profiles', { params });
     return res.data.data;
   },
@@ -118,12 +118,51 @@ export const gstApi = {
     const res = await apiClient.post<ApiResponse<GstProfile>>('/v1/gst/profiles', payload);
     return res.data.data;
   },
+  bulkImportProfiles: async (profiles: Partial<GstProfile>[]) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/gst/profiles/bulk', profiles);
+    return res.data.data;
+  },
   getFilings: async (params?: { returnPeriod?: string; returnType?: string; filingStatus?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<GstReturnFiling>>>('/v1/gst/filings', { params });
     return res.data.data;
   },
+  createFiling: async (payload: Partial<GstReturnFiling>) => {
+    const res = await apiClient.post<ApiResponse<GstReturnFiling>>('/v1/gst/filings', payload);
+    return res.data.data;
+  },
+  updateFilingStatus: async (id: string, payload: { filingStatus: string; filingDate?: string; acknowledgementNumber?: string; totalTaxableValue?: number; totalTaxLiability?: number; totalItcClaimed?: number; notes?: string }) => {
+    const res = await apiClient.patch<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}/status`, payload);
+    return res.data.data;
+  },
   recordFiling: async (id: string, payload: { filingDate: string; acknowledgementNumber: string; filingStatus?: string }) => {
-    const res = await apiClient.post<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}/file`, payload);
+    try {
+      const res = await apiClient.patch<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}/status`, {
+        filingStatus: payload.filingStatus || 'FILED',
+        filingDate: payload.filingDate,
+        acknowledgementNumber: payload.acknowledgementNumber,
+      });
+      return res.data.data;
+    } catch {
+      const res = await apiClient.post<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}/file`, {
+        filingStatus: payload.filingStatus || 'FILED',
+        filingDate: payload.filingDate,
+        acknowledgementNumber: payload.acknowledgementNumber,
+      });
+      return res.data.data;
+    }
+  },
+  batchGenerateFilings: async (payload: { returnPeriod: string; returnType: string; financialYear: string; dueDate: string }) => {
+    const res = await apiClient.post<ApiResponse<GstReturnFiling[]>>('/v1/gst/filings/batch-generate', payload);
+    return res.data.data;
+  },
+  bulkImportFilings: async (filings: Partial<GstReturnFiling>[]) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/gst/filings/bulk', filings);
+    return res.data.data;
+  },
+  getWorkloadDashboard: async (period: string, assignedEmployeeId?: string) => {
+    const res = await apiClient.get<ApiResponse<any>>('/v1/gst/dashboard/workload', {
+      params: { period, assignedEmployeeId },
+    });
     return res.data.data;
   },
 };

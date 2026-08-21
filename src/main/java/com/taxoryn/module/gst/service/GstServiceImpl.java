@@ -25,6 +25,7 @@ import com.taxoryn.module.gst.dto.UpdateGstProfileStatusRequest;
 import com.taxoryn.module.gst.entity.GstMonthlySummaryEntity;
 import com.taxoryn.module.gst.entity.GstMonthlySummaryEntity.ChallanStatus;
 import com.taxoryn.module.gst.entity.GstProfileEntity;
+import com.taxoryn.module.gst.entity.GstProfileEntity.FilingFrequency;
 import com.taxoryn.module.gst.entity.GstProfileEntity.GstProfileStatus;
 import com.taxoryn.module.gst.entity.GstProfileEntity.GstType;
 import com.taxoryn.module.gst.entity.GstReturnFilingEntity;
@@ -75,9 +76,6 @@ public class GstServiceImpl implements GstService {
     public GstProfileDto createProfile(CreateGstProfileRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
-
         String formattedGstin = request.getGstin().toUpperCase().trim();
         if (gstProfileRepository.existsByOrganizationIdAndGstin(organizationId, formattedGstin)) {
             throw new DuplicateResourceException("GST Profile", "gstin", formattedGstin);
@@ -92,14 +90,17 @@ public class GstServiceImpl implements GstService {
                 ? request.getStateCode().trim()
                 : (formattedGstin.length() >= 2 ? formattedGstin.substring(0, 2) : "27");
 
+        ClientEntity client = resolveOrCreateClient(request.getClientId(), request.getPan(), formattedGstin,
+                request.getTradeName(), request.getLegalName(), stateCode, organizationId);
+
         GstProfileEntity entity = GstProfileEntity.builder()
-                .clientId(request.getClientId())
+                .clientId(client.getId())
                 .gstin(formattedGstin)
                 .legalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : client.getLegalName())
                 .tradeName(StringUtils.hasText(request.getTradeName()) ? request.getTradeName().trim() : client.getDisplayName())
                 .gstType(request.getGstType() != null ? request.getGstType() : GstType.REGULAR)
-                .filingFrequency(request.getFilingFrequency())
-                .registrationDate(request.getRegistrationDate())
+                .filingFrequency(request.getFilingFrequency() != null ? request.getFilingFrequency() : FilingFrequency.MONTHLY)
+                .registrationDate(request.getRegistrationDate() != null ? request.getRegistrationDate() : LocalDate.now())
                 .stateCode(stateCode)
                 .principalPlaceOfBusiness(request.getPrincipalPlaceOfBusiness())
                 .assignedEmployeeId(request.getAssignedEmployeeId() != null ? request.getAssignedEmployeeId() : client.getAssignedEmployeeId())
@@ -700,5 +701,199 @@ public class GstServiceImpl implements GstService {
         } catch (Exception ignored) {
         }
         return period;
+    }
+
+    private ClientEntity resolveOrCreateClient(UUID clientId, String pan, String gstin, String tradeName, String legalName, String stateCode, UUID organizationId) {
+        if (clientId != null) {
+            Optional<ClientEntity> clientOpt = clientRepository.findByIdAndOrganizationId(clientId, organizationId);
+            if (clientOpt.isPresent()) {
+                return clientOpt.get();
+            }
+        }
+
+        String formattedPan = StringUtils.hasText(pan) ? pan.toUpperCase().trim() : null;
+        if (formattedPan == null && StringUtils.hasText(gstin) && gstin.length() >= 12) {
+            formattedPan = gstin.substring(2, 12).toUpperCase().trim();
+        }
+
+        if (formattedPan != null) {
+            Optional<ClientEntity> clientOpt = clientRepository.findByOrganizationIdAndPan(organizationId, formattedPan);
+            if (clientOpt.isPresent()) {
+                return clientOpt.get();
+            }
+        }
+
+        // Auto-create Client Entity for the Practice Tenant
+        String displayName = StringUtils.hasText(tradeName)
+                ? tradeName.trim()
+                : (StringUtils.hasText(legalName) ? legalName.trim() : (formattedPan != null ? "Client " + formattedPan : "GST Client " + gstin));
+
+        ClientEntity newClient = ClientEntity.builder()
+                .displayName(displayName)
+                .legalName(StringUtils.hasText(legalName) ? legalName.trim() : displayName)
+                .tradeName(StringUtils.hasText(tradeName) ? tradeName.trim() : displayName)
+                .pan(formattedPan)
+                .gstin(gstin)
+                .clientType(ClientEntity.ClientType.PRIVATE_LIMITED)
+                .state(stateCode)
+                .status(ClientEntity.ClientStatus.ACTIVE)
+                .build();
+        newClient.setOrganizationId(organizationId);
+        ClientEntity saved = clientRepository.save(newClient);
+        log.info("Auto-created client entity for tenant {}: id={}, displayName={}, PAN={}", organizationId, saved.getId(), saved.getDisplayName(), formattedPan);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.gst.dto.BulkGstImportResultDto bulkCreateProfiles(java.util.List<CreateGstProfileRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.gst.dto.BulkGstImportResultDto result = com.taxoryn.module.gst.dto.BulkGstImportResultDto.builder()
+                .totalProcessed(requests != null ? requests.size() : 0)
+                .build();
+
+        if (requests == null || requests.isEmpty()) {
+            return result;
+        }
+
+        int row = 1;
+        for (CreateGstProfileRequest req : requests) {
+            row++;
+            try {
+                String formattedGstin = req.getGstin() != null ? req.getGstin().toUpperCase().trim() : null;
+                if (formattedGstin == null || formattedGstin.isBlank()) {
+                    result.getErrors().add("Row " + row + ": GSTIN is required");
+                    result.setTotalFailed(result.getTotalFailed() + 1);
+                    continue;
+                }
+
+                if (gstProfileRepository.existsByOrganizationIdAndGstin(organizationId, formattedGstin)) {
+                    result.getErrors().add("Row " + row + " (GSTIN " + formattedGstin + "): Already registered in practice, skipped");
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                String stateCode = StringUtils.hasText(req.getStateCode())
+                        ? req.getStateCode().trim()
+                        : (formattedGstin.length() >= 2 ? formattedGstin.substring(0, 2) : "27");
+
+                ClientEntity client = resolveOrCreateClient(req.getClientId(), req.getPan(), formattedGstin,
+                        req.getTradeName(), req.getLegalName(), stateCode, organizationId);
+
+                GstProfileEntity entity = GstProfileEntity.builder()
+                        .clientId(client.getId())
+                        .gstin(formattedGstin)
+                        .legalName(StringUtils.hasText(req.getLegalName()) ? req.getLegalName().trim() : client.getLegalName())
+                        .tradeName(StringUtils.hasText(req.getTradeName()) ? req.getTradeName().trim() : client.getDisplayName())
+                        .gstType(req.getGstType() != null ? req.getGstType() : GstType.REGULAR)
+                        .filingFrequency(req.getFilingFrequency() != null ? req.getFilingFrequency() : FilingFrequency.MONTHLY)
+                        .stateCode(stateCode)
+                        .registrationDate(req.getRegistrationDate() != null ? req.getRegistrationDate() : LocalDate.now())
+                        .principalPlaceOfBusiness(req.getPrincipalPlaceOfBusiness())
+                        .status(req.getStatus() != null ? req.getStatus() : GstProfileStatus.ACTIVE)
+                        .assignedEmployeeId(req.getAssignedEmployeeId())
+                        .build();
+                entity.setOrganizationId(organizationId);
+
+                GstProfileEntity saved = gstProfileRepository.save(entity);
+
+                // Update client GSTIN if not set
+                if (!StringUtils.hasText(client.getGstin())) {
+                    client.setGstin(formattedGstin);
+                    clientRepository.save(client);
+                }
+
+                result.getImportedItems().add(saved.getGstin() + " (" + saved.getTradeName() + ")");
+                result.setTotalCreated(result.getTotalCreated() + 1);
+
+                auditService.logEvent("GST_PROFILE_BULK_IMPORTED", "GST_PROFILE", saved.getId().toString(), null, saved.getGstin());
+            } catch (Exception ex) {
+                result.getErrors().add("Row " + row + " (GSTIN " + req.getGstin() + "): " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Bulk imported GST profiles for orgId={}: {} created, {} skipped, {} failed",
+                organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
+
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.gst.dto.BulkGstImportResultDto bulkCreateFilings(java.util.List<CreateGstReturnFilingRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.gst.dto.BulkGstImportResultDto result = com.taxoryn.module.gst.dto.BulkGstImportResultDto.builder()
+                .totalProcessed(requests != null ? requests.size() : 0)
+                .build();
+
+        if (requests == null || requests.isEmpty()) {
+            return result;
+        }
+
+        int row = 1;
+        for (CreateGstReturnFilingRequest req : requests) {
+            row++;
+            try {
+                GstProfileEntity profile = null;
+                if (req.getGstProfileId() != null) {
+                    profile = gstProfileRepository.findByIdAndOrganizationId(req.getGstProfileId(), organizationId).orElse(null);
+                }
+                if (profile == null && StringUtils.hasText(req.getGstin())) {
+                    profile = gstProfileRepository.findByOrganizationIdAndGstin(organizationId, req.getGstin().toUpperCase().trim()).orElse(null);
+                }
+
+                if (profile == null) {
+                    result.getErrors().add("Row " + row + " (GSTIN " + req.getGstin() + "): GST Profile not found. Please register profile first.");
+                    result.setTotalFailed(result.getTotalFailed() + 1);
+                    continue;
+                }
+
+                if (gstReturnFilingRepository.existsByOrganizationIdAndGstProfileIdAndReturnTypeAndReturnPeriod(
+                        organizationId, profile.getId(), req.getReturnType(), req.getReturnPeriod())) {
+                    result.getErrors().add("Row " + row + " (" + req.getReturnType() + " " + req.getReturnPeriod() + "): Filing record already exists, skipped");
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                UUID assignedEmpId = req.getAssignedEmployeeId() != null
+                        ? req.getAssignedEmployeeId()
+                        : profile.getAssignedEmployeeId();
+
+                GstReturnFilingEntity filing = GstReturnFilingEntity.builder()
+                        .gstProfileId(profile.getId())
+                        .clientId(profile.getClientId())
+                        .returnType(req.getReturnType())
+                        .returnPeriod(req.getReturnPeriod())
+                        .financialYear(req.getFinancialYear())
+                        .dueDate(req.getDueDate() != null ? req.getDueDate() : LocalDate.now().plusDays(20))
+                        .filingStatus(req.getFilingStatus() != null ? req.getFilingStatus() : GstFilingStatus.PENDING)
+                        .filingDate(req.getFilingStatus() == GstFilingStatus.FILED ? (req.getDueDate() != null ? req.getDueDate() : LocalDate.now()) : null)
+                        .acknowledgementNumber(req.getAcknowledgementNumber())
+                        .totalTaxableValue(req.getTotalTaxableValue() != null ? req.getTotalTaxableValue() : BigDecimal.ZERO)
+                        .totalTaxLiability(req.getTotalTaxLiability() != null ? req.getTotalTaxLiability() : BigDecimal.ZERO)
+                        .totalItcClaimed(req.getTotalItcClaimed() != null ? req.getTotalItcClaimed() : BigDecimal.ZERO)
+                        .taxPaidCash(req.getTaxPaidCash() != null ? req.getTaxPaidCash() : BigDecimal.ZERO)
+                        .taxPaidItc(req.getTaxPaidItc() != null ? req.getTaxPaidItc() : BigDecimal.ZERO)
+                        .assignedEmployeeId(assignedEmpId)
+                        .notes(req.getNotes())
+                        .build();
+                filing.setOrganizationId(organizationId);
+
+                GstReturnFilingEntity saved = gstReturnFilingRepository.save(filing);
+                result.getImportedItems().add(saved.getReturnType() + " " + saved.getReturnPeriod() + " - " + profile.getGstin());
+                result.setTotalCreated(result.getTotalCreated() + 1);
+
+                auditService.logEvent("GST_FILING_BULK_IMPORTED", "GST_FILING", saved.getId().toString(), null, saved.getReturnType().name());
+            } catch (Exception ex) {
+                result.getErrors().add("Row " + row + ": " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Bulk imported GST filings for orgId={}: {} created, {} skipped, {} failed",
+                organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
+
+        return result;
     }
 }

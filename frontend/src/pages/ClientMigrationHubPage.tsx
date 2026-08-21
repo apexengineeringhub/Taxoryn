@@ -21,6 +21,7 @@ import { clientApi } from '../api/endpoints';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { BulkImportResult, BulkImportError } from '../types';
+import { parseSpreadsheetToRows } from '../utils/spreadsheetParser';
 import clsx from 'clsx';
 
 interface ParsedClientRow {
@@ -88,8 +89,8 @@ export const ClientMigrationHubPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Parse CSV File in Browser
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Parse CSV or Excel (.xlsx / .xls) File in Browser
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
 
@@ -97,79 +98,74 @@ export const ClientMigrationHubPage: React.FC = () => {
     setIsParsing(true);
     setImportResult(null);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const text = evt.target?.result as string;
-        const lines = text.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
-        if (lines.length <= 1) {
-          alert('CSV file is empty or missing headers');
-          setIsParsing(false);
-          return;
-        }
-
-        // Header mapping
-        const headerCols = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[\s_]/g, ''));
-        const rows: ParsedClientRow[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          const rawCols = lines[i].split(',').map((c) => c.trim());
-          if (rawCols.length === 0 || rawCols.every((c) => c === '')) continue;
-
-          const rowData: Record<string, string> = {};
-          headerCols.forEach((h, idx) => {
-            rowData[h] = rawCols[idx] || '';
-          });
-
-          const displayName = rowData['displayname'] || rowData['name'] || rowData['clientname'] || rawCols[0] || '';
-          const legalName = rowData['legalname'] || rawCols[1] || '';
-          const pan = (rowData['pan'] || rowData['pannumber'] || rawCols[2] || '').toUpperCase().trim();
-          const gstin = (rowData['gstin'] || rowData['gstnumber'] || rawCols[3] || '').toUpperCase().trim();
-          const clientType = normalizeClientType(rowData['clienttype'] || rowData['type'] || rawCols[4]);
-          const email = rowData['email'] || rowData['contactemail'] || rawCols[5] || '';
-          const phone = rowData['phone'] || rowData['mobile'] || rawCols[6] || '';
-          const city = rowData['city'] || rawCols[7] || '';
-          const state = rowData['state'] || rawCols[8] || '';
-          const pincode = rowData['pincode'] || rawCols[9] || '';
-
-          const errors: string[] = [];
-          if (!displayName) errors.push('Missing Client Name');
-          if (!pan) {
-            errors.push('Missing PAN');
-          } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-            errors.push(`Invalid PAN: ${pan}`);
-          }
-
-          if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstin)) {
-            errors.push(`Invalid GSTIN: ${gstin}`);
-          }
-
-          rows.push({
-            id: i,
-            displayName,
-            legalName: legalName || undefined,
-            tradeName: legalName || undefined,
-            pan,
-            gstin: gstin || undefined,
-            clientType,
-            email: email || undefined,
-            phone: phone || undefined,
-            city: city || undefined,
-            state: state || undefined,
-            pincode: pincode || undefined,
-            isValid: errors.length === 0,
-            errors,
-          });
-        }
-
-        setParsedRows(rows);
-      } catch (err) {
-        alert('Failed to parse CSV file. Please verify format.');
-      } finally {
+    try {
+      const rowsMatrix = await parseSpreadsheetToRows(selected);
+      if (rowsMatrix.length <= 1) {
+        alert('Spreadsheet file is empty or missing headers');
         setIsParsing(false);
+        return;
       }
-    };
-    reader.readAsText(selected);
+
+      // Header mapping
+      const headerCols = rowsMatrix[0].map((h) => h.toLowerCase().replace(/[\s_]/g, ''));
+      const rows: ParsedClientRow[] = [];
+
+      for (let i = 1; i < rowsMatrix.length; i++) {
+        const rawCols = rowsMatrix[i];
+        if (rawCols.length === 0 || rawCols.every((c) => c.trim() === '')) continue;
+
+        const rowData: Record<string, string> = {};
+        headerCols.forEach((h, idx) => {
+          rowData[h] = rawCols[idx] || '';
+        });
+
+        const displayName = rowData['displayname'] || rowData['name'] || rowData['clientname'] || rawCols[0] || '';
+        const legalName = rowData['legalname'] || rawCols[1] || '';
+        const pan = (rowData['pan'] || rowData['pannumber'] || rawCols[2] || '').toUpperCase().trim();
+        const gstin = (rowData['gstin'] || rowData['gstnumber'] || rawCols[3] || '').toUpperCase().trim();
+        const clientType = normalizeClientType(rowData['clienttype'] || rowData['type'] || rawCols[4]);
+        const email = rowData['email'] || rowData['contactemail'] || rawCols[5] || '';
+        const phone = rowData['phone'] || rowData['mobile'] || rawCols[6] || '';
+        const city = rowData['city'] || rawCols[7] || '';
+        const state = rowData['state'] || rawCols[8] || '';
+        const pincode = rowData['pincode'] || rawCols[9] || '';
+
+        const errors: string[] = [];
+        if (!displayName) errors.push('Missing Client Name');
+        if (!pan) {
+          errors.push('Missing PAN');
+        } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
+          errors.push(`Invalid PAN: ${pan}`);
+        }
+
+        if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstin)) {
+          errors.push(`Invalid GSTIN: ${gstin}`);
+        }
+
+        rows.push({
+          id: i,
+          displayName,
+          legalName: legalName || undefined,
+          tradeName: displayName || undefined,
+          pan,
+          gstin: gstin || undefined,
+          clientType,
+          email: email || undefined,
+          phone: phone || undefined,
+          city: city || undefined,
+          state: state || undefined,
+          pincode: pincode || undefined,
+          isValid: errors.length === 0,
+          errors,
+        });
+      }
+
+      setParsedRows(rows);
+    } catch (err) {
+      alert('Failed to parse file. Please upload a valid CSV or Excel file.');
+    } finally {
+      setIsParsing(false);
+    }
   };
 
   // Execute Bulk Migration with Seamless Fallback

@@ -1,11 +1,11 @@
 package com.taxoryn.module.gst.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.taxoryn.module.gst.entity.GstProfileEntity.FilingFrequency;
 import com.taxoryn.module.gst.entity.GstProfileEntity.GstProfileStatus;
 import com.taxoryn.module.gst.entity.GstProfileEntity.GstType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -23,9 +23,12 @@ import java.util.UUID;
 @Schema(description = "Register / Create GST Profile Request Payload")
 public class CreateGstProfileRequest {
 
-    @NotNull(message = "Client ID is required")
-    @Schema(description = "Client ID to associate GST profile with", example = "d1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    @Schema(description = "Client ID to associate GST profile with (optional if PAN/GSTIN is provided)", example = "d1b2c3d4-e5f6-7890-abcd-ef1234567890")
     private UUID clientId;
+
+    @JsonAlias({"clientPan", "panNumber"})
+    @Schema(description = "Client PAN (used to auto-link or auto-create client)", example = "AAACZ1234D")
+    private String pan;
 
     @NotBlank(message = "GSTIN is required")
     @Pattern(regexp = "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", message = "Invalid GSTIN format (expected 15-character valid GSTIN)")
@@ -40,13 +43,15 @@ public class CreateGstProfileRequest {
     @Schema(description = "Trade name / Brand name", example = "ABC Traders")
     private String tradeName;
 
-    @NotNull(message = "GST type is required")
+    @JsonAlias({"taxpayerType", "scheme", "gstScheme", "type"})
     @Schema(description = "GST scheme / type", example = "REGULAR")
-    private GstType gstType;
+    @Builder.Default
+    private GstType gstType = GstType.REGULAR;
 
-    @NotNull(message = "Filing frequency is required")
+    @JsonAlias({"frequency", "returnFrequency", "filingPeriod"})
     @Schema(description = "Filing frequency", example = "MONTHLY")
-    private FilingFrequency filingFrequency;
+    @Builder.Default
+    private FilingFrequency filingFrequency = FilingFrequency.MONTHLY;
 
     @Schema(description = "Registration effective date", example = "2020-07-01")
     private LocalDate registrationDate;
@@ -61,5 +66,6 @@ public class CreateGstProfileRequest {
     private UUID assignedEmployeeId;
 
     @Schema(description = "Profile active status", defaultValue = "ACTIVE")
-    private GstProfileStatus status;
+    @Builder.Default
+    private GstProfileStatus status = GstProfileStatus.ACTIVE;
 }

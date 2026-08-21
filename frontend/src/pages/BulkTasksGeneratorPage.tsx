@@ -24,6 +24,7 @@ import { clientApi, taskApi, teamApi } from '../api/endpoints';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { Client, Employee, Task, BulkTaskImportResult } from '../types';
+import { parseSpreadsheetToRows } from '../utils/spreadsheetParser';
 import clsx from 'clsx';
 
 interface TaskTemplatePreset {
@@ -275,67 +276,65 @@ export const BulkTasksGeneratorPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Parse CSV Tasks with Intelligent PAN Match & Auto-Onboard Support
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Parse CSV or Excel (.xlsx / .xls) Tasks with Intelligent PAN Match & Auto-Onboard Support
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setCsvFile(file);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const text = evt.target?.result as string;
-        const lines = text.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
-        if (lines.length <= 1) return;
-
-        // Extract and clean headers
-        const headerCols = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
-        const panIdx = headerCols.findIndex((h) => h.includes('pan') || h.includes('client'));
-        const titleIdx = headerCols.findIndex((h) => h.includes('title') || h.includes('task'));
-        const catIdx = headerCols.findIndex((h) => h.includes('cat'));
-        const prioIdx = headerCols.findIndex((h) => h.includes('prio'));
-        const dueIdx = headerCols.findIndex((h) => h.includes('due') || h.includes('date'));
-        const descIdx = headerCols.findIndex((h) => h.includes('desc') || h.includes('note'));
-
-        const tasks: any[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
-          if (cols.length < 2 || cols.every((c) => c === '')) continue;
-
-          const rawPan = (panIdx >= 0 ? cols[panIdx] : cols[0]) || '';
-          const cleanPan = rawPan.replace(/[^A-Z0-9]/gi, '').toUpperCase().trim();
-          const title = (titleIdx >= 0 ? cols[titleIdx] : cols[1]) || 'Compliance Filing';
-          const cat = ((catIdx >= 0 ? cols[catIdx] : cols[2]) || 'GST').toUpperCase();
-          const prio = ((prioIdx >= 0 ? cols[prioIdx] : cols[3]) || 'HIGH').toUpperCase();
-          const due = (dueIdx >= 0 ? cols[dueIdx] : cols[4]) || new Date().toISOString().split('T')[0];
-          const desc = (descIdx >= 0 ? cols[descIdx] : cols[5]) || '';
-
-          // Match with existing client by PAN
-          const matchedClient = clients.find(
-            (c) => c.pan?.replace(/[^A-Z0-9]/gi, '').toUpperCase().trim() === cleanPan
-          );
-
-          const isValidPanFormat = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan) || cleanPan.length >= 8;
-
-          tasks.push({
-            id: i,
-            pan: cleanPan,
-            matchedClient: matchedClient || null,
-            willAutoOnboard: !matchedClient && isValidPanFormat,
-            title,
-            category: cat,
-            priority: prio,
-            dueDate: due,
-            description: desc,
-            isValid: (!!matchedClient || isValidPanFormat) && title.length >= 2,
-          });
-        }
-        setParsedCsvTasks(tasks);
-      } catch (err) {
-        alert('Failed to parse task CSV file.');
+    try {
+      const rowsMatrix = await parseSpreadsheetToRows(file);
+      if (rowsMatrix.length <= 1) {
+        alert('File is empty or missing headers');
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      // Extract and clean headers
+      const headerCols = rowsMatrix[0].map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      const panIdx = headerCols.findIndex((h) => h.includes('pan') || h.includes('client'));
+      const titleIdx = headerCols.findIndex((h) => h.includes('title') || h.includes('task'));
+      const catIdx = headerCols.findIndex((h) => h.includes('cat'));
+      const prioIdx = headerCols.findIndex((h) => h.includes('prio'));
+      const dueIdx = headerCols.findIndex((h) => h.includes('due') || h.includes('date'));
+      const descIdx = headerCols.findIndex((h) => h.includes('desc') || h.includes('note'));
+
+      const tasks: any[] = [];
+      for (let i = 1; i < rowsMatrix.length; i++) {
+        const cols = rowsMatrix[i];
+        if (cols.length < 2 || cols.every((c) => c.trim() === '')) continue;
+
+        const rawPan = (panIdx >= 0 ? cols[panIdx] : cols[0]) || '';
+        const cleanPan = rawPan.replace(/[^A-Z0-9]/gi, '').toUpperCase().trim();
+        const title = (titleIdx >= 0 ? cols[titleIdx] : cols[1]) || 'Compliance Filing';
+        const cat = ((catIdx >= 0 ? cols[catIdx] : cols[2]) || 'GST').toUpperCase();
+        const prio = ((prioIdx >= 0 ? cols[prioIdx] : cols[3]) || 'HIGH').toUpperCase();
+        const due = (dueIdx >= 0 ? cols[dueIdx] : cols[4]) || new Date().toISOString().split('T')[0];
+        const desc = (descIdx >= 0 ? cols[descIdx] : cols[5]) || '';
+
+        // Match with existing client by PAN
+        const matchedClient = clients.find(
+          (c) => c.pan?.replace(/[^A-Z0-9]/gi, '').toUpperCase().trim() === cleanPan
+        );
+
+        const isValidPanFormat = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan) || cleanPan.length >= 8;
+
+        tasks.push({
+          id: i,
+          pan: cleanPan,
+          matchedClient: matchedClient || null,
+          willAutoOnboard: !matchedClient && isValidPanFormat,
+          title,
+          category: cat,
+          priority: prio,
+          dueDate: due,
+          description: desc,
+          isValid: (!!matchedClient || isValidPanFormat) && title.length >= 2,
+        });
+      }
+      setParsedCsvTasks(tasks);
+    } catch (err) {
+      alert('Failed to parse task spreadsheet file.');
+    }
   };
 
   // Execute CSV Task Import with Auto-Onboarding Fallback

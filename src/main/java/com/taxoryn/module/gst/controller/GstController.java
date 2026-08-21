@@ -92,6 +92,14 @@ public class GstController {
         return ResponseEntity.ok(ApiResponse.success("GST profile status updated successfully", profile));
     }
 
+    @PostMapping("/profiles/bulk")
+    @PreAuthorize("hasAuthority('GST_CREATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk import GST profiles", description = "Onboards multiple client GST registrations from spreadsheet in a single batch.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.gst.dto.BulkGstImportResultDto>> bulkCreateProfiles(@RequestBody java.util.List<CreateGstProfileRequest> requests) {
+        com.taxoryn.module.gst.dto.BulkGstImportResultDto result = gstService.bulkCreateProfiles(requests);
+        return ResponseEntity.ok(ApiResponse.success("Bulk GST profile migration completed", result));
+    }
+
     // =========================================================================
     // 2. GST Return Filings
     // =========================================================================
@@ -103,6 +111,14 @@ public class GstController {
         GstReturnFilingDto filing = gstService.createFiling(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("GST filing created successfully", filing));
+    }
+
+    @PostMapping("/filings/bulk")
+    @PreAuthorize("hasAuthority('GST_CREATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk import historical GST filings", description = "Imports historical GST filing records and reconciliation values from spreadsheet.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.gst.dto.BulkGstImportResultDto>> bulkCreateFilings(@RequestBody java.util.List<CreateGstReturnFilingRequest> requests) {
+        com.taxoryn.module.gst.dto.BulkGstImportResultDto result = gstService.bulkCreateFilings(requests);
+        return ResponseEntity.ok(ApiResponse.success("Bulk GST filings migration completed", result));
     }
 
     @GetMapping("/filings")
@@ -127,6 +143,14 @@ public class GstController {
     public ResponseEntity<ApiResponse<GstReturnFilingDto>> updateFilingStatus(@PathVariable UUID id, @Valid @RequestBody UpdateGstFilingStatusRequest request) {
         GstReturnFilingDto filing = gstService.updateFilingStatus(id, request);
         return ResponseEntity.ok(ApiResponse.success("GST filing status updated successfully", filing));
+    }
+
+    @PostMapping({"/filings/{id}/file", "/filings/{id}/status"})
+    @PreAuthorize("hasAuthority('GST_UPDATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Record filing ARN (POST alias)", description = "Records ARN and marks filing status as FILED.")
+    public ResponseEntity<ApiResponse<GstReturnFilingDto>> recordFilingAlias(@PathVariable UUID id, @Valid @RequestBody UpdateGstFilingStatusRequest request) {
+        GstReturnFilingDto filing = gstService.updateFilingStatus(id, request);
+        return ResponseEntity.ok(ApiResponse.success("GST return filed successfully", filing));
     }
 
     @PostMapping("/filings/batch-generate")

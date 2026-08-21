@@ -50,8 +50,12 @@ public class GlobalExceptionHandler {
                     .build());
         }
 
-        log.warn("Validation failed for {}: {} field errors", request.getRequestURI(), validationErrors.size());
-        return buildResponse(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED.getCode(), "Request payload validation failed", validationErrors, request);
+        String detailedMessage = validationErrors.isEmpty()
+                ? "Request payload validation failed"
+                : "Validation failed: " + validationErrors.stream().map(ve -> ve.getField() + " (" + ve.getMessage() + ")").collect(java.util.stream.Collectors.joining(", "));
+
+        log.warn("Validation failed for {}: {}", request.getRequestURI(), detailedMessage);
+        return buildResponse(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED.getCode(), detailedMessage, validationErrors, request);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

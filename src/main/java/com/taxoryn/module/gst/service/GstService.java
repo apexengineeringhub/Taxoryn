@@ -51,4 +51,8 @@ public interface GstService {
     GstWorkloadDashboardDto getWorkloadDashboard(String period, UUID assignedEmployeeId);
 
     List<GstReturnFilingDto> getClientFilingHistory(UUID clientId);
+
+    com.taxoryn.module.gst.dto.BulkGstImportResultDto bulkCreateProfiles(java.util.List<CreateGstProfileRequest> requests);
+
+    com.taxoryn.module.gst.dto.BulkGstImportResultDto bulkCreateFilings(java.util.List<CreateGstReturnFilingRequest> requests);
 }
