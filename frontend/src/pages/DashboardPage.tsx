@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Users,
   CheckCircle2,
@@ -62,11 +63,16 @@ export const DashboardPage: React.FC = () => {
 
       {/* Top Row: Core Practice KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Clients Card */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover transition-all">
+        {/* Active Clients Card */}
+        <Link
+          to="/clients"
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-slate-300 transition-all group block"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Clients</span>
-            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-600 transition-colors">
+              Active Clients
+            </span>
+            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
               <Users className="w-5 h-5" />
             </div>
           </div>
@@ -74,7 +80,7 @@ export const DashboardPage: React.FC = () => {
             <span className="text-3xl font-black text-slate-900">
               {isLoading ? '...' : dashboard?.clients?.active ?? 0}
             </span>
-            <span className="text-xs font-semibold text-slate-400">
+            <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
               of {dashboard?.clients?.total ?? 0} total
             </span>
           </div>
@@ -82,57 +88,74 @@ export const DashboardPage: React.FC = () => {
             <span>Inactive / Prospects:</span>
             <span className="font-semibold text-slate-700">{dashboard?.clients?.inactive ?? 0}</span>
           </div>
-        </div>
+        </Link>
 
         {/* GST Compliance Card */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover transition-all">
+        <Link
+          to="/gst"
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-emerald-300 transition-all group block"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">GST Compliance</span>
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
+              GST Compliance
+            </span>
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all">
               <Building2 className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline justify-between">
             <span className="text-3xl font-black text-emerald-600">
-              {isLoading ? '...' : dashboard?.gst?.returnsFiled ?? 0}
+              {isLoading ? '...' : dashboard?.gst?.totalGstClients ?? 0}
             </span>
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-              Filed Returns
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              GST Clients
             </span>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-emerald-700 font-medium">Filed: {dashboard?.gst?.returnsFiled ?? 0}</span>
             <span className="text-amber-700 font-medium">Due: {dashboard?.gst?.returnsDue ?? 0}</span>
             <span className="text-rose-600 font-bold">Overdue: {dashboard?.gst?.returnsOverdue ?? 0}</span>
           </div>
-        </div>
+        </Link>
 
         {/* ITR Compliance Card */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover transition-all">
+        <Link
+          to="/itr"
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-purple-300 transition-all group block"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">ITR Compliance</span>
-            <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-purple-600 transition-colors">
+              ITR Compliance
+            </span>
+            <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-all">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline justify-between">
             <span className="text-3xl font-black text-purple-600">
-              {isLoading ? '...' : dashboard?.itr?.filed ?? 0}
+              {isLoading ? '...' : dashboard?.itr?.totalItrClients ?? 0}
             </span>
             <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-              Filed (AY 26-27)
+              ITR Clients
             </span>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-purple-700 font-medium">Filed: {dashboard?.itr?.filed ?? 0}</span>
             <span className="text-amber-700 font-medium">Pending: {dashboard?.itr?.pending ?? 0}</span>
             <span className="text-rose-600 font-bold">Overdue: {dashboard?.itr?.overdue ?? 0}</span>
           </div>
-        </div>
+        </Link>
 
         {/* Realization & Billing Card */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover transition-all">
+        <Link
+          to="/billing"
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-amber-300 transition-all group block"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fee Realization</span>
-            <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
+              Fee Realization
+            </span>
+            <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all">
               <Receipt className="w-5 h-5" />
             </div>
           </div>
@@ -146,7 +169,7 @@ export const DashboardPage: React.FC = () => {
             <span className="text-slate-500">Outstanding:</span>
             <span className="font-bold text-rose-600">{formatCurrency(dashboard?.billing?.outstandingAmount)}</span>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Middle Grid: Tasks Status & Compliance Health */}
