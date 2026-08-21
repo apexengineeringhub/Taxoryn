@@ -9,6 +9,8 @@ import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.employee.entity.EmployeeEntity;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
 import com.taxoryn.module.itr.dto.AssignItrEmployeeRequest;
+import com.taxoryn.module.itr.dto.BatchGenerateItrReturnsRequest;
+import com.taxoryn.module.itr.dto.BulkItrImportResultDto;
 import com.taxoryn.module.itr.dto.CreateItrProfileRequest;
 import com.taxoryn.module.itr.dto.CreateItrReturnRequest;
 import com.taxoryn.module.itr.dto.ItrFilterRequest;
@@ -65,16 +67,15 @@ public class ItrServiceImpl implements ItrService {
     public ItrProfileDto createProfile(CreateItrProfileRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
-
         String formattedPan = request.getPan().toUpperCase().trim();
         if (itrProfileRepository.existsByOrganizationIdAndPan(organizationId, formattedPan)) {
             throw new DuplicateResourceException("ITR Profile", "pan", formattedPan);
         }
 
-        if (itrProfileRepository.existsByOrganizationIdAndClientId(organizationId, request.getClientId())) {
-            throw new DuplicateResourceException("ITR Profile", "clientId", request.getClientId().toString());
+        ClientEntity client = resolveOrCreateClient(request.getClientId(), formattedPan, request.getDisplayName(), request.getLegalName(), request.getTaxpayerType(), organizationId);
+
+        if (itrProfileRepository.existsByOrganizationIdAndClientId(organizationId, client.getId())) {
+            throw new DuplicateResourceException("ITR Profile", "clientId", client.getId().toString());
         }
 
         if (request.getAssignedEmployeeId() != null) {
@@ -83,10 +84,10 @@ public class ItrServiceImpl implements ItrService {
         }
 
         ItrProfileEntity profile = ItrProfileEntity.builder()
-                .clientId(request.getClientId())
+                .clientId(client.getId())
                 .pan(formattedPan)
-                .taxpayerType(request.getTaxpayerType())
-                .defaultItrType(request.getDefaultItrType())
+                .taxpayerType(request.getTaxpayerType() != null ? request.getTaxpayerType() : mapClientTypeToTaxpayerType(client.getClientType()))
+                .defaultItrType(request.getDefaultItrType() != null ? request.getDefaultItrType() : ItrType.ITR_1)
                 .residentialStatus(request.getResidentialStatus() != null ? request.getResidentialStatus() : ItrProfileEntity.ResidentialStatus.RESIDENT)
                 .assignedEmployeeId(request.getAssignedEmployeeId() != null ? request.getAssignedEmployeeId() : client.getAssignedEmployeeId())
                 .status(ItrProfileStatus.ACTIVE)
@@ -104,6 +105,80 @@ public class ItrServiceImpl implements ItrService {
         log.info("Created ITR Profile: id={}, pan={} for tenant={}", saved.getId(), saved.getPan(), organizationId);
         ItrProfileDto result = enrichProfileDto(saved);
         auditService.logEvent("ITR_PROFILE_CREATED", "ITR_PROFILE", saved.getId().toString(), null, result);
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public BulkItrImportResultDto bulkCreateProfiles(List<CreateItrProfileRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        BulkItrImportResultDto result = BulkItrImportResultDto.builder()
+                .totalProcessed(requests != null ? requests.size() : 0)
+                .build();
+
+        if (requests == null || requests.isEmpty()) {
+            return result;
+        }
+
+        int row = 1;
+        for (CreateItrProfileRequest req : requests) {
+            row++;
+            try {
+                String formattedPan = req.getPan() != null ? req.getPan().toUpperCase().trim() : null;
+                if (formattedPan == null || formattedPan.isBlank()) {
+                    result.getErrors().add("Row " + row + ": PAN is required");
+                    result.setTotalFailed(result.getTotalFailed() + 1);
+                    continue;
+                }
+
+                if (itrProfileRepository.existsByOrganizationIdAndPan(organizationId, formattedPan)) {
+                    result.getErrors().add("Row " + row + " (PAN " + formattedPan + "): Already registered in practice, skipped");
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                ClientEntity client = resolveOrCreateClient(req.getClientId(), formattedPan, req.getDisplayName(), req.getLegalName(), req.getTaxpayerType(), organizationId);
+
+                if (itrProfileRepository.existsByOrganizationIdAndClientId(organizationId, client.getId())) {
+                    result.getErrors().add("Row " + row + " (Client " + client.getDisplayName() + "): ITR profile already registered, skipped");
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                TaxpayerType tType = req.getTaxpayerType() != null ? req.getTaxpayerType() : mapClientTypeToTaxpayerType(client.getClientType());
+                ItrType iType = req.getDefaultItrType() != null ? req.getDefaultItrType() : ItrType.ITR_1;
+
+                ItrProfileEntity profile = ItrProfileEntity.builder()
+                        .clientId(client.getId())
+                        .pan(formattedPan)
+                        .taxpayerType(tType)
+                        .defaultItrType(iType)
+                        .residentialStatus(req.getResidentialStatus() != null ? req.getResidentialStatus() : ItrProfileEntity.ResidentialStatus.RESIDENT)
+                        .assignedEmployeeId(req.getAssignedEmployeeId() != null ? req.getAssignedEmployeeId() : client.getAssignedEmployeeId())
+                        .status(ItrProfileStatus.ACTIVE)
+                        .build();
+                profile.setOrganizationId(organizationId);
+
+                ItrProfileEntity saved = itrProfileRepository.save(profile);
+
+                if (!StringUtils.hasText(client.getPan())) {
+                    client.setPan(formattedPan);
+                    clientRepository.save(client);
+                }
+
+                result.getImportedItems().add(saved.getPan() + " (" + client.getDisplayName() + " - " + saved.getDefaultItrType() + ")");
+                result.setTotalCreated(result.getTotalCreated() + 1);
+
+                auditService.logEvent("ITR_PROFILE_BULK_IMPORTED", "ITR_PROFILE", saved.getId().toString(), null, saved.getPan());
+            } catch (Exception ex) {
+                result.getErrors().add("Row " + row + " (PAN " + req.getPan() + "): " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Bulk imported ITR profiles for orgId={}: {} created, {} skipped, {} failed",
+                organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
+
         return result;
     }
 
@@ -174,15 +249,25 @@ public class ItrServiceImpl implements ItrService {
     public ItrReturnDto createReturn(CreateItrReturnRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+        ClientEntity client = null;
+        if (request.getClientId() != null) {
+            client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId).orElse(null);
+        }
+        if (client == null && StringUtils.hasText(request.getPan())) {
+            client = resolveOrCreateClient(null, request.getPan(), null, null, request.getTaxpayerType(), organizationId);
+        }
+
+        if (client == null) {
+            throw new ResourceNotFoundException("Client", "clientId/pan", request.getClientId() != null ? request.getClientId() : request.getPan());
+        }
 
         String formattedAy = request.getAssessmentYear().trim();
-        if (itrReturnRepository.existsByOrganizationIdAndClientIdAndAssessmentYear(organizationId, request.getClientId(), formattedAy)) {
+        if (itrReturnRepository.existsByOrganizationIdAndClientIdAndAssessmentYear(organizationId, client.getId(), formattedAy)) {
             throw new DuplicateResourceException("ITR Return", "assessmentYear", formattedAy + " for Client " + client.getDisplayName());
         }
 
-        Optional<ItrProfileEntity> profileOpt = itrProfileRepository.findByOrganizationIdAndClientId(organizationId, request.getClientId());
+        Optional<ItrProfileEntity> profileOpt = itrProfileRepository.findByOrganizationIdAndClientId(organizationId, client.getId());
+        UUID profileId = profileOpt.map(ItrProfileEntity::getId).orElse(null);
 
         TaxpayerType taxpayerType = request.getTaxpayerType();
         if (taxpayerType == null) {
@@ -203,22 +288,26 @@ public class ItrServiceImpl implements ItrService {
             dueDate = deriveDefaultDueDate(formattedAy, taxpayerType);
         }
 
+        ItrStatus status = request.getStatus() != null ? request.getStatus() : (StringUtils.hasText(request.getAcknowledgementNumber()) ? ItrStatus.FILED : ItrStatus.DOCUMENTS_PENDING);
+
         ItrReturnEntity entity = ItrReturnEntity.builder()
-                .clientId(request.getClientId())
-                .itrProfileId(profileOpt.map(ItrProfileEntity::getId).orElse(null))
+                .clientId(client.getId())
+                .itrProfileId(profileId)
                 .assessmentYear(formattedAy)
                 .financialYear(request.getFinancialYear().trim())
-                .itrType(request.getItrType())
+                .itrType(request.getItrType() != null ? request.getItrType() : ItrType.ITR_1)
                 .taxpayerType(taxpayerType)
                 .dueDate(dueDate)
-                .status(request.getStatus() != null ? request.getStatus() : ItrStatus.DOCUMENTS_PENDING)
+                .filingDate(request.getFilingDate() != null ? request.getFilingDate() : (status == ItrStatus.FILED ? LocalDate.now() : null))
+                .acknowledgementNumber(request.getAcknowledgementNumber())
+                .status(status)
                 .assignedEmployeeId(assignedEmpId)
                 .notes(request.getNotes())
                 .build();
         entity.setOrganizationId(organizationId);
 
         ItrReturnEntity saved = itrReturnRepository.save(entity);
-        log.info("Created ITR Return: id={}, client={}, AY={} for tenant={}", saved.getId(), client.getDisplayName(), saved.getAssessmentYear(), organizationId);
+        log.info("Created ITR return: id={}, client={}, AY={} for tenant={}", saved.getId(), client.getDisplayName(), saved.getAssessmentYear(), organizationId);
         ItrReturnDto result = enrichReturnDto(saved);
         auditService.logEvent("ITR_RETURN_CREATED", "ITR_RETURN", saved.getId().toString(), null, result);
         return result;
@@ -226,35 +315,175 @@ public class ItrServiceImpl implements ItrService {
 
     @Override
     @Transactional
+    public BulkItrImportResultDto bulkCreateReturns(List<CreateItrReturnRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        BulkItrImportResultDto result = BulkItrImportResultDto.builder()
+                .totalProcessed(requests != null ? requests.size() : 0)
+                .build();
+
+        if (requests == null || requests.isEmpty()) {
+            return result;
+        }
+
+        int row = 1;
+        for (CreateItrReturnRequest req : requests) {
+            row++;
+            try {
+                ClientEntity client = null;
+                if (req.getClientId() != null) {
+                    client = clientRepository.findByIdAndOrganizationId(req.getClientId(), organizationId).orElse(null);
+                }
+                if (client == null && StringUtils.hasText(req.getPan())) {
+                    client = clientRepository.findByOrganizationIdAndPan(organizationId, req.getPan().toUpperCase().trim()).orElse(null);
+                    if (client == null) {
+                        client = resolveOrCreateClient(null, req.getPan(), null, null, req.getTaxpayerType(), organizationId);
+                    }
+                }
+
+                if (client == null) {
+                    result.getErrors().add("Row " + row + ": Client PAN or ID not resolved");
+                    result.setTotalFailed(result.getTotalFailed() + 1);
+                    continue;
+                }
+
+                String ay = req.getAssessmentYear() != null ? req.getAssessmentYear().trim() : "2026-27";
+                String fy = req.getFinancialYear() != null ? req.getFinancialYear().trim() : "2025-26";
+
+                if (itrReturnRepository.existsByOrganizationIdAndClientIdAndAssessmentYear(organizationId, client.getId(), ay)) {
+                    result.getErrors().add("Row " + row + " (" + client.getDisplayName() + " AY " + ay + "): Return record already exists, skipped");
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                Optional<ItrProfileEntity> profileOpt = itrProfileRepository.findByOrganizationIdAndClientId(organizationId, client.getId());
+                UUID profileId = profileOpt.map(ItrProfileEntity::getId).orElse(null);
+                if (profileId == null) {
+                    ItrProfileEntity newProfile = ItrProfileEntity.builder()
+                            .clientId(client.getId())
+                            .pan(client.getPan() != null ? client.getPan() : (req.getPan() != null ? req.getPan().toUpperCase().trim() : "UNKNOWN"))
+                            .taxpayerType(req.getTaxpayerType() != null ? req.getTaxpayerType() : mapClientTypeToTaxpayerType(client.getClientType()))
+                            .defaultItrType(req.getItrType() != null ? req.getItrType() : ItrType.ITR_1)
+                            .status(ItrProfileStatus.ACTIVE)
+                            .build();
+                    newProfile.setOrganizationId(organizationId);
+                    ItrProfileEntity savedProfile = itrProfileRepository.save(newProfile);
+                    profileId = savedProfile.getId();
+                }
+
+                TaxpayerType tType = req.getTaxpayerType() != null
+                        ? req.getTaxpayerType()
+                        : (profileOpt.map(ItrProfileEntity::getTaxpayerType).orElse(mapClientTypeToTaxpayerType(client.getClientType())));
+
+                ItrType iType = req.getItrType() != null
+                        ? req.getItrType()
+                        : (profileOpt.map(ItrProfileEntity::getDefaultItrType).orElse(ItrType.ITR_1));
+
+                LocalDate dueDate = req.getDueDate() != null ? req.getDueDate() : deriveDefaultDueDate(ay, tType);
+
+                ItrStatus status = req.getStatus() != null ? req.getStatus() : (StringUtils.hasText(req.getAcknowledgementNumber()) ? ItrStatus.FILED : ItrStatus.DOCUMENTS_PENDING);
+
+                ItrReturnEntity entity = ItrReturnEntity.builder()
+                        .clientId(client.getId())
+                        .itrProfileId(profileId)
+                        .assessmentYear(ay)
+                        .financialYear(fy)
+                        .itrType(iType)
+                        .taxpayerType(tType)
+                        .dueDate(dueDate)
+                        .filingDate(req.getFilingDate() != null ? req.getFilingDate() : (status == ItrStatus.FILED ? LocalDate.now() : null))
+                        .acknowledgementNumber(req.getAcknowledgementNumber())
+                        .status(status)
+                        .assignedEmployeeId(req.getAssignedEmployeeId() != null ? req.getAssignedEmployeeId() : client.getAssignedEmployeeId())
+                        .notes(req.getNotes())
+                        .build();
+                entity.setOrganizationId(organizationId);
+
+                ItrReturnEntity saved = itrReturnRepository.save(entity);
+                result.getImportedItems().add(client.getDisplayName() + " (AY " + saved.getAssessmentYear() + " - " + saved.getItrType() + ")");
+                result.setTotalCreated(result.getTotalCreated() + 1);
+
+                auditService.logEvent("ITR_RETURN_BULK_IMPORTED", "ITR_RETURN", saved.getId().toString(), null, saved.getAssessmentYear());
+            } catch (Exception ex) {
+                result.getErrors().add("Row " + row + ": " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        log.info("Bulk imported ITR returns for orgId={}: {} created, {} skipped, {} failed",
+                organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
+
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public List<ItrReturnDto> batchGenerateReturns(BatchGenerateItrReturnsRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        List<ItrProfileEntity> activeProfiles = itrProfileRepository.findAllByOrganizationIdAndStatus(organizationId, ItrProfileStatus.ACTIVE);
+
+        List<ItrReturnDto> createdReturns = new ArrayList<>();
+        String ay = request.getAssessmentYear().trim();
+        String fy = request.getFinancialYear().trim();
+
+        for (ItrProfileEntity profile : activeProfiles) {
+            ItrType formType = profile.getDefaultItrType();
+            if (request.getItrTypes() != null && !request.getItrTypes().isEmpty() && !request.getItrTypes().contains(formType)) {
+                continue;
+            }
+
+            if (!itrReturnRepository.existsByOrganizationIdAndClientIdAndAssessmentYear(organizationId, profile.getClientId(), ay)) {
+                LocalDate dueDate;
+                if (profile.getTaxpayerType() == TaxpayerType.COMPANY || profile.getTaxpayerType() == TaxpayerType.LLP || formType == ItrType.ITR_6) {
+                    dueDate = request.getAuditDueDate() != null ? request.getAuditDueDate() : deriveDefaultDueDate(ay, profile.getTaxpayerType());
+                } else {
+                    dueDate = request.getNonAuditDueDate() != null ? request.getNonAuditDueDate() : deriveDefaultDueDate(ay, profile.getTaxpayerType());
+                }
+
+                ItrReturnEntity entity = ItrReturnEntity.builder()
+                        .clientId(profile.getClientId())
+                        .itrProfileId(profile.getId())
+                        .assessmentYear(ay)
+                        .financialYear(fy)
+                        .itrType(formType)
+                        .taxpayerType(profile.getTaxpayerType())
+                        .dueDate(dueDate)
+                        .status(ItrStatus.DOCUMENTS_PENDING)
+                        .assignedEmployeeId(profile.getAssignedEmployeeId())
+                        .build();
+                entity.setOrganizationId(organizationId);
+
+                ItrReturnEntity saved = itrReturnRepository.save(entity);
+                createdReturns.add(enrichReturnDto(saved));
+            }
+        }
+
+        log.info("Batch generated {} ITR returns for AY {} in tenant {}", createdReturns.size(), ay, organizationId);
+        auditService.logEvent("ITR_BATCH_GENERATED", "ITR_RETURN", ay, null, "Generated " + createdReturns.size() + " returns");
+        return createdReturns;
+    }
+
+    @Override
+    @Transactional
     public ItrReturnDto updateReturn(UUID id, UpdateItrReturnRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
-        ItrReturnDto oldSnapshot = enrichReturnDto(itrReturn);
+        ItrReturnDto oldSnapshot = enrichReturnDto(entity);
 
+        if (request.getItrType() != null) entity.setItrType(request.getItrType());
+        if (request.getTaxpayerType() != null) entity.setTaxpayerType(request.getTaxpayerType());
+        if (request.getDueDate() != null) entity.setDueDate(request.getDueDate());
+        if (request.getStatus() != null) entity.setStatus(request.getStatus());
         if (request.getAssignedEmployeeId() != null) {
             employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
-            itrReturn.setAssignedEmployeeId(request.getAssignedEmployeeId());
+            entity.setAssignedEmployeeId(request.getAssignedEmployeeId());
         }
+        if (request.getNotes() != null) entity.setNotes(request.getNotes());
 
-        itrReturn.setItrType(request.getItrType());
-        if (request.getTaxpayerType() != null) {
-            itrReturn.setTaxpayerType(request.getTaxpayerType());
-        }
-        if (request.getDueDate() != null) {
-            itrReturn.setDueDate(request.getDueDate());
-        }
-        if (request.getStatus() != null) {
-            itrReturn.setStatus(request.getStatus());
-        }
-        if (StringUtils.hasText(request.getNotes())) {
-            itrReturn.setNotes(request.getNotes().trim());
-        }
-
-        ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
-        log.info("Updated ITR Return: id={} for tenant={}", saved.getId(), organizationId);
+        ItrReturnEntity saved = itrReturnRepository.save(entity);
+        log.info("Updated ITR return: id={} for tenant={}", saved.getId(), organizationId);
         ItrReturnDto result = enrichReturnDto(saved);
         auditService.logEvent("ITR_RETURN_UPDATED", "ITR_RETURN", saved.getId().toString(), oldSnapshot, result);
         return result;
@@ -264,10 +493,10 @@ public class ItrServiceImpl implements ItrService {
     @Transactional(readOnly = true)
     public ItrReturnDto getReturnById(UUID id) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
-        return enrichReturnDto(itrReturn);
+        return enrichReturnDto(entity);
     }
 
     @Override
@@ -282,46 +511,20 @@ public class ItrServiceImpl implements ItrService {
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
             }
-
             if (StringUtils.hasText(filterRequest.getAssessmentYear())) {
                 predicates.add(cb.equal(root.get("assessmentYear"), filterRequest.getAssessmentYear().trim()));
             }
-
             if (StringUtils.hasText(filterRequest.getFinancialYear())) {
                 predicates.add(cb.equal(root.get("financialYear"), filterRequest.getFinancialYear().trim()));
             }
-
             if (filterRequest.getItrType() != null) {
                 predicates.add(cb.equal(root.get("itrType"), filterRequest.getItrType()));
             }
-
-            if (filterRequest.getTaxpayerType() != null) {
-                predicates.add(cb.equal(root.get("taxpayerType"), filterRequest.getTaxpayerType()));
-            }
-
             if (filterRequest.getStatus() != null) {
                 predicates.add(cb.equal(root.get("status"), filterRequest.getStatus()));
             }
-
             if (filterRequest.getAssignedEmployeeId() != null) {
                 predicates.add(cb.equal(root.get("assignedEmployeeId"), filterRequest.getAssignedEmployeeId()));
-            }
-
-            if (Boolean.TRUE.equals(filterRequest.getIsOverdue())) {
-                predicates.add(cb.lessThan(root.get("dueDate"), LocalDate.now()));
-                predicates.add(root.get("status").in(ItrStatus.DOCUMENTS_PENDING, ItrStatus.DATA_ENTRY, ItrStatus.UNDER_REVIEW, ItrStatus.READY_TO_FILE));
-            }
-
-            if (Boolean.TRUE.equals(filterRequest.getIsUpcoming())) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("dueDate"), LocalDate.now()));
-            }
-
-            if (StringUtils.hasText(filterRequest.getSearch())) {
-                String pattern = "%" + filterRequest.getSearch().trim().toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("assessmentYear")), pattern),
-                        cb.like(cb.lower(root.get("acknowledgementNumber")), pattern)
-                ));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -335,25 +538,27 @@ public class ItrServiceImpl implements ItrService {
     @Transactional
     public ItrReturnDto updateStatus(UUID id, UpdateItrStatusRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
-        ItrStatus oldStatus = itrReturn.getStatus();
-        itrReturn.setStatus(request.getStatus());
+        ItrStatus oldStatus = entity.getStatus();
+        entity.setStatus(request.getStatus());
 
-        if (request.getStatus() == ItrStatus.FILED && itrReturn.getFilingDate() == null) {
-            itrReturn.setFilingDate(LocalDate.now());
+        if (request.getStatus() == ItrStatus.FILED && entity.getFilingDate() == null) {
+            entity.setFilingDate(LocalDate.now());
+        }
+        if (request.getStatus() == ItrStatus.COMPLETED && entity.getVerificationDate() == null) {
+            entity.setVerificationDate(LocalDate.now());
         }
 
-        if (StringUtils.hasText(request.getNotes())) {
-            String currentNotes = StringUtils.hasText(itrReturn.getNotes()) ? itrReturn.getNotes() + "\n" : "";
-            itrReturn.setNotes(currentNotes + "[" + LocalDate.now() + " Status -> " + request.getStatus() + "]: " + request.getNotes().trim());
+        if (request.getNotes() != null) {
+            entity.setNotes(request.getNotes());
         }
 
-        ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
-        log.info("Updated ITR Return status: id={}, newStatus={} for tenant={}", id, request.getStatus(), organizationId);
+        ItrReturnEntity saved = itrReturnRepository.save(entity);
+        log.info("Updated ITR return status: id={}, status={} for tenant={}", saved.getId(), saved.getStatus(), organizationId);
         ItrReturnDto result = enrichReturnDto(saved);
-        auditService.logEvent("ITR_RETURN_STATUS_UPDATED", "ITR_RETURN", id.toString(), oldStatus != null ? oldStatus.name() : null, request.getStatus().name());
+        auditService.logEvent("ITR_STATUS_UPDATED", "ITR_RETURN", saved.getId().toString(), oldStatus.name(), saved.getStatus().name());
         return result;
     }
 
@@ -361,29 +566,28 @@ public class ItrServiceImpl implements ItrService {
     @Transactional
     public ItrReturnDto recordFilingDetails(UUID id, RecordItrFilingRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
-        ItrStatus oldStatus = itrReturn.getStatus();
-        itrReturn.setFilingDate(request.getFilingDate() != null ? request.getFilingDate() : LocalDate.now());
-        itrReturn.setAcknowledgementNumber(request.getAcknowledgementNumber().trim());
+        ItrReturnDto oldSnapshot = enrichReturnDto(entity);
+
+        entity.setFilingDate(request.getFilingDate());
+        entity.setAcknowledgementNumber(request.getAcknowledgementNumber().trim().toUpperCase());
+        entity.setStatus(ItrStatus.FILED);
 
         if (request.getVerificationDate() != null) {
-            itrReturn.setVerificationDate(request.getVerificationDate());
-            itrReturn.setStatus(ItrStatus.COMPLETED);
-        } else {
-            itrReturn.setStatus(ItrStatus.VERIFICATION_PENDING);
+            entity.setVerificationDate(request.getVerificationDate());
+            entity.setStatus(ItrStatus.COMPLETED);
         }
 
-        if (StringUtils.hasText(request.getNotes())) {
-            String currentNotes = StringUtils.hasText(itrReturn.getNotes()) ? itrReturn.getNotes() + "\n" : "";
-            itrReturn.setNotes(currentNotes + "[Filing Details Recorded]: " + request.getNotes().trim());
+        if (request.getNotes() != null) {
+            entity.setNotes(request.getNotes());
         }
 
-        ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
-        log.info("Recorded ITR filing details: id={}, ackNo={}, status={} for tenant={}", id, request.getAcknowledgementNumber(), saved.getStatus(), organizationId);
+        ItrReturnEntity saved = itrReturnRepository.save(entity);
+        log.info("Recorded ITR filing details: id={}, ackNo={} for tenant={}", saved.getId(), saved.getAcknowledgementNumber(), organizationId);
         ItrReturnDto result = enrichReturnDto(saved);
-        auditService.logEvent("ITR_RETURN_FILED", "ITR_RETURN", id.toString(), oldStatus != null ? oldStatus.name() : null, result);
+        auditService.logEvent("ITR_FILING_RECORDED", "ITR_RETURN", saved.getId().toString(), oldSnapshot, result);
         return result;
     }
 
@@ -391,162 +595,113 @@ public class ItrServiceImpl implements ItrService {
     @Transactional
     public ItrReturnDto assignEmployee(UUID id, AssignItrEmployeeRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        ItrReturnEntity itrReturn = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
         employeeRepository.findByIdAndOrganizationId(request.getEmployeeId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.getEmployeeId()));
 
-        UUID oldEmpId = itrReturn.getAssignedEmployeeId();
-        itrReturn.setAssignedEmployeeId(request.getEmployeeId());
-        ItrReturnEntity saved = itrReturnRepository.save(itrReturn);
-        log.info("Assigned employee {} to ITR Return {} for tenant {}", request.getEmployeeId(), id, organizationId);
-        ItrReturnDto result = enrichReturnDto(saved);
-        auditService.logEvent("ITR_EMPLOYEE_ASSIGNED", "ITR_RETURN", id.toString(), oldEmpId != null ? oldEmpId.toString() : null, request.getEmployeeId().toString());
-        return result;
+        entity.setAssignedEmployeeId(request.getEmployeeId());
+        ItrReturnEntity saved = itrReturnRepository.save(entity);
+        log.info("Assigned employee {} to ITR return {} for tenant {}", request.getEmployeeId(), id, organizationId);
+        return enrichReturnDto(saved);
     }
 
     // =========================================================================
-    // 3. Upcoming, Overdue, History & Workload Dashboard
+    // 3. Upcoming, Overdue, History & Workload
     // =========================================================================
 
     @Override
     @Transactional(readOnly = true)
     public List<ItrReturnDto> getUpcomingReturns(int daysAhead) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        LocalDate now = LocalDate.now();
-        LocalDate targetDate = now.plusDays(daysAhead > 0 ? daysAhead : 30);
+        LocalDate today = LocalDate.now();
+        LocalDate cutoff = today.plusDays(daysAhead);
 
-        Specification<ItrReturnEntity> spec = (root, query, cb) -> cb.and(
-                cb.equal(root.get("organizationId"), organizationId),
-                cb.between(root.get("dueDate"), now, targetDate),
-                root.get("status").in(ItrStatus.DOCUMENTS_PENDING, ItrStatus.DATA_ENTRY, ItrStatus.UNDER_REVIEW, ItrStatus.READY_TO_FILE)
-        );
+        List<ItrStatus> excluded = List.of(ItrStatus.FILED, ItrStatus.COMPLETED, ItrStatus.CANCELLED);
+        List<ItrReturnEntity> list = itrReturnRepository.findAllByOrganizationIdAndDueDateBetweenAndStatusNotIn(
+                organizationId, today, cutoff, excluded);
 
-        return itrReturnRepository.findAll(spec).stream().map(this::enrichReturnDto).toList();
+        return list.stream().map(this::enrichReturnDto).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ItrReturnDto> getOverdueReturns() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        LocalDate now = LocalDate.now();
+        LocalDate today = LocalDate.now();
 
-        Specification<ItrReturnEntity> spec = (root, query, cb) -> cb.and(
-                cb.equal(root.get("organizationId"), organizationId),
-                cb.lessThan(root.get("dueDate"), now),
-                root.get("status").in(ItrStatus.DOCUMENTS_PENDING, ItrStatus.DATA_ENTRY, ItrStatus.UNDER_REVIEW, ItrStatus.READY_TO_FILE)
-        );
+        List<ItrStatus> excluded = List.of(ItrStatus.FILED, ItrStatus.COMPLETED, ItrStatus.CANCELLED);
+        List<ItrReturnEntity> list = itrReturnRepository.findAllByOrganizationIdAndDueDateBetweenAndStatusNotIn(
+                organizationId, LocalDate.of(2000, 1, 1), today.minusDays(1), excluded);
 
-        return itrReturnRepository.findAll(spec).stream().map(this::enrichReturnDto).toList();
+        return list.stream().map(this::enrichReturnDto).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ItrReturnDto> getClientItrHistory(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        clientRepository.findByIdAndOrganizationId(clientId, organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
-
-        List<ItrReturnEntity> returns = itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(organizationId, clientId);
-        return returns.stream().map(this::enrichReturnDto).toList();
+        List<ItrReturnEntity> list = itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(organizationId, clientId);
+        return list.stream().map(this::enrichReturnDto).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public ItrWorkloadDashboardDto getWorkloadDashboard(String assessmentYear, UUID assignedEmployeeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-
         String targetAy = StringUtils.hasText(assessmentYear) ? assessmentYear.trim() : deriveCurrentAssessmentYear();
 
-        Specification<ItrReturnEntity> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(cb.equal(root.get("organizationId"), organizationId));
-            predicates.add(cb.equal(root.get("assessmentYear"), targetAy));
+        List<ItrReturnEntity> returns = itrReturnRepository.findAllByOrganizationIdAndAssessmentYear(organizationId, targetAy);
+        if (assignedEmployeeId != null) {
+            returns = returns.stream().filter(r -> assignedEmployeeId.equals(r.getAssignedEmployeeId())).toList();
+        }
 
-            if (assignedEmployeeId != null) {
-                predicates.add(cb.equal(root.get("assignedEmployeeId"), assignedEmployeeId));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
-
-        List<ItrReturnEntity> returns = itrReturnRepository.findAll(spec);
-
-        long docPending = 0;
-        long dataEntry = 0;
-        long underReview = 0;
-        long readyToFile = 0;
-        long filed = 0;
-        long verificationPending = 0;
-        long completed = 0;
-        long overdueCount = 0;
-        long upcomingCount = 0;
+        long totalReturns = returns.size();
+        long docPending = returns.stream().filter(r -> r.getStatus() == ItrStatus.DOCUMENTS_PENDING).count();
+        long dataEntry = returns.stream().filter(r -> r.getStatus() == ItrStatus.DATA_ENTRY).count();
+        long underReview = returns.stream().filter(r -> r.getStatus() == ItrStatus.UNDER_REVIEW).count();
+        long readyToFile = returns.stream().filter(r -> r.getStatus() == ItrStatus.READY_TO_FILE).count();
+        long filed = returns.stream().filter(r -> r.getStatus() == ItrStatus.FILED).count();
+        long verified = returns.stream().filter(r -> r.getStatus() == ItrStatus.COMPLETED).count();
 
         LocalDate today = LocalDate.now();
-        List<ItrClientWorkloadItem> clientItems = new ArrayList<>();
+        List<ItrStatus> unfiled = List.of(ItrStatus.DOCUMENTS_PENDING, ItrStatus.DATA_ENTRY, ItrStatus.UNDER_REVIEW, ItrStatus.READY_TO_FILE);
+        long overdueCount = returns.stream().filter(r -> unfiled.contains(r.getStatus()) && r.getDueDate() != null && r.getDueDate().isBefore(today)).count();
+        long upcomingCount = returns.stream().filter(r -> unfiled.contains(r.getStatus()) && r.getDueDate() != null && !r.getDueDate().isBefore(today) && r.getDueDate().isBefore(today.plusDays(30))).count();
 
-        for (ItrReturnEntity ret : returns) {
-            switch (ret.getStatus()) {
-                case DOCUMENTS_PENDING -> docPending++;
-                case DATA_ENTRY -> dataEntry++;
-                case UNDER_REVIEW -> underReview++;
-                case READY_TO_FILE -> readyToFile++;
-                case FILED -> filed++;
-                case VERIFICATION_PENDING -> verificationPending++;
-                case COMPLETED -> completed++;
-                case CANCELLED -> {}
+        List<ItrClientWorkloadItem> clientItems = returns.stream().map(r -> {
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(r.getClientId(), organizationId).orElse(null);
+            String employeeName = null;
+            if (r.getAssignedEmployeeId() != null) {
+                employeeName = employeeRepository.findByIdAndOrganizationId(r.getAssignedEmployeeId(), organizationId)
+                        .map(EmployeeEntity::getFullName).orElse(null);
             }
-
-            boolean isOverdue = ret.getDueDate() != null
-                    && ret.getDueDate().isBefore(today)
-                    && (ret.getStatus() == ItrStatus.DOCUMENTS_PENDING || ret.getStatus() == ItrStatus.DATA_ENTRY
-                    || ret.getStatus() == ItrStatus.UNDER_REVIEW || ret.getStatus() == ItrStatus.READY_TO_FILE);
-
-            if (isOverdue) {
-                overdueCount++;
-            } else if (ret.getDueDate() != null && !ret.getDueDate().isBefore(today)) {
-                upcomingCount++;
-            }
-
-            ClientEntity client = clientRepository.findByIdAndOrganizationId(ret.getClientId(), organizationId).orElse(null);
-            String clientName = client != null ? client.getDisplayName() : "Unknown Client";
-            String pan = client != null ? client.getPan() : null;
-
-            String assignedTo = "Unassigned";
-            if (ret.getAssignedEmployeeId() != null) {
-                Optional<EmployeeEntity> emp = employeeRepository.findByIdAndOrganizationId(ret.getAssignedEmployeeId(), organizationId);
-                if (emp.isPresent()) {
-                    assignedTo = emp.get().getFullName();
-                }
-            }
-
-            clientItems.add(ItrClientWorkloadItem.builder()
-                    .returnId(ret.getId())
-                    .clientId(ret.getClientId())
-                    .clientName(clientName)
-                    .pan(pan)
-                    .assessmentYear(ret.getAssessmentYear())
-                    .itrType(ret.getItrType())
-                    .taxpayerType(ret.getTaxpayerType())
-                    .dueDate(ret.getDueDate())
-                    .status(ret.getStatus())
-                    .assignedEmployeeId(ret.getAssignedEmployeeId())
-                    .assignedTo(assignedTo)
-                    .isOverdue(isOverdue)
-                    .build());
-        }
+            return ItrClientWorkloadItem.builder()
+                    .returnId(r.getId())
+                    .clientId(r.getClientId())
+                    .clientName(client != null ? client.getDisplayName() : "Unknown")
+                    .pan(client != null ? client.getPan() : null)
+                    .itrType(r.getItrType())
+                    .taxpayerType(r.getTaxpayerType())
+                    .status(r.getStatus())
+                    .dueDate(r.getDueDate())
+                    .filingDate(r.getFilingDate())
+                    .acknowledgementNumber(r.getAcknowledgementNumber())
+                    .assignedTo(employeeName)
+                    .build();
+        }).toList();
 
         return ItrWorkloadDashboardDto.builder()
                 .assessmentYear(targetAy)
-                .totalReturns(returns.size())
+                .totalReturns(totalReturns)
+                .totalClients(totalReturns)
                 .documentsPendingCount(docPending)
                 .dataEntryCount(dataEntry)
                 .underReviewCount(underReview)
                 .readyToFileCount(readyToFile)
                 .filedCount(filed)
-                .verificationPendingCount(verificationPending)
-                .completedCount(completed)
+                .completedCount(verified)
                 .overdueCount(overdueCount)
                 .upcomingCount(upcomingCount)
                 .returns(clientItems)
@@ -556,6 +711,53 @@ public class ItrServiceImpl implements ItrService {
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    private ClientEntity resolveOrCreateClient(UUID clientId, String pan, String displayName, String legalName, TaxpayerType taxpayerType, UUID organizationId) {
+        if (clientId != null) {
+            Optional<ClientEntity> clientOpt = clientRepository.findByIdAndOrganizationId(clientId, organizationId);
+            if (clientOpt.isPresent()) {
+                return clientOpt.get();
+            }
+        }
+
+        String formattedPan = StringUtils.hasText(pan) ? pan.toUpperCase().trim() : null;
+        if (formattedPan != null) {
+            Optional<ClientEntity> clientOpt = clientRepository.findByOrganizationIdAndPan(organizationId, formattedPan);
+            if (clientOpt.isPresent()) {
+                return clientOpt.get();
+            }
+        }
+
+        // Auto-create Client Entity for the Practice Tenant
+        String dispName = StringUtils.hasText(displayName)
+                ? displayName.trim()
+                : (StringUtils.hasText(legalName) ? legalName.trim() : (formattedPan != null ? "Taxpayer " + formattedPan : "ITR Client"));
+
+        ClientEntity.ClientType cType = ClientEntity.ClientType.INDIVIDUAL;
+        if (taxpayerType != null) {
+            switch (taxpayerType) {
+                case COMPANY -> cType = ClientEntity.ClientType.PRIVATE_LIMITED;
+                case LLP -> cType = ClientEntity.ClientType.LLP;
+                case FIRM -> cType = ClientEntity.ClientType.PARTNERSHIP;
+                case HUF -> cType = ClientEntity.ClientType.INDIVIDUAL;
+                case TRUST -> cType = ClientEntity.ClientType.TRUST;
+                case AOP_BOI -> cType = ClientEntity.ClientType.SOCIETY;
+                default -> cType = ClientEntity.ClientType.INDIVIDUAL;
+            }
+        }
+
+        ClientEntity newClient = ClientEntity.builder()
+                .displayName(dispName)
+                .legalName(StringUtils.hasText(legalName) ? legalName.trim() : dispName)
+                .pan(formattedPan)
+                .clientType(cType)
+                .status(ClientEntity.ClientStatus.ACTIVE)
+                .build();
+        newClient.setOrganizationId(organizationId);
+        ClientEntity saved = clientRepository.save(newClient);
+        log.info("Auto-created client entity during ITR onboarding for tenant {}: id={}, displayName={}, PAN={}", organizationId, saved.getId(), saved.getDisplayName(), formattedPan);
+        return saved;
+    }
 
     private ItrProfileDto enrichProfileDto(ItrProfileEntity profile) {
         if (profile == null) return null;

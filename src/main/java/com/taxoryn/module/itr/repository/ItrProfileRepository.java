@@ -1,10 +1,12 @@
 package com.taxoryn.module.itr.repository;
 
 import com.taxoryn.module.itr.entity.ItrProfileEntity;
+import com.taxoryn.module.itr.entity.ItrProfileEntity.ItrProfileStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,6 +18,10 @@ public interface ItrProfileRepository extends JpaRepository<ItrProfileEntity, UU
     Optional<ItrProfileEntity> findByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 
     Optional<ItrProfileEntity> findByOrganizationIdAndPan(UUID organizationId, String pan);
+
+    List<ItrProfileEntity> findAllByOrganizationIdAndStatus(UUID organizationId, ItrProfileStatus status);
+
+    List<ItrProfileEntity> findAllByOrganizationId(UUID organizationId);
 
     boolean existsByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 

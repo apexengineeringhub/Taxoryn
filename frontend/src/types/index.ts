@@ -236,6 +236,15 @@ export interface BulkGstImportResult {
   errors: string[];
 }
 
+export interface BulkItrImportResult {
+  totalProcessed: number;
+  totalCreated: number;
+  totalSkipped: number;
+  totalFailed: number;
+  importedItems: string[];
+  errors: string[];
+}
+
 // 6. ITR Compliance
 export interface ItrProfile {
   id: string;
@@ -252,6 +261,7 @@ export interface ItrReturn {
   id: string;
   clientId: string;
   clientName?: string;
+  pan?: string;
   itrProfileId?: string;
   assessmentYear: string; // e.g. "2026-27"
   financialYear: string; // e.g. "2025-26"

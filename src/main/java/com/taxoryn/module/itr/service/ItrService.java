@@ -2,6 +2,8 @@ package com.taxoryn.module.itr.service;
 
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.itr.dto.AssignItrEmployeeRequest;
+import com.taxoryn.module.itr.dto.BatchGenerateItrReturnsRequest;
+import com.taxoryn.module.itr.dto.BulkItrImportResultDto;
 import com.taxoryn.module.itr.dto.CreateItrProfileRequest;
 import com.taxoryn.module.itr.dto.CreateItrReturnRequest;
 import com.taxoryn.module.itr.dto.ItrFilterRequest;
@@ -21,6 +23,8 @@ public interface ItrService {
     // 1. ITR Profile Management
     ItrProfileDto createProfile(CreateItrProfileRequest request);
 
+    BulkItrImportResultDto bulkCreateProfiles(List<CreateItrProfileRequest> requests);
+
     ItrProfileDto updateProfile(UUID id, UpdateItrProfileRequest request);
 
     ItrProfileDto getProfileById(UUID id);
@@ -29,6 +33,10 @@ public interface ItrService {
 
     // 2. ITR Returns Lifecycle
     ItrReturnDto createReturn(CreateItrReturnRequest request);
+
+    BulkItrImportResultDto bulkCreateReturns(List<CreateItrReturnRequest> requests);
+
+    List<ItrReturnDto> batchGenerateReturns(BatchGenerateItrReturnsRequest request);
 
     ItrReturnDto updateReturn(UUID id, UpdateItrReturnRequest request);
 

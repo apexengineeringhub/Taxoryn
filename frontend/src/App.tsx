@@ -15,6 +15,7 @@ import { BulkTasksGeneratorPage } from './pages/BulkTasksGeneratorPage';
 import { GstCompliancePage } from './pages/GstCompliancePage';
 import { GstDataMigrationHubPage } from './pages/GstDataMigrationHubPage';
 import { ItrCompliancePage } from './pages/ItrCompliancePage';
+import { ItrDataMigrationHubPage } from './pages/ItrDataMigrationHubPage';
 import { ComplianceCalendarPage } from './pages/ComplianceCalendarPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { BillingPage } from './pages/BillingPage';
@@ -77,6 +78,7 @@ export const App: React.FC = () => {
               <Route path="/gst" element={<GstCompliancePage />} />
               <Route path="/gst/migration" element={<GstDataMigrationHubPage />} />
               <Route path="/itr" element={<ItrCompliancePage />} />
+              <Route path="/itr/migration" element={<ItrDataMigrationHubPage />} />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/billing" element={<BillingPage />} />

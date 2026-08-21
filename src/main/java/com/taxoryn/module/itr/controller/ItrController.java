@@ -3,6 +3,8 @@ package com.taxoryn.module.itr.controller;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.itr.dto.AssignItrEmployeeRequest;
+import com.taxoryn.module.itr.dto.BatchGenerateItrReturnsRequest;
+import com.taxoryn.module.itr.dto.BulkItrImportResultDto;
 import com.taxoryn.module.itr.dto.CreateItrProfileRequest;
 import com.taxoryn.module.itr.dto.CreateItrReturnRequest;
 import com.taxoryn.module.itr.dto.ItrFilterRequest;
@@ -58,6 +60,14 @@ public class ItrController {
                 .body(ApiResponse.created("ITR Profile created successfully", profile));
     }
 
+    @PostMapping("/profiles/bulk")
+    @PreAuthorize("hasAuthority('ITR_CREATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk import ITR profiles", description = "Migrates multiple client PANs & ITR default forms from CSV/Excel in a single batch.")
+    public ResponseEntity<ApiResponse<BulkItrImportResultDto>> bulkCreateProfiles(@RequestBody List<CreateItrProfileRequest> requests) {
+        BulkItrImportResultDto result = itrService.bulkCreateProfiles(requests);
+        return ResponseEntity.ok(ApiResponse.success("Bulk ITR profiles migration completed", result));
+    }
+
     @PutMapping("/profiles/{id}")
     @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update ITR profile", description = "Updates PAN, default ITR form type, residential status, or assigned practitioner.")
@@ -95,6 +105,23 @@ public class ItrController {
                 .body(ApiResponse.created("ITR return created successfully", itrReturn));
     }
 
+    @PostMapping("/returns/bulk")
+    @PreAuthorize("hasAuthority('ITR_CREATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk import ITR returns", description = "Migrates historical ITR return filing records with Ack numbers and dates.")
+    public ResponseEntity<ApiResponse<BulkItrImportResultDto>> bulkCreateReturns(@RequestBody List<CreateItrReturnRequest> requests) {
+        BulkItrImportResultDto result = itrService.bulkCreateReturns(requests);
+        return ResponseEntity.ok(ApiResponse.success("Bulk ITR returns migration completed", result));
+    }
+
+    @PostMapping("/returns/batch-generate")
+    @PreAuthorize("hasAuthority('ITR_CREATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Batch generate ITR returns firm-wide", description = "Auto-creates ITR return records for all active ITR practice clients for target Assessment Year.")
+    public ResponseEntity<ApiResponse<List<ItrReturnDto>>> batchGenerateReturns(@Valid @RequestBody BatchGenerateItrReturnsRequest request) {
+        List<ItrReturnDto> returns = itrService.batchGenerateReturns(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Batch generated " + returns.size() + " ITR returns successfully", returns));
+    }
+
     @GetMapping("/returns")
     @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "List & search ITR returns with filters", description = "Retrieves paginated ITR returns with filters for AY, FY, form type, workflow status, or assigned staff.")
@@ -127,7 +154,7 @@ public class ItrController {
         return ResponseEntity.ok(ApiResponse.success("ITR status updated successfully to " + itrReturn.getStatus(), itrReturn));
     }
 
-    @PostMapping("/returns/{id}/filing-details")
+    @PostMapping({"/returns/{id}/filing-details", "/returns/{id}/file"})
     @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Record e-Filing submission details", description = "Records the date of e-filing and the e-Filing Acknowledgement Number / ITR-V Ack.")
     public ResponseEntity<ApiResponse<ItrReturnDto>> recordFilingDetails(@PathVariable UUID id, @Valid @RequestBody RecordItrFilingRequest request) {

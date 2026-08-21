@@ -154,8 +154,6 @@ class ItrServiceTest {
                 .pan("ABCPJ9876M")
                 .build();
 
-        ClientEntity client = ClientEntity.builder().displayName("Anand Joshi").build();
-        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
         when(itrProfileRepository.existsByOrganizationIdAndPan(tenantId, "ABCPJ9876M")).thenReturn(true);
 
         assertThrows(DuplicateResourceException.class, () -> itrService.createProfile(request));
@@ -276,7 +274,7 @@ class ItrServiceTest {
         ret.setId(returnId);
         ret.setOrganizationId(tenantId);
 
-        when(itrReturnRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
+        when(itrReturnRepository.findAllByOrganizationIdAndAssessmentYear(tenantId, "2026-27"))
                 .thenReturn(List.of(ret));
 
         ClientEntity client = ClientEntity.builder().displayName("Anand Joshi").pan("ABCPJ9876M").build();

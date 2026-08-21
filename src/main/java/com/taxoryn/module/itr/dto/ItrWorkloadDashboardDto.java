@@ -26,6 +26,9 @@ public class ItrWorkloadDashboardDto {
     @Schema(description = "Total active ITR returns tracked", example = "60")
     private long totalReturns;
 
+    @Schema(description = "Total active clients", example = "50")
+    private long totalClients;
+
     @Schema(description = "Returns in DOCUMENTS_PENDING status", example = "15")
     private long documentsPendingCount;
 
@@ -86,6 +89,12 @@ public class ItrWorkloadDashboardDto {
 
         @Schema(description = "Statutory due date", example = "2026-07-31")
         private LocalDate dueDate;
+
+        @Schema(description = "Filing date", example = "2026-07-28")
+        private LocalDate filingDate;
+
+        @Schema(description = "Acknowledgement Number", example = "123456789012345")
+        private String acknowledgementNumber;
 
         @Schema(description = "Current workflow status", example = "DATA_ENTRY")
         private ItrStatus status;

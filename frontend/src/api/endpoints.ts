@@ -7,6 +7,7 @@ import {
   Task,
   GstProfile,
   GstReturnFiling,
+  BulkItrImportResult,
   ItrProfile,
   ItrReturn,
   CalendarEvent,
@@ -173,12 +174,52 @@ export const itrApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<ItrProfile>>>('/v1/itr/profiles', { params });
     return res.data.data;
   },
-  getReturns: async (params?: { assessmentYear?: string; status?: string }) => {
+  createProfile: async (payload: Partial<ItrProfile>) => {
+    const res = await apiClient.post<ApiResponse<ItrProfile>>('/v1/itr/profiles', payload);
+    return res.data.data;
+  },
+  bulkImportProfiles: async (profiles: Partial<ItrProfile>[]) => {
+    const res = await apiClient.post<ApiResponse<BulkItrImportResult>>('/v1/itr/profiles/bulk', profiles);
+    return res.data.data;
+  },
+  getReturns: async (params?: { assessmentYear?: string; status?: string; itrType?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ItrReturn>>>('/v1/itr/returns', { params });
     return res.data.data;
   },
-  updateReturnStatus: async (id: string, payload: { status: string; acknowledgementNumber?: string; verificationDate?: string }) => {
+  createReturn: async (payload: Partial<ItrReturn>) => {
+    const res = await apiClient.post<ApiResponse<ItrReturn>>('/v1/itr/returns', payload);
+    return res.data.data;
+  },
+  bulkImportReturns: async (returns: Partial<ItrReturn>[]) => {
+    const res = await apiClient.post<ApiResponse<BulkItrImportResult>>('/v1/itr/returns/bulk', returns);
+    return res.data.data;
+  },
+  batchGenerateReturns: async (payload: { assessmentYear: string; financialYear: string; itrTypes?: string[]; nonAuditDueDate?: string; auditDueDate?: string }) => {
+    const res = await apiClient.post<ApiResponse<ItrReturn[]>>('/v1/itr/returns/batch-generate', payload);
+    return res.data.data;
+  },
+  updateReturnStatus: async (id: string, payload: { status: string; acknowledgementNumber?: string; verificationDate?: string; notes?: string }) => {
     const res = await apiClient.patch<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}/status`, payload);
+    return res.data.data;
+  },
+  recordFilingDetails: async (id: string, payload: { filingDate: string; acknowledgementNumber: string; verificationDate?: string; notes?: string }) => {
+    try {
+      const res = await apiClient.post<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}/filing-details`, payload);
+      return res.data.data;
+    } catch {
+      const res = await apiClient.patch<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}/status`, {
+        status: payload.verificationDate ? 'COMPLETED' : 'FILED',
+        acknowledgementNumber: payload.acknowledgementNumber,
+        verificationDate: payload.verificationDate,
+        notes: payload.notes,
+      });
+      return res.data.data;
+    }
+  },
+  getWorkloadDashboard: async (assessmentYear?: string, assignedEmployeeId?: string) => {
+    const res = await apiClient.get<ApiResponse<any>>('/v1/itr/dashboard/workload', {
+      params: { assessmentYear, assignedEmployeeId },
+    });
     return res.data.data;
   },
 };
