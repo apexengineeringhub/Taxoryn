@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search, Bell, Plus, ShieldCheck } from 'lucide-react';
+import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 
@@ -9,6 +10,21 @@ export const Header: React.FC = () => {
 
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
 
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isClientAdmin = userRoleCodes.includes('CLIENT_ADMIN');
+  const isClientUser = userRoleCodes.includes('CLIENT_USER') || isClientAdmin;
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r));
+
+  const getHeaderRoleLabel = () => {
+    if (isClientAdmin) return 'Client Admin';
+    if (isClientUser) return 'Client';
+    if (isFirmAdmin) return 'Practice Admin';
+    if (isStaff) return 'Staff';
+    if (userRoleCodes.includes('PRACTITIONER')) return 'Tax Consultant';
+    return 'User';
+  };
+
   return (
     <header className="h-16 px-6 glass-header flex items-center justify-between gap-4 sticky top-0 z-30 select-none">
       {/* Search Input (Global Search) */}
@@ -17,7 +33,7 @@ export const Header: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Quick search clients, GSTIN, PAN... (Ctrl+K)"
+            placeholder={isClientUser ? "Search filings, invoices, documents..." : "Quick search clients, GSTIN, PAN... (Ctrl+K)"}
             className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-100/70 border border-slate-200/80 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400"
           />
           <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 rounded shadow-2xs">
@@ -28,14 +44,16 @@ export const Header: React.FC = () => {
 
       {/* Actions & Alerts */}
       <div className="flex items-center gap-3">
-        {/* Quick Action Button */}
-        <button
-          style={{ backgroundColor: currentTheme.primaryColor }}
-          className="hidden sm:inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Action</span>
-        </button>
+        {/* Quick Action Button (Practice Staff Only) */}
+        {!isClientUser && (
+          <button
+            style={{ backgroundColor: currentTheme.primaryColor }}
+            className="hidden sm:inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Action</span>
+          </button>
+        )}
 
         {/* Notifications Bell */}
         <button
@@ -66,17 +84,21 @@ export const Header: React.FC = () => {
             </div>
           )}
 
-          <div className="hidden md:flex items-center gap-1.5 bg-slate-100 border border-slate-200/80 rounded-full px-3 py-1 text-xs text-slate-700 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
-            <span>
-              {(() => {
-                if (!user?.roles || (Array.isArray(user.roles) && user.roles.length === 0)) return 'CA Admin';
-                const r = Array.isArray(user.roles) ? user.roles[0] : user.roles;
-                if (typeof r === 'string') return r;
-                if (typeof r === 'object' && r !== null) return (r as any).name || (r as any).code || 'CA Admin';
-                return 'CA Admin';
-              })()}
-            </span>
+          <div className={clsx(
+            'hidden md:flex items-center gap-1.5 border rounded-full px-3 py-1 text-xs font-semibold',
+            isClientUser
+              ? 'bg-sky-50 text-sky-700 border-sky-200'
+              : isFirmAdmin
+              ? 'bg-purple-50 text-purple-700 border-purple-200'
+              : isStaff
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          )}>
+            <ShieldCheck className={clsx(
+              'w-3.5 h-3.5',
+              isClientUser ? 'text-sky-600' : isFirmAdmin ? 'text-purple-600' : isStaff ? 'text-amber-600' : 'text-emerald-600'
+            )} />
+            <span>{getHeaderRoleLabel()}</span>
           </div>
         </div>
       </div>

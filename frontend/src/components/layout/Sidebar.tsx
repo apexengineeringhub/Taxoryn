@@ -189,9 +189,23 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 <span>{user?.firstName} {user?.lastName || ''}</span>
                 <span className={clsx(
                   'text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider',
-                  isStaff ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                  isClientUser
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200/60'
+                    : isFirmAdmin
+                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/60'
+                    : isStaff
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60'
                 )}>
-                  {isStaff ? 'Staff' : isFirmAdmin ? 'Admin' : 'Manager'}
+                  {isClientUser
+                    ? userRoleCodes.includes('CLIENT_ADMIN')
+                      ? 'Client Admin'
+                      : 'Client'
+                    : isFirmAdmin
+                    ? 'Admin'
+                    : isStaff
+                    ? 'Staff'
+                    : 'Consultant'}
                 </span>
               </p>
               <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
