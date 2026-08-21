@@ -118,14 +118,24 @@ public class DemoDataSeeder implements CommandLineRunner {
         practitionerRole.setPermissions(allPermSet);
         roleRepository.save(practitionerRole);
 
-        // 4. ARTICLE_ASSISTANT Role (Staff / Trainee)
+        // 4. ARTICLE_ASSISTANT Role (Staff / Trainee) - PoLP Principle of Least Privilege
         RoleEntity articleRole = roleRepository.findByCodeAndIsSystemRoleTrue("ARTICLE_ASSISTANT")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("ARTICLE_ASSISTANT")
                         .name("Article Assistant")
                         .isSystemRole(true)
                         .build()));
-        articleRole.setPermissions(allPermSet);
+        Set<PermissionEntity> articlePerms = allPermissions.stream()
+                .filter(p -> p.getCode().startsWith("TASK_") && !p.getCode().equals("TASK_DELETE")
+                        || p.getCode().startsWith("CLIENT_") && (p.getCode().contains("VIEW") || p.getCode().contains("READ"))
+                        || p.getCode().startsWith("GST_") && !p.getCode().equals("GST_DELETE")
+                        || p.getCode().startsWith("ITR_") && !p.getCode().equals("ITR_DELETE")
+                        || p.getCode().startsWith("DOCUMENT_") && !p.getCode().equals("DOCUMENT_DELETE")
+                        || p.getCode().equals("DASHBOARD_VIEW")
+                        || p.getCode().equals("EMPLOYEE_VIEW") || p.getCode().equals("EMPLOYEE_READ")
+                )
+                .collect(java.util.stream.Collectors.toSet());
+        articleRole.setPermissions(articlePerms);
         roleRepository.save(articleRole);
 
         // 5. STAFF Role
@@ -135,7 +145,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                         .name("Practice Staff")
                         .isSystemRole(true)
                         .build()));
-        staffRole.setPermissions(allPermSet);
+        staffRole.setPermissions(articlePerms);
         roleRepository.save(staffRole);
     }
 
@@ -176,7 +186,7 @@ public class DemoDataSeeder implements CommandLineRunner {
             adminUser = userRepository.save(adminUser);
         }
 
-        // 2. Seed Clients and ITR Profiles
+        // 2. Seed Clients & ITR Returns first
         seedDemoClientsAndItrProfiles(org);
 
         // 3. Seed Practice Employees & Linked User Accounts
@@ -199,10 +209,14 @@ public class DemoDataSeeder implements CommandLineRunner {
         );
 
         List<ClientEntity> clients = clientRepository.findAllByOrganizationId(org.getId());
-        ClientEntity c1 = !clients.isEmpty() ? clients.get(0) : null;
-        ClientEntity c2 = clients.size() > 1 ? clients.get(1) : c1;
-        ClientEntity c3 = clients.size() > 2 ? clients.get(2) : c1;
-        ClientEntity c4 = clients.size() > 3 ? clients.get(3) : c1;
+        ClientEntity cSneha = clients.stream().filter(c -> "Sneha Kulkarni".equalsIgnoreCase(c.getDisplayName())).findFirst().orElse(null);
+        ClientEntity cRajesh = clients.stream().filter(c -> "Dr. Rajesh Sharma".equalsIgnoreCase(c.getDisplayName())).findFirst().orElse(null);
+        ClientEntity cVikram = clients.stream().filter(c -> c.getDisplayName().contains("Vikram Mehta")).findFirst().orElse(null);
+        ClientEntity cAarav = clients.stream().filter(c -> c.getDisplayName().contains("Aarav Gupta")).findFirst().orElse(null);
+        ClientEntity cPawan = clients.stream().filter(c -> c.getDisplayName().contains("Pawan Pathak")).findFirst().orElse(null);
+        ClientEntity cRohan = clients.stream().filter(c -> c.getDisplayName().contains("Rohan Deshmukh")).findFirst().orElse(null);
+        ClientEntity cMundeshwari = clients.stream().filter(c -> c.getDisplayName().contains("MAA MUNDESHWARI ENTERPRISES")).findFirst().orElse(null);
+        ClientEntity cTrust = clients.stream().filter(c -> c.getDisplayName().contains("Shri Mundeshwari Seva Trust")).findFirst().orElse(null);
 
         for (DemoEmployee d : demoStaff) {
             // Seed or update UserEntity for employee login
@@ -259,48 +273,86 @@ public class DemoDataSeeder implements CommandLineRunner {
             EmployeeEntity savedEmp = employeeRepository.save(employee);
             log.info("Seeded employee login: {} ({}) with password Password123!", d.email(), d.designation());
 
+            // Assign clients according to department
+            if (d.email().contains("pooja.joshi")) {
+                List<ClientEntity> directTaxClients = List.of(cSneha, cRajesh, cVikram, cAarav);
+                for (ClientEntity cl : directTaxClients) {
+                    if (cl != null) {
+                        cl.setAssignedEmployeeId(savedEmp.getId());
+                        clientRepository.save(cl);
+                    }
+                }
+            } else if (d.email().contains("rajesh.patel")) {
+                List<ClientEntity> gstClients = List.of(cPawan, cRohan);
+                for (ClientEntity cl : gstClients) {
+                    if (cl != null) {
+                        cl.setAssignedEmployeeId(savedEmp.getId());
+                        clientRepository.save(cl);
+                    }
+                }
+            } else if (d.email().contains("vikas.sharma")) {
+                List<ClientEntity> auditClients = List.of(cMundeshwari, cTrust);
+                for (ClientEntity cl : auditClients) {
+                    if (cl != null) {
+                        cl.setAssignedEmployeeId(savedEmp.getId());
+                        clientRepository.save(cl);
+                    }
+                }
+            } else if (d.email().contains("neha.sharma")) {
+                List<ClientEntity> directTaxClients = List.of(cSneha, cRajesh, cVikram, cAarav);
+                for (ClientEntity cl : directTaxClients) {
+                    if (cl != null) {
+                        cl.setAssignedEmployeeId(savedEmp.getId());
+                        clientRepository.save(cl);
+                    }
+                }
+            } else if (d.email().contains("amit.verma")) {
+                List<ClientEntity> complianceClients = List.of(cPawan, cRohan);
+                for (ClientEntity cl : complianceClients) {
+                    if (cl != null) {
+                        cl.setAssignedEmployeeId(savedEmp.getId());
+                        clientRepository.save(cl);
+                    }
+                }
+            }
+
             // Seed Tasks specifically assigned to this employee (if none exist)
             if (taskRepository.findAllByOrganizationIdAndAssignedTo(org.getId(), user.getId(), PageRequest.of(0, 1)).isEmpty()) {
-                if (d.email().contains("pooja.joshi")) {
-                    seedTask(org.getId(), c3 != null ? c3.getId() : null, user.getId(),
+                if (d.email().contains("pooja.joshi") || d.email().contains("neha.sharma")) {
+                    seedTask(org.getId(), cSneha != null ? cSneha.getId() : null, user.getId(),
                             "ITR-2 Computation & Capital Gains Review for Sneha Kulkarni",
                             "Verify equity capital gains statements from Zerodha/Groww and compute tax under Section 112A/111A.",
                             TaskCategory.ITR, TaskPriority.HIGH, TaskStatus.IN_PROGRESS, LocalDate.now().plusDays(3));
 
-                    seedTask(org.getId(), c2 != null ? c2.getId() : null, user.getId(),
+                    seedTask(org.getId(), cRajesh != null ? cRajesh.getId() : null, user.getId(),
                             "Verify Form 26AS & AIS/TIS for Dr. Rajesh Sharma",
                             "Cross-check high-value transactions and TDS credits (194J & 194C) with Form 26AS portal data.",
                             TaskCategory.ITR, TaskPriority.MEDIUM, TaskStatus.TODO, LocalDate.now().plusDays(5));
 
-                    seedTask(org.getId(), c1 != null ? c1.getId() : null, user.getId(),
-                            "Reconcile GSTR-2B with Purchase Ledger for MAA MUNDESHWARI ENTERPRISES",
-                            "Perform 100% invoice matching, identify missing supplier ITC invoices and prepare follow-up list.",
-                            TaskCategory.GST, TaskPriority.URGENT, TaskStatus.IN_PROGRESS, LocalDate.now().plusDays(1));
+                    seedTask(org.getId(), cAarav != null ? cAarav.getId() : null, user.getId(),
+                            "HUF Capital Account Reconciliation & ITR-2 Filing for Aarav Gupta HUF",
+                            "Reconcile capital accounts, gift tax exemptions, and rental TDS deductions under Section 194-IB.",
+                            TaskCategory.ITR, TaskPriority.HIGH, TaskStatus.IN_PROGRESS, LocalDate.now().plusDays(2));
 
-                    seedTask(org.getId(), c4 != null ? c4.getId() : null, user.getId(),
+                    seedTask(org.getId(), cVikram != null ? cVikram.getId() : null, user.getId(),
                             "Prepare Advance Tax Q2 Working Sheet for Vikram Mehta",
                             "Compute estimated net taxable profit and calculate September 15th advance tax installment installment.",
                             TaskCategory.COMPLIANCE, TaskPriority.MEDIUM, TaskStatus.TODO, LocalDate.now().plusDays(7));
-                } else if (d.email().contains("rajesh.patel")) {
-                    seedTask(org.getId(), c1 != null ? c1.getId() : null, user.getId(),
+                } else if (d.email().contains("rajesh.patel") || d.email().contains("amit.verma")) {
+                    seedTask(org.getId(), cPawan != null ? cPawan.getId() : null, user.getId(),
                             "Monthly GSTR-1 & 3B Return Filing for Pawan Pathak & Associates",
                             "Generate JSON payload, upload sales B2B invoices and file GSTR-3B before the 20th deadline.",
                             TaskCategory.GST, TaskPriority.URGENT, TaskStatus.TODO, LocalDate.now().plusDays(2));
 
-                    seedTask(org.getId(), c2 != null ? c2.getId() : null, user.getId(),
+                    seedTask(org.getId(), cRohan != null ? cRohan.getId() : null, user.getId(),
                             "Quarterly TDS 26Q Challan Verification & Form 16 Generation",
                             "Validate FVU return file on TRACES utility and download consolidated Form 16 certificates.",
                             TaskCategory.COMPLIANCE, TaskPriority.HIGH, TaskStatus.TODO, LocalDate.now().plusDays(6));
                 } else if (d.email().contains("vikas.sharma")) {
-                    seedTask(org.getId(), c2 != null ? c2.getId() : null, user.getId(),
+                    seedTask(org.getId(), cMundeshwari != null ? cMundeshwari.getId() : null, user.getId(),
                             "Form 3CD Tax Audit Scrutiny for MAA MUNDESHWARI ENTERPRISES PVT LTD",
                             "Scrutinize Clause 13 (Method of Accounting), Clause 34 (TDS Compliance) and quantitative details.",
                             TaskCategory.AUDIT, TaskPriority.URGENT, TaskStatus.UNDER_REVIEW, LocalDate.now().plusDays(4));
-                } else {
-                    seedTask(org.getId(), c1 != null ? c1.getId() : null, user.getId(),
-                            "Annual Corporate Tax Computation & Form 3CA Audit",
-                            "Complete statutory audit checklist and compute deferred tax asset/liability as per AS-22.",
-                            TaskCategory.AUDIT, TaskPriority.HIGH, TaskStatus.IN_PROGRESS, LocalDate.now().plusDays(4));
                 }
             }
         }

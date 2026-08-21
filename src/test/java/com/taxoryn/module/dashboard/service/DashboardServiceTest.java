@@ -1,5 +1,7 @@
 package com.taxoryn.module.dashboard.service;
 
+import com.taxoryn.core.security.PracticeSecurityScope;
+import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.module.billing.repository.InvoiceRepository;
 import com.taxoryn.module.client.repository.ClientRepository;
@@ -34,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +66,9 @@ class DashboardServiceTest {
     @Mock
     private InvoiceRepository invoiceRepository;
 
+    @Mock
+    private PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
     @InjectMocks
     private DashboardServiceImpl dashboardService;
 
@@ -85,6 +91,9 @@ class DashboardServiceTest {
 
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
+
+        lenient().when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(PracticeSecurityScope.firmAdmin(userId));
+        lenient().when(securityScopeEvaluator.hasBillingAccess(any())).thenReturn(true);
     }
 
     @AfterEach

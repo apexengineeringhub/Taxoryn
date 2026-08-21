@@ -52,7 +52,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import com.taxoryn.core.security.PracticeSecurityScope;
+import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 
 @Slf4j
 @Service
@@ -66,6 +69,7 @@ public class GstServiceImpl implements GstService {
     private final EmployeeRepository employeeRepository;
     private final GstMapper gstMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+    private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
     // =========================================================================
     // 1. Profile Management
@@ -176,10 +180,20 @@ public class GstServiceImpl implements GstService {
     @Transactional(readOnly = true)
     public PagedResponse<GstProfileDto> getProfiles(GstProfileFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<GstProfileEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (!scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(root.get("clientId").in(accessibleClientIds));
+                }
+            }
 
             if (StringUtils.hasText(filterRequest.getSearch())) {
                 String pattern = "%" + filterRequest.getSearch().trim().toLowerCase() + "%";
@@ -341,10 +355,20 @@ public class GstServiceImpl implements GstService {
     @Transactional(readOnly = true)
     public PagedResponse<GstReturnFilingDto> getFilings(GstFilingFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<GstReturnFilingEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (!scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(root.get("clientId").in(accessibleClientIds));
+                }
+            }
 
             if (filterRequest.getGstProfileId() != null) {
                 predicates.add(cb.equal(root.get("gstProfileId"), filterRequest.getGstProfileId()));

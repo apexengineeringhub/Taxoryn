@@ -75,6 +75,9 @@ class GstServiceTest {
     @Mock
     private com.taxoryn.module.audit.service.AuditService auditService;
 
+    @Mock
+    private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
     @InjectMocks
     private GstServiceImpl gstService;
 
@@ -89,9 +92,10 @@ class GstServiceTest {
         clientId = UUID.randomUUID();
         profileId = UUID.randomUUID();
         employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
 
         SecurityUser principal = SecurityUser.builder()
-                .userId(UUID.randomUUID())
+                .userId(userId)
                 .organizationId(tenantId)
                 .email("admin@taxpractice.com")
                 .roles(Set.of("ORG_ADMIN"))
@@ -103,6 +107,9 @@ class GstServiceTest {
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
         TenantContext.setTenantId(tenantId);
+
+        org.mockito.Mockito.lenient().when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(com.taxoryn.core.security.PracticeSecurityScope.firmAdmin(userId));
+        org.mockito.Mockito.lenient().when(securityScopeEvaluator.hasBillingAccess(org.mockito.ArgumentMatchers.any())).thenReturn(true);
     }
 
     @AfterEach

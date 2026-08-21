@@ -34,7 +34,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import com.taxoryn.core.security.PracticeSecurityScope;
+import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 
 @Slf4j
 @Service
@@ -47,6 +50,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final DocumentMapper documentMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+    private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
     @Override
     @Transactional
@@ -144,10 +148,20 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public PagedResponse<DocumentDto> getDocuments(DocumentFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<DocumentEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (!scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(root.get("clientId").in(accessibleClientIds));
+                }
+            }
 
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));

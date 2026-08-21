@@ -23,6 +23,7 @@ import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { Drawer } from '../components/common/Drawer';
 import { clientApi } from '../api/endpoints';
+import { useAuth } from '../context/AuthContext';
 import { Client } from '../types';
 import clsx from 'clsx';
 
@@ -279,27 +280,57 @@ export const ClientsPage: React.FC = () => {
     },
   ];
 
+  const { user } = useAuth();
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Clients Directory</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">
+            {isStaff ? 'My Assigned Client Portfolio' : 'Clients Directory'}
+          </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Centralized repository for corporate and individual clients, lifecycle management, and status controls.
+            {isStaff
+              ? 'Showing clients assigned to your department and active workflow deliverables.'
+              : 'Centralized repository for corporate and individual clients, lifecycle management, and status controls.'}
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <Link to="/clients/migration">
-            <Button variant="outline" leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}>
-              Migrate / Bulk Import
+        {!isStaff && (
+          <div className="flex items-center gap-2.5">
+            <Link to="/clients/migration">
+              <Button variant="outline" leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}>
+                Migrate / Bulk Import
+              </Button>
+            </Link>
+            <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
+              Add New Client
             </Button>
-          </Link>
-          <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
-            Add New Client
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
+
+      {isStaff && (
+        <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">🔒</span>
+            <div>
+              <p className="text-xs font-bold text-amber-900">
+                Departmental Data Boundary Active ({user?.firstName} {user?.lastName || ''})
+              </p>
+              <p className="text-[11px] text-amber-700">
+                Under firm security policy, you have restricted visibility to your assigned client accounts and direct deliverables.
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold bg-amber-200/70 text-amber-800 px-2.5 py-1 rounded-md">
+            {totalElements} Assigned Accounts
+          </span>
+        </div>
+      )}
 
       {/* Lifecycle Status Filter Tabs */}
       <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl w-fit text-xs font-semibold">

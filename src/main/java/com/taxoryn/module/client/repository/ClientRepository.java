@@ -34,6 +34,9 @@ public interface ClientRepository extends JpaRepository<ClientEntity, UUID>, Jpa
 
     long countByOrganizationId(UUID organizationId);
 
+    @Query("SELECT c.id FROM ClientEntity c WHERE c.organizationId = :organizationId AND c.assignedEmployeeId IN :employeeIds")
+    List<UUID> findIdsByOrganizationIdAndAssignedEmployeeIdIn(@Param("organizationId") UUID organizationId, @Param("employeeIds") java.util.Collection<UUID> employeeIds);
+
     @Query("SELECT COUNT(c), " +
            "SUM(CASE WHEN c.status = com.taxoryn.module.client.entity.ClientEntity.ClientStatus.ACTIVE THEN 1L ELSE 0L END), " +
            "SUM(CASE WHEN c.status != com.taxoryn.module.client.entity.ClientEntity.ClientStatus.ACTIVE THEN 1L ELSE 0L END) " +

@@ -4,7 +4,9 @@ import com.taxoryn.core.exception.UnauthorizedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public final class SecurityUtils {
@@ -57,5 +59,11 @@ public final class SecurityUtils {
         return getCurrentUser()
                 .map(user -> user.getRoles().contains(role) || user.getRoles().contains("ROLE_" + role))
                 .orElse(false);
+    }
+
+    public static Set<String> getCurrentRoles() {
+        return getCurrentUser()
+                .map(SecurityUser::getRoles)
+                .orElse(Collections.emptySet());
     }
 }

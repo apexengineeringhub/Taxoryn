@@ -3,6 +3,7 @@ package com.taxoryn.module.client.service;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.client.dto.AssignClientEmployeeRequest;
 import com.taxoryn.module.client.dto.ClientDto;
@@ -44,6 +45,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -56,6 +58,7 @@ public class ClientServiceImpl implements ClientService {
     private final EmployeeRepository employeeRepository;
     private final TaskRepository taskRepository;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
+    private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
@@ -193,6 +196,15 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            boolean isAssigned = (client.getAssignedEmployeeId() != null && scope.getAccessibleAssigneeIds() != null && scope.getAccessibleAssigneeIds().contains(client.getAssignedEmployeeId()));
+            if (!isAssigned && (accessibleClientIds == null || !accessibleClientIds.contains(clientId))) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view clients outside your assigned department or portfolio.");
+            }
+        }
+
         return enrichDto(client);
     }
 
@@ -200,10 +212,32 @@ public class ClientServiceImpl implements ClientService {
     @Transactional(readOnly = true)
     public PagedResponse<ClientDto> getClients(ClientFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<ClientEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            // Enforce RBAC/ABAC Scoping for Non-Admins (Principle of Least Privilege)
+            if (!scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                Set<UUID> assigneeIds = scope.getAccessibleAssigneeIds();
+
+                Predicate scopePredicate;
+                if (accessibleClientIds != null && !accessibleClientIds.isEmpty() && assigneeIds != null && !assigneeIds.isEmpty()) {
+                    scopePredicate = cb.or(
+                            root.get("id").in(accessibleClientIds),
+                            root.get("assignedEmployeeId").in(assigneeIds)
+                    );
+                } else if (accessibleClientIds != null && !accessibleClientIds.isEmpty()) {
+                    scopePredicate = root.get("id").in(accessibleClientIds);
+                } else if (assigneeIds != null && !assigneeIds.isEmpty()) {
+                    scopePredicate = root.get("assignedEmployeeId").in(assigneeIds);
+                } else {
+                    scopePredicate = cb.disjunction(); // No accessible clients
+                }
+                predicates.add(scopePredicate);
+            }
 
             if (StringUtils.hasText(filterRequest.getSearch())) {
                 String searchPattern = "%" + filterRequest.getSearch().trim().toLowerCase() + "%";
@@ -311,6 +345,15 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            boolean isAssigned = (client.getAssignedEmployeeId() != null && scope.getAccessibleAssigneeIds() != null && scope.getAccessibleAssigneeIds().contains(client.getAssignedEmployeeId()));
+            if (!isAssigned && (accessibleClientIds == null || !accessibleClientIds.contains(clientId))) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view clients outside your assigned department or portfolio.");
+            }
+        }
+
         ClientDto clientDto = enrichDto(client);
 
         // 1. Statutory Details
@@ -324,18 +367,27 @@ public class ClientServiceImpl implements ClientService {
                 .isGstActive(StringUtils.hasText(client.getGstin()) && client.getStatus() == ClientStatus.ACTIVE)
                 .build();
 
-        // 2. Task Summary
-        Page<TaskEntity> tasksPage = taskRepository.findAllByOrganizationIdAndClientId(
-                organizationId,
-                clientId,
-                PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "createdAt"))
-        );
-        List<TaskEntity> taskList = tasksPage.getContent();
-        long totalTasks = tasksPage.getTotalElements();
+        // 2. Task Summary (scoped to staff deliverables if staff)
+        List<TaskEntity> taskList;
+        if (scope.isStaff()) {
+            Set<UUID> selfIds = scope.getAccessibleAssigneeIds() != null ? scope.getAccessibleAssigneeIds() : Set.of();
+            taskList = taskRepository.findAllByOrganizationIdAndClientId(organizationId, clientId).stream()
+                    .filter(t -> t.getAssignedTo() != null && selfIds.contains(t.getAssignedTo()))
+                    .toList();
+        } else {
+            Page<TaskEntity> tasksPage = taskRepository.findAllByOrganizationIdAndClientId(
+                    organizationId,
+                    clientId,
+                    PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"))
+            );
+            taskList = tasksPage.getContent();
+        }
+
+        long totalTasks = taskList.size();
         long completedTasks = taskList.stream().filter(t -> t.getStatus() == TaskStatus.COMPLETED).count();
         long pendingTasks = taskList.stream().filter(t -> t.getStatus() == TaskStatus.TODO || t.getStatus() == TaskStatus.IN_PROGRESS || t.getStatus() == TaskStatus.UNDER_REVIEW).count();
         long overdueTasks = taskList.stream().filter(t -> t.getDueDate() != null && t.getDueDate().isBefore(LocalDate.now()) && t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED).count();
-        List<TaskDto> recentTasks = taskMapper.toDtoList(taskList);
+        List<TaskDto> recentTasks = taskMapper.toDtoList(taskList.stream().limit(5).toList());
 
         ClientTaskSummary taskSummary = ClientTaskSummary.builder()
                 .totalTasks(totalTasks)
@@ -359,13 +411,16 @@ public class ClientServiceImpl implements ClientService {
                 .documentCategories(List.of("GST Invoices", "ITR Computations", "Audit Reports", "Statutory Certificates"))
                 .build();
 
-        // 5. Billing Summary
-        ClientBillingSummary billingSummary = ClientBillingSummary.builder()
-                .totalInvoiced(0.0)
-                .totalPaid(0.0)
-                .outstandingBalance(0.0)
-                .currency("INR")
-                .build();
+        // 5. Billing Summary - ZERO TRUST: Null/Redacted for non-billing staff
+        ClientBillingSummary billingSummary = null;
+        if (securityScopeEvaluator.hasBillingAccess(scope)) {
+            billingSummary = ClientBillingSummary.builder()
+                    .totalInvoiced(0.0)
+                    .totalPaid(0.0)
+                    .outstandingBalance(0.0)
+                    .currency("INR")
+                    .build();
+        }
 
         // 6. Recent Notes
         List<ClientNoteEntity> noteEntities = clientNoteRepository.findTop10ByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);

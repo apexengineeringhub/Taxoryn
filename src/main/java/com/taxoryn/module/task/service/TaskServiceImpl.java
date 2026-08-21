@@ -3,6 +3,7 @@ package com.taxoryn.module.task.service;
 import com.taxoryn.core.dto.PageRequestDto;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -42,6 +44,7 @@ public class TaskServiceImpl implements TaskService {
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
+    private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final TaskMapper taskMapper;
     private final NotificationService notificationService;
 
@@ -64,11 +67,46 @@ public class TaskServiceImpl implements TaskService {
     @Transactional(readOnly = true)
     public PagedResponse<TaskDto> getTasks(TaskFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        UUID currentUserId = SecurityUtils.getCurrentUserId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<TaskEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            // Enforce RBAC/ABAC Task Isolation:
+            if (scope.isStaff()) {
+                // Staff / Article Assistant can ONLY see tasks assigned to them
+                Set<UUID> selfIds = scope.getAccessibleAssigneeIds();
+                if (selfIds != null && !selfIds.isEmpty()) {
+                    predicates.add(root.get("assignedTo").in(selfIds));
+                } else {
+                    predicates.add(cb.disjunction());
+                }
+            } else if (scope.isDepartmentManager()) {
+                // Manager can see tasks assigned to staff in their department or direct reports
+                Set<UUID> deptIds = scope.getAccessibleAssigneeIds();
+                if (filterRequest.getAssignedTo() != null) {
+                    if (deptIds != null && deptIds.contains(filterRequest.getAssignedTo())) {
+                        predicates.add(cb.equal(root.get("assignedTo"), filterRequest.getAssignedTo()));
+                    } else {
+                        predicates.add(cb.disjunction()); // Outside department boundary
+                    }
+                } else if (Boolean.TRUE.equals(filterRequest.getMyTasksOnly())) {
+                    predicates.add(cb.equal(root.get("assignedTo"), scope.getUserId()));
+                } else if (deptIds != null && !deptIds.isEmpty()) {
+                    predicates.add(root.get("assignedTo").in(deptIds));
+                }
+            } else {
+                // Firm Admin: unrestricted
+                if (Boolean.TRUE.equals(filterRequest.getMyTasksOnly()) && scope.getUserId() != null) {
+                    Set<UUID> adminIds = new HashSet<>();
+                    adminIds.add(scope.getUserId());
+                    if (scope.getEmployeeId() != null) adminIds.add(scope.getEmployeeId());
+                    predicates.add(root.get("assignedTo").in(adminIds));
+                } else if (filterRequest.getAssignedTo() != null) {
+                    predicates.add(cb.equal(root.get("assignedTo"), filterRequest.getAssignedTo()));
+                }
+            }
 
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
@@ -84,23 +122,6 @@ public class TaskServiceImpl implements TaskService {
 
             if (filterRequest.getPriority() != null) {
                 predicates.add(cb.equal(root.get("priority"), filterRequest.getPriority()));
-            }
-
-            if (Boolean.TRUE.equals(filterRequest.getMyTasksOnly()) && currentUserId != null) {
-                List<UUID> matchingAssigneeIds = new ArrayList<>();
-                matchingAssigneeIds.add(currentUserId);
-
-                employeeRepository.findByOrganizationIdAndUserId(organizationId, currentUserId)
-                        .ifPresent(emp -> matchingAssigneeIds.add(emp.getId()));
-
-                userRepository.findById(currentUserId).ifPresent(u -> {
-                    employeeRepository.findByOrganizationIdAndEmail(organizationId, u.getEmail())
-                            .ifPresent(emp -> matchingAssigneeIds.add(emp.getId()));
-                });
-
-                predicates.add(root.get("assignedTo").in(matchingAssigneeIds));
-            } else if (filterRequest.getAssignedTo() != null) {
-                predicates.add(cb.equal(root.get("assignedTo"), filterRequest.getAssignedTo()));
             }
 
             if (StringUtils.hasText(filterRequest.getSearch())) {
@@ -124,6 +145,15 @@ public class TaskServiceImpl implements TaskService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TaskEntity entity = taskRepository.findByIdAndOrganizationId(taskId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", "id", taskId));
+
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            Set<UUID> accessibleIds = scope.getAccessibleAssigneeIds();
+            if (entity.getAssignedTo() != null && (accessibleIds == null || !accessibleIds.contains(entity.getAssignedTo()))) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view tasks outside your department or assigned workload.");
+            }
+        }
+
         return enrichDto(entity);
     }
 

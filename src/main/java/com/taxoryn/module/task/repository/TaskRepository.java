@@ -33,6 +33,9 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
 
     Page<TaskEntity> findAllByOrganizationIdAndStatus(UUID organizationId, TaskStatus status, Pageable pageable);
 
+    @Query("SELECT DISTINCT t.clientId FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.assignedTo IN :assigneeIds AND t.clientId IS NOT NULL")
+    java.util.List<UUID> findClientIdsByAssignedToIn(@Param("organizationId") UUID organizationId, @Param("assigneeIds") Collection<UUID> assigneeIds);
+
     @Query("SELECT COUNT(t) FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.assignedTo IN :assigneeIds AND t.status != com.taxoryn.module.task.entity.TaskEntity.TaskStatus.CANCELLED")
     long countAssignedTasks(@Param("organizationId") UUID organizationId, @Param("assigneeIds") Collection<UUID> assigneeIds);
 

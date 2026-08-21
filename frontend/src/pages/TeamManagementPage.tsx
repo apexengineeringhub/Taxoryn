@@ -7,12 +7,18 @@ import { Button } from '../components/common/Button';
 import { teamApi } from '../api/endpoints';
 import { Employee, Role } from '../types';
 import { useBranding } from '../context/BrandingContext';
+import { useAuth } from '../context/AuthContext';
 
 export const TeamManagementPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [activeTab, setActiveTab] = useState<'employees' | 'roles'>('employees');
   const [isLoading, setIsLoading] = useState(true);
+
+  const { user } = useAuth();
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
 
   useEffect(() => {
     loadData();
@@ -115,19 +121,25 @@ export const TeamManagementPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Team Directory & RBAC</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">
+            {isStaff ? 'Department Team Directory' : 'Team Directory & RBAC'}
+          </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Manage practice partners, senior accountants, staff privileges, and role permissions.
+            {isStaff
+              ? 'Directory of colleagues in your practice department and reporting leads.'
+              : 'Manage practice partners, senior accountants, staff privileges, and role permissions.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/team/bulk">
-            <Button variant="outline" leftIcon={<Sparkles className="w-4 h-4 text-brand-600" />}>
-              ⚡ Bulk Onboard Team
-            </Button>
-          </Link>
-          <Button leftIcon={<Plus className="w-4 h-4" />}>Add Team Member</Button>
-        </div>
+        {!isStaff && (
+          <div className="flex items-center gap-2">
+            <Link to="/team/bulk">
+              <Button variant="outline" leftIcon={<Sparkles className="w-4 h-4 text-brand-600" />}>
+                ⚡ Bulk Onboard Team
+              </Button>
+            </Link>
+            <Button leftIcon={<Plus className="w-4 h-4" />}>Add Team Member</Button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -140,18 +152,20 @@ export const TeamManagementPage: React.FC = () => {
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          Employee Directory ({employees.length})
+          {isStaff ? 'Department Members' : 'Employee Directory'} ({employees.length})
         </button>
-        <button
-          onClick={() => setActiveTab('roles')}
-          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
-            activeTab === 'roles'
-              ? 'border-brand-600 text-brand-600 bg-brand-50/50 rounded-t-lg'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Roles & Permissions Matrix ({roles.length})
-        </button>
+        {!isStaff && (
+          <button
+            onClick={() => setActiveTab('roles')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${
+              activeTab === 'roles'
+                ? 'border-brand-600 text-brand-600 bg-brand-50/50 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Roles & Permissions Matrix ({roles.length})
+          </button>
+        )}
       </div>
 
       {/* Content */}

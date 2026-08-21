@@ -63,6 +63,9 @@ export const TasksPage: React.FC = () => {
   });
 
   const { user } = useAuth();
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
 
   useEffect(() => {
     loadTasks();
@@ -370,19 +373,21 @@ export const TasksPage: React.FC = () => {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <UserCheck className="w-3.5 h-3.5" /> 🎯 My Assigned Tasks
+            <UserCheck className="w-3.5 h-3.5" /> 🎯 {isStaff ? 'My Assigned Deliverables' : 'My Assigned Tasks'}
           </button>
 
-          <button
-            onClick={() => setTaskScope('ALL_TASKS')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              taskScope === 'ALL_TASKS'
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            <Building className="w-3.5 h-3.5" /> 🏢 All Practice Tasks
-          </button>
+          {!isStaff && (
+            <button
+              onClick={() => setTaskScope('ALL_TASKS')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                taskScope === 'ALL_TASKS'
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Building className="w-3.5 h-3.5" /> 🏢 All Practice Tasks
+            </button>
+          )}
         </div>
 
         {/* Category Filter Pills */}

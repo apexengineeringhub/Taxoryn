@@ -18,6 +18,8 @@ public interface ItrReturnRepository extends JpaRepository<ItrReturnEntity, UUID
 
     boolean existsByOrganizationIdAndClientIdAndAssessmentYear(UUID organizationId, UUID clientId, String assessmentYear);
 
+    List<ItrReturnEntity> findAllByOrganizationId(UUID organizationId);
+
     List<ItrReturnEntity> findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(UUID organizationId, UUID clientId);
 
     List<ItrReturnEntity> findAllByOrganizationIdAndAssessmentYear(UUID organizationId, String assessmentYear);

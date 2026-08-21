@@ -67,6 +67,9 @@ class ItrServiceTest {
     @Mock
     private com.taxoryn.module.audit.service.AuditService auditService;
 
+    @Mock
+    private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
     @InjectMocks
     private ItrServiceImpl itrService;
 
@@ -83,9 +86,10 @@ class ItrServiceTest {
         profileId = UUID.randomUUID();
         returnId = UUID.randomUUID();
         employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
 
         SecurityUser principal = SecurityUser.builder()
-                .userId(UUID.randomUUID())
+                .userId(userId)
                 .organizationId(tenantId)
                 .email("admin@taxpractice.com")
                 .roles(Set.of("ORG_ADMIN"))
@@ -97,6 +101,9 @@ class ItrServiceTest {
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
         TenantContext.setTenantId(tenantId);
+
+        org.mockito.Mockito.lenient().when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(com.taxoryn.core.security.PracticeSecurityScope.firmAdmin(userId));
+        org.mockito.Mockito.lenient().when(securityScopeEvaluator.hasBillingAccess(org.mockito.ArgumentMatchers.any())).thenReturn(true);
     }
 
     @AfterEach

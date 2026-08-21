@@ -4,6 +4,7 @@ import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.employee.dto.CreateEmployeeRequest;
 import com.taxoryn.module.employee.dto.EmployeeDto;
@@ -49,6 +50,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final EmployeeMapper employeeMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
 
@@ -204,10 +206,16 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public PagedResponse<EmployeeDto> getEmployees(EmployeeFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<EmployeeEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            // Scoping: Staff only see their department peers and managers
+            if (scope.isStaff() && StringUtils.hasText(scope.getDepartment())) {
+                predicates.add(cb.equal(cb.lower(root.get("department")), scope.getDepartment().trim().toLowerCase()));
+            }
 
             if (StringUtils.hasText(filterRequest.getSearch())) {
                 String searchPattern = "%" + filterRequest.getSearch().trim().toLowerCase() + "%";

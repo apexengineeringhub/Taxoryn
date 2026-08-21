@@ -44,7 +44,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import com.taxoryn.core.security.PracticeSecurityScope;
+import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 
 @Slf4j
 @Service
@@ -57,6 +60,7 @@ public class ItrServiceImpl implements ItrService {
     private final EmployeeRepository employeeRepository;
     private final ItrMapper itrMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+    private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
     // =========================================================================
     // 1. ITR Profile Management
@@ -531,10 +535,20 @@ public class ItrServiceImpl implements ItrService {
     @Transactional(readOnly = true)
     public PagedResponse<ItrReturnDto> getReturns(ItrFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<ItrReturnEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (!scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(root.get("clientId").in(accessibleClientIds));
+                }
+            }
 
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));

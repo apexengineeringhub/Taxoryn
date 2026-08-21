@@ -32,21 +32,27 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
   const isLight = currentTheme.mode === 'light';
 
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
+  const userPermissions = user?.permissions || [];
+  const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
+
   const navItems = [
-    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Clients 360°', path: '/clients', icon: Users },
-    { label: 'Tasks & Workflow', path: '/tasks', icon: CheckSquare },
-    { label: 'GST Compliance', path: '/gst', icon: Building2 },
-    { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet },
-    { label: 'Tax Calendar', path: '/calendar', icon: Calendar },
-    { label: 'Document Vault', path: '/documents', icon: FolderLock },
-    { label: 'Billing & Invoices', path: '/billing', icon: Receipt },
-    { label: 'Client Portal', path: '/portal', icon: Globe },
-    { label: 'Team & RBAC', path: '/team', icon: UserCheck },
-    { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert },
-    { label: 'Branding & Themes', path: '/settings/branding', icon: Palette },
-    { label: 'Subscription', path: '/settings/subscription', icon: CreditCard },
-  ];
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, visible: true },
+    { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, visible: true },
+    { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, visible: true },
+    { label: 'GST Compliance', path: '/gst', icon: Building2, visible: true },
+    { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, visible: true },
+    { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
+    { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
+    { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
+    { label: 'Client Portal', path: '/portal', icon: Globe, visible: true },
+    { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
+    { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },
+    { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
+    { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
+  ].filter((item) => item.visible);
 
   return (
     <aside
@@ -168,8 +174,14 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               </div>
             )}
             <div className="truncate">
-              <p className={clsx('text-xs font-bold truncate', isLight ? 'text-slate-900' : 'text-white')}>
-                {user?.firstName} {user?.lastName || ''}
+              <p className={clsx('text-xs font-bold truncate flex items-center gap-1.5', isLight ? 'text-slate-900' : 'text-white')}>
+                <span>{user?.firstName} {user?.lastName || ''}</span>
+                <span className={clsx(
+                  'text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider',
+                  isStaff ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                )}>
+                  {isStaff ? 'Staff' : isFirmAdmin ? 'Admin' : 'Manager'}
+                </span>
               </p>
               <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
             </div>

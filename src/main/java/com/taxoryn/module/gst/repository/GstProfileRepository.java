@@ -19,6 +19,8 @@ public interface GstProfileRepository extends JpaRepository<GstProfileEntity, UU
 
     Optional<GstProfileEntity> findByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 
+    List<GstProfileEntity> findAllByOrganizationId(UUID organizationId);
+
     List<GstProfileEntity> findAllByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 
     List<GstProfileEntity> findAllByOrganizationIdAndStatus(UUID organizationId, GstProfileStatus status);
