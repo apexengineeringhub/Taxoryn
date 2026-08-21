@@ -29,6 +29,22 @@ import com.taxoryn.module.task.repository.TaskRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.entity.UserEntity.UserStatus;
 import com.taxoryn.module.user.repository.UserRepository;
+import com.taxoryn.module.billing.entity.InvoiceEntity;
+import com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus;
+import com.taxoryn.module.billing.entity.InvoiceItemEntity;
+import com.taxoryn.module.billing.repository.InvoiceRepository;
+import com.taxoryn.module.gst.entity.GstProfileEntity;
+import com.taxoryn.module.gst.entity.GstProfileEntity.GstProfileStatus;
+import com.taxoryn.module.gst.entity.GstProfileEntity.GstType;
+import com.taxoryn.module.gst.entity.GstReturnFilingEntity;
+import com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus;
+import com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstReturnType;
+import com.taxoryn.module.gst.repository.GstProfileRepository;
+import com.taxoryn.module.gst.repository.GstReturnFilingRepository;
+import com.taxoryn.module.portal.entity.ClientDocumentRequestEntity;
+import com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus;
+import com.taxoryn.module.portal.repository.ClientDocumentRequestRepository;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -37,12 +53,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -58,16 +76,28 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final TaskRepository taskRepository;
     private final ItrProfileRepository itrProfileRepository;
     private final ItrReturnRepository itrReturnRepository;
+    private final GstProfileRepository gstProfileRepository;
+    private final GstReturnFilingRepository gstReturnFilingRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final ClientDocumentRequestRepository docRequestRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
         try {
             seedPermissionsAndRoles();
+        } catch (Exception ex) {
+            log.error("Failed seeding permissions and roles", ex);
+        }
+        try {
             seedDemoOrganizationAndStaff("contact@apextax.com", "Apex Tax Advisors LLP", "AABFA1234K", "admin@apextax.com", "Admin", "User");
+        } catch (Exception ex) {
+            log.error("Failed seeding Apex Tax Advisors LLP", ex);
+        }
+        try {
             seedDemoOrganizationAndStaff("pawanadv@gmail.com", "MAA MUNDESHWARI TAX CONSULTANCY", "AABFA1234F", "pawanadv@gmail.com", "Pawan", "Pathak");
         } catch (Exception ex) {
-            log.warn("DemoDataSeeder warning (non-fatal): {}", ex.getMessage());
+            log.error("Failed seeding MAA MUNDESHWARI TAX CONSULTANCY", ex);
         }
     }
 
@@ -81,7 +111,10 @@ public class DemoDataSeeder implements CommandLineRunner {
                 "DOCUMENT_VIEW", "DOCUMENT_READ", "DOCUMENT_UPLOAD", "DOCUMENT_CREATE", "DOCUMENT_UPDATE",
                 "DASHBOARD_VIEW", "BILLING_VIEW", "BILLING_READ", "BILLING_CREATE", "BILLING_UPDATE",
                 "EMPLOYEE_VIEW", "EMPLOYEE_READ", "EMPLOYEE_CREATE", "EMPLOYEE_WRITE", "EMPLOYEE_UPDATE",
-                "ORGANIZATION_VIEW", "ROLE_READ", "USER_VIEW", "USER_WRITE"
+                "ORGANIZATION_VIEW", "ROLE_READ", "USER_VIEW", "USER_WRITE",
+                "CLIENT_PORTAL_ACCESS", "CLIENT_PORTAL_PROFILE_VIEW", "CLIENT_PORTAL_STATUS_VIEW",
+                "CLIENT_PORTAL_DOCUMENT_VIEW", "CLIENT_PORTAL_DOCUMENT_UPLOAD", "CLIENT_PORTAL_INVOICE_VIEW",
+                "CLIENT_PORTAL_USER_MANAGE"
         );
 
         for (String code : permissionCodes) {
@@ -134,7 +167,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                         || p.getCode().equals("DASHBOARD_VIEW")
                         || p.getCode().equals("EMPLOYEE_VIEW") || p.getCode().equals("EMPLOYEE_READ")
                 )
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         articleRole.setPermissions(articlePerms);
         roleRepository.save(articleRole);
 
@@ -147,6 +180,34 @@ public class DemoDataSeeder implements CommandLineRunner {
                         .build()));
         staffRole.setPermissions(articlePerms);
         roleRepository.save(staffRole);
+
+        // 6. CLIENT_USER Role (Portal Access, Views & Uploads)
+        RoleEntity clientUserRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("CLIENT_USER")
+                        .name("Client User")
+                        .description("Client staff with access to view compliance status and upload documents")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> clientUserPerms = allPermissions.stream()
+                .filter(p -> p.getCode().startsWith("CLIENT_PORTAL_") && !p.getCode().equals("CLIENT_PORTAL_USER_MANAGE"))
+                .collect(Collectors.toSet());
+        clientUserRole.setPermissions(clientUserPerms);
+        roleRepository.save(clientUserRole);
+
+        // 7. CLIENT_ADMIN Role (Full Portal Admin)
+        RoleEntity clientAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("CLIENT_ADMIN")
+                        .name("Client Administrator")
+                        .description("Client admin with full portal access and user management")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> clientAdminPerms = allPermissions.stream()
+                .filter(p -> p.getCode().startsWith("CLIENT_PORTAL_"))
+                .collect(Collectors.toSet());
+        clientAdminRole.setPermissions(clientAdminPerms);
+        roleRepository.save(clientAdminRole);
     }
 
     private void seedDemoOrganizationAndStaff(String orgEmail, String orgName, String pan, String adminEmail, String firstName, String lastName) {
@@ -182,6 +243,9 @@ public class DemoDataSeeder implements CommandLineRunner {
             adminUser = existingUser.get();
             adminUser.setStatus(UserStatus.ACTIVE);
             adminUser.setPasswordHash(passwordEncoder.encode("Password123!"));
+            if (adminUser.getRoles() == null) {
+                adminUser.setRoles(new HashSet<>());
+            }
             adminUser.getRoles().add(orgAdminRole);
             adminUser = userRepository.save(adminUser);
         }
@@ -191,6 +255,9 @@ public class DemoDataSeeder implements CommandLineRunner {
 
         // 3. Seed Practice Employees & Linked User Accounts
         seedDemoEmployeesAndTasks(org, articleRole, practitionerRole);
+
+        // 4. Seed Demo Client Customer Logins & Portal Data
+        seedDemoClientUsersAndPortalData(org);
     }
 
     private void seedDemoEmployeesAndTasks(OrganizationEntity org, RoleEntity articleRole, RoleEntity practitionerRole) {
@@ -238,6 +305,9 @@ public class DemoDataSeeder implements CommandLineRunner {
             // Ensure active status and password match
             user.setStatus(UserStatus.ACTIVE);
             user.setPasswordHash(passwordEncoder.encode("Password123!"));
+            if (user.getRoles() == null) {
+                user.setRoles(new HashSet<>());
+            }
             user.getRoles().add(d.role());
             userRepository.save(user);
 
@@ -375,10 +445,6 @@ public class DemoDataSeeder implements CommandLineRunner {
     }
 
     private void seedDemoClientsAndItrProfiles(OrganizationEntity org) {
-        if (clientRepository.countByOrganizationId(org.getId()) > 0) {
-            return;
-        }
-
         record DemoClient(String pan, String displayName, String legalName, ClientEntity.ClientType clientType,
                           TaxpayerType taxpayerType, ItrType defaultItrType, String email, String phone) {}
 
@@ -393,44 +459,224 @@ public class DemoDataSeeder implements CommandLineRunner {
                 new DemoClient("AAATR5566D", "Shri Mundeshwari Seva Trust", "Shri Mundeshwari Seva Trust", ClientEntity.ClientType.TRUST, TaxpayerType.TRUST, ItrType.ITR_7, "trust.seva@example.com", "9866778899")
         );
 
+        List<ClientEntity> existingClients = clientRepository.findAllByOrganizationId(org.getId());
+
         for (DemoClient d : demoClients) {
-            ClientEntity client = ClientEntity.builder()
-                    .displayName(d.displayName())
-                    .legalName(d.legalName())
-                    .pan(d.pan())
-                    .clientType(d.clientType())
-                    .email(d.email())
-                    .phone(d.phone())
-                    .status(ClientEntity.ClientStatus.ACTIVE)
-                    .build();
-            client.setOrganizationId(org.getId());
-            ClientEntity savedClient = clientRepository.save(client);
+            ClientEntity savedClient = existingClients.stream()
+                    .filter(c -> d.pan().equalsIgnoreCase(c.getPan()) || d.displayName().equalsIgnoreCase(c.getDisplayName()))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        ClientEntity client = ClientEntity.builder()
+                                .displayName(d.displayName())
+                                .legalName(d.legalName())
+                                .pan(d.pan())
+                                .clientType(d.clientType())
+                                .email(d.email())
+                                .phone(d.phone())
+                                .status(ClientEntity.ClientStatus.ACTIVE)
+                                .build();
+                        client.setOrganizationId(org.getId());
+                        return clientRepository.save(client);
+                    });
 
-            ItrProfileEntity profile = ItrProfileEntity.builder()
-                    .clientId(savedClient.getId())
-                    .pan(d.pan())
-                    .taxpayerType(d.taxpayerType())
-                    .defaultItrType(d.defaultItrType())
-                    .residentialStatus(ItrProfileEntity.ResidentialStatus.RESIDENT)
-                    .status(ItrProfileStatus.ACTIVE)
-                    .build();
-            profile.setOrganizationId(org.getId());
-            itrProfileRepository.save(profile);
+            if (itrProfileRepository.findByOrganizationIdAndClientId(org.getId(), savedClient.getId()).isEmpty()) {
+                ItrProfileEntity profile = ItrProfileEntity.builder()
+                        .clientId(savedClient.getId())
+                        .pan(d.pan())
+                        .taxpayerType(d.taxpayerType())
+                        .defaultItrType(d.defaultItrType())
+                        .residentialStatus(ItrProfileEntity.ResidentialStatus.RESIDENT)
+                        .status(ItrProfileStatus.ACTIVE)
+                        .build();
+                profile.setOrganizationId(org.getId());
+                itrProfileRepository.save(profile);
 
-            LocalDate dueDate = (d.taxpayerType() == TaxpayerType.COMPANY || d.defaultItrType() == ItrType.ITR_6) ? LocalDate.of(2026, 10, 31) : LocalDate.of(2026, 7, 31);
-            ItrReturnEntity returnEntity = ItrReturnEntity.builder()
-                    .clientId(savedClient.getId())
-                    .itrProfileId(profile.getId())
-                    .assessmentYear("2026-27")
-                    .financialYear("2025-26")
-                    .itrType(d.defaultItrType())
-                    .taxpayerType(d.taxpayerType())
-                    .dueDate(dueDate)
-                    .status(ItrStatus.DOCUMENTS_PENDING)
-                    .build();
-            returnEntity.setOrganizationId(org.getId());
-            itrReturnRepository.save(returnEntity);
+                LocalDate dueDate = (d.taxpayerType() == TaxpayerType.COMPANY || d.defaultItrType() == ItrType.ITR_6) ? LocalDate.of(2026, 10, 31) : LocalDate.of(2026, 7, 31);
+                ItrReturnEntity returnEntity = ItrReturnEntity.builder()
+                        .clientId(savedClient.getId())
+                        .itrProfileId(profile.getId())
+                        .assessmentYear("2026-27")
+                        .financialYear("2025-26")
+                        .itrType(d.defaultItrType())
+                        .taxpayerType(d.taxpayerType())
+                        .dueDate(dueDate)
+                        .status(ItrStatus.DOCUMENTS_PENDING)
+                        .build();
+                returnEntity.setOrganizationId(org.getId());
+                itrReturnRepository.save(returnEntity);
+            }
         }
-        log.info("Seeded 8 demo clients & ITR returns for organization {}", org.getName());
+        log.info("Verified demo clients & ITR returns for organization {}", org.getName());
+    }
+
+    private void seedDemoClientUsersAndPortalData(OrganizationEntity org) {
+        RoleEntity clientUserRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("CLIENT_USER")
+                        .name("Client User")
+                        .description("Client staff with access to view compliance status and upload documents")
+                        .isSystemRole(true)
+                        .build()));
+
+        RoleEntity clientAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("CLIENT_ADMIN")
+                        .name("Client Administrator")
+                        .description("Client admin with full portal access and user management")
+                        .isSystemRole(true)
+                        .build()));
+
+        List<ClientEntity> clients = clientRepository.findAllByOrganizationId(org.getId());
+        if (clients.isEmpty()) return;
+
+        boolean isMundeshwari = org.getName().toUpperCase().contains("MUNDESHWARI");
+
+        record DemoCustomer(String email, String firstName, String lastName, String clientSearchName, RoleEntity role) {}
+
+        List<DemoCustomer> demoCustomers = isMundeshwari ? List.of(
+                new DemoCustomer("client.mundeshwari@maamundeshwari.com", "Mundeshwari", "Director", "MAA MUNDESHWARI", clientAdminRole),
+                new DemoCustomer("client.sneha@maamundeshwari.com", "Sneha", "Kulkarni", "Sneha Kulkarni", clientUserRole)
+        ) : List.of(
+                new DemoCustomer("client.sneha@apextax.com", "Sneha", "Kulkarni", "Sneha Kulkarni", clientUserRole),
+                new DemoCustomer("client.rajesh@apextax.com", "Dr. Rajesh", "Sharma", "Dr. Rajesh Sharma", clientAdminRole)
+        );
+
+        for (DemoCustomer dc : demoCustomers) {
+            ClientEntity client = clients.stream()
+                    .filter(c -> c.getDisplayName().toLowerCase().contains(dc.clientSearchName().toLowerCase()))
+                    .findFirst()
+                    .orElse(clients.get(0));
+
+            UserEntity clientUser = userRepository.findByEmailIgnoreCase(dc.email())
+                    .orElseGet(() -> {
+                        UserEntity u = UserEntity.builder()
+                                .email(dc.email().toLowerCase().trim())
+                                .passwordHash(passwordEncoder.encode("Password123!"))
+                                .firstName(dc.firstName())
+                                .lastName(dc.lastName())
+                                .phone("+919800112233")
+                                .status(UserStatus.ACTIVE)
+                                .clientId(client.getId())
+                                .roles(new HashSet<>(Set.of(dc.role())))
+                                .build();
+                        u.setOrganizationId(org.getId());
+                        return userRepository.save(u);
+                    });
+
+            clientUser.setClientId(client.getId());
+            clientUser.setStatus(UserStatus.ACTIVE);
+            clientUser.setPasswordHash(passwordEncoder.encode("Password123!"));
+            if (clientUser.getRoles() == null) {
+                clientUser.setRoles(new HashSet<>());
+            }
+            clientUser.getRoles().add(dc.role());
+            userRepository.save(clientUser);
+            log.info("Seeded demo client customer login: {} ({}) for client {}", dc.email(), dc.role().getCode(), client.getDisplayName());
+
+            // 1. Seed demo Invoice if none exists
+            if (invoiceRepository.findAllByOrganizationIdAndClientIdOrderByInvoiceDateDesc(org.getId(), client.getId()).isEmpty()) {
+                InvoiceEntity invoice = InvoiceEntity.builder()
+                        .clientId(client.getId())
+                        .invoiceNumber("INV-2026-" + String.format("%04d", (int) (Math.random() * 9000) + 1000))
+                        .invoiceDate(LocalDate.now().minusDays(15))
+                        .dueDate(LocalDate.now().plusDays(15))
+                        .subtotal(new BigDecimal("15000.00"))
+                        .tax(new BigDecimal("2700.00"))
+                        .total(new BigDecimal("17700.00"))
+                        .paidAmount(new BigDecimal("7700.00"))
+                        .balanceDue(new BigDecimal("10000.00"))
+                        .status(InvoiceStatus.PARTIALLY_PAID)
+                        .notes("Annual Statutory Compliance & Direct Tax Advisory Fee")
+                        .terms("Net 30 Days. 18% GST Applicable.")
+                        .build();
+                invoice.setOrganizationId(org.getId());
+
+                InvoiceItemEntity item1 = InvoiceItemEntity.builder()
+                        .service(InvoiceItemEntity.BillingServiceType.ITR_FILING)
+                        .description("ITR Computation, E-filing & Capital Gains Reconciliation")
+                        .quantity(BigDecimal.ONE)
+                        .unitPrice(new BigDecimal("10000.00"))
+                        .taxRate(new BigDecimal("18.00"))
+                        .tax(new BigDecimal("1800.00"))
+                        .amount(new BigDecimal("11800.00"))
+                        .build();
+                InvoiceItemEntity item2 = InvoiceItemEntity.builder()
+                        .service(InvoiceItemEntity.BillingServiceType.CONSULTING)
+                        .description("Advance Tax Consultation & Form 26AS Audit")
+                        .quantity(BigDecimal.ONE)
+                        .unitPrice(new BigDecimal("5000.00"))
+                        .taxRate(new BigDecimal("18.00"))
+                        .tax(new BigDecimal("900.00"))
+                        .amount(new BigDecimal("5900.00"))
+                        .build();
+                invoice.addItem(item1);
+                invoice.addItem(item2);
+                invoiceRepository.save(invoice);
+            }
+
+            // 2. Seed demo Pending Document Request if none exists
+            if (docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(org.getId(), client.getId()).isEmpty()) {
+                ClientDocumentRequestEntity docReq = ClientDocumentRequestEntity.builder()
+                        .clientId(client.getId())
+                        .title("FY 2025-26 Bank Statement (Savings & Current)")
+                        .description("Please upload complete 12-month PDF statement with interest certificates for accurate capital gains computation.")
+                        .documentType(DocumentType.BANK_STATEMENT)
+                        .dueDate(LocalDate.now().plusDays(5))
+                        .financialYear("2025-26")
+                        .assessmentYear("2026-27")
+                        .status(RequestStatus.PENDING)
+                        .build();
+                docReq.setOrganizationId(org.getId());
+                docRequestRepository.save(docReq);
+            }
+
+            // 3. Seed demo GST Profile & Filing if client has GSTIN
+            if (gstProfileRepository.findByOrganizationIdAndClientId(org.getId(), client.getId()).isEmpty()) {
+                GstProfileEntity gstProfile = GstProfileEntity.builder()
+                        .clientId(client.getId())
+                        .gstin(client.getPan() != null ? "27" + client.getPan() + "1Z5" : "27AABFA1234K1Z5")
+                        .legalName(client.getLegalName())
+                        .tradeName(client.getDisplayName())
+                        .gstType(GstType.REGULAR)
+                        .status(GstProfileStatus.ACTIVE)
+                        .build();
+                gstProfile.setOrganizationId(org.getId());
+                GstProfileEntity savedGstProfile = gstProfileRepository.save(gstProfile);
+
+                GstReturnFilingEntity gstr1 = GstReturnFilingEntity.builder()
+                        .gstProfileId(savedGstProfile.getId())
+                        .clientId(client.getId())
+                        .returnType(GstReturnType.GSTR1)
+                        .returnPeriod("May 2026")
+                        .financialYear("2026-27")
+                        .dueDate(LocalDate.of(2026, 6, 11))
+                        .filingStatus(GstFilingStatus.FILED)
+                        .filingDate(LocalDate.of(2026, 6, 10))
+                        .acknowledgementNumber("AA2705260192837")
+                        .totalTaxableValue(new BigDecimal("250000.00"))
+                        .totalTaxLiability(new BigDecimal("45000.00"))
+                        .build();
+                gstr1.setOrganizationId(org.getId());
+                gstReturnFilingRepository.save(gstr1);
+
+                GstReturnFilingEntity gstr3b = GstReturnFilingEntity.builder()
+                        .gstProfileId(savedGstProfile.getId())
+                        .clientId(client.getId())
+                        .returnType(GstReturnType.GSTR3B)
+                        .returnPeriod("May 2026")
+                        .financialYear("2026-27")
+                        .dueDate(LocalDate.of(2026, 6, 20))
+                        .filingStatus(GstFilingStatus.FILED)
+                        .filingDate(LocalDate.of(2026, 6, 18))
+                        .acknowledgementNumber("AA2705260849201")
+                        .totalTaxableValue(new BigDecimal("250000.00"))
+                        .totalTaxLiability(new BigDecimal("45000.00"))
+                        .totalItcClaimed(new BigDecimal("22000.00"))
+                        .taxPaidCash(new BigDecimal("23000.00"))
+                        .build();
+                gstr3b.setOrganizationId(org.getId());
+                gstReturnFilingRepository.save(gstr3b);
+            }
+        }
     }
 }

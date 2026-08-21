@@ -138,7 +138,17 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     public ClientPortalDashboardDto getDashboard() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        return buildDashboardDto(clientId, organizationId);
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ClientPortalDashboardDto getDashboardForClient(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        return buildDashboardDto(clientId, organizationId);
+    }
+
+    private ClientPortalDashboardDto buildDashboardDto(UUID clientId, UUID organizationId) {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
@@ -161,11 +171,11 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
         // Recent GST
         List<ClientGstStatusDto> gstList = gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(organizationId, clientId)
-                .stream().limit(5).map(this::mapGstFiling).toList();
+                .stream().limit(10).map(this::mapGstFiling).toList();
 
         // Recent ITR
         List<ClientItrStatusDto> itrList = itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(organizationId, clientId)
-                .stream().limit(5).map(this::mapItrReturn).toList();
+                .stream().limit(10).map(this::mapItrReturn).toList();
 
         // Pending Document Requests
         List<ClientDocumentRequestDto> docRequests = mapper.toDocRequestDtoList(
@@ -193,7 +203,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         }
         List<com.taxoryn.module.billing.dto.InvoiceDto> latestInvoices = clientInvoices.stream()
                 .filter(inv -> inv.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.DRAFT)
-                .limit(5)
+                .limit(10)
                 .map(inv -> {
                     com.taxoryn.module.billing.dto.InvoiceDto dto = invoiceMapper.toDto(inv);
                     dto.setClientName(client.getDisplayName());
@@ -498,6 +508,28 @@ public class ClientPortalServiceImpl implements ClientPortalService {
             dto.setPayments(invoiceMapper.toPaymentDtoList(invoice.getPayments()));
         }
         return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClientPortalUserDto> getClientPortalUsers(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        return userRepository.findAllByOrganizationIdAndClientId(organizationId, clientId).stream()
+                .map(user -> ClientPortalUserDto.builder()
+                        .userId(user.getId())
+                        .clientId(client.getId())
+                        .clientName(client.getDisplayName())
+                        .email(user.getEmail())
+                        .firstName(user.getFirstName())
+                        .lastName(user.getLastName())
+                        .fullName(user.getFullName())
+                        .phone(user.getPhone())
+                        .roles(user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet()))
+                        .build())
+                .toList();
     }
 
     // =========================================================================

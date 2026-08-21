@@ -35,10 +35,19 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
   const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
+  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
-  const navItems = [
+  const clientNavItems = [
+    { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard, visible: true },
+    { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2, visible: true },
+    { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet, visible: true },
+    { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
+    { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
+  ];
+
+  const practiceNavItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, visible: true },
     { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, visible: true },
     { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, visible: true },
@@ -47,12 +56,14 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
     { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
-    { label: 'Client Portal', path: '/portal', icon: Globe, visible: true },
+    { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: true },
     { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
     { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
-  ].filter((item) => item.visible);
+  ];
+
+  const navItems = (isClientUser ? clientNavItems : practiceNavItems).filter((item) => item.visible);
 
   return (
     <aside

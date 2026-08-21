@@ -58,13 +58,21 @@ public class ClientPortalController {
     // =========================================================================
 
     @PostMapping("/users")
-    @PreAuthorize("hasRole('ORG_ADMIN') or hasRole('CLIENT_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('ORG_ADMIN') or hasRole('CLIENT_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER')")
     @Operation(summary = "Register client portal user", description = "Provisions a new client portal user (CLIENT_ADMIN or CLIENT_USER) linked to a specific client record.")
     public ResponseEntity<ApiResponse<ClientPortalUserDto>> registerClientPortalUser(
             @Valid @RequestBody RegisterClientPortalUserRequest request) {
         ClientPortalUserDto user = clientPortalService.registerClientPortalUser(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Client portal user created successfully", user));
+    }
+
+    @GetMapping("/clients/{clientId}/users")
+    @PreAuthorize("hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('CLIENT_ADMIN')")
+    @Operation(summary = "List client portal users", description = "Retrieves all portal logins provisioned for a specific client.")
+    public ResponseEntity<ApiResponse<List<ClientPortalUserDto>>> getClientPortalUsers(@PathVariable UUID clientId) {
+        List<ClientPortalUserDto> users = clientPortalService.getClientPortalUsers(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client portal users retrieved successfully", users));
     }
 
     // =========================================================================
@@ -77,6 +85,14 @@ public class ClientPortalController {
     public ResponseEntity<ApiResponse<ClientPortalDashboardDto>> getDashboard() {
         ClientPortalDashboardDto dashboard = clientPortalService.getDashboard();
         return ResponseEntity.ok(ApiResponse.success("Dashboard retrieved successfully", dashboard));
+    }
+
+    @GetMapping("/preview/{clientId}")
+    @PreAuthorize("hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
+    @Operation(summary = "Practice preview of client portal dashboard", description = "Allows practice professionals to view the exact customer portal experience for a specific client.")
+    public ResponseEntity<ApiResponse<ClientPortalDashboardDto>> getDashboardPreview(@PathVariable UUID clientId) {
+        ClientPortalDashboardDto dashboard = clientPortalService.getDashboardForClient(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client portal preview retrieved successfully", dashboard));
     }
 
     @GetMapping("/profile")
@@ -100,7 +116,7 @@ public class ClientPortalController {
     // 3. Compliance Status Tracking (GST & ITR)
     // =========================================================================
 
-    @GetMapping("/gst-status")
+    @GetMapping({"/gst-status", "/status/gst"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_STATUS_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Client GST return filing status", description = "Retrieves all GST filings (GSTR-1, GSTR-3B, CMP-08) for the authenticated client.")
     public ResponseEntity<ApiResponse<List<ClientGstStatusDto>>> getGstStatus() {
@@ -108,7 +124,7 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("GST status retrieved successfully", list));
     }
 
-    @GetMapping("/itr-status")
+    @GetMapping({"/itr-status", "/status/itr"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_STATUS_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Client ITR filing status", description = "Retrieves ITR filing records, assessment years, and e-filing acknowledgement numbers.")
     public ResponseEntity<ApiResponse<List<ClientItrStatusDto>>> getItrStatus() {

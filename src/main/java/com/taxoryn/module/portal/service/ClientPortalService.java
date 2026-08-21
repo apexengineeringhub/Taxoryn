@@ -25,6 +25,8 @@ public interface ClientPortalService {
 
     ClientPortalDashboardDto getDashboard();
 
+    ClientPortalDashboardDto getDashboardForClient(UUID clientId);
+
     ClientPortalProfileDto getProfile();
 
     ClientPortalProfileDto updateProfile(UpdateClientPortalProfileRequest request);
@@ -52,4 +54,6 @@ public interface ClientPortalService {
     List<com.taxoryn.module.billing.dto.InvoiceDto> getClientInvoices();
 
     com.taxoryn.module.billing.dto.InvoiceDto getClientInvoiceById(UUID invoiceId);
+
+    List<ClientPortalUserDto> getClientPortalUsers(UUID clientId);
 }

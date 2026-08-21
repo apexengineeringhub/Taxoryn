@@ -22,6 +22,13 @@ import {
   Role,
   AuditLog,
   AuthTokens,
+  ClientPortalDashboard,
+  ClientPortalProfile,
+  ClientGstStatus,
+  ClientItrStatus,
+  ClientDocumentRequest,
+  ClientPortalUser,
+  RegisterClientPortalUserRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -490,3 +497,85 @@ export const auditApi = {
     return res.data.data;
   },
 };
+
+// --- 13. Client Portal ---
+export const portalApi = {
+  getDashboard: async () => {
+    const res = await apiClient.get<ApiResponse<ClientPortalDashboard>>('/v1/portal/dashboard');
+    return res.data.data;
+  },
+  getDashboardPreview: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientPortalDashboard>>(`/v1/portal/preview/${clientId}`);
+    return res.data.data;
+  },
+  getProfile: async () => {
+    const res = await apiClient.get<ApiResponse<ClientPortalProfile>>('/v1/portal/profile');
+    return res.data.data;
+  },
+  updateProfile: async (payload: Partial<ClientPortalProfile>) => {
+    const res = await apiClient.put<ApiResponse<ClientPortalProfile>>('/v1/portal/profile', payload);
+    return res.data.data;
+  },
+  getGstStatus: async () => {
+    const res = await apiClient.get<ApiResponse<ClientGstStatus[]>>('/v1/portal/gst-status');
+    return res.data.data;
+  },
+  getItrStatus: async () => {
+    const res = await apiClient.get<ApiResponse<ClientItrStatus[]>>('/v1/portal/itr-status');
+    return res.data.data;
+  },
+  getClientInvoices: async () => {
+    const res = await apiClient.get<ApiResponse<Invoice[]>>('/v1/portal/invoices');
+    return res.data.data;
+  },
+  getClientInvoiceById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Invoice>>(`/v1/portal/invoices/${id}`);
+    return res.data.data;
+  },
+  getClientDocuments: async () => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>('/v1/portal/documents');
+    return res.data.data;
+  },
+  getPendingDocuments: async () => {
+    const res = await apiClient.get<ApiResponse<ClientDocumentRequest[]>>('/v1/portal/pending-documents');
+    return res.data.data;
+  },
+  uploadDocument: async (file: File, metadata: { title: string; category: string; description?: string; clientId?: string }, documentRequestId?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append(
+      'metadata',
+      new Blob([JSON.stringify(metadata)], { type: 'application/json' })
+    );
+    const res = await apiClient.post<ApiResponse<DocumentItem>>('/v1/portal/documents/upload', formData, {
+      params: documentRequestId ? { documentRequestId } : undefined,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  getClientTasks: async () => {
+    const res = await apiClient.get<ApiResponse<Task[]>>('/v1/portal/tasks');
+    return res.data.data;
+  },
+  getClientNotifications: async () => {
+    const res = await apiClient.get<ApiResponse<any[]>>('/v1/portal/notifications');
+    return res.data.data;
+  },
+  markNotificationRead: async (id: string) => {
+    const res = await apiClient.patch<ApiResponse<void>>(`/v1/portal/notifications/${id}/read`);
+    return res.data.data;
+  },
+  registerUser: async (payload: RegisterClientPortalUserRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientPortalUser>>('/v1/portal/users', payload);
+    return res.data.data;
+  },
+  getClientPortalUsers: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientPortalUser[]>>(`/v1/portal/clients/${clientId}/users`);
+    return res.data.data;
+  },
+  requestDocument: async (payload: { clientId: string; title: string; description?: string; documentType: string; dueDate?: string }) => {
+    const res = await apiClient.post<ApiResponse<ClientDocumentRequest>>('/v1/portal/document-requests', payload);
+    return res.data.data;
+  },
+};
+

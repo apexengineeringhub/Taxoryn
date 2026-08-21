@@ -10,7 +10,7 @@ interface AuthContextType {
   subscriptionPlan: string;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   setOrganization: (org: Organization | null) => void;
 }
@@ -87,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setUser(data.user);
+      return data.user;
     } finally {
       setIsLoading(false);
     }

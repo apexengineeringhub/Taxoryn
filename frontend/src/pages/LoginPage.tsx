@@ -26,9 +26,14 @@ export const LoginPage: React.FC = () => {
     setError('');
     setIsLoading(true);
     try {
-      await login(email.trim(), password);
+      const loggedInUser = await login(email.trim(), password);
       localStorage.setItem('taxoryn_last_user_email', email.trim());
-      navigate('/dashboard');
+      const roleCodes = (loggedInUser?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+      if (roleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r))) {
+        navigate('/portal');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password. Please verify credentials.');
     } finally {
@@ -85,18 +90,18 @@ export const LoginPage: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => handleQuickFill('pooja.joshi@maamundeshwari.com')}
+              onClick={() => handleQuickFill('client.mundeshwari@maamundeshwari.com')}
               className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
-                email === 'pooja.joshi@maamundeshwari.com'
+                email === 'client.mundeshwari@maamundeshwari.com'
                   ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="font-bold text-[11px] truncate">Pooja Joshi</span>
-                <span className="px-1 py-0.2 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded">Staff</span>
+                <span className="font-bold text-[11px] truncate">Mundeshwari Ent</span>
+                <span className="px-1 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold rounded">Client</span>
               </div>
-              <span className="block text-[10px] text-slate-500 truncate mt-0.5">pooja.joshi@...</span>
+              <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.mundeshwari@...</span>
             </button>
 
             <button
@@ -117,18 +122,18 @@ export const LoginPage: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => handleQuickFill('neha.sharma@apextax.com')}
+              onClick={() => handleQuickFill('client.sneha@apextax.com')}
               className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
-                email === 'neha.sharma@apextax.com'
+                email === 'client.sneha@apextax.com'
                   ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="font-bold text-[11px] truncate">Neha Sharma</span>
-                <span className="px-1 py-0.2 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded">Staff</span>
+                <span className="font-bold text-[11px] truncate">Sneha Kulkarni</span>
+                <span className="px-1 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold rounded">Client</span>
               </div>
-              <span className="block text-[10px] text-slate-500 truncate mt-0.5">neha.sharma@...</span>
+              <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.sneha@apextax...</span>
             </button>
           </div>
         </div>

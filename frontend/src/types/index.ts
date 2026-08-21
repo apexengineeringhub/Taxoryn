@@ -292,12 +292,13 @@ export interface CalendarEvent {
   urgency: 'NORMAL' | 'HIGH' | 'CRITICAL';
 }
 
-// 8. Documents
 export interface DocumentItem {
   id: string;
   clientId?: string;
   clientName?: string;
   filename: string;
+  title?: string;
+  fileType?: string;
   originalFilename: string;
   category: string;
   fileSize: number;
@@ -321,6 +322,7 @@ export interface Invoice {
   subtotal: number;
   tax: number;
   total: number;
+  totalAmount?: number;
   paidAmount: number;
   balanceDue: number;
   status: 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED' | 'OVERDUE';
@@ -474,3 +476,108 @@ export interface AuditLog {
   oldValue?: string;
   newValue?: string;
 }
+
+// 13. Client Portal
+export interface ClientGstStatus {
+  id: string;
+  returnPeriod: string;
+  financialYear?: string;
+  returnType: string;
+  status: string;
+  dueDate: string;
+  filedDate?: string;
+  arn?: string;
+  totalTaxPayable?: number;
+  itcClaimed?: number;
+}
+
+export interface ClientItrStatus {
+  id: string;
+  assessmentYear: string;
+  financialYear?: string;
+  itrType: string;
+  taxpayerType?: string;
+  status: string;
+  dueDate: string;
+  filingDate?: string;
+  acknowledgementNumber?: string;
+}
+
+export interface ClientDocumentRequest {
+  id: string;
+  title: string;
+  description?: string;
+  documentType: string;
+  status: 'PENDING' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
+  dueDate?: string;
+  requestedAt: string;
+  uploadedDocumentId?: string;
+  uploadedDocumentName?: string;
+}
+
+export interface ClientPortalUser {
+  userId: string;
+  clientId: string;
+  clientName: string;
+  email: string;
+  firstName: string;
+  lastName?: string;
+  fullName?: string;
+  phone?: string;
+  roles: string[];
+}
+
+export interface RegisterClientPortalUserRequest {
+  clientId: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName?: string;
+  phone?: string;
+  role: 'CLIENT_ADMIN' | 'CLIENT_USER';
+}
+
+export interface ClientPortalProfile {
+  clientId: string;
+  displayName: string;
+  legalName?: string;
+  pan: string;
+  gstin?: string;
+  tan?: string;
+  email?: string;
+  phone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  assignedPractitionerName?: string;
+  assignedPractitionerEmail?: string;
+  assignedPractitionerPhone?: string;
+}
+
+export interface ClientPortalDashboard {
+  clientId: string;
+  displayName: string;
+  legalName?: string;
+  clientType: string;
+  pan: string;
+  gstin?: string;
+  tan?: string;
+  assignedPractitionerName?: string;
+  assignedPractitionerEmail?: string;
+  assignedPractitionerPhone?: string;
+  pendingDocumentsCount: number;
+  pendingTasksCount: number;
+  activeGstReturnsCount: number;
+  activeItrReturnsCount: number;
+  unpaidInvoicesCount: number;
+  outstandingBalance: number;
+  latestGstFilings: ClientGstStatus[];
+  latestItrReturns: ClientItrStatus[];
+  pendingDocumentRequests: ClientDocumentRequest[];
+  pendingTasks: any[];
+  recentNotifications: any[];
+  latestInvoices: Invoice[];
+}
+

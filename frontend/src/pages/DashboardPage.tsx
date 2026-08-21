@@ -17,6 +17,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { dashboardApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { OrganizationDashboard } from '../types';
+import { ClientPortalManagementPage } from './ClientPortalManagementPage';
 
 export const DashboardPage: React.FC = () => {
   const [dashboard, setDashboard] = useState<OrganizationDashboard | null>(null);
@@ -24,14 +25,21 @@ export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
   const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    if (!isClientUser) {
+      loadDashboard();
+    }
+  }, [isClientUser]);
+
+  if (isClientUser) {
+    return <ClientPortalManagementPage />;
+  }
 
   const loadDashboard = async () => {
     try {
