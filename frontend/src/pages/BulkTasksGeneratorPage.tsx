@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   CheckSquare,
@@ -132,8 +132,45 @@ export const BulkTasksGeneratorPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { currentTheme } = useBranding();
-  const { practiceName } = useAuth();
+  const { practiceName, user } = useAuth();
   const navigate = useNavigate();
+
+  const currentEmployee = useMemo(() => {
+    return employees.find(
+      (e) =>
+        (e.email && user?.email && e.email.toLowerCase() === user.email.toLowerCase()) ||
+        (user?.id && (e as any).userId === user.id)
+    );
+  }, [employees, user]);
+
+  const assigneeOptions = useMemo(() => {
+    const list: Array<{ id: string; name: string; isMe: boolean; designation: string; department?: string }> = [];
+    if (user && !currentEmployee) {
+      const myName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      list.push({
+        id: user.id,
+        name: myName,
+        isMe: true,
+        designation: 'Practice Partner / Admin',
+        department: 'Practice Management',
+      });
+    }
+    employees.forEach((emp) => {
+      const isMe = Boolean(
+        (emp.email && user?.email && emp.email.toLowerCase() === user.email.toLowerCase()) ||
+        (user?.id && (emp as any).userId === user.id)
+      );
+      const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
+      list.push({
+        id: emp.id,
+        name,
+        isMe,
+        designation: emp.designation || 'Staff',
+        department: emp.department || 'Tax',
+      });
+    });
+    return list;
+  }, [employees, user, currentEmployee]);
 
   useEffect(() => {
     loadPrerequisites();
@@ -573,21 +610,37 @@ export const BulkTasksGeneratorPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Assign Staff</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-semibold text-slate-700">Assign Staff / Admin</label>
+                      {currentEmployee ? (
+                        <button
+                          type="button"
+                          onClick={() => setAssignedEmployeeId(currentEmployee.id)}
+                          className="text-[11px] text-brand-600 hover:text-brand-800 font-bold"
+                        >
+                          ⚡ Assign to Me
+                        </button>
+                      ) : user ? (
+                        <button
+                          type="button"
+                          onClick={() => setAssignedEmployeeId(user.id)}
+                          className="text-[11px] text-brand-600 hover:text-brand-800 font-bold"
+                        >
+                          ⚡ Assign to Me
+                        </button>
+                      ) : null}
+                    </div>
                     <select
                       value={assignedEmployeeId}
                       onChange={(e) => setAssignedEmployeeId(e.target.value)}
                       className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white"
                     >
                       <option value="">-- Unassigned / General Pool --</option>
-                      {employees.map((emp) => {
-                        const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
-                        return (
-                          <option key={emp.id} value={emp.id}>
-                            {name} — {emp.designation || 'Staff'} ({emp.department || 'Tax'})
-                          </option>
-                        );
-                      })}
+                      {assigneeOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.name} {opt.isMe ? '⭐ (You)' : ''} — {opt.designation} ({opt.department})
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>

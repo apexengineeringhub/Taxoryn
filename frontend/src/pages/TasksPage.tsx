@@ -101,6 +101,47 @@ export const TasksPage: React.FC = () => {
     );
   }, [employees, user]);
 
+  // Unified Assignee List: includes all employees + current user if not in employees list
+  const assigneeOptions = useMemo(() => {
+    const list: Array<{ id: string; name: string; isMe: boolean; designation: string; department?: string }> = [];
+
+    // If current logged-in user is not matched to an employee record, include them at the top
+    if (user && !currentEmployee) {
+      const myName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      list.push({
+        id: user.id,
+        name: myName,
+        isMe: true,
+        designation: isFirmAdmin ? 'Practice Partner / Admin' : 'User Account',
+        department: 'Practice Management',
+      });
+    }
+
+    employees.forEach((emp) => {
+      const isMe = Boolean(
+        (emp.email && user?.email && emp.email.toLowerCase() === user.email.toLowerCase()) ||
+        (user?.id && (emp as any).userId === user.id)
+      );
+      const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
+      list.push({
+        id: emp.id,
+        name,
+        isMe,
+        designation: emp.designation || 'Staff',
+        department: emp.department || 'Tax',
+      });
+    });
+
+    return list;
+  }, [employees, user, currentEmployee, isFirmAdmin]);
+
+  // ID to use for "Assign to Me"
+  const myAssigneeId = useMemo(() => {
+    if (currentEmployee) return currentEmployee.id;
+    if (user) return user.id;
+    return '';
+  }, [currentEmployee, user]);
+
   useEffect(() => {
     loadTasks();
     loadClientsAndEmployees();
@@ -491,7 +532,7 @@ export const TasksPage: React.FC = () => {
           )}
 
           {/* Filter by Specific Assignee (for Admins & Managers) */}
-          {!isStaff && employees.length > 0 && (
+          {!isStaff && assigneeOptions.length > 0 && (
             <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
               <span className="text-[11px] font-semibold text-slate-500">Staff:</span>
               <select
@@ -499,10 +540,10 @@ export const TasksPage: React.FC = () => {
                 onChange={(e) => setAssigneeFilter(e.target.value)}
                 className="text-xs px-2 py-1 border border-slate-300 rounded-lg bg-white font-medium text-slate-700"
               >
-                <option value="ALL">All Staff Members</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={(emp as any).userId || emp.id}>
-                    {emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email} ({emp.designation || 'Staff'})
+                <option value="ALL">All Staff & Assignees</option>
+                {assigneeOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.name} {opt.isMe ? '⭐ (You)' : ''} ({opt.designation})
                   </option>
                 ))}
               </select>
@@ -650,11 +691,11 @@ export const TasksPage: React.FC = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-700">Assign to Employee</label>
-                {currentEmployee && (
+                <label className="block text-xs font-semibold text-slate-700">Assign to Staff / Admin</label>
+                {myAssigneeId && (
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, assignedTo: currentEmployee.id })}
+                    onClick={() => setFormData({ ...formData, assignedTo: myAssigneeId })}
                     className="text-[11px] text-brand-600 hover:text-brand-800 font-bold"
                   >
                     ⚡ Assign to Me
@@ -664,22 +705,16 @@ export const TasksPage: React.FC = () => {
               <select
                 value={formData.assignedTo}
                 onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800"
               >
                 <option value="">-- Unassigned / General Pool --</option>
-                {employees.map((emp) => {
-                  const isMe =
-                    (emp.email && user?.email && emp.email.toLowerCase() === user.email.toLowerCase()) ||
-                    (user?.id && (emp as any).userId === user.id);
-                  const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
-                  return (
-                    <option key={emp.id} value={emp.id}>
-                      {name} {isMe ? '⭐ (You)' : ''} — {emp.designation || 'Staff'} ({emp.department || 'Tax'})
-                    </option>
-                  );
-                })}
+                {assigneeOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.name} {opt.isMe ? '⭐ (You)' : ''} — {opt.designation} ({opt.department})
+                  </option>
+                ))}
               </select>
-              {employees.length === 0 && (
+              {assigneeOptions.length === 0 && (
                 <p className="text-[10px] text-amber-600 mt-1">
                   Loading team members or no staff members registered yet.
                 </p>
@@ -795,11 +830,11 @@ export const TasksPage: React.FC = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-700">Assigned Employee</label>
-                {currentEmployee && (
+                <label className="block text-xs font-semibold text-slate-700">Assigned Staff / Admin</label>
+                {myAssigneeId && (
                   <button
                     type="button"
-                    onClick={() => setEditFormData({ ...editFormData, assignedTo: currentEmployee.id })}
+                    onClick={() => setEditFormData({ ...editFormData, assignedTo: myAssigneeId })}
                     className="text-[11px] text-brand-600 hover:text-brand-800 font-bold"
                   >
                     ⚡ Assign to Me
@@ -812,17 +847,11 @@ export const TasksPage: React.FC = () => {
                 className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800"
               >
                 <option value="">-- Unassigned --</option>
-                {employees.map((emp) => {
-                  const isMe =
-                    (emp.email && user?.email && emp.email.toLowerCase() === user.email.toLowerCase()) ||
-                    (user?.id && (emp as any).userId === user.id);
-                  const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
-                  return (
-                    <option key={emp.id} value={emp.id}>
-                      {name} {isMe ? '⭐ (You)' : ''} — {emp.designation || 'Staff'} ({emp.department || 'Tax'})
-                    </option>
-                  );
-                })}
+                {assigneeOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.name} {opt.isMe ? '⭐ (You)' : ''} — {opt.designation} ({opt.department})
+                  </option>
+                ))}
               </select>
             </div>
           </div>
