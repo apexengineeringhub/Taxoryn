@@ -20,7 +20,7 @@ import {
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
-import { clientApi, taskApi, teamApi } from '../api/endpoints';
+import { clientApi, taskApi, teamApi, employeeApi } from '../api/endpoints';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { Client, Employee, Task, BulkTaskImportResult } from '../types';
@@ -142,14 +142,19 @@ export const BulkTasksGeneratorPage: React.FC = () => {
   const loadPrerequisites = async () => {
     try {
       setIsLoading(true);
-      const [clientRes, empRes] = await Promise.all([
+      const [clientRes, empRes] = await Promise.allSettled([
         clientApi.getAll({ size: 200, status: 'ACTIVE' }),
-        teamApi.getEmployees().catch(() => ({ content: [] })),
+        employeeApi.getAll({ size: 200 }),
       ]);
-      setClients(clientRes.content || []);
-      setEmployees(empRes.content || []);
-      // Default select all active clients
-      setSelectedClientIds((clientRes.content || []).map((c: Client) => c.id));
+      if (clientRes.status === 'fulfilled' && clientRes.value) {
+        const cList = Array.isArray(clientRes.value) ? clientRes.value : (clientRes.value?.content || []);
+        setClients(cList);
+        setSelectedClientIds(cList.map((c: Client) => c.id));
+      }
+      if (empRes.status === 'fulfilled' && empRes.value) {
+        const eList = Array.isArray(empRes.value) ? empRes.value : (empRes.value?.content || []);
+        setEmployees(eList);
+      }
     } catch (err) {
       console.error('Failed to load clients and staff', err);
     } finally {
@@ -574,12 +579,15 @@ export const BulkTasksGeneratorPage: React.FC = () => {
                       onChange={(e) => setAssignedEmployeeId(e.target.value)}
                       className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white"
                     >
-                      <option value="">Unassigned</option>
-                      {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.firstName} {emp.lastName || ''} ({emp.designation})
-                        </option>
-                      ))}
+                      <option value="">-- Unassigned / General Pool --</option>
+                      {employees.map((emp) => {
+                        const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
+                        return (
+                          <option key={emp.id} value={emp.id}>
+                            {name} — {emp.designation || 'Staff'} ({emp.department || 'Tax'})
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>

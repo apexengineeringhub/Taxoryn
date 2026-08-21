@@ -40,7 +40,7 @@ public class EmployeeController {
     private final EmployeeService employeeService;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('EMPLOYEE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('EMPLOYEE_READ') or hasAuthority('TASK_VIEW') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasAuthority('TASK_UPDATE') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
     @Operation(summary = "List & search employees with filters", description = "Retrieves paginated employees with keyword search (name, email, phone, code) and filtering by department, status, designation, or manager.")
     public ResponseEntity<ApiResponse<PagedResponse<EmployeeDto>>> getEmployees(@Valid @ModelAttribute EmployeeFilterRequest filterRequest) {
         PagedResponse<EmployeeDto> response = employeeService.getEmployees(filterRequest);
@@ -48,7 +48,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/{employeeId}")
-    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('EMPLOYEE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('EMPLOYEE_READ') or hasAuthority('TASK_VIEW') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasAuthority('TASK_UPDATE') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
     @Operation(summary = "Get employee by ID", description = "Retrieves complete employee profile within the authenticated tenant.")
     public ResponseEntity<ApiResponse<EmployeeDto>> getEmployeeById(@PathVariable UUID employeeId) {
         EmployeeDto dto = employeeService.getEmployeeById(employeeId);

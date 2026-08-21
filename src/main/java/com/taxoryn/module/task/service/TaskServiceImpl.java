@@ -18,6 +18,7 @@ import com.taxoryn.module.task.entity.TaskEntity;
 import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
 import com.taxoryn.module.task.mapper.TaskMapper;
 import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -160,7 +162,20 @@ public class TaskServiceImpl implements TaskService {
     private UUID resolveAssigneeUserId(UUID assignedTo, UUID organizationId) {
         if (assignedTo == null) return null;
         return employeeRepository.findByIdAndOrganizationId(assignedTo, organizationId)
-                .map(emp -> emp.getUserId() != null ? emp.getUserId() : assignedTo)
+                .map(emp -> {
+                    if (emp.getUserId() != null) {
+                        return emp.getUserId();
+                    }
+                    if (emp.getEmail() != null) {
+                        Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(emp.getEmail().toLowerCase().trim());
+                        if (userOpt.isPresent()) {
+                            emp.setUserId(userOpt.get().getId());
+                            employeeRepository.save(emp);
+                            return userOpt.get().getId();
+                        }
+                    }
+                    return assignedTo;
+                })
                 .orElse(assignedTo);
     }
 
@@ -201,7 +216,11 @@ public class TaskServiceImpl implements TaskService {
         UUID previousAssignee = task.getAssignedTo();
 
         if (request.getClientId() != null) task.setClientId(request.getClientId());
-        if (request.getAssignedTo() != null) task.setAssignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId));
+        if (Boolean.TRUE.equals(request.getUnassign())) {
+            task.setAssignedTo(null);
+        } else if (request.getAssignedTo() != null) {
+            task.setAssignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId));
+        }
         if (request.getTitle() != null) task.setTitle(request.getTitle().trim());
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getTaskCategory() != null) task.setTaskCategory(request.getTaskCategory());

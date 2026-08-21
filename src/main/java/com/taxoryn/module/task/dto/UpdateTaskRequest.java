@@ -22,6 +22,7 @@ public class UpdateTaskRequest {
 
     private UUID clientId;
     private UUID assignedTo;
+    private Boolean unassign;
 
     @Size(min = 3, max = 255, message = "Task title must be between 3 and 255 characters")
     private String title;

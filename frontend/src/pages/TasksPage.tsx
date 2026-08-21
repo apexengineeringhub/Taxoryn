@@ -15,6 +15,7 @@ import {
   Layers,
   ChevronRight,
   UserCheck,
+  Edit2,
 } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -34,10 +35,34 @@ export const TasksPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Edit / Reassign Task State
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState<{
+    title: string;
+    description: string;
+    clientId: string;
+    assignedTo: string;
+    taskCategory: 'GST' | 'ITR' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+    status: 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
+    dueDate: string;
+  }>({
+    title: '',
+    description: '',
+    clientId: '',
+    assignedTo: '',
+    taskCategory: 'ITR',
+    priority: 'HIGH',
+    status: 'TODO',
+    dueDate: '',
+  });
+
   // Filter States
   const [taskScope, setTaskScope] = useState<'MY_TASKS' | 'ALL_TASKS'>('MY_TASKS');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'COMPLETED'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('ALL');
 
   // Form State for creating task
   const [formData, setFormData] = useState<{
@@ -67,10 +92,19 @@ export const TasksPage: React.FC = () => {
   const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
 
+  // Find linked employee for logged in user
+  const currentEmployee = useMemo(() => {
+    return employees.find(
+      (e) =>
+        (e.email && user?.email && e.email.toLowerCase() === user.email.toLowerCase()) ||
+        (user?.id && (e as any).userId === user.id)
+    );
+  }, [employees, user]);
+
   useEffect(() => {
     loadTasks();
     loadClientsAndEmployees();
-  }, [taskScope, statusFilter, categoryFilter]);
+  }, [taskScope, statusFilter, categoryFilter, assigneeFilter]);
 
   const loadTasks = async () => {
     try {
@@ -84,6 +118,9 @@ export const TasksPage: React.FC = () => {
       }
       if (categoryFilter !== 'ALL') {
         params.taskCategory = categoryFilter;
+      }
+      if (assigneeFilter !== 'ALL') {
+        params.assignedTo = assigneeFilter;
       }
 
       const res = await taskApi.getAll(params);
@@ -100,14 +137,14 @@ export const TasksPage: React.FC = () => {
   const loadClientsAndEmployees = async () => {
     try {
       const [cRes, eRes] = await Promise.allSettled([
-        clientApi.getAll({ size: 100 }),
-        employeeApi.getAll({ size: 100 }),
+        clientApi.getAll({ size: 200 }),
+        employeeApi.getAll({ size: 200 }),
       ]);
-      if (cRes.status === 'fulfilled') {
+      if (cRes.status === 'fulfilled' && cRes.value) {
         const cList = Array.isArray(cRes.value) ? cRes.value : (cRes.value?.content || []);
         setClients(cList);
       }
-      if (eRes.status === 'fulfilled') {
+      if (eRes.status === 'fulfilled' && eRes.value) {
         const eList = Array.isArray(eRes.value) ? eRes.value : (eRes.value?.content || []);
         setEmployees(eList);
       }
@@ -122,6 +159,63 @@ export const TasksPage: React.FC = () => {
       await loadTasks();
     } catch (err) {
       console.error('Failed to update task status', err);
+    }
+  };
+
+  const handleOpenEditModal = (task: Task) => {
+    setEditingTask(task);
+    // Find matching employee ID
+    let matchingEmpId = task.assignedTo || '';
+    if (task.assignedTo) {
+      const foundEmp = employees.find(
+        (e) => e.id === task.assignedTo || (e as any).userId === task.assignedTo || (e.email && task.assigneeEmail && e.email.toLowerCase() === task.assigneeEmail.toLowerCase())
+      );
+      if (foundEmp) matchingEmpId = foundEmp.id;
+    }
+
+    setEditFormData({
+      title: task.title,
+      description: task.description || '',
+      clientId: task.clientId || '',
+      assignedTo: matchingEmpId,
+      taskCategory: (task.category as any) || 'ITR',
+      priority: task.priority || 'MEDIUM',
+      status: task.status || 'TODO',
+      dueDate: task.dueDate || '',
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask) return;
+    if (!editFormData.title.trim()) {
+      alert('Please enter a task title.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await taskApi.update(editingTask.id, {
+        title: editFormData.title.trim(),
+        description: editFormData.description.trim() || undefined,
+        clientId: editFormData.clientId || undefined,
+        assignedTo: editFormData.assignedTo || undefined,
+        unassign: !editFormData.assignedTo,
+        category: editFormData.taskCategory,
+        status: editFormData.status,
+        priority: editFormData.priority,
+        dueDate: editFormData.dueDate || undefined,
+      });
+
+      alert('Task updated & assigned successfully!');
+      setIsEditModalOpen(false);
+      setEditingTask(null);
+      await loadTasks();
+    } catch (err: any) {
+      alert(`Failed to update task: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -144,7 +238,7 @@ export const TasksPage: React.FC = () => {
         dueDate: formData.dueDate,
       });
 
-      alert('Task created successfully!');
+      alert('Task created & assigned successfully!');
       setIsModalOpen(false);
       setFormData({
         title: '',
@@ -255,6 +349,13 @@ export const TasksPage: React.FC = () => {
       align: 'right',
       cell: (row) => (
         <div className="flex items-center justify-end gap-1.5">
+          <button
+            onClick={() => handleOpenEditModal(row)}
+            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-xs font-semibold inline-flex items-center gap-1"
+            title="Edit & Reassign Task"
+          >
+            <Edit2 className="w-3 h-3 text-slate-500" /> Assign / Edit
+          </button>
           {row.status === 'TODO' && (
             <button
               onClick={() => handleUpdateStatus(row.id, 'IN_PROGRESS')}
@@ -303,7 +404,7 @@ export const TasksPage: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Track operational tax deliverables, review return computations, and monitor statutory filing deadlines.
+            Track operational tax deliverables, assign tasks to practice staff, and monitor statutory filing deadlines.
           </p>
         </div>
 
@@ -362,9 +463,9 @@ export const TasksPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Primary Scope Toggle: My Assigned Tasks vs All Practice Tasks */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-2">
+      {/* Primary Scope & Filter Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setTaskScope('MY_TASKS')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
@@ -387,6 +488,25 @@ export const TasksPage: React.FC = () => {
             >
               <Building className="w-3.5 h-3.5" /> 🏢 All Practice Tasks
             </button>
+          )}
+
+          {/* Filter by Specific Assignee (for Admins & Managers) */}
+          {!isStaff && employees.length > 0 && (
+            <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500">Staff:</span>
+              <select
+                value={assigneeFilter}
+                onChange={(e) => setAssigneeFilter(e.target.value)}
+                className="text-xs px-2 py-1 border border-slate-300 rounded-lg bg-white font-medium text-slate-700"
+              >
+                <option value="ALL">All Staff Members</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={(emp as any).userId || emp.id}>
+                    {emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email} ({emp.designation || 'Staff'})
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
 
@@ -456,7 +576,13 @@ export const TasksPage: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="pt-1 flex justify-end">
+                      <div className="pt-2 flex items-center justify-between gap-1 border-t border-slate-100">
+                        <button
+                          onClick={() => handleOpenEditModal(task)}
+                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium inline-flex items-center gap-1 border border-slate-200"
+                        >
+                          <Edit2 className="w-2.5 h-2.5" /> Reassign
+                        </button>
                         <select
                           value={task.status}
                           onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
@@ -523,19 +649,41 @@ export const TasksPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Assign to Employee *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Assign to Employee</label>
+                {currentEmployee && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, assignedTo: currentEmployee.id })}
+                    className="text-[11px] text-brand-600 hover:text-brand-800 font-bold"
+                  >
+                    ⚡ Assign to Me
+                  </button>
+                )}
+              </div>
               <select
                 value={formData.assignedTo}
                 onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
                 className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
               >
-                <option value="">-- Select Staff Assignee --</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName || ''} ({emp.designation || 'Staff'} - {emp.department || 'Tax'})
-                  </option>
-                ))}
+                <option value="">-- Unassigned / General Pool --</option>
+                {employees.map((emp) => {
+                  const isMe =
+                    (emp.email && user?.email && emp.email.toLowerCase() === user.email.toLowerCase()) ||
+                    (user?.id && (emp as any).userId === user.id);
+                  const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
+                  return (
+                    <option key={emp.id} value={emp.id}>
+                      {name} {isMe ? '⭐ (You)' : ''} — {emp.designation || 'Staff'} ({emp.department || 'Tax'})
+                    </option>
+                  );
+                })}
               </select>
+              {employees.length === 0 && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  Loading team members or no staff members registered yet.
+                </p>
+              )}
             </div>
           </div>
 
@@ -598,6 +746,167 @@ export const TasksPage: React.FC = () => {
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               Create & Assign Task
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* =========================================================================
+          EDIT & REASSIGN TASK MODAL
+          ========================================================================= */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingTask(null);
+        }}
+        title="Edit & Reassign Task"
+        subtitle="Update assignee, statutory deadline, priority, and workflow status"
+        maxWidth="lg"
+      >
+        <form onSubmit={handleUpdateTask} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Task Title *</label>
+            <input
+              type="text"
+              required
+              value={editFormData.title}
+              onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+              className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Related Client</label>
+              <select
+                value={editFormData.clientId}
+                onChange={(e) => setEditFormData({ ...editFormData, clientId: e.target.value })}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="">-- General Practice Task --</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.displayName} ({c.pan || 'No PAN'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Assigned Employee</label>
+                {currentEmployee && (
+                  <button
+                    type="button"
+                    onClick={() => setEditFormData({ ...editFormData, assignedTo: currentEmployee.id })}
+                    className="text-[11px] text-brand-600 hover:text-brand-800 font-bold"
+                  >
+                    ⚡ Assign to Me
+                  </button>
+                )}
+              </div>
+              <select
+                value={editFormData.assignedTo}
+                onChange={(e) => setEditFormData({ ...editFormData, assignedTo: e.target.value })}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800"
+              >
+                <option value="">-- Unassigned --</option>
+                {employees.map((emp) => {
+                  const isMe =
+                    (emp.email && user?.email && emp.email.toLowerCase() === user.email.toLowerCase()) ||
+                    (user?.id && (emp as any).userId === user.id);
+                  const name = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email;
+                  return (
+                    <option key={emp.id} value={emp.id}>
+                      {name} {isMe ? '⭐ (You)' : ''} — {emp.designation || 'Staff'} ({emp.department || 'Tax'})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+              <select
+                value={editFormData.taskCategory}
+                onChange={(e) => setEditFormData({ ...editFormData, taskCategory: e.target.value as any })}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="ITR">Income Tax (ITR)</option>
+                <option value="GST">GST Compliance</option>
+                <option value="AUDIT">Tax Audit / 3CD</option>
+                <option value="COMPLIANCE">TDS / ROC Compliance</option>
+                <option value="BILLING">Billing & Fees</option>
+                <option value="OTHER">Other Assignment</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Priority</label>
+              <select
+                value={editFormData.priority}
+                onChange={(e) => setEditFormData({ ...editFormData, priority: e.target.value as any })}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="URGENT">Urgent / Statutory Deadline</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Workflow Status</label>
+              <select
+                value={editFormData.status}
+                onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as any })}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="TODO">To Do</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="UNDER_REVIEW">Under Review</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Due Date</label>
+              <input
+                type="date"
+                value={editFormData.dueDate}
+                onChange={(e) => setEditFormData({ ...editFormData, dueDate: e.target.value })}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Description / Instructions</label>
+            <textarea
+              rows={3}
+              placeholder="Provide specific instructions, check points, or notes for the assigned employee..."
+              value={editFormData.description}
+              onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+              className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setEditingTask(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              Save & Update Assignment
             </Button>
           </div>
         </form>

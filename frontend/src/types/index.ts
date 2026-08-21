@@ -171,6 +171,7 @@ export interface Task {
   completedDate?: string;
   estimatedHours?: number;
   actualHours?: number;
+  unassign?: boolean;
 }
 
 export interface BulkTaskCreateRequest {
@@ -427,9 +428,11 @@ export interface SubscriptionInfo {
 // 11. Employee & RBAC
 export interface Employee {
   id: string;
+  userId?: string;
   employeeCode: string;
   firstName: string;
   lastName?: string;
+  fullName?: string;
   email: string;
   phone?: string;
   department: string;

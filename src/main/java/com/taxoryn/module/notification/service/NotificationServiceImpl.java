@@ -89,9 +89,17 @@ public class NotificationServiceImpl implements NotificationService {
 
         RecipientContact recipient = resolveRecipient(organizationId, userId, clientId);
 
+        UUID targetUserId = userId;
+        if (userId != null && userRepository.findByIdAndOrganizationId(userId, organizationId).isEmpty()) {
+            Optional<EmployeeEntity> empOpt = employeeRepository.findByIdAndOrganizationId(userId, organizationId);
+            if (empOpt.isPresent() && empOpt.get().getUserId() != null) {
+                targetUserId = empOpt.get().getUserId();
+            }
+        }
+
         NotificationEntity entity = NotificationEntity.builder()
                 .organizationId(organizationId)
-                .userId(userId)
+                .userId(targetUserId)
                 .clientId(clientId)
                 .notificationType(notificationType != null ? notificationType : NotificationType.GENERAL)
                 .title(title)
