@@ -27,6 +27,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.taxoryn.module.role.entity.RoleEntity;
+import com.taxoryn.module.role.repository.RoleRepository;
+import com.taxoryn.module.user.entity.UserEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -42,6 +47,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
     private final EmployeeMapper employeeMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
 
@@ -60,9 +67,16 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new DuplicateResourceException("Employee", "email", email);
         }
 
+        final UUID targetUserId;
         if (request.getUserId() != null) {
             userRepository.findByIdAndOrganizationId(request.getUserId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getUserId()));
+            targetUserId = request.getUserId();
+        } else {
+            UserEntity user = provisionUserForEmployee(organizationId, email, request.getFirstName().trim(),
+                    request.getLastName() != null ? request.getLastName().trim() : null,
+                    request.getPhone(), request.getDesignation());
+            targetUserId = user.getId();
         }
 
         if (request.getManagerId() != null) {
@@ -71,7 +85,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         EmployeeEntity employee = EmployeeEntity.builder()
-                .userId(request.getUserId())
+                .userId(targetUserId)
                 .employeeCode(code)
                 .firstName(request.getFirstName().trim())
                 .lastName(request.getLastName() != null ? request.getLastName().trim() : null)
@@ -90,6 +104,40 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeDto result = enrichDto(saved);
         auditService.logEvent("EMPLOYEE_CREATED", "EMPLOYEE", saved.getId().toString(), null, result);
         return result;
+    }
+
+    private UserEntity provisionUserForEmployee(UUID organizationId, String email, String firstName, String lastName, String phone, String designation) {
+        return userRepository.findByEmailIgnoreCase(email)
+                .orElseGet(() -> {
+                    String roleCode = "PRACTITIONER";
+                    String desLower = designation != null ? designation.toLowerCase() : "";
+                    if (desLower.contains("article") || desLower.contains("trainee") || desLower.contains("intern")) {
+                        roleCode = "ARTICLE_ASSISTANT";
+                    }
+
+                    final String finalRoleCode = roleCode;
+                    RoleEntity role = roleRepository.findByCodeAndIsSystemRoleTrue(finalRoleCode)
+                            .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER"))
+                            .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN"))
+                            .orElse(null);
+
+                    Set<RoleEntity> userRoles = new HashSet<>();
+                    if (role != null) userRoles.add(role);
+
+                    UserEntity user = UserEntity.builder()
+                            .email(email.toLowerCase().trim())
+                            .passwordHash(passwordEncoder.encode("Password123!"))
+                            .firstName(firstName)
+                            .lastName(lastName)
+                            .phone(phone)
+                            .status(UserEntity.UserStatus.ACTIVE)
+                            .roles(userRoles)
+                            .build();
+                    user.setOrganizationId(organizationId);
+                    UserEntity saved = userRepository.save(user);
+                    log.info("Auto-provisioned UserEntity for employee: {} with role {}", email, finalRoleCode);
+                    return saved;
+                });
     }
 
     @Override
@@ -309,8 +357,21 @@ public class EmployeeServiceImpl implements EmployeeService {
                     continue;
                 }
 
+                final UUID targetUserId;
+                if (req.getUserId() != null) {
+                    userRepository.findByIdAndOrganizationId(req.getUserId(), organizationId)
+                            .orElseThrow(() -> new ResourceNotFoundException("User", "id", req.getUserId()));
+                    targetUserId = req.getUserId();
+                } else {
+                    String firstName = req.getFirstName() != null ? req.getFirstName().trim() : "Staff";
+                    String lastName = req.getLastName() != null ? req.getLastName().trim() : null;
+                    String designation = req.getDesignation() != null ? req.getDesignation().trim() : "Tax Associate";
+                    UserEntity user = provisionUserForEmployee(organizationId, email, firstName, lastName, req.getPhone(), designation);
+                    targetUserId = user.getId();
+                }
+
                 EmployeeEntity employee = EmployeeEntity.builder()
-                        .userId(req.getUserId())
+                        .userId(targetUserId)
                         .employeeCode(code)
                         .firstName(req.getFirstName() != null ? req.getFirstName().trim() : "Staff")
                         .lastName(req.getLastName() != null ? req.getLastName().trim() : null)

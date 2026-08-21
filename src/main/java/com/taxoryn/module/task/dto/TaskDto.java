@@ -23,7 +23,10 @@ public class TaskDto {
     private UUID id;
     private UUID organizationId;
     private UUID clientId;
+    private String clientName;
     private UUID assignedTo;
+    private String assigneeName;
+    private String assigneeEmail;
     private String title;
     private String description;
     private TaskCategory taskCategory;

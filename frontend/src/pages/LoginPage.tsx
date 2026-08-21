@@ -59,33 +59,76 @@ export const LoginPage: React.FC = () => {
 
         {/* Quick Demo Fill Pills */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-            ⚡ 1-Click Quick Fill Demo Accounts
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              ⚡ 1-Click Quick Fill Logins
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">Password: Password123!</span>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => handleQuickFill('pawanadv@gmail.com')}
-              className={`px-2.5 py-1.5 rounded-lg border text-left text-xs font-semibold transition-all ${
+              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
                 email === 'pawanadv@gmail.com'
                   ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
               }`}
             >
-              <span className="block font-bold text-[11px] truncate">Maa Mundeshwari</span>
-              <span className="block text-[10px] text-slate-500 truncate">pawanadv@gmail.com</span>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[11px] truncate">Pawan Pathak</span>
+                <span className="px-1 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-bold rounded">Admin</span>
+              </div>
+              <span className="block text-[10px] text-slate-500 truncate mt-0.5">pawanadv@gmail.com</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => handleQuickFill('pooja.joshi@maamundeshwari.com')}
+              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                email === 'pooja.joshi@maamundeshwari.com'
+                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[11px] truncate">Pooja Joshi</span>
+                <span className="px-1 py-0.2 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded">Staff</span>
+              </div>
+              <span className="block text-[10px] text-slate-500 truncate mt-0.5">pooja.joshi@...</span>
+            </button>
+
             <button
               type="button"
               onClick={() => handleQuickFill('admin@apextax.com')}
-              className={`px-2.5 py-1.5 rounded-lg border text-left text-xs font-semibold transition-all ${
+              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
                 email === 'admin@apextax.com'
                   ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
               }`}
             >
-              <span className="block font-bold text-[11px] truncate">Apex Tax Advisors</span>
-              <span className="block text-[10px] text-slate-500 truncate">admin@apextax.com</span>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[11px] truncate">Apex Admin</span>
+                <span className="px-1 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-bold rounded">Admin</span>
+              </div>
+              <span className="block text-[10px] text-slate-500 truncate mt-0.5">admin@apextax.com</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleQuickFill('neha.sharma@apextax.com')}
+              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                email === 'neha.sharma@apextax.com'
+                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[11px] truncate">Neha Sharma</span>
+                <span className="px-1 py-0.2 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded">Staff</span>
+              </div>
+              <span className="block text-[10px] text-slate-500 truncate mt-0.5">neha.sharma@...</span>
             </button>
           </div>
         </div>

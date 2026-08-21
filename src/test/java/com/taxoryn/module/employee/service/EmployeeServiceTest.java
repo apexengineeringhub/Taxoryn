@@ -57,6 +57,12 @@ class EmployeeServiceTest {
     private EmployeeMapper employeeMapper;
 
     @Mock
+    private com.taxoryn.module.role.repository.RoleRepository roleRepository;
+
+    @Mock
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Mock
     private com.taxoryn.module.audit.service.AuditService auditService;
 
     @InjectMocks
@@ -122,6 +128,14 @@ class EmployeeServiceTest {
                 .build();
         saved.setId(employeeId);
         saved.setOrganizationId(tenantId);
+
+        when(userRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("hashedPassword");
+        when(userRepository.save(any())).thenAnswer(invocation -> {
+            com.taxoryn.module.user.entity.UserEntity u = invocation.getArgument(0);
+            u.setId(UUID.randomUUID());
+            return u;
+        });
 
         when(employeeRepository.save(any(EmployeeEntity.class))).thenReturn(saved);
         when(employeeMapper.toDto(saved)).thenReturn(EmployeeDto.builder()

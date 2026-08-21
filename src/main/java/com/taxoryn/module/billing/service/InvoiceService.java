@@ -34,4 +34,8 @@ public interface InvoiceService {
     ClientBillingHistoryDto getClientBillingHistory(UUID clientId);
 
     BillingDashboardStatsDto getBillingDashboardStats();
+
+    com.taxoryn.module.billing.dto.BulkInvoiceResultDto bulkCreateInvoices(com.taxoryn.module.billing.dto.BulkCreateInvoicesRequest request);
+
+    List<InvoiceDto> seedDemoInvoices();
 }

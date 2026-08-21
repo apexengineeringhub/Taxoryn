@@ -4,22 +4,31 @@ import com.taxoryn.core.dto.PageRequestDto;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.module.client.repository.ClientRepository;
+import com.taxoryn.module.employee.repository.EmployeeRepository;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
 import com.taxoryn.module.notification.service.NotificationService;
 import com.taxoryn.module.task.dto.CreateTaskRequest;
 import com.taxoryn.module.task.dto.TaskDto;
+import com.taxoryn.module.task.dto.TaskFilterRequest;
 import com.taxoryn.module.task.dto.UpdateTaskRequest;
 import com.taxoryn.module.task.entity.TaskEntity;
 import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
 import com.taxoryn.module.task.mapper.TaskMapper;
 import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.user.repository.UserRepository;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -30,15 +39,83 @@ import java.util.UUID;
 public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
+    private final ClientRepository clientRepository;
+    private final EmployeeRepository employeeRepository;
+    private final UserRepository userRepository;
     private final TaskMapper taskMapper;
     private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<TaskDto> getTasks(PageRequestDto pageRequest) {
+        if (pageRequest instanceof TaskFilterRequest filterRequest) {
+            return getTasks(filterRequest);
+        }
+        TaskFilterRequest fallback = TaskFilterRequest.builder()
+                .page(pageRequest.getPage())
+                .size(pageRequest.getSize())
+                .sortBy(pageRequest.getSortBy())
+                .sortDirection(pageRequest.getSortDirection())
+                .build();
+        return getTasks(fallback);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<TaskDto> getTasks(TaskFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        Page<TaskEntity> page = taskRepository.findAllByOrganizationId(organizationId, pageRequest.toPageable());
-        return PagedResponse.of(page, taskMapper::toDto);
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
+        Specification<TaskEntity> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (filterRequest.getClientId() != null) {
+                predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
+            }
+
+            if (filterRequest.getStatus() != null) {
+                predicates.add(cb.equal(root.get("status"), filterRequest.getStatus()));
+            }
+
+            if (filterRequest.getTaskCategory() != null) {
+                predicates.add(cb.equal(root.get("taskCategory"), filterRequest.getTaskCategory()));
+            }
+
+            if (filterRequest.getPriority() != null) {
+                predicates.add(cb.equal(root.get("priority"), filterRequest.getPriority()));
+            }
+
+            if (Boolean.TRUE.equals(filterRequest.getMyTasksOnly()) && currentUserId != null) {
+                List<UUID> matchingAssigneeIds = new ArrayList<>();
+                matchingAssigneeIds.add(currentUserId);
+
+                employeeRepository.findByOrganizationIdAndUserId(organizationId, currentUserId)
+                        .ifPresent(emp -> matchingAssigneeIds.add(emp.getId()));
+
+                userRepository.findById(currentUserId).ifPresent(u -> {
+                    employeeRepository.findByOrganizationIdAndEmail(organizationId, u.getEmail())
+                            .ifPresent(emp -> matchingAssigneeIds.add(emp.getId()));
+                });
+
+                predicates.add(root.get("assignedTo").in(matchingAssigneeIds));
+            } else if (filterRequest.getAssignedTo() != null) {
+                predicates.add(cb.equal(root.get("assignedTo"), filterRequest.getAssignedTo()));
+            }
+
+            if (StringUtils.hasText(filterRequest.getSearch())) {
+                String pattern = "%" + filterRequest.getSearch().trim().toUpperCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.upper(root.get("title")), pattern),
+                        cb.like(cb.upper(root.get("description")), pattern)
+                ));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<TaskEntity> page = taskRepository.findAll(spec, filterRequest.toPageable());
+        return PagedResponse.of(page, this::enrichDto);
     }
 
     @Override
@@ -47,7 +124,14 @@ public class TaskServiceImpl implements TaskService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TaskEntity entity = taskRepository.findByIdAndOrganizationId(taskId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", "id", taskId));
-        return taskMapper.toDto(entity);
+        return enrichDto(entity);
+    }
+
+    private UUID resolveAssigneeUserId(UUID assignedTo, UUID organizationId) {
+        if (assignedTo == null) return null;
+        return employeeRepository.findByIdAndOrganizationId(assignedTo, organizationId)
+                .map(emp -> emp.getUserId() != null ? emp.getUserId() : assignedTo)
+                .orElse(assignedTo);
     }
 
     @Override
@@ -57,7 +141,7 @@ public class TaskServiceImpl implements TaskService {
 
         TaskEntity task = TaskEntity.builder()
                 .clientId(request.getClientId())
-                .assignedTo(request.getAssignedTo())
+                .assignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId))
                 .title(request.getTitle().trim())
                 .description(request.getDescription())
                 .taskCategory(request.getTaskCategory())
@@ -74,7 +158,7 @@ public class TaskServiceImpl implements TaskService {
             notifyTaskAssigned(organizationId, saved);
         }
 
-        return taskMapper.toDto(saved);
+        return enrichDto(saved);
     }
 
     @Override
@@ -87,7 +171,7 @@ public class TaskServiceImpl implements TaskService {
         UUID previousAssignee = task.getAssignedTo();
 
         if (request.getClientId() != null) task.setClientId(request.getClientId());
-        if (request.getAssignedTo() != null) task.setAssignedTo(request.getAssignedTo());
+        if (request.getAssignedTo() != null) task.setAssignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId));
         if (request.getTitle() != null) task.setTitle(request.getTitle().trim());
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getTaskCategory() != null) task.setTaskCategory(request.getTaskCategory());
@@ -102,7 +186,7 @@ public class TaskServiceImpl implements TaskService {
             notifyTaskAssigned(organizationId, saved);
         }
 
-        return taskMapper.toDto(saved);
+        return enrichDto(saved);
     }
 
     private void notifyTaskAssigned(UUID organizationId, TaskEntity task) {
@@ -120,7 +204,6 @@ public class TaskServiceImpl implements TaskService {
                     "{\"taskId\":\"" + task.getId() + "\"}"
             );
         } catch (Exception ex) {
-            // Notification failures must never break the primary task workflow.
             log.error("Failed to raise TASK_ASSIGNED notification for task {}: {}", task.getId(), ex.getMessage(), ex);
         }
     }
@@ -153,7 +236,7 @@ public class TaskServiceImpl implements TaskService {
             try {
                 TaskEntity task = TaskEntity.builder()
                         .clientId(clientId)
-                        .assignedTo(request.getAssignedTo())
+                        .assignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId))
                         .title(request.getTitle().trim())
                         .description(request.getDescription())
                         .taskCategory(request.getTaskCategory())
@@ -164,7 +247,7 @@ public class TaskServiceImpl implements TaskService {
                 task.setOrganizationId(organizationId);
 
                 TaskEntity saved = taskRepository.save(task);
-                result.getCreatedTasks().add(taskMapper.toDto(saved));
+                result.getCreatedTasks().add(enrichDto(saved));
                 result.setTotalCreated(result.getTotalCreated() + 1);
 
                 if (saved.getAssignedTo() != null) {
@@ -200,7 +283,7 @@ public class TaskServiceImpl implements TaskService {
             try {
                 TaskEntity task = TaskEntity.builder()
                         .clientId(req.getClientId())
-                        .assignedTo(req.getAssignedTo())
+                        .assignedTo(resolveAssigneeUserId(req.getAssignedTo(), organizationId))
                         .title(req.getTitle().trim())
                         .description(req.getDescription())
                         .taskCategory(req.getTaskCategory() != null ? req.getTaskCategory() : TaskEntity.TaskCategory.OTHER)
@@ -211,7 +294,7 @@ public class TaskServiceImpl implements TaskService {
                 task.setOrganizationId(organizationId);
 
                 TaskEntity saved = taskRepository.save(task);
-                result.getCreatedTasks().add(taskMapper.toDto(saved));
+                result.getCreatedTasks().add(enrichDto(saved));
                 result.setTotalCreated(result.getTotalCreated() + 1);
 
                 if (saved.getAssignedTo() != null) {
@@ -227,5 +310,41 @@ public class TaskServiceImpl implements TaskService {
                 organizationId, result.getTotalCreated(), result.getTotalFailed());
 
         return result;
+    }
+
+    private TaskDto enrichDto(TaskEntity entity) {
+        if (entity == null) return null;
+        TaskDto dto = taskMapper.toDto(entity);
+        if (dto == null) return null;
+
+        if (entity.getClientId() != null) {
+            clientRepository.findByIdAndOrganizationId(entity.getClientId(), entity.getOrganizationId())
+                    .ifPresent(client -> dto.setClientName(client.getDisplayName()));
+        }
+
+        if (entity.getAssignedTo() != null) {
+            // First match by Employee ID
+            employeeRepository.findByIdAndOrganizationId(entity.getAssignedTo(), entity.getOrganizationId())
+                    .ifPresentOrElse(emp -> {
+                        dto.setAssigneeName(emp.getFullName());
+                        dto.setAssigneeEmail(emp.getEmail());
+                    }, () -> {
+                        // Match by Employee UserId
+                        employeeRepository.findByOrganizationIdAndUserId(entity.getOrganizationId(), entity.getAssignedTo())
+                                .ifPresentOrElse(emp -> {
+                                    dto.setAssigneeName(emp.getFullName());
+                                    dto.setAssigneeEmail(emp.getEmail());
+                                }, () -> {
+                                    // Match by User ID
+                                    userRepository.findByIdAndOrganizationId(entity.getAssignedTo(), entity.getOrganizationId())
+                                            .ifPresent(user -> {
+                                                dto.setAssigneeName(user.getFullName());
+                                                dto.setAssigneeEmail(user.getEmail());
+                                            });
+                                });
+                    });
+        }
+
+        return dto;
     }
 }

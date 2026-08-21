@@ -12,6 +12,8 @@ public interface TaskService {
 
     PagedResponse<TaskDto> getTasks(PageRequestDto pageRequest);
 
+    PagedResponse<TaskDto> getTasks(com.taxoryn.module.task.dto.TaskFilterRequest filterRequest);
+
     TaskDto getTaskById(UUID taskId);
 
     TaskDto createTask(CreateTaskRequest request);

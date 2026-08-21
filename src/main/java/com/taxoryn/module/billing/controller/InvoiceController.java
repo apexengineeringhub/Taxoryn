@@ -54,6 +54,24 @@ public class InvoiceController {
                 .body(ApiResponse.created("Invoice created successfully", invoice));
     }
 
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAuthority('BILLING_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk generate client invoices", description = "Generates professional tax invoices in batch across multiple or all practice clients.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.billing.dto.BulkInvoiceResultDto>> bulkCreateInvoices(
+            @Valid @RequestBody com.taxoryn.module.billing.dto.BulkCreateInvoicesRequest request) {
+        com.taxoryn.module.billing.dto.BulkInvoiceResultDto result = invoiceService.bulkCreateInvoices(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Bulk invoices batch generated successfully", result));
+    }
+
+    @PostMapping("/seed-demo")
+    @PreAuthorize("hasAuthority('BILLING_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Seed demo practice invoices", description = "Generates sample practice tax invoices for testing and demo.")
+    public ResponseEntity<ApiResponse<List<InvoiceDto>>> seedDemoInvoices() {
+        List<InvoiceDto> result = invoiceService.seedDemoInvoices();
+        return ResponseEntity.ok(ApiResponse.success("Demo invoices seeded successfully", result));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('BILLING_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "List & search invoices", description = "Retrieves paginated invoices with filters by client, status, and date range.")

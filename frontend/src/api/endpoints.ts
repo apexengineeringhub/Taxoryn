@@ -13,6 +13,9 @@ import {
   CalendarEvent,
   DocumentItem,
   Invoice,
+  BulkCreateInvoicesRequest,
+  BulkInvoiceResult,
+  BillingDashboardStats,
   SubscriptionPlan,
   SubscriptionInfo,
   Employee,
@@ -75,8 +78,18 @@ export const clientApi = {
 
 // --- 4. Tasks ---
 export const taskApi = {
-  getAll: async (params?: { page?: number; size?: number; status?: string; clientId?: string; assignedTo?: string }) => {
-    const res = await apiClient.get<ApiResponse<PagedResponse<Task>>>('/v1/tasks', { params });
+  getAll: async (params?: {
+    page?: number;
+    size?: number;
+    status?: string;
+    clientId?: string;
+    assignedTo?: string;
+    myTasksOnly?: boolean;
+    search?: string;
+    taskCategory?: string;
+    priority?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<Task>>>('/v1/tasks', { params: { size: 100, ...params } });
     return res.data.data;
   },
   getById: async (id: string) => {
@@ -87,8 +100,16 @@ export const taskApi = {
     const res = await apiClient.post<ApiResponse<Task>>('/v1/tasks', payload);
     return res.data.data;
   },
+  update: async (id: string, payload: Partial<Task>) => {
+    const res = await apiClient.put<ApiResponse<Task>>(`/v1/tasks/${id}`, payload);
+    return res.data.data;
+  },
   updateStatus: async (id: string, status: string) => {
-    const res = await apiClient.patch<ApiResponse<Task>>(`/v1/tasks/${id}/status`, { status });
+    const res = await apiClient.put<ApiResponse<Task>>(`/v1/tasks/${id}`, { status });
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/tasks/${id}`);
     return res.data.data;
   },
   generateBulk: async (payload: {
@@ -336,16 +357,77 @@ export const documentApi = {
 
 // --- 9. Billing & Invoices ---
 export const billingApi = {
-  getInvoices: async (params?: { clientId?: string; status?: string }) => {
-    const res = await apiClient.get<ApiResponse<PagedResponse<Invoice>>>('/v1/billing/invoices', { params });
+  getInvoices: async (params?: { clientId?: string; status?: string; page?: number; size?: number; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<Invoice>>>('/v1/invoices', { params: { size: 100, ...params } });
     return res.data.data;
   },
-  createInvoice: async (payload: Partial<Invoice>) => {
-    const res = await apiClient.post<ApiResponse<Invoice>>('/v1/billing/invoices', payload);
+  getInvoiceById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Invoice>>(`/v1/invoices/${id}`);
     return res.data.data;
   },
-  recordPayment: async (invoiceId: string, payload: { amount: number; paymentMode: string; referenceNumber?: string; paymentDate: string }) => {
-    const res = await apiClient.post<ApiResponse<any>>(`/v1/billing/invoices/${invoiceId}/payments`, payload);
+  createInvoice: async (payload: any) => {
+    const res = await apiClient.post<ApiResponse<Invoice>>('/v1/invoices', payload);
+    return res.data.data;
+  },
+  bulkCreateInvoices: async (payload: BulkCreateInvoicesRequest) => {
+    try {
+      const res = await apiClient.post<ApiResponse<BulkInvoiceResult>>('/v1/invoices/bulk', payload);
+      return res.data.data;
+    } catch {
+      // Sequential fallback
+      const result: BulkInvoiceResult = {
+        totalProcessed: payload.clientIds?.length || 0,
+        totalCreated: 0,
+        totalSkipped: 0,
+        totalFailed: 0,
+        totalBilledAmount: 0,
+        createdInvoices: [],
+        errors: [],
+      };
+      if (payload.clientIds && payload.clientIds.length > 0) {
+        for (const cid of payload.clientIds) {
+          try {
+            const created = await billingApi.createInvoice({
+              clientId: cid,
+              invoiceDate: payload.invoiceDate,
+              dueDate: payload.dueDate,
+              items: payload.items as any,
+              notes: payload.notes,
+              terms: payload.terms,
+            });
+            if (payload.autoIssue && created.id) {
+              try { await billingApi.issueInvoice(created.id); } catch {}
+            }
+            result.totalCreated++;
+            result.totalBilledAmount += Number(created.total || 0);
+            result.createdInvoices.push(created);
+          } catch (err: any) {
+            result.totalFailed++;
+            result.errors.push(`Client ${cid}: ${err.message}`);
+          }
+        }
+      }
+      return result;
+    }
+  },
+  seedDemoInvoices: async () => {
+    const res = await apiClient.post<ApiResponse<Invoice[]>>('/v1/invoices/seed-demo');
+    return res.data.data;
+  },
+  issueInvoice: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<Invoice>>(`/v1/invoices/${id}/issue`);
+    return res.data.data;
+  },
+  cancelInvoice: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<Invoice>>(`/v1/invoices/${id}/cancel`);
+    return res.data.data;
+  },
+  recordPayment: async (invoiceId: string, payload: { amount: number; paymentMode: string; referenceNumber?: string; paymentDate: string; notes?: string }) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/invoices/${invoiceId}/payments`, payload);
+    return res.data.data;
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<BillingDashboardStats>>('/v1/invoices/dashboard/stats');
     return res.data.data;
   },
 };
@@ -382,6 +464,21 @@ export const teamApi = {
   },
   getRoles: async () => {
     const res = await apiClient.get<ApiResponse<Role[]>>('/v1/roles');
+    return res.data.data;
+  },
+};
+
+export const employeeApi = {
+  getAll: async (params?: { page?: number; size?: number; status?: string; department?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<Employee>>>('/v1/employees', { params });
+    return res.data.data;
+  },
+  create: async (payload: Partial<Employee>) => {
+    const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees', payload);
+    return res.data.data;
+  },
+  bulkImport: async (employees: Partial<Employee>[]) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/employees/bulk', employees);
     return res.data.data;
   },
 };

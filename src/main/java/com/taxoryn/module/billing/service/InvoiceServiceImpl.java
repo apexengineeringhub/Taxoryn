@@ -489,6 +489,172 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public com.taxoryn.module.billing.dto.BulkInvoiceResultDto bulkCreateInvoices(com.taxoryn.module.billing.dto.BulkCreateInvoicesRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.billing.dto.BulkInvoiceResultDto result = com.taxoryn.module.billing.dto.BulkInvoiceResultDto.builder()
+                .createdInvoices(new ArrayList<>())
+                .errors(new ArrayList<>())
+                .build();
+
+        List<ClientEntity> targetClients;
+        if (request.getClientIds() != null && !request.getClientIds().isEmpty()) {
+            targetClients = clientRepository.findAllById(request.getClientIds()).stream()
+                    .filter(c -> c.getOrganizationId().equals(organizationId) && c.getStatus() == ClientEntity.ClientStatus.ACTIVE)
+                    .toList();
+        } else {
+            targetClients = clientRepository.findAllByOrganizationId(organizationId).stream()
+                    .filter(c -> c.getStatus() == ClientEntity.ClientStatus.ACTIVE)
+                    .toList();
+        }
+
+        result.setTotalProcessed(targetClients.size());
+        BigDecimal totalBilled = BigDecimal.ZERO;
+
+        for (ClientEntity client : targetClients) {
+            try {
+                String invoiceNumber = generateInvoiceNumber(organizationId);
+                InvoiceEntity invoice = InvoiceEntity.builder()
+                        .clientId(client.getId())
+                        .invoiceNumber(invoiceNumber)
+                        .invoiceDate(request.getInvoiceDate())
+                        .dueDate(request.getDueDate())
+                        .status(request.isAutoIssue() ? InvoiceStatus.ISSUED : InvoiceStatus.DRAFT)
+                        .notes(request.getNotes())
+                        .terms(request.getTerms())
+                        .build();
+                invoice.setOrganizationId(organizationId);
+
+                BigDecimal subtotal = BigDecimal.ZERO;
+                BigDecimal totalTax = BigDecimal.ZERO;
+                List<InvoiceItemEntity> items = new ArrayList<>();
+
+                for (CreateInvoiceItemRequest itemReq : request.getItems()) {
+                    BigDecimal qty = itemReq.getQuantity() != null ? itemReq.getQuantity() : BigDecimal.ONE;
+                    BigDecimal price = itemReq.getUnitPrice() != null ? itemReq.getUnitPrice() : BigDecimal.ZERO;
+                    BigDecimal taxRate = itemReq.getTaxRate() != null ? itemReq.getTaxRate() : new BigDecimal("18.00");
+
+                    BigDecimal lineSubtotal = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
+                    BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+                    BigDecimal lineAmount = lineSubtotal.add(lineTax);
+
+                    subtotal = subtotal.add(lineSubtotal);
+                    totalTax = totalTax.add(lineTax);
+
+                    InvoiceItemEntity item = InvoiceItemEntity.builder()
+                            .invoice(invoice)
+                            .service(itemReq.getService())
+                            .description(itemReq.getDescription())
+                            .quantity(qty)
+                            .unitPrice(price)
+                            .taxRate(taxRate)
+                            .tax(lineTax)
+                            .amount(lineAmount)
+                            .build();
+                    items.add(item);
+                }
+
+                BigDecimal grandTotal = subtotal.add(totalTax);
+                invoice.setSubtotal(subtotal);
+                invoice.setTax(totalTax);
+                invoice.setTotal(grandTotal);
+                invoice.setPaidAmount(BigDecimal.ZERO);
+                invoice.setBalanceDue(grandTotal);
+                invoice.setItems(items);
+
+                InvoiceEntity saved = invoiceRepository.save(invoice);
+                InvoiceDto dto = enrichDto(saved);
+                result.getCreatedInvoices().add(dto);
+                result.setTotalCreated(result.getTotalCreated() + 1);
+                totalBilled = totalBilled.add(grandTotal);
+
+                auditService.logEvent("BULK_INVOICE_GENERATED", "INVOICE", saved.getId().toString(), null, invoiceNumber);
+            } catch (Exception ex) {
+                result.getErrors().add("Client " + client.getDisplayName() + ": " + ex.getMessage());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+            }
+        }
+
+        result.setTotalBilledAmount(totalBilled);
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public List<InvoiceDto> seedDemoInvoices() {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        List<ClientEntity> clients = clientRepository.findAllByOrganizationId(organizationId);
+        List<InvoiceDto> seeded = new ArrayList<>();
+        if (clients.isEmpty()) return seeded;
+
+        LocalDate today = LocalDate.now();
+        LocalDate invoiceDate = today.minusDays(5);
+        LocalDate dueDate = today.plusDays(10);
+
+        for (int i = 0; i < Math.min(clients.size(), 4); i++) {
+            ClientEntity client = clients.get(i);
+            String invNum = generateInvoiceNumber(organizationId);
+
+            InvoiceEntity.InvoiceStatus status = (i % 2 == 0) ? InvoiceStatus.PAID : InvoiceStatus.ISSUED;
+            BigDecimal fee = (i == 0) ? new BigDecimal("7500.00") : (i == 1) ? new BigDecimal("4500.00") : (i == 2) ? new BigDecimal("2500.00") : new BigDecimal("15000.00");
+            InvoiceItemEntity.BillingServiceType svc = (i == 0) ? InvoiceItemEntity.BillingServiceType.GST_FILING : (i == 1) ? InvoiceItemEntity.BillingServiceType.ITR_FILING : (i == 2) ? InvoiceItemEntity.BillingServiceType.ACCOUNTING : InvoiceItemEntity.BillingServiceType.AUDIT;
+            String desc = (i == 0) ? "Monthly GST Filing (GSTR-1 & 3B) & Reconciliation" : (i == 1) ? "Annual Income Tax Return Computation & CPC Filing" : (i == 2) ? "Monthly Bookkeeping & Financial Statement Preparation" : "Statutory Tax Audit & Form 3CD Certification";
+
+            BigDecimal taxRate = new BigDecimal("18.00");
+            BigDecimal lineTax = fee.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            BigDecimal total = fee.add(lineTax);
+
+            InvoiceEntity inv = InvoiceEntity.builder()
+                    .clientId(client.getId())
+                    .invoiceNumber(invNum)
+                    .invoiceDate(invoiceDate)
+                    .dueDate(dueDate)
+                    .subtotal(fee)
+                    .tax(lineTax)
+                    .total(total)
+                    .paidAmount(status == InvoiceStatus.PAID ? total : BigDecimal.ZERO)
+                    .balanceDue(status == InvoiceStatus.PAID ? BigDecimal.ZERO : total)
+                    .status(status)
+                    .terms("Payment due within 15 days of invoice date. Bank transfer / UPI details on invoice.")
+                    .notes("Thank you for your business.")
+                    .build();
+            inv.setOrganizationId(organizationId);
+
+            InvoiceItemEntity item = InvoiceItemEntity.builder()
+                    .invoice(inv)
+                    .service(svc)
+                    .description(desc)
+                    .quantity(BigDecimal.ONE)
+                    .unitPrice(fee)
+                    .taxRate(taxRate)
+                    .tax(lineTax)
+                    .amount(total)
+                    .build();
+            inv.setItems(List.of(item));
+
+            InvoiceEntity saved = invoiceRepository.save(inv);
+
+            if (status == InvoiceStatus.PAID) {
+                InvoicePaymentEntity pmt = InvoicePaymentEntity.builder()
+                        .invoice(saved)
+                        .clientId(client.getId())
+                        .amount(total)
+                        .paymentDate(invoiceDate.plusDays(2))
+                        .paymentMethod(InvoicePaymentEntity.PaymentMethod.BANK_TRANSFER)
+                        .referenceNumber("NEFT" + (100000000 + i * 12345))
+                        .notes("Full settlement via Bank Transfer")
+                        .build();
+                pmt.setOrganizationId(organizationId);
+                invoicePaymentRepository.save(pmt);
+            }
+
+            seeded.add(enrichDto(saved));
+        }
+
+        return seeded;
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================

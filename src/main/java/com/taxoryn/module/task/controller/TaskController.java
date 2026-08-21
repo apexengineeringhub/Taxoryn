@@ -37,15 +37,15 @@ public class TaskController {
     private final TaskService taskService;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "List tasks with pagination", description = "Retrieves paginated tasks for the authenticated tenant.")
-    public ResponseEntity<ApiResponse<PagedResponse<TaskDto>>> getTasks(@Valid @ModelAttribute PageRequestDto pageRequest) {
-        PagedResponse<TaskDto> response = taskService.getTasks(pageRequest);
+    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
+    @Operation(summary = "List tasks with filters and pagination", description = "Retrieves filtered and paginated tasks for the authenticated tenant.")
+    public ResponseEntity<ApiResponse<PagedResponse<TaskDto>>> getTasks(@Valid @ModelAttribute com.taxoryn.module.task.dto.TaskFilterRequest filterRequest) {
+        PagedResponse<TaskDto> response = taskService.getTasks(filterRequest);
         return ResponseEntity.ok(ApiResponse.success("Tasks retrieved successfully", response));
     }
 
     @GetMapping("/{taskId}")
-    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
     @Operation(summary = "Get task by ID", description = "Retrieves task details within the authenticated tenant.")
     public ResponseEntity<ApiResponse<TaskDto>> getTaskById(@PathVariable UUID taskId) {
         TaskDto dto = taskService.getTaskById(taskId);
@@ -53,7 +53,7 @@ public class TaskController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
     @Operation(summary = "Create task", description = "Creates a new workflow task within the authenticated tenant.")
     public ResponseEntity<ApiResponse<TaskDto>> createTask(@Valid @RequestBody CreateTaskRequest request) {
         TaskDto created = taskService.createTask(request);
@@ -62,7 +62,7 @@ public class TaskController {
     }
 
     @PostMapping("/bulk-generator")
-    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
     @Operation(summary = "Generate bulk tasks across multiple clients", description = "Generates recurring compliance tasks for all selected clients in a single batch.")
     public ResponseEntity<ApiResponse<com.taxoryn.module.task.dto.BulkTaskImportResultDto>> generateBulkTasks(@Valid @RequestBody com.taxoryn.module.task.dto.BulkTaskCreateRequest request) {
         com.taxoryn.module.task.dto.BulkTaskImportResultDto result = taskService.generateBulkTasks(request);
@@ -70,7 +70,7 @@ public class TaskController {
     }
 
     @PostMapping("/bulk")
-    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
     @Operation(summary = "Bulk import tasks from spreadsheet", description = "Imports a list of task records from CSV or Excel sheets.")
     public ResponseEntity<ApiResponse<com.taxoryn.module.task.dto.BulkTaskImportResultDto>> bulkCreateTasks(@RequestBody java.util.List<CreateTaskRequest> requests) {
         com.taxoryn.module.task.dto.BulkTaskImportResultDto result = taskService.bulkCreateTasks(requests);
@@ -78,7 +78,7 @@ public class TaskController {
     }
 
     @PutMapping("/{taskId}")
-    @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
     @Operation(summary = "Update task", description = "Updates task status and details within the authenticated tenant.")
     public ResponseEntity<ApiResponse<TaskDto>> updateTask(@PathVariable UUID taskId, @Valid @RequestBody UpdateTaskRequest request) {
         TaskDto updated = taskService.updateTask(taskId, request);

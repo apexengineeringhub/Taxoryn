@@ -161,6 +161,7 @@ export interface Task {
   clientName?: string;
   assignedTo?: string;
   assigneeName?: string;
+  assigneeEmail?: string;
   title: string;
   description?: string;
   category?: string;
@@ -312,6 +313,8 @@ export interface Invoice {
   invoiceNumber: string;
   clientId: string;
   clientName?: string;
+  clientGstin?: string;
+  clientPan?: string;
   invoiceDate: string;
   dueDate: string;
   subtotal: number;
@@ -321,17 +324,73 @@ export interface Invoice {
   balanceDue: number;
   status: 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED' | 'OVERDUE';
   notes?: string;
+  terms?: string;
   items?: InvoiceLineItem[];
+  payments?: InvoicePaymentRecord[];
+  createdAt?: string;
 }
 
 export interface InvoiceLineItem {
   id?: string;
+  service: 'GST_FILING' | 'ITR_FILING' | 'TDS' | 'ACCOUNTING' | 'CONSULTING' | 'AUDIT' | 'ROC_COMPLIANCE' | 'OTHER';
   description: string;
   hsnSacCode?: string;
   quantity: number;
   unitPrice: number;
-  amount: number;
   taxRate: number;
+  tax?: number;
+  amount?: number;
+}
+
+export interface InvoicePaymentRecord {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMode: 'BANK_TRANSFER' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER';
+  referenceNumber?: string;
+  notes?: string;
+}
+
+export interface BulkCreateInvoicesRequest {
+  clientIds?: string[];
+  invoiceDate: string;
+  dueDate: string;
+  items: Array<{
+    service: 'GST_FILING' | 'ITR_FILING' | 'TDS' | 'ACCOUNTING' | 'CONSULTING' | 'AUDIT' | 'ROC_COMPLIANCE' | 'OTHER';
+    description?: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate: number;
+  }>;
+  autoIssue?: boolean;
+  notes?: string;
+  terms?: string;
+}
+
+export interface BulkInvoiceResult {
+  totalProcessed: number;
+  totalCreated: number;
+  totalSkipped: number;
+  totalFailed: number;
+  totalBilledAmount: number;
+  createdInvoices: Invoice[];
+  errors: string[];
+}
+
+export interface BillingDashboardStats {
+  totalBilled: number;
+  totalCollected: number;
+  totalOutstanding: number;
+  totalDraft: number;
+  totalInvoices: number;
+  draftInvoices: number;
+  issuedInvoices: number;
+  partiallyPaidInvoices: number;
+  paidInvoices: number;
+  overdueInvoices: number;
+  cancelledInvoices: number;
+  revenueByService?: Record<string, number>;
 }
 
 // 10. Subscriptions & Plans
