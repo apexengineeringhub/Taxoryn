@@ -299,6 +299,10 @@ export const itrApi = {
       return res.data.data;
     }
   },
+  seedDemo: async () => {
+    const res = await apiClient.post<ApiResponse<ItrReturn[]>>('/v1/itr/seed-demo');
+    return res.data.data;
+  },
   getWorkloadDashboard: async (assessmentYear?: string, assignedEmployeeId?: string) => {
     const res = await apiClient.get<ApiResponse<any>>('/v1/itr/dashboard/workload', {
       params: { assessmentYear, assignedEmployeeId },

@@ -58,4 +58,6 @@ public interface ItrService {
     List<ItrReturnDto> getClientItrHistory(UUID clientId);
 
     ItrWorkloadDashboardDto getWorkloadDashboard(String assessmentYear, UUID assignedEmployeeId);
+
+    List<ItrReturnDto> seedDemoData();
 }

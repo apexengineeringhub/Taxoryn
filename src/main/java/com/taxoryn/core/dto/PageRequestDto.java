@@ -26,7 +26,7 @@ public class PageRequestDto {
     private int page = 0;
 
     @Min(value = 1, message = "Page size must be at least 1")
-    @Max(value = 100, message = "Page size cannot exceed 100")
+    @Max(value = 1000, message = "Page size cannot exceed 1000")
     @Builder.Default
     @Schema(description = "Number of records per page (max 100)", defaultValue = "20", example = "20")
     private int size = 20;

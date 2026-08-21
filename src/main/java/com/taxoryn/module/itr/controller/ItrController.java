@@ -122,6 +122,14 @@ public class ItrController {
                 .body(ApiResponse.created("Batch generated " + returns.size() + " ITR returns successfully", returns));
     }
 
+    @PostMapping("/seed-demo")
+    @PreAuthorize("hasAuthority('ITR_CREATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Seed demo practice taxpayers & returns", description = "Initializes 8 realistic practice clients, ITR profiles and AY 2026-27 returns for testing.")
+    public ResponseEntity<ApiResponse<List<ItrReturnDto>>> seedDemoData() {
+        List<ItrReturnDto> returns = itrService.seedDemoData();
+        return ResponseEntity.ok(ApiResponse.success("Seeded " + returns.size() + " demo practice taxpayers and ITR returns", returns));
+    }
+
     @GetMapping("/returns")
     @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "List & search ITR returns with filters", description = "Retrieves paginated ITR returns with filters for AY, FY, form type, workflow status, or assigned staff.")

@@ -851,4 +851,80 @@ public class ItrServiceImpl implements ItrService {
         int ayEndShort = (ayStart + 1) % 100;
         return ayStart + "-" + String.format("%02d", ayEndShort);
     }
+
+    @Override
+    @Transactional
+    public List<ItrReturnDto> seedDemoData() {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        record DemoClient(String pan, String displayName, String legalName, ClientEntity.ClientType clientType,
+                          TaxpayerType taxpayerType, ItrType defaultItrType, String email, String phone) {}
+
+        List<DemoClient> demoClients = List.of(
+                new DemoClient("ABCDE1234F", "Pawan Pathak & Associates", "Pawan Pathak & Associates", ClientEntity.ClientType.PARTNERSHIP, TaxpayerType.FIRM, ItrType.ITR_5, "pawan.tax@example.com", "9820112233"),
+                new DemoClient("AABFA1234F", "MAA MUNDESHWARI ENTERPRISES", "MAA MUNDESHWARI ENTERPRISES PVT LTD", ClientEntity.ClientType.PRIVATE_LIMITED, TaxpayerType.COMPANY, ItrType.ITR_6, "mundeshwari.ent@example.com", "9833445566"),
+                new DemoClient("BNZPS8821M", "Dr. Rajesh Sharma", "Dr. Rajesh Sharma", ClientEntity.ClientType.INDIVIDUAL, TaxpayerType.INDIVIDUAL, ItrType.ITR_1, "rajesh.sharma@example.com", "9811223344"),
+                new DemoClient("CLXPT4412K", "Sneha Kulkarni", "Sneha Kulkarni", ClientEntity.ClientType.INDIVIDUAL, TaxpayerType.INDIVIDUAL, ItrType.ITR_2, "sneha.k@example.com", "9822334455"),
+                new DemoClient("DKRPJ9931L", "Vikram Mehta (Consulting)", "Vikram Mehta", ClientEntity.ClientType.PROPRIETORSHIP, TaxpayerType.INDIVIDUAL, ItrType.ITR_3, "vikram.mehta@example.com", "9833445577"),
+                new DemoClient("ELMPR3321Q", "Rohan Deshmukh (Retailer)", "Rohan Deshmukh", ClientEntity.ClientType.PROPRIETORSHIP, TaxpayerType.INDIVIDUAL, ItrType.ITR_4, "rohan.retail@example.com", "9844556677"),
+                new DemoClient("FGKPA7712N", "Aarav Gupta HUF", "Aarav Gupta HUF", ClientEntity.ClientType.INDIVIDUAL, TaxpayerType.HUF, ItrType.ITR_2, "aarav.huf@example.com", "9855667788"),
+                new DemoClient("AAATR5566D", "Shri Mundeshwari Seva Trust", "Shri Mundeshwari Seva Trust", ClientEntity.ClientType.TRUST, TaxpayerType.TRUST, ItrType.ITR_7, "trust.seva@example.com", "9866778899")
+        );
+
+        List<ItrReturnDto> results = new ArrayList<>();
+        for (DemoClient d : demoClients) {
+            ClientEntity client = clientRepository.findByOrganizationIdAndPan(organizationId, d.pan())
+                    .orElseGet(() -> {
+                        ClientEntity c = ClientEntity.builder()
+                                .displayName(d.displayName())
+                                .legalName(d.legalName())
+                                .pan(d.pan())
+                                .clientType(d.clientType())
+                                .email(d.email())
+                                .phone(d.phone())
+                                .status(ClientEntity.ClientStatus.ACTIVE)
+                                .build();
+                        c.setOrganizationId(organizationId);
+                        return clientRepository.save(c);
+                    });
+
+            ItrProfileEntity profile = itrProfileRepository.findByOrganizationIdAndClientId(organizationId, client.getId())
+                    .orElseGet(() -> {
+                        ItrProfileEntity p = ItrProfileEntity.builder()
+                                .clientId(client.getId())
+                                .pan(d.pan())
+                                .taxpayerType(d.taxpayerType())
+                                .defaultItrType(d.defaultItrType())
+                                .residentialStatus(ItrProfileEntity.ResidentialStatus.RESIDENT)
+                                .status(ItrProfileStatus.ACTIVE)
+                                .build();
+                        p.setOrganizationId(organizationId);
+                        return itrProfileRepository.save(p);
+                    });
+
+            Optional<ItrReturnEntity> retOpt = itrReturnRepository.findByOrganizationIdAndClientIdAndAssessmentYear(organizationId, client.getId(), "2026-27");
+            if (retOpt.isEmpty()) {
+                LocalDate dueDate = (d.taxpayerType() == TaxpayerType.COMPANY || d.defaultItrType() == ItrType.ITR_6) ? LocalDate.of(2026, 10, 31) : LocalDate.of(2026, 7, 31);
+                boolean isFiled = d.defaultItrType() == ItrType.ITR_1 || d.defaultItrType() == ItrType.ITR_6;
+                ItrReturnEntity entity = ItrReturnEntity.builder()
+                        .clientId(client.getId())
+                        .itrProfileId(profile.getId())
+                        .assessmentYear("2026-27")
+                        .financialYear("2025-26")
+                        .itrType(d.defaultItrType())
+                        .taxpayerType(d.taxpayerType())
+                        .dueDate(dueDate)
+                        .filingDate(isFiled ? LocalDate.of(2026, 7, 28) : null)
+                        .acknowledgementNumber(isFiled ? "109823487123984" : null)
+                        .status(isFiled ? ItrStatus.FILED : ItrStatus.DOCUMENTS_PENDING)
+                        .build();
+                entity.setOrganizationId(organizationId);
+                ItrReturnEntity saved = itrReturnRepository.save(entity);
+                results.add(enrichReturnDto(saved));
+            } else {
+                results.add(enrichReturnDto(retOpt.get()));
+            }
+        }
+        return results;
+    }
 }

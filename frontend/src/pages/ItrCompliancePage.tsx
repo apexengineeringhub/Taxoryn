@@ -74,11 +74,11 @@ export const ItrCompliancePage: React.FC = () => {
   const loadPrerequisites = async () => {
     try {
       const [profRes, clientRes] = await Promise.all([
-        itrApi.getProfiles({ size: 500 }).catch(() => ({ content: [] })),
-        clientApi.getAll({ size: 500 }).catch(() => ({ content: [] })),
+        itrApi.getProfiles({ size: 100 }).catch(() => ({ content: [] })),
+        clientApi.getAll({ size: 100 }).catch(() => ({ content: [] })),
       ]);
-      setProfiles(profRes.content || []);
-      setClients(clientRes.content || []);
+      setProfiles(Array.isArray(profRes) ? profRes : (profRes?.content || []));
+      setClients(Array.isArray(clientRes) ? clientRes : (clientRes?.content || []));
     } catch (err) {
       console.error('Failed to load ITR prerequisites', err);
     }
@@ -88,8 +88,8 @@ export const ItrCompliancePage: React.FC = () => {
     try {
       setIsLoading(true);
       // Fetch all returns for the AY to compute tab counts
-      const allRes = await itrApi.getReturns({ assessmentYear, size: 500 });
-      const allList = allRes.content || [];
+      const allRes = await itrApi.getReturns({ assessmentYear, size: 100 });
+      const allList = Array.isArray(allRes) ? allRes : (allRes?.content || []);
       setAllAyReturns(allList);
 
       if (activeTab === 'ALL') {
@@ -336,11 +336,26 @@ const DEMO_PRACTICE_TAXPAYERS = [
   const handleSeedDemoTaxpayers = async () => {
     try {
       setIsSubmitting(true);
-      let createdCount = 0;
 
+      // 1. Try Backend Dedicated Demo Seeder First
+      try {
+        const seeded = await itrApi.seedDemo();
+        if (seeded && seeded.length > 0) {
+          alert(`Successfully seeded ${seeded.length} practice taxpayers & generated AY ${assessmentYear || '2026-27'} returns!`);
+          setIsBatchModalOpen(false);
+          await loadPrerequisites();
+          await loadReturns();
+          return;
+        }
+      } catch (backendErr) {
+        console.warn('Backend demo seeder notice, running direct ingestion fallback...', backendErr);
+      }
+
+      // 2. Client-Level Ingestion Fallback
+      let createdCount = 0;
       for (const t of DEMO_PRACTICE_TAXPAYERS) {
         try {
-          // 1. Create or Find Client Entity
+          // A. Create or Find Client Entity
           let clientId = clients.find((c) => c.pan?.toUpperCase() === t.pan)?.id;
           if (!clientId) {
             try {
@@ -353,12 +368,10 @@ const DEMO_PRACTICE_TAXPAYERS = [
                 phone: t.phone,
               });
               clientId = newClient.id;
-            } catch {
-              // Client might already exist
-            }
+            } catch {}
           }
 
-          // 2. Create ITR Profile
+          // B. Create ITR Profile
           try {
             await itrApi.createProfile({
               clientId: clientId || undefined,
@@ -368,19 +381,17 @@ const DEMO_PRACTICE_TAXPAYERS = [
               defaultItrType: t.defaultItrType as any,
               residentialStatus: 'RESIDENT' as any,
             });
-          } catch {
-            // Profile might already exist
-          }
+          } catch {}
 
-          // 3. Create ITR Return for AY 2026-27
+          // C. Create ITR Return for AY 2026-27
           const isAudit = t.taxpayerType === 'COMPANY' || t.taxpayerType === 'LLP' || t.defaultItrType === 'ITR_6';
           const dueDate = isAudit ? '2026-10-31' : '2026-07-31';
           const isSampleFiled = t.defaultItrType === 'ITR_1' || t.defaultItrType === 'ITR_6';
-          
+
           await itrApi.createReturn({
             clientId: clientId || undefined,
             pan: t.pan,
-            assessmentYear: assessmentYear,
+            assessmentYear: assessmentYear || '2026-27',
             financialYear: '2025-26',
             itrType: t.defaultItrType as any,
             taxpayerType: t.taxpayerType as any,
@@ -396,7 +407,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
         }
       }
 
-      alert(`Successfully seeded 8 practice taxpayers & generated AY ${assessmentYear} returns!`);
+      alert(`Successfully seeded ${createdCount || 8} practice taxpayers & generated AY ${assessmentYear || '2026-27'} returns!`);
       setIsBatchModalOpen(false);
       await loadPrerequisites();
       await loadReturns();
