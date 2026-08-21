@@ -166,8 +166,6 @@ class GstServiceTest {
                 .filingFrequency(FilingFrequency.MONTHLY)
                 .build();
 
-        ClientEntity client = ClientEntity.builder().displayName("ABC Traders").build();
-        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
         when(gstProfileRepository.existsByOrganizationIdAndGstin(tenantId, "27AAACZ1234D1Z8")).thenReturn(true);
 
         assertThrows(DuplicateResourceException.class, () -> gstService.createProfile(request));

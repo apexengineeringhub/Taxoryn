@@ -137,8 +137,12 @@ export const GstCompliancePage: React.FC = () => {
       const res = await gstApi.batchGenerateFilings({
         returnPeriod: batchPeriod,
         returnType: batchReturnType,
+        returnTypes: [batchReturnType],
         financialYear: batchFy,
         dueDate: batchDueDate,
+        gstr1DueDate: batchDueDate,
+        gstr3bDueDate: batchDueDate,
+        cmp08DueDate: batchDueDate,
       });
       alert(`Successfully scheduled ${res?.length || 0} filings for ${batchReturnType} (${batchPeriod})!`);
       setIsBatchModalOpen(false);

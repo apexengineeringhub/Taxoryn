@@ -1,5 +1,6 @@
 package com.taxoryn.module.gst.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
@@ -19,12 +20,15 @@ import java.time.LocalDate;
 public class UpdateGstFilingStatusRequest {
 
     @NotNull(message = "Filing status is required")
+    @JsonAlias({"status", "newStatus", "state"})
     @Schema(description = "Target filing status", example = "FILED")
     private GstFilingStatus filingStatus;
 
+    @JsonAlias({"date", "filedDate", "filing_date"})
     @Schema(description = "Date of return filing", example = "2026-09-15")
     private LocalDate filingDate;
 
+    @JsonAlias({"arnNumber", "arn", "acknowledgementNo", "ackNumber", "arn_number"})
     @Schema(description = "GST Portal Acknowledgement Reference Number (ARN)", example = "AA2708260012345")
     private String acknowledgementNumber;
 

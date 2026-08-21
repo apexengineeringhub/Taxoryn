@@ -151,7 +151,7 @@ export const gstApi = {
       return res.data.data;
     }
   },
-  batchGenerateFilings: async (payload: { returnPeriod: string; returnType: string; financialYear: string; dueDate: string }) => {
+  batchGenerateFilings: async (payload: { returnPeriod: string; returnType?: string; returnTypes?: string[]; financialYear: string; dueDate?: string; gstr1DueDate?: string; gstr3bDueDate?: string; cmp08DueDate?: string }) => {
     const res = await apiClient.post<ApiResponse<GstReturnFiling[]>>('/v1/gst/filings/batch-generate', payload);
     return res.data.data;
   },

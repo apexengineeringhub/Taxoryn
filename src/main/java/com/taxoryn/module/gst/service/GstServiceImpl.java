@@ -383,8 +383,17 @@ public class GstServiceImpl implements GstService {
 
         List<GstReturnFilingDto> createdFilings = new ArrayList<>();
 
+        List<GstReturnType> targetTypes = request.getReturnTypes();
+        if (targetTypes == null || targetTypes.isEmpty()) {
+            if (request.getReturnType() != null) {
+                targetTypes = List.of(request.getReturnType());
+            } else {
+                targetTypes = List.of(GstReturnType.GSTR1, GstReturnType.GSTR3B);
+            }
+        }
+
         for (GstProfileEntity profile : activeProfiles) {
-            for (GstReturnType returnType : request.getReturnTypes()) {
+            for (GstReturnType returnType : targetTypes) {
                 // If profile is composition, skip GSTR-1/3B unless requested; if regular, skip CMP-08
                 if (profile.getGstType() == GstType.COMPOSITION && (returnType == GstReturnType.GSTR1 || returnType == GstReturnType.GSTR3B)) {
                     continue;
@@ -403,6 +412,10 @@ public class GstServiceImpl implements GstService {
                         dueDate = request.getGstr3bDueDate();
                     } else if (returnType == GstReturnType.CMP08) {
                         dueDate = request.getCmp08DueDate();
+                    }
+
+                    if (dueDate == null) {
+                        dueDate = LocalDate.now().plusDays(20);
                     }
 
                     GstReturnFilingEntity filing = GstReturnFilingEntity.builder()
