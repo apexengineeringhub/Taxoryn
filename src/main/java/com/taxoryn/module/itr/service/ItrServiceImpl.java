@@ -419,7 +419,35 @@ public class ItrServiceImpl implements ItrService {
     @Transactional
     public List<ItrReturnDto> batchGenerateReturns(BatchGenerateItrReturnsRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        List<ItrProfileEntity> activeProfiles = itrProfileRepository.findAllByOrganizationIdAndStatus(organizationId, ItrProfileStatus.ACTIVE);
+        List<ItrProfileEntity> activeProfiles = new ArrayList<>(itrProfileRepository.findAllByOrganizationIdAndStatus(organizationId, ItrProfileStatus.ACTIVE));
+
+        // If no ITR profiles exist yet, auto-discover all practice clients and initialize their ITR profiles
+        if (activeProfiles.isEmpty()) {
+            List<ClientEntity> allClients = clientRepository.findAllByOrganizationId(organizationId);
+            for (ClientEntity client : allClients) {
+                String pan = StringUtils.hasText(client.getPan()) ? client.getPan().toUpperCase().trim() : ("PAN" + client.getId().toString().substring(0, 7).toUpperCase());
+                TaxpayerType tType = mapClientTypeToTaxpayerType(client.getClientType());
+                ItrType defForm = switch (tType) {
+                    case COMPANY -> ItrType.ITR_6;
+                    case LLP, FIRM -> ItrType.ITR_5;
+                    case TRUST -> ItrType.ITR_7;
+                    default -> ItrType.ITR_1;
+                };
+
+                ItrProfileEntity newProfile = ItrProfileEntity.builder()
+                        .clientId(client.getId())
+                        .pan(pan)
+                        .taxpayerType(tType)
+                        .defaultItrType(defForm)
+                        .residentialStatus(ItrProfileEntity.ResidentialStatus.RESIDENT)
+                        .assignedEmployeeId(client.getAssignedEmployeeId())
+                        .status(ItrProfileStatus.ACTIVE)
+                        .build();
+                newProfile.setOrganizationId(organizationId);
+                ItrProfileEntity saved = itrProfileRepository.save(newProfile);
+                activeProfiles.add(saved);
+            }
+        }
 
         List<ItrReturnDto> createdReturns = new ArrayList<>();
         String ay = request.getAssessmentYear().trim();
