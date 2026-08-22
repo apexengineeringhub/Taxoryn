@@ -56,6 +56,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final MarketplaceMapper mapper;
     private final AuditService auditService;
     private final ProfileCompletenessCalculator completenessCalculator;
+    private final PublicSlugGenerator slugGenerator;
 
     // =========================================================================
     // 1. Public Customer Discovery APIs
@@ -272,12 +273,9 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
         if (StringUtils.hasText(request.getDisplayName())) profile.setDisplayName(request.getDisplayName().trim());
         if (StringUtils.hasText(request.getSlug())) {
-            String cleanSlug = request.getSlug().trim().toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-");
-            if (cleanSlug.startsWith("-")) cleanSlug = cleanSlug.substring(1);
-            if (cleanSlug.endsWith("-")) cleanSlug = cleanSlug.substring(0, cleanSlug.length() - 1);
-
-            if (StringUtils.hasText(cleanSlug) && !cleanSlug.equalsIgnoreCase(profile.getSlug())) {
-                if (profileRepository.existsBySlug(cleanSlug)) {
+            String cleanSlug = slugGenerator.sanitize(request.getSlug());
+            if (!cleanSlug.equalsIgnoreCase(profile.getSlug())) {
+                if (slugGenerator.isSlugTaken(cleanSlug, profile.getId())) {
                     throw new IllegalArgumentException("The public slug '" + cleanSlug + "' is already taken. Please choose another unique slug.");
                 }
                 profile.setSlug(cleanSlug);
@@ -328,17 +326,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public String generateUniqueSlug(String baseName, String city) {
-        String raw = (StringUtils.hasText(baseName) ? baseName : "tax-firm") + (StringUtils.hasText(city) ? "-" + city : "");
-        String baseSlug = raw.toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-");
-        if (baseSlug.startsWith("-")) baseSlug = baseSlug.substring(1);
-        if (baseSlug.endsWith("-")) baseSlug = baseSlug.substring(0, baseSlug.length() - 1);
-
-        String uniqueSlug = baseSlug;
-        int count = 1;
-        while (profileRepository.existsBySlug(uniqueSlug)) {
-            uniqueSlug = baseSlug + "-" + count++;
-        }
-        return uniqueSlug;
+        String combined = (StringUtils.hasText(baseName) ? baseName : "") + (StringUtils.hasText(city) ? " " + city : "");
+        return slugGenerator.generateUniqueSlug(combined, null);
     }
 
     @Override
@@ -852,12 +841,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         OrganizationEntity org = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", organizationId));
 
-        String baseSlug = org.getName().toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-");
-        String uniqueSlug = baseSlug;
-        int count = 1;
-        while (profileRepository.existsBySlug(uniqueSlug)) {
-            uniqueSlug = baseSlug + "-" + count++;
-        }
+        String uniqueSlug = slugGenerator.generateUniqueSlug(org.getName(), null);
 
         MarketplaceProfileEntity profile = MarketplaceProfileEntity.builder()
                 .organizationId(organizationId)

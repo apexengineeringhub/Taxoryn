@@ -22,6 +22,8 @@ public interface MarketplaceProfileRepository extends JpaRepository<MarketplaceP
 
     boolean existsBySlug(String slug);
 
+    boolean existsBySlugAndIdNot(String slug, UUID id);
+
     @Query("SELECT p FROM MarketplaceProfileEntity p WHERE p.isPublished = true AND " +
            "(:city IS NULL OR LOWER(p.city) LIKE LOWER(CONCAT('%', :city, '%'))) AND " +
            "(:profType IS NULL OR p.professionalType = :profType) AND " +

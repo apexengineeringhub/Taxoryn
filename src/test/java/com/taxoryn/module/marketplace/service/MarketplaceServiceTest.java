@@ -82,6 +82,9 @@ class MarketplaceServiceTest {
     @Mock
     private ProfileCompletenessCalculator completenessCalculator;
 
+    @Mock
+    private PublicSlugGenerator slugGenerator;
+
     @InjectMocks
     private MarketplaceServiceImpl marketplaceService;
 
@@ -311,7 +314,8 @@ class MarketplaceServiceTest {
     @DisplayName("Practice Profile Foundation: update profile, save as draft, and update slug")
     void testUpdateMyPracticeProfile_UpdatesProfileAndSlug() {
         when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
-        when(profileRepository.existsBySlug("custom-apex-mumbai")).thenReturn(false);
+        when(slugGenerator.sanitize("custom-apex-mumbai")).thenReturn("custom-apex-mumbai");
+        when(slugGenerator.isSlugTaken("custom-apex-mumbai", sampleProfile.getId())).thenReturn(false);
         when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
                 .percentage(90)
@@ -352,7 +356,8 @@ class MarketplaceServiceTest {
     @DisplayName("Practice Profile Foundation: duplicate slug is rejected")
     void testUpdateMyPracticeProfile_RejectsDuplicateSlug() {
         when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
-        when(profileRepository.existsBySlug("taken-slug")).thenReturn(true);
+        when(slugGenerator.sanitize("taken-slug")).thenReturn("taken-slug");
+        when(slugGenerator.isSlugTaken("taken-slug", sampleProfile.getId())).thenReturn(true);
 
         UpdateMarketplaceProfileRequest request = UpdateMarketplaceProfileRequest.builder()
                 .displayName("Updated Firm Name")
@@ -367,14 +372,41 @@ class MarketplaceServiceTest {
     }
 
     @Test
-    @DisplayName("Practice Profile Foundation: generate unique SEO public slug")
+    @DisplayName("Public Slug Stability: updating profile without slug preserves existing slug")
+    void testUpdateMyPracticeProfile_PreservesExistingSlug() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .id(sampleProfile.getId())
+                .displayName("Updated Firm Name")
+                .slug("apex-advisors")
+                .build();
+        when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+
+        UpdateMarketplaceProfileRequest request = UpdateMarketplaceProfileRequest.builder()
+                .displayName("Updated Firm Name")
+                .slug(null) // No slug modification
+                .build();
+
+        PublicMarketplaceProfileDto result = marketplaceService.updateMyPracticeProfile(request);
+
+        assertNotNull(result);
+        assertEquals("apex-advisors", sampleProfile.getSlug()); // Unchanged
+        verify(slugGenerator, never()).generateUniqueSlug(any(), any());
+    }
+
+    @Test
+    @DisplayName("Practice Profile Foundation: generate unique SEO public slug via PublicSlugGenerator")
     void testGenerateUniqueSlug() {
-        when(profileRepository.existsBySlug("apex-tax-mumbai")).thenReturn(true);
-        when(profileRepository.existsBySlug("apex-tax-mumbai-1")).thenReturn(false);
+        when(slugGenerator.generateUniqueSlug("Apex Tax Mumbai", null)).thenReturn("apex-tax-mumbai-2");
 
         String slug = marketplaceService.generateUniqueSlug("Apex Tax", "Mumbai");
 
-        assertEquals("apex-tax-mumbai-1", slug);
+        assertEquals("apex-tax-mumbai-2", slug);
+        verify(slugGenerator).generateUniqueSlug("Apex Tax Mumbai", null);
     }
 
     @Test
