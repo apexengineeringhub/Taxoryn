@@ -59,7 +59,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final PublicSlugGenerator slugGenerator;
 
     // =========================================================================
-    // 1. Public Customer Discovery APIs
+    // 1. Public Customer Discovery APIs (Hardened for Production & Tenant Isolation)
     // =========================================================================
 
     @Override
@@ -68,6 +68,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         org.springframework.data.jpa.domain.Specification<MarketplaceProfileEntity> spec = (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("isPublished")));
+            predicates.add(cb.equal(root.get("visibilityStatus"), VisibilityStatus.PUBLIC));
 
             if (StringUtils.hasText(request.getCity())) {
                 predicates.add(cb.like(cb.lower(root.get("city")), "%" + request.getCity().trim().toLowerCase() + "%"));
@@ -99,7 +100,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public PublicMarketplaceProfileDto getProfileBySlug(String slug) {
-        MarketplaceProfileEntity entity = profileRepository.findBySlug(slug)
+        if (!StringUtils.hasText(slug)) {
+            throw new ResourceNotFoundException("Marketplace Profile", "slug", slug);
+        }
+        MarketplaceProfileEntity entity = profileRepository.findBySlugAndIsPublishedTrueAndVisibilityStatus(slug.trim(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "slug", slug));
         return enrichPublicProfile(entity);
     }
@@ -107,7 +111,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public PublicMarketplaceProfileDto getProfileById(UUID id) {
-        MarketplaceProfileEntity entity = profileRepository.findById(id)
+        if (id == null) {
+            throw new ResourceNotFoundException("Marketplace Profile", "id", id);
+        }
+        MarketplaceProfileEntity entity = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(id, VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", id));
         return enrichPublicProfile(entity);
     }
@@ -115,14 +122,14 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicMarketplaceProfileDto> getFeaturedProfiles() {
-        List<MarketplaceProfileEntity> entities = profileRepository.findTop6ByIsPublishedTrueAndIsFeaturedTrueOrderByAverageRatingDesc();
+        List<MarketplaceProfileEntity> entities = profileRepository.findTop6ByIsPublishedTrueAndIsFeaturedTrueAndVisibilityStatusOrderByAverageRatingDesc(VisibilityStatus.PUBLIC);
         return entities.stream().map(this::enrichPublicProfile).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public MarketplaceLeadDto submitPublicLead(CreateMarketplaceLeadRequest request) {
-        MarketplaceProfileEntity profile = profileRepository.findById(request.getMarketplaceProfileId())
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(request.getMarketplaceProfileId(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", request.getMarketplaceProfileId()));
 
         MarketplaceLeadEntity entity = MarketplaceLeadEntity.builder()
@@ -152,7 +159,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional
     public MarketplaceConsultationDto bookPublicConsultation(BookConsultationRequest request) {
-        MarketplaceProfileEntity profile = profileRepository.findById(request.getMarketplaceProfileId())
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(request.getMarketplaceProfileId(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", request.getMarketplaceProfileId()));
 
         MarketplaceConsultationEntity consultation = MarketplaceConsultationEntity.builder()
@@ -204,8 +211,13 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional
     public MarketplaceReviewDto submitPublicReview(SubmitMarketplaceReviewRequest request) {
-        MarketplaceProfileEntity profile = profileRepository.findById(request.getMarketplaceProfileId())
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(request.getMarketplaceProfileId(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", request.getMarketplaceProfileId()));
+
+        int rating = request.getRating();
+        if (rating < 1 || rating > 5) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("Rating must be between 1 and 5 stars");
+        }
 
         MarketplaceReviewEntity review = MarketplaceReviewEntity.builder()
                 .organizationId(profile.getOrganizationId())
@@ -213,17 +225,17 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .reviewerName(request.getReviewerName().trim())
                 .reviewerDesignation(request.getReviewerDesignation())
                 .reviewerCompany(request.getReviewerCompany())
-                .rating(request.getRating())
+                .rating(rating)
                 .reviewTitle(request.getReviewTitle())
                 .reviewComment(request.getReviewComment().trim())
                 .serviceTaken(request.getServiceTaken())
-                .isVerifiedClient(true)
+                .isVerifiedClient(false)
                 .status(MarketplaceReviewEntity.ReviewStatus.APPROVED)
                 .build();
 
         MarketplaceReviewEntity saved = reviewRepository.save(review);
 
-        // Recalculate average rating
+        // Recalculate average rating for APPROVED reviews
         List<MarketplaceReviewEntity> allReviews = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
                 profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
         );
@@ -232,21 +244,27 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         profile.setTotalReviews(allReviews.size());
         profileRepository.save(profile);
 
+        auditService.logEvent("MARKETPLACE_REVIEW_SUBMITTED", "MARKETPLACE_REVIEW", saved.getId().toString(), null, "Review submitted for " + profile.getDisplayName());
+
         return mapper.toReviewDto(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MarketplaceServiceDto> getPublicServices(UUID marketplaceProfileId) {
-        List<MarketplaceServiceEntity> services = serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(marketplaceProfileId);
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
+        List<MarketplaceServiceEntity> services = serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(profile.getId());
         return mapper.toServiceDtoList(services);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MarketplaceReviewDto> getPublicReviews(UUID marketplaceProfileId) {
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
         List<MarketplaceReviewEntity> reviews = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
-                marketplaceProfileId, MarketplaceReviewEntity.ReviewStatus.APPROVED
+                profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
         );
         return mapper.toReviewDtoList(reviews);
     }
@@ -729,6 +747,11 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     public PublicMarketplaceProfileDto toggleFeaturedStatus(UUID profileId, boolean isFeatured) {
         MarketplaceProfileEntity profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", profileId));
+        if (isFeatured) {
+            if (!Boolean.TRUE.equals(profile.getIsPublished()) || profile.getVisibilityStatus() != VisibilityStatus.PUBLIC) {
+                throw new com.taxoryn.core.exception.BusinessValidationException("Cannot feature a private or unpublished practice profile. Profile must be published and PUBLIC.");
+            }
+        }
         profile.setIsFeatured(isFeatured);
         return enrichPublicProfile(profileRepository.save(profile));
     }

@@ -61,7 +61,15 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private boolean isAuthEndpoint(String uri) {
-        return uri.startsWith("/api/auth/") || uri.startsWith("/api/v1/auth/");
+        return uri.startsWith("/api/auth/") ||
+               uri.startsWith("/api/v1/auth/") ||
+               uri.startsWith("/api/marketplace/leads") ||
+               uri.startsWith("/api/v1/marketplace/leads") ||
+               uri.startsWith("/api/marketplace/consultations") ||
+               uri.startsWith("/api/v1/marketplace/consultations") ||
+               uri.startsWith("/api/marketplace/reviews") ||
+               uri.startsWith("/api/v1/marketplace/reviews") ||
+               uri.startsWith("/api/v1/marketplace/onboarding/proposal");
     }
 
     private boolean isExcludedPath(String uri) {

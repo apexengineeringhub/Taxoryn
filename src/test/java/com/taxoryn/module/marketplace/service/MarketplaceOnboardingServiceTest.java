@@ -191,6 +191,57 @@ class MarketplaceOnboardingServiceTest {
     }
 
     @Test
+    @DisplayName("Proposal Security: Cannot accept an expired proposal")
+    void testAcceptProposal_WhenExpired_ThrowsBusinessValidationException() {
+        String token = "prop_expired_999";
+        MarketplaceProposalEntity proposal = MarketplaceProposalEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(profileId)
+                .leadId(leadId)
+                .proposalTitle("Tax Advisory")
+                .accessToken(token)
+                .proposalStatus(ProposalStatus.SENT)
+                .validUntil(java.time.LocalDate.now().minusDays(2)) // Expired
+                .build();
+        proposal.setId(UUID.randomUUID());
+
+        when(proposalRepository.findByAccessToken(token)).thenReturn(Optional.of(proposal));
+
+        AcceptProposalRequest acceptReq = AcceptProposalRequest.builder()
+                .isAccepted(true)
+                .build();
+
+        assertThrows(com.taxoryn.core.exception.BusinessValidationException.class, () ->
+                onboardingService.acceptOrRejectProposal(token, acceptReq)
+        );
+    }
+
+    @Test
+    @DisplayName("Proposal Security: Cannot re-accept an already accepted proposal")
+    void testAcceptProposal_WhenAlreadyAccepted_ThrowsBusinessValidationException() {
+        String token = "prop_accepted_999";
+        MarketplaceProposalEntity proposal = MarketplaceProposalEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(profileId)
+                .leadId(leadId)
+                .proposalTitle("Tax Advisory")
+                .accessToken(token)
+                .proposalStatus(ProposalStatus.ACCEPTED)
+                .build();
+        proposal.setId(UUID.randomUUID());
+
+        when(proposalRepository.findByAccessToken(token)).thenReturn(Optional.of(proposal));
+
+        AcceptProposalRequest acceptReq = AcceptProposalRequest.builder()
+                .isAccepted(true)
+                .build();
+
+        assertThrows(com.taxoryn.core.exception.BusinessValidationException.class, () ->
+                onboardingService.acceptOrRejectProposal(token, acceptReq)
+        );
+    }
+
+    @Test
     @DisplayName("3. Should promote to Client Master ONLY when practice approves onboarding")
     void testApproveAndPromote_CreatesClientInClientMaster() {
         UUID onbId = UUID.randomUUID();

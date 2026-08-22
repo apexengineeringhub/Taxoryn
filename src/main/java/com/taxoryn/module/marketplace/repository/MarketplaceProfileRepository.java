@@ -24,7 +24,11 @@ public interface MarketplaceProfileRepository extends JpaRepository<MarketplaceP
 
     boolean existsBySlugAndIdNot(String slug, UUID id);
 
-    @Query("SELECT p FROM MarketplaceProfileEntity p WHERE p.isPublished = true AND " +
+    Optional<MarketplaceProfileEntity> findByIdAndIsPublishedTrueAndVisibilityStatus(UUID id, MarketplaceProfileEntity.VisibilityStatus visibilityStatus);
+
+    Optional<MarketplaceProfileEntity> findBySlugAndIsPublishedTrueAndVisibilityStatus(String slug, MarketplaceProfileEntity.VisibilityStatus visibilityStatus);
+
+    @Query("SELECT p FROM MarketplaceProfileEntity p WHERE p.isPublished = true AND p.visibilityStatus = com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus.PUBLIC AND " +
            "(:city IS NULL OR LOWER(p.city) LIKE LOWER(CONCAT('%', :city, '%'))) AND " +
            "(:profType IS NULL OR p.professionalType = :profType) AND " +
            "(:specialization IS NULL OR LOWER(p.specializations) LIKE LOWER(CONCAT('%', :specialization, '%'))) AND " +
@@ -39,7 +43,7 @@ public interface MarketplaceProfileRepository extends JpaRepository<MarketplaceP
             Pageable pageable
     );
 
-    List<MarketplaceProfileEntity> findTop6ByIsPublishedTrueAndIsFeaturedTrueOrderByAverageRatingDesc();
+    List<MarketplaceProfileEntity> findTop6ByIsPublishedTrueAndIsFeaturedTrueAndVisibilityStatusOrderByAverageRatingDesc(MarketplaceProfileEntity.VisibilityStatus visibilityStatus);
 
     long countByIsPublishedTrue();
 

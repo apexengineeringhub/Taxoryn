@@ -177,7 +177,7 @@ class MarketplaceServiceTest {
                 .requirementDescription("Need assistance with GST registration")
                 .build();
 
-        when(profileRepository.findById(profileId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(profileId, VisibilityStatus.PUBLIC)).thenReturn(Optional.of(sampleProfile));
 
         MarketplaceLeadEntity savedLead = MarketplaceLeadEntity.builder()
                 .organizationId(organizationId)
@@ -205,6 +205,80 @@ class MarketplaceServiceTest {
         assertEquals("Rohan Verma", result.getClientName());
         assertEquals(LeadStatus.NEW, result.getLeadStatus());
         verify(leadRepository).save(any(MarketplaceLeadEntity.class));
+    }
+
+    @Test
+    @DisplayName("Public Access: getProfileBySlug only returns PUBLIC published profiles, 404 for private")
+    void testGetProfileBySlug_VisibilityHardened() {
+        when(profileRepository.findBySlugAndIsPublishedTrueAndVisibilityStatus("apex-advisors", VisibilityStatus.PUBLIC))
+                .thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.findBySlugAndIsPublishedTrueAndVisibilityStatus("private-slug", VisibilityStatus.PUBLIC))
+                .thenReturn(Optional.empty());
+
+        PublicMarketplaceProfileDto dto = PublicMarketplaceProfileDto.builder()
+                .id(profileId)
+                .displayName("Apex Corporate & Tax Advisors")
+                .slug("apex-advisors")
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .build();
+        when(mapper.toProfileDto(sampleProfile)).thenReturn(dto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(profileId)).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(eq(profileId), any())).thenReturn(List.of());
+
+        PublicMarketplaceProfileDto found = marketplaceService.getProfileBySlug("apex-advisors");
+        assertNotNull(found);
+        assertEquals("Apex Corporate & Tax Advisors", found.getDisplayName());
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                marketplaceService.getProfileBySlug("private-slug")
+        );
+    }
+
+    @Test
+    @DisplayName("Public Access: getProfileById only returns PUBLIC published profiles, 404 for private")
+    void testGetProfileById_VisibilityHardened() {
+        UUID privateId = UUID.randomUUID();
+        when(profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(profileId, VisibilityStatus.PUBLIC))
+                .thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(privateId, VisibilityStatus.PUBLIC))
+                .thenReturn(Optional.empty());
+
+        PublicMarketplaceProfileDto dto = PublicMarketplaceProfileDto.builder()
+                .id(profileId)
+                .displayName("Apex Corporate & Tax Advisors")
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .build();
+        when(mapper.toProfileDto(sampleProfile)).thenReturn(dto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(profileId)).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(eq(profileId), any())).thenReturn(List.of());
+
+        PublicMarketplaceProfileDto found = marketplaceService.getProfileById(profileId);
+        assertNotNull(found);
+        assertEquals("Apex Corporate & Tax Advisors", found.getDisplayName());
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                marketplaceService.getProfileById(privateId)
+        );
+    }
+
+    @Test
+    @DisplayName("Public Access: getFeaturedProfiles only returns PUBLIC and published profiles")
+    void testGetFeaturedProfiles_VisibilityHardened() {
+        when(profileRepository.findTop6ByIsPublishedTrueAndIsFeaturedTrueAndVisibilityStatusOrderByAverageRatingDesc(VisibilityStatus.PUBLIC))
+                .thenReturn(List.of(sampleProfile));
+
+        PublicMarketplaceProfileDto dto = PublicMarketplaceProfileDto.builder()
+                .id(profileId)
+                .displayName("Apex Corporate & Tax Advisors")
+                .isFeatured(true)
+                .build();
+        when(mapper.toProfileDto(sampleProfile)).thenReturn(dto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(profileId)).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(eq(profileId), any())).thenReturn(List.of());
+
+        List<PublicMarketplaceProfileDto> featured = marketplaceService.getFeaturedProfiles();
+        assertNotNull(featured);
+        assertEquals(1, featured.size());
     }
 
     @Test

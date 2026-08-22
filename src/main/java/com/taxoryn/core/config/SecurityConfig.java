@@ -97,8 +97,8 @@ public class SecurityConfig {
                                 "/api/v1/marketplace/leads",
                                 "/api/v1/marketplace/consultations",
                                 "/api/v1/marketplace/reviews/**",
-                                "/api/v1/marketplace/onboarding/proposals/**",
-                                "/api/v1/marketplace/onboarding/workspaces/**"
+                                "/api/v1/marketplace/onboarding/proposal/**",
+                                "/api/v1/marketplace/onboarding/session/**"
                         ).permitAll()
                         // Swagger & OpenAPI
                         .requestMatchers(

@@ -55,6 +55,12 @@ import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsQuarter;
 import com.taxoryn.module.tds.repository.TdsChallanRepository;
 import com.taxoryn.module.tds.repository.TdsProfileRepository;
 import com.taxoryn.module.tds.repository.TdsReturnRepository;
+import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity;
+import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity;
+import com.taxoryn.module.marketplace.entity.MarketplaceServiceEntity;
+import com.taxoryn.module.marketplace.repository.MarketplaceLeadRepository;
+import com.taxoryn.module.marketplace.repository.MarketplaceProfileRepository;
+import com.taxoryn.module.marketplace.repository.MarketplaceServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -94,6 +100,9 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final InvoiceRepository invoiceRepository;
     private final ClientDocumentRequestRepository docRequestRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MarketplaceProfileRepository marketplaceProfileRepository;
+    private final MarketplaceServiceRepository marketplaceServiceRepository;
+    private final MarketplaceLeadRepository marketplaceLeadRepository;
 
     @Override
     public void run(String... args) {
@@ -273,6 +282,9 @@ public class DemoDataSeeder implements CommandLineRunner {
 
         // 4. Seed Demo Client Customer Logins & Portal Data
         seedDemoClientUsersAndPortalData(org);
+
+        // 5. Seed Demo Marketplace Profile, Services & Inbound Leads
+        seedDemoMarketplaceProfile(org);
     }
 
     private void seedDemoEmployeesAndTasks(OrganizationEntity org, RoleEntity articleRole, RoleEntity practitionerRole) {
@@ -745,6 +757,124 @@ public class DemoDataSeeder implements CommandLineRunner {
                     tds26q.setOrganizationId(org.getId());
                     tdsReturnRepository.save(tds26q);
                 }
+            }
+        }
+    }
+
+    private void seedDemoMarketplaceProfile(OrganizationEntity org) {
+        boolean isMundeshwari = org.getName().toUpperCase().contains("MUNDESHWARI");
+
+        if (marketplaceProfileRepository.findByOrganizationId(org.getId()).isEmpty()) {
+            MarketplaceProfileEntity profile = MarketplaceProfileEntity.builder()
+                    .organizationId(org.getId())
+                    .displayName(isMundeshwari ? "Maa Mundeshwari Tax & Legal Consultancy" : "Apex Corporate & Tax Advisors LLP")
+                    .slug(isMundeshwari ? "maa-mundeshwari-tax-consultancy" : "apex-corporate-tax-advisors")
+                    .headline(isMundeshwari ? "Premier Tax Advocates & High Court Representation" : "Expert Chartered Accountants & Strategic Corporate Tax Advisors")
+                    .bio(isMundeshwari
+                            ? "Maa Mundeshwari Tax Consultancy is a boutique tax advocacy firm providing end-to-end direct tax litigation, appellate representation before ITAT, GST compliance, and dispute resolution for MSMEs and corporate enterprises."
+                            : "Apex Corporate & Tax Advisors LLP is a leading Chartered Accountancy firm delivering high-impact corporate tax planning, international transfer pricing, statutory audits, GST advisory, and startup financial structuring.")
+                    .professionalType(isMundeshwari ? MarketplaceProfileEntity.ProfessionalType.TAX_ADVOCATE : MarketplaceProfileEntity.ProfessionalType.CHARTERED_ACCOUNTANT)
+                    .experienceYears(isMundeshwari ? 14 : 16)
+                    .city(isMundeshwari ? "Patna" : "Bangalore")
+                    .state(isMundeshwari ? "Bihar" : "Karnataka")
+                    .pincode(isMundeshwari ? "800001" : "560001")
+                    .address(isMundeshwari ? "Suite 304, Maurya Lok Complex, Dak Bungalow Road" : "Level 7, Prestige Meridian, MG Road")
+                    .phone(isMundeshwari ? "+919835012345" : "+919886012345")
+                    .email(isMundeshwari ? "contact@maamundeshwari.com" : "contact@apextax.com")
+                    .websiteUrl(isMundeshwari ? "https://maamundeshwari.com" : "https://apextax.com")
+                    .specializations("Corporate Tax, GST Compliance, Tax Litigation, Transfer Pricing, Statutory Audit")
+                    .languagesSpoken("English, Hindi, Kannada")
+                    .startingFee(new BigDecimal("1499.00"))
+                    .hourlyRate(new BigDecimal("2999.00"))
+                    .averageRating(new BigDecimal("4.95"))
+                    .totalReviews(28)
+                    .totalClientsServed(150)
+                    .visibilityStatus(MarketplaceProfileEntity.VisibilityStatus.PUBLIC)
+                    .verificationStatus(MarketplaceProfileEntity.VerificationStatus.VERIFIED)
+                    .isPublished(true)
+                    .isFeatured(true)
+                    .consultationEnabled(true)
+                    .consultationFee(new BigDecimal("799.00"))
+                    .consultationDurationMinutes(30)
+                    .build();
+
+            MarketplaceProfileEntity savedProfile = marketplaceProfileRepository.save(profile);
+            log.info("Seeded demo marketplace profile: {} ({})", savedProfile.getDisplayName(), savedProfile.getSlug());
+
+            // Seed sample service packages
+            if (marketplaceServiceRepository.findByOrganizationId(org.getId()).isEmpty()) {
+                MarketplaceServiceEntity s1 = MarketplaceServiceEntity.builder()
+                        .organizationId(org.getId())
+                        .marketplaceProfileId(savedProfile.getId())
+                        .title("Corporate ITR-6 Filing & Tax Audit (Form 3CD)")
+                        .category("ITR")
+                        .description("Comprehensive corporate tax computation, MAT calculation, deferred tax provisioning, and statutory Form 3CD tax audit report.")
+                        .price(new BigDecimal("14999.00"))
+                        .pricingType(MarketplaceServiceEntity.PricingType.FIXED)
+                        .deliveryDays(7)
+                        .deliverables("Computation Sheet, Form 3CD Audit, ITR-6 Filing Ack, Advisory Call")
+                        .isActive(true)
+                        .build();
+                marketplaceServiceRepository.save(s1);
+
+                MarketplaceServiceEntity s2 = MarketplaceServiceEntity.builder()
+                        .organizationId(org.getId())
+                        .marketplaceProfileId(savedProfile.getId())
+                        .title("Monthly GST Compliance & ITC 2B Reconciliation")
+                        .category("GST")
+                        .description("Automated monthly GSTR-1, GSTR-3B filings with deep AI-assisted Purchase Register vs GSTR-2B ITC matching.")
+                        .price(new BigDecimal("3499.00"))
+                        .pricingType(MarketplaceServiceEntity.PricingType.MONTHLY_RETAINER)
+                        .deliveryDays(3)
+                        .deliverables("GSTR-1, GSTR-3B, ITC mismatch report, e-way bill advisory")
+                        .isActive(true)
+                        .build();
+                marketplaceServiceRepository.save(s2);
+
+                MarketplaceServiceEntity s3 = MarketplaceServiceEntity.builder()
+                        .organizationId(org.getId())
+                        .marketplaceProfileId(savedProfile.getId())
+                        .title("Transfer Pricing & International Tax Advisory")
+                        .category("ADVISORY")
+                        .description("Benchmarking analysis, Form 3CEB filing, cross-border withholding tax (Form 15CA/CB) certification.")
+                        .price(new BigDecimal("24999.00"))
+                        .pricingType(MarketplaceServiceEntity.PricingType.FIXED)
+                        .deliveryDays(10)
+                        .deliverables("Form 3CEB, TP Study Documentation, 15CA/CB Certificate")
+                        .isActive(true)
+                        .build();
+                marketplaceServiceRepository.save(s3);
+            }
+
+            // Seed sample inbound customer leads
+            if (marketplaceLeadRepository.findAllByOrganizationId(org.getId()).isEmpty()) {
+                MarketplaceLeadEntity lead1 = MarketplaceLeadEntity.builder()
+                        .organizationId(org.getId())
+                        .marketplaceProfileId(savedProfile.getId())
+                        .clientName("Siddharth Nambiar")
+                        .clientEmail("siddharth.n@zenittech.io")
+                        .clientPhone("+919812345670")
+                        .serviceCategory("GST & Corporate Tax Advisory")
+                        .requirementDescription("Looking for an experienced CA firm to manage GST return filing and annual ROC compliance for our SaaS tech startup.")
+                        .budgetRange("₹25,000 - ₹50,000")
+                        .urgency(MarketplaceLeadEntity.Urgency.STANDARD)
+                        .leadStatus(MarketplaceLeadEntity.LeadStatus.NEW)
+                        .build();
+                marketplaceLeadRepository.save(lead1);
+
+                MarketplaceLeadEntity lead2 = MarketplaceLeadEntity.builder()
+                        .organizationId(org.getId())
+                        .marketplaceProfileId(savedProfile.getId())
+                        .clientName("Meenakshi Sundaram")
+                        .clientEmail("meenakshi@innovatelegal.in")
+                        .clientPhone("+919876541230")
+                        .serviceCategory("Statutory Tax Audit (Form 3CD)")
+                        .requirementDescription("Private limited enterprise requiring FY 2025-26 statutory balance sheet finalization and Form 3CD tax audit certification.")
+                        .budgetRange("₹45,000 - ₹75,000")
+                        .urgency(MarketplaceLeadEntity.Urgency.URGENT)
+                        .leadStatus(MarketplaceLeadEntity.LeadStatus.CONTACTED)
+                        .build();
+                marketplaceLeadRepository.save(lead2);
             }
         }
     }

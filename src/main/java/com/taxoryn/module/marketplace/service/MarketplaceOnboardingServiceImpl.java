@@ -1,5 +1,6 @@
 package com.taxoryn.module.marketplace.service;
 
+import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.SecurityUtils;
@@ -337,14 +338,21 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
     }
 
     // =========================================================================
-    // 2. Public Self-Serve Customer Operations (Secured by accessToken)
+    // 2. Public Self-Serve Customer Operations (Secured by accessToken & Scoped Tokens)
     // =========================================================================
 
     @Override
     @Transactional(readOnly = true)
     public MarketplaceProposalDto getPublicProposalByToken(String token) {
-        MarketplaceProposalEntity proposal = proposalRepository.findByAccessToken(token)
+        if (!StringUtils.hasText(token)) {
+            throw new ResourceNotFoundException("Marketplace Proposal", "token", token);
+        }
+        MarketplaceProposalEntity proposal = proposalRepository.findByAccessToken(token.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Proposal", "token", token));
+
+        if (proposal.getValidUntil() != null && proposal.getValidUntil().isBefore(LocalDate.now())) {
+            throw new BusinessValidationException("This engagement proposal has expired. Please contact the tax practitioner for a renewed proposal.");
+        }
 
         MarketplaceLeadEntity lead = leadRepository.findById(proposal.getLeadId()).orElse(null);
         MarketplaceProfileEntity prof = profileRepository.findById(proposal.getMarketplaceProfileId()).orElse(null);
@@ -354,8 +362,21 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
     @Override
     @Transactional
     public MarketplaceProposalDto acceptOrRejectProposal(String token, AcceptProposalRequest request) {
-        MarketplaceProposalEntity proposal = proposalRepository.findByAccessToken(token)
+        if (!StringUtils.hasText(token)) {
+            throw new ResourceNotFoundException("Marketplace Proposal", "token", token);
+        }
+        MarketplaceProposalEntity proposal = proposalRepository.findByAccessToken(token.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Proposal", "token", token));
+
+        if (proposal.getProposalStatus() == ProposalStatus.ACCEPTED) {
+            throw new BusinessValidationException("This engagement proposal has already been accepted.");
+        }
+        if (proposal.getProposalStatus() == ProposalStatus.REJECTED) {
+            throw new BusinessValidationException("This engagement proposal has already been rejected.");
+        }
+        if (proposal.getValidUntil() != null && proposal.getValidUntil().isBefore(LocalDate.now())) {
+            throw new BusinessValidationException("This engagement proposal has expired and can no longer be accepted. Please request a new proposal.");
+        }
 
         UUID propLeadId = proposal.getLeadId();
         MarketplaceLeadEntity lead = leadRepository.findById(propLeadId)
@@ -411,7 +432,10 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
     @Override
     @Transactional(readOnly = true)
     public MarketplaceOnboardingDto getPublicOnboardingByToken(String token) {
-        MarketplaceOnboardingEntity onboarding = onboardingRepository.findByAccessToken(token)
+        if (!StringUtils.hasText(token)) {
+            throw new ResourceNotFoundException("Marketplace Onboarding", "token", token);
+        }
+        MarketplaceOnboardingEntity onboarding = onboardingRepository.findByAccessToken(token.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Onboarding", "token", token));
 
         MarketplaceProfileEntity profile = profileRepository.findById(onboarding.getMarketplaceProfileId()).orElse(null);
@@ -421,8 +445,15 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
     @Override
     @Transactional
     public MarketplaceOnboardingDto updatePublicOnboardingDetails(String token, UpdateOnboardingDetailsRequest request) {
-        MarketplaceOnboardingEntity onboarding = onboardingRepository.findByAccessToken(token)
+        if (!StringUtils.hasText(token)) {
+            throw new ResourceNotFoundException("Marketplace Onboarding", "token", token);
+        }
+        MarketplaceOnboardingEntity onboarding = onboardingRepository.findByAccessToken(token.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Onboarding", "token", token));
+
+        if (onboarding.getOnboardingStatus() == OnboardingStatus.APPROVED || onboarding.getOnboardingStatus() == OnboardingStatus.REJECTED) {
+            throw new BusinessValidationException("Cannot modify onboarding details for a completed or closed onboarding session.");
+        }
 
         if (StringUtils.hasText(request.getClientName())) onboarding.setClientName(request.getClientName());
         if (StringUtils.hasText(request.getLegalName())) onboarding.setLegalName(request.getLegalName());
