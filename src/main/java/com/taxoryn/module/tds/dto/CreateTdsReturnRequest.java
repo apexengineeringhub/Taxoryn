@@ -23,13 +23,17 @@ import java.util.UUID;
 @Schema(description = "Request to create a new TDS Return Filing Record")
 public class CreateTdsReturnRequest {
 
-    @NotNull(message = "Client ID is required")
-    @Schema(description = "Client ID", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Client ID (optional, auto-resolved from TAN)")
     private UUID clientId;
 
-    @NotNull(message = "TDS Profile ID is required")
-    @Schema(description = "TDS Profile ID", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "TDS Profile ID (optional, auto-resolved from TAN)")
     private UUID tdsProfileId;
+
+    @Schema(description = "TAN Number (optional, used to auto-resolve Profile ID)", example = "BLRP12345A")
+    private String tan;
+
+    @Schema(description = "Client Display Name (optional)", example = "Acme Corporation Pvt Ltd")
+    private String clientName;
 
     @NotNull(message = "Form Type is required")
     @Schema(description = "TDS Return Form Type (FORM_24Q, FORM_26Q, FORM_27Q, FORM_27EQ, etc.)", requiredMode = Schema.RequiredMode.REQUIRED)

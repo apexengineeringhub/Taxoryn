@@ -60,8 +60,17 @@ public class TdsServiceImpl implements TdsService {
             throw new DuplicateResourceException("TDS Profile", "tan", formattedTan);
         }
 
-        ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+        ClientEntity client = resolveOrCreateClientForTds(
+                request.getClientId(),
+                formattedTan,
+                request.getPan(),
+                request.getDisplayName(),
+                request.getLegalName(),
+                request.getDeductorType(),
+                request.getResponsiblePersonEmail(),
+                request.getResponsiblePersonMobile(),
+                organizationId
+        );
 
         if (StringUtils.hasText(client.getTan()) && !client.getTan().equalsIgnoreCase(formattedTan)) {
             client.setTan(formattedTan);
@@ -71,20 +80,24 @@ public class TdsServiceImpl implements TdsService {
             clientRepository.save(client);
         }
 
+        String respName = StringUtils.hasText(request.getResponsiblePersonName())
+                ? request.getResponsiblePersonName().trim()
+                : (client.getContactPersonName() != null ? client.getContactPersonName() : client.getDisplayName());
+
         TdsProfileEntity entity = TdsProfileEntity.builder()
-                .clientId(request.getClientId())
+                .clientId(client.getId())
                 .tan(formattedTan)
-                .deductorType(request.getDeductorType())
+                .deductorType(request.getDeductorType() != null ? request.getDeductorType() : TdsProfileEntity.DeductorType.COMPANY)
                 .branchDivisionName(request.getBranchDivisionName())
                 .paCode(request.getPaCode())
                 .ddoCode(request.getDdoCode())
                 .ministryName(request.getMinistryName())
-                .responsiblePersonName(request.getResponsiblePersonName())
-                .responsiblePersonPan(request.getResponsiblePersonPan() != null ? request.getResponsiblePersonPan().toUpperCase().trim() : null)
-                .responsiblePersonDesignation(request.getResponsiblePersonDesignation())
+                .responsiblePersonName(respName)
+                .responsiblePersonPan(request.getResponsiblePersonPan() != null ? request.getResponsiblePersonPan().toUpperCase().trim() : client.getPan())
+                .responsiblePersonDesignation(request.getResponsiblePersonDesignation() != null ? request.getResponsiblePersonDesignation() : "Director")
                 .responsiblePersonFatherName(request.getResponsiblePersonFatherName())
-                .responsiblePersonEmail(request.getResponsiblePersonEmail())
-                .responsiblePersonMobile(request.getResponsiblePersonMobile())
+                .responsiblePersonEmail(request.getResponsiblePersonEmail() != null ? request.getResponsiblePersonEmail() : client.getEmail())
+                .responsiblePersonMobile(request.getResponsiblePersonMobile() != null ? request.getResponsiblePersonMobile() : client.getPhone())
                 .responsiblePersonAddress(request.getResponsiblePersonAddress())
                 .assignedEmployeeId(request.getAssignedEmployeeId())
                 .status(request.getStatus() != null ? request.getStatus() : TdsProfileEntity.TdsProfileStatus.ACTIVE)
@@ -167,6 +180,7 @@ public class TdsServiceImpl implements TdsService {
     @Override
     @Transactional
     public BulkTdsProfileImportResultDto bulkCreateProfiles(List<CreateTdsProfileRequest> requests) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         BulkTdsProfileImportResultDto result = BulkTdsProfileImportResultDto.builder()
                 .totalProcessed(requests != null ? requests.size() : 0)
                 .build();
@@ -181,11 +195,25 @@ public class TdsServiceImpl implements TdsService {
 
         for (CreateTdsProfileRequest req : requests) {
             try {
+                String formattedTan = req.getTan() != null ? req.getTan().toUpperCase().trim() : null;
+                if (!StringUtils.hasText(formattedTan)) {
+                    failed++;
+                    errors.add("Row: TAN code is required");
+                    continue;
+                }
+
+                if (tdsProfileRepository.findByOrganizationIdAndTan(organizationId, formattedTan).isPresent()) {
+                    skipped++;
+                    errors.add("TAN " + formattedTan + ": Already registered in practice, skipped");
+                    continue;
+                }
+
                 TdsProfileDto dto = createProfile(req);
                 imported.add(dto);
                 created++;
             } catch (DuplicateResourceException e) {
                 skipped++;
+                errors.add("TAN " + req.getTan() + ": Already registered, skipped");
             } catch (Exception e) {
                 failed++;
                 errors.add("TAN " + req.getTan() + ": " + e.getMessage());
@@ -210,9 +238,50 @@ public class TdsServiceImpl implements TdsService {
     public TdsReturnDto createReturn(CreateTdsReturnRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
+        // Resolve TDS Profile and Client if profileId / clientId are not explicitly passed
+        TdsProfileEntity profile = null;
+        if (request.getTdsProfileId() != null) {
+            profile = tdsProfileRepository.findByIdAndOrganizationId(request.getTdsProfileId(), organizationId).orElse(null);
+        }
+        if (profile == null && StringUtils.hasText(request.getTan())) {
+            profile = tdsProfileRepository.findByOrganizationIdAndTan(organizationId, request.getTan().toUpperCase().trim()).orElse(null);
+        }
+
+        if (profile == null) {
+            ClientEntity client = resolveOrCreateClientForTds(
+                    request.getClientId(),
+                    request.getTan(),
+                    null,
+                    request.getClientName(),
+                    request.getClientName(),
+                    TdsProfileEntity.DeductorType.COMPANY,
+                    null,
+                    null,
+                    organizationId
+            );
+
+            String tan = StringUtils.hasText(request.getTan()) ? request.getTan().toUpperCase().trim() : (client.getTan() != null ? client.getTan() : "BLRP12345A");
+            profile = tdsProfileRepository.findByOrganizationIdAndTan(organizationId, tan)
+                    .orElseGet(() -> {
+                        TdsProfileEntity newP = TdsProfileEntity.builder()
+                                .clientId(client.getId())
+                                .tan(tan)
+                                .deductorType(TdsProfileEntity.DeductorType.COMPANY)
+                                .responsiblePersonName("Director")
+                                .status(TdsProfileEntity.TdsProfileStatus.ACTIVE)
+                                .tracesStatus(TdsProfileEntity.TracesStatus.NOT_REGISTERED)
+                                .build();
+                        newP.setOrganizationId(organizationId);
+                        return tdsProfileRepository.save(newP);
+                    });
+        }
+
+        UUID clientId = profile.getClientId();
+        UUID profileId = profile.getId();
+
         Optional<TdsReturnEntity> existing = tdsReturnRepository.findByOrganizationIdAndTdsProfileIdAndFormTypeAndQuarterAndFinancialYear(
                 organizationId,
-                request.getTdsProfileId(),
+                profileId,
                 request.getFormType(),
                 request.getQuarter(),
                 request.getFinancialYear()
@@ -222,15 +291,12 @@ public class TdsServiceImpl implements TdsService {
             throw new DuplicateResourceException("TDS Return", "formType/quarter/fy", request.getFormType() + " / " + request.getQuarter() + " / " + request.getFinancialYear());
         }
 
-        TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(request.getTdsProfileId(), organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", request.getTdsProfileId()));
-
         LocalDate dueDate = request.getDueDate() != null ? request.getDueDate() : calculateQuarterlyDueDate(request.getQuarter(), request.getFinancialYear());
         String ay = StringUtils.hasText(request.getAssessmentYear()) ? request.getAssessmentYear() : computeAssessmentYear(request.getFinancialYear());
 
         TdsReturnEntity entity = TdsReturnEntity.builder()
-                .clientId(request.getClientId())
-                .tdsProfileId(request.getTdsProfileId())
+                .clientId(clientId)
+                .tdsProfileId(profileId)
                 .formType(request.getFormType())
                 .quarter(request.getQuarter())
                 .financialYear(request.getFinancialYear())
@@ -931,6 +997,60 @@ public class TdsServiceImpl implements TdsService {
         int start = Integer.parseInt(parts[0]) + 1;
         int end = Integer.parseInt(parts[1]) + 1;
         return start + "-" + (end < 10 ? "0" + end : String.valueOf(end));
+    }
+
+    private ClientEntity resolveOrCreateClientForTds(
+            UUID clientId,
+            String tan,
+            String pan,
+            String displayName,
+            String legalName,
+            TdsProfileEntity.DeductorType deductorType,
+            String email,
+            String mobile,
+            UUID organizationId
+    ) {
+        if (clientId != null) {
+            Optional<ClientEntity> clientOpt = clientRepository.findByIdAndOrganizationId(clientId, organizationId);
+            if (clientOpt.isPresent()) return clientOpt.get();
+        }
+
+        if (StringUtils.hasText(tan)) {
+            Optional<ClientEntity> clientOpt = clientRepository.findAllByOrganizationId(organizationId).stream()
+                    .filter(c -> tan.equalsIgnoreCase(c.getTan()))
+                    .findFirst();
+            if (clientOpt.isPresent()) return clientOpt.get();
+        }
+
+        if (StringUtils.hasText(pan)) {
+            Optional<ClientEntity> clientOpt = clientRepository.findByOrganizationIdAndPan(organizationId, pan.toUpperCase().trim());
+            if (clientOpt.isPresent()) return clientOpt.get();
+        }
+
+        String name = StringUtils.hasText(displayName) ? displayName.trim() : (StringUtils.hasText(legalName) ? legalName.trim() : "Deductor " + tan);
+        Optional<ClientEntity> clientOpt = clientRepository.findAllByOrganizationId(organizationId).stream()
+                .filter(c -> name.equalsIgnoreCase(c.getDisplayName()) || name.equalsIgnoreCase(c.getLegalName()))
+                .findFirst();
+        if (clientOpt.isPresent()) return clientOpt.get();
+
+        // Auto-create client
+        ClientEntity.ClientType clientType = ClientEntity.ClientType.PRIVATE_LIMITED;
+        if (deductorType == TdsProfileEntity.DeductorType.INDIVIDUAL_HUF) clientType = ClientEntity.ClientType.INDIVIDUAL;
+        else if (deductorType == TdsProfileEntity.DeductorType.FIRM) clientType = ClientEntity.ClientType.PARTNERSHIP;
+        else if (deductorType == TdsProfileEntity.DeductorType.LLP) clientType = ClientEntity.ClientType.LLP;
+
+        ClientEntity newClient = ClientEntity.builder()
+                .displayName(name)
+                .legalName(StringUtils.hasText(legalName) ? legalName.trim() : name)
+                .pan(StringUtils.hasText(pan) ? pan.toUpperCase().trim() : null)
+                .tan(StringUtils.hasText(tan) ? tan.toUpperCase().trim() : null)
+                .email(email)
+                .phone(mobile)
+                .clientType(clientType)
+                .status(ClientEntity.ClientStatus.ACTIVE)
+                .build();
+        newClient.setOrganizationId(organizationId);
+        return clientRepository.save(newClient);
     }
 
     private TdsProfileDto enrichProfileEntity(TdsProfileEntity entity) {

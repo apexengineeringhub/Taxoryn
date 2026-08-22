@@ -21,9 +21,18 @@ import java.util.UUID;
 @Schema(description = "Request to register a TAN Deductor Profile")
 public class CreateTdsProfileRequest {
 
-    @NotNull(message = "Client ID is required")
-    @Schema(description = "Client ID", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Client ID (optional, auto-resolved if not provided)")
     private UUID clientId;
+
+    @Schema(description = "Client Display Name / Legal Name for Auto-Onboarding", example = "Acme Corporation Pvt Ltd")
+    private String displayName;
+
+    @Schema(description = "Client Legal Name", example = "Acme Corporation Private Limited")
+    private String legalName;
+
+    @Pattern(regexp = "^$|^[A-Z]{5}[0-9]{4}[A-Z]{1}$", message = "Client PAN must be a valid 10-character PAN")
+    @Schema(description = "Client PAN", example = "AABCA1234K")
+    private String pan;
 
     @NotBlank(message = "TAN is required")
     @Pattern(regexp = "^[A-Z]{4}[0-9]{5}[A-Z]{1}$", message = "TAN must be a valid 10-character alphanumeric code (e.g., BLRP12345A)")

@@ -410,27 +410,13 @@ export const TdsDataMigrationHubPage: React.FC = () => {
   const handleImportProfiles = async () => {
     setIsSubmitting(true);
     try {
-      const requests = [];
-      for (const row of parsedProfiles.filter((p) => p.isValid)) {
-        let clientId = row.matchedClient?.id;
-
-        // Auto-onboard Client if not matched
-        if (!clientId) {
-          const newClient = await clientApi.create({
-            displayName: row.clientName,
-            legalName: row.clientName,
-            pan: row.pan,
-            tan: row.tan,
-            email: row.email,
-            phone: row.mobile,
-            clientType: row.deductorType === 'COMPANY' ? 'PRIVATE_LIMITED' : 'INDIVIDUAL',
-            status: 'ACTIVE',
-          });
-          clientId = newClient.id;
-        }
-
-        requests.push({
-          clientId,
+      const requests = parsedProfiles
+        .filter((p) => p.isValid)
+        .map((row) => ({
+          clientId: row.matchedClient?.id,
+          displayName: row.clientName,
+          legalName: row.clientName,
+          pan: row.pan,
           tan: row.tan,
           deductorType: row.deductorType,
           responsiblePersonName: row.responsiblePersonName,
@@ -439,8 +425,7 @@ export const TdsDataMigrationHubPage: React.FC = () => {
           responsiblePersonEmail: row.email,
           responsiblePersonMobile: row.mobile,
           status: 'ACTIVE' as any,
-        });
-      }
+        }));
 
       const res = await tdsApi.bulkImportProfiles(requests);
       setProfileResult(res);
@@ -457,10 +442,12 @@ export const TdsDataMigrationHubPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const requests = parsedReturns
-        .filter((r) => r.isValid && r.matchedProfile)
+        .filter((r) => r.isValid)
         .map((row) => ({
-          clientId: row.matchedProfile!.clientId,
-          tdsProfileId: row.matchedProfile!.id,
+          clientId: row.matchedProfile?.clientId,
+          tdsProfileId: row.matchedProfile?.id,
+          tan: row.tan,
+          clientName: row.clientName,
           formType: row.formType,
           quarter: row.quarter,
           financialYear: row.financialYear,
@@ -476,6 +463,7 @@ export const TdsDataMigrationHubPage: React.FC = () => {
 
       const res = await tdsApi.bulkImportReturns(requests);
       setReturnResult(res);
+      await loadPrerequisites();
     } catch (err) {
       console.error('Failed to bulk import returns', err);
     } finally {
@@ -619,14 +607,40 @@ export const TdsDataMigrationHubPage: React.FC = () => {
 
           {/* Success / Result Banner */}
           {profileResult && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-5 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-sm space-y-2">
-              <div className="flex items-center space-x-2 text-emerald-800 dark:text-emerald-200 font-bold">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <span>TAN Master Migration Completed Successfully</span>
+            <div
+              className={clsx(
+                'p-5 rounded-2xl border text-sm space-y-2',
+                profileResult.totalFailed > 0
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+              )}
+            >
+              <div
+                className={clsx(
+                  'flex items-center space-x-2 font-bold',
+                  profileResult.totalFailed > 0
+                    ? 'text-amber-800 dark:text-amber-200'
+                    : 'text-emerald-800 dark:text-emerald-200'
+                )}
+              >
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>
+                  TAN Master Migration Completed: {profileResult.totalCreated} Created, {profileResult.totalSkipped} Skipped, {profileResult.totalFailed} Failed
+                </span>
               </div>
-              <div className="text-xs text-emerald-700 dark:text-emerald-300">
-                Processed: {profileResult.totalProcessed} | Created: {profileResult.totalCreated} | Skipped (Existing): {profileResult.totalSkipped} | Failed: {profileResult.totalFailed}
+              <div className="text-xs text-slate-600 dark:text-slate-300">
+                Total Processed: {profileResult.totalProcessed} | Successfully Created: {profileResult.totalCreated} | Skipped (Already Registered): {profileResult.totalSkipped} | Failed: {profileResult.totalFailed}
               </div>
+              {profileResult.errorMessages && profileResult.errorMessages.length > 0 && (
+                <div className="mt-2 text-xs bg-white/80 dark:bg-slate-900/80 p-3 rounded-lg border border-slate-200 dark:border-slate-800 max-h-36 overflow-y-auto space-y-1">
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Import Notes & Log Details:</p>
+                  {profileResult.errorMessages.map((msg: string, i: number) => (
+                    <div key={i} className="text-slate-600 dark:text-slate-400 font-mono text-[11px]">
+                      • {msg}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -746,14 +760,40 @@ export const TdsDataMigrationHubPage: React.FC = () => {
 
           {/* Success Banner */}
           {returnResult && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-5 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-sm space-y-2">
-              <div className="flex items-center space-x-2 text-emerald-800 dark:text-emerald-200 font-bold">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <span>Quarterly Statements Migration Completed Successfully</span>
+            <div
+              className={clsx(
+                'p-5 rounded-2xl border text-sm space-y-2',
+                returnResult.totalFailed > 0
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+              )}
+            >
+              <div
+                className={clsx(
+                  'flex items-center space-x-2 font-bold',
+                  returnResult.totalFailed > 0
+                    ? 'text-amber-800 dark:text-amber-200'
+                    : 'text-emerald-800 dark:text-emerald-200'
+                )}
+              >
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>
+                  Quarterly Statements Migration Completed: {returnResult.totalCreated} Created, {returnResult.totalSkipped} Skipped, {returnResult.totalFailed} Failed
+                </span>
               </div>
-              <div className="text-xs text-emerald-700 dark:text-emerald-300">
-                Processed: {returnResult.totalProcessed} | Created: {returnResult.totalCreated} | Skipped: {returnResult.totalSkipped} | Failed: {returnResult.totalFailed}
+              <div className="text-xs text-slate-600 dark:text-slate-300">
+                Total Processed: {returnResult.totalProcessed} | Successfully Created: {returnResult.totalCreated} | Skipped (Existing): {returnResult.totalSkipped} | Failed: {returnResult.totalFailed}
               </div>
+              {returnResult.errorMessages && returnResult.errorMessages.length > 0 && (
+                <div className="mt-2 text-xs bg-white/80 dark:bg-slate-900/80 p-3 rounded-lg border border-slate-200 dark:border-slate-800 max-h-36 overflow-y-auto space-y-1">
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Import Notes & Log Details:</p>
+                  {returnResult.errorMessages.map((msg: string, i: number) => (
+                    <div key={i} className="text-slate-600 dark:text-slate-400 font-mono text-[11px]">
+                      • {msg}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
