@@ -94,6 +94,15 @@ public class ProfileCompletenessCalculator {
     }
 
     /**
+     * Dynamically registers a new completeness rule (e.g. for future Service Catalog or Location modules).
+     */
+    public void registerRule(CompletenessRule rule) {
+        if (rule != null) {
+            this.rules.add(rule);
+        }
+    }
+
+    /**
      * Calculates the overall profile completeness metrics.
      *
      * @param profile      the practice's public marketplace profile entity
