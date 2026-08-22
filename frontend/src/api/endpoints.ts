@@ -29,6 +29,17 @@ import {
   ClientDocumentRequest,
   ClientPortalUser,
   RegisterClientPortalUserRequest,
+  TdsProfile,
+  TdsReturn,
+  TdsChallan,
+  TdsDeducteeEntry,
+  TdsCertificate,
+  TdsSectionRate,
+  TdsComputationRequest,
+  TdsComputationResult,
+  TdsWorkloadDashboard,
+  BulkTdsProfileImportResult,
+  BulkTdsReturnImportResult,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -335,6 +346,205 @@ export const itrApi = {
     const res = await apiClient.get<ApiResponse<any>>('/v1/itr/dashboard/workload', {
       params: { assessmentYear, assignedEmployeeId },
     });
+    return res.data.data;
+  },
+};
+
+// --- 6B. TDS & TCS Practice Management ---
+export const tdsApi = {
+  // Profiles (TAN Master)
+  getProfiles: async (params?: { deductorType?: string; status?: string; clientId?: string; page?: number; size?: number; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<TdsProfile>>>('/v1/tds/profiles', { params });
+    return res.data.data;
+  },
+  getProfileById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<TdsProfile>>(`/v1/tds/profiles/${id}`);
+    return res.data.data;
+  },
+  getProfileByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<TdsProfile>>(`/v1/tds/profiles/clients/${clientId}`);
+    return res.data.data;
+  },
+  createProfile: async (payload: Partial<TdsProfile>) => {
+    const res = await apiClient.post<ApiResponse<TdsProfile>>('/v1/tds/profiles', payload);
+    return res.data.data;
+  },
+  updateProfile: async (id: string, payload: Partial<TdsProfile>) => {
+    const res = await apiClient.put<ApiResponse<TdsProfile>>(`/v1/tds/profiles/${id}`, payload);
+    return res.data.data;
+  },
+  bulkImportProfiles: async (profiles: Partial<TdsProfile>[]) => {
+    try {
+      const res = await apiClient.post<ApiResponse<BulkTdsProfileImportResult>>('/v1/tds/profiles/bulk', profiles);
+      return res.data.data;
+    } catch {
+      const result: BulkTdsProfileImportResult = {
+        totalProcessed: profiles.length,
+        totalCreated: 0,
+        totalSkipped: 0,
+        totalFailed: 0,
+        importedProfiles: [],
+        errorMessages: [],
+      };
+      for (const p of profiles) {
+        try {
+          const created = await tdsApi.createProfile(p);
+          result.totalCreated++;
+          result.importedProfiles.push(created);
+        } catch (err: any) {
+          const msg = err.response?.data?.message || err.message;
+          if (msg?.toLowerCase().includes('already exists') || msg?.toLowerCase().includes('duplicate')) {
+            result.totalSkipped++;
+          } else {
+            result.totalFailed++;
+            result.errorMessages.push(`${p.tan}: ${msg}`);
+          }
+        }
+      }
+      return result;
+    }
+  },
+
+  // Returns Lifecycle
+  getReturns: async (params?: { formType?: string; quarter?: string; financialYear?: string; filingStatus?: string; clientId?: string; tdsProfileId?: string; assignedEmployeeId?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<TdsReturn>>>('/v1/tds/returns', { params });
+    return res.data.data;
+  },
+  getReturnById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}`);
+    return res.data.data;
+  },
+  createReturn: async (payload: Partial<TdsReturn>) => {
+    const res = await apiClient.post<ApiResponse<TdsReturn>>('/v1/tds/returns', payload);
+    return res.data.data;
+  },
+  updateReturn: async (id: string, payload: Partial<TdsReturn>) => {
+    const res = await apiClient.put<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}`, payload);
+    return res.data.data;
+  },
+  updateReturnStatus: async (id: string, payload: { filingStatus: string; filingDate?: string; tokenNumber?: string; receiptNumber?: string; notes?: string }) => {
+    const res = await apiClient.patch<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}/status`, payload);
+    return res.data.data;
+  },
+  recordFiling: async (id: string, payload: { filingDate: string; tokenNumber: string; receiptNumber?: string; notes?: string }) => {
+    const res = await apiClient.post<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}/file`, payload);
+    return res.data.data;
+  },
+  assignEmployee: async (id: string, payload: { employeeId: string }) => {
+    const res = await apiClient.put<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}/assigned-employee`, payload);
+    return res.data.data;
+  },
+  batchGenerateReturns: async (payload: { quarter: string; financialYear: string; formTypes?: string[]; assessmentYear?: string; dueDate?: string }) => {
+    const res = await apiClient.post<ApiResponse<TdsReturn[]>>('/v1/tds/returns/batch-generate', payload);
+    return res.data.data;
+  },
+  bulkImportReturns: async (returns: Partial<TdsReturn>[]) => {
+    try {
+      const res = await apiClient.post<ApiResponse<BulkTdsReturnImportResult>>('/v1/tds/returns/bulk', returns);
+      return res.data.data;
+    } catch {
+      const result: BulkTdsReturnImportResult = {
+        totalProcessed: returns.length,
+        totalCreated: 0,
+        totalSkipped: 0,
+        totalFailed: 0,
+        importedReturns: [],
+        errorMessages: [],
+      };
+      for (const r of returns) {
+        try {
+          const created = await tdsApi.createReturn(r);
+          result.totalCreated++;
+          result.importedReturns.push(created);
+        } catch (err: any) {
+          const msg = err.response?.data?.message || err.message;
+          if (msg?.toLowerCase().includes('already exists') || msg?.toLowerCase().includes('duplicate')) {
+            result.totalSkipped++;
+          } else {
+            result.totalFailed++;
+            result.errorMessages.push(`${r.formType} ${r.quarter}: ${msg}`);
+          }
+        }
+      }
+      return result;
+    }
+  },
+  getUpcomingReturns: async (daysAhead: number = 30) => {
+    const res = await apiClient.get<ApiResponse<TdsReturn[]>>('/v1/tds/returns/upcoming', { params: { daysAhead } });
+    return res.data.data;
+  },
+  getOverdueReturns: async () => {
+    const res = await apiClient.get<ApiResponse<TdsReturn[]>>('/v1/tds/returns/overdue');
+    return res.data.data;
+  },
+  getClientReturnHistory: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<TdsReturn[]>>(`/v1/tds/clients/${clientId}/history`);
+    return res.data.data;
+  },
+  seedDemo: async () => {
+    const res = await apiClient.post<ApiResponse<TdsReturn[]>>('/v1/tds/seed-demo');
+    return res.data.data;
+  },
+
+  // Challans ITNS 281
+  getChallans: async (params?: { tdsProfileId?: string; quarter?: string; financialYear?: string; challanStatus?: string; sectionCode?: string; page?: number; size?: number; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<TdsChallan>>>('/v1/tds/challans', { params });
+    return res.data.data;
+  },
+  getChallanById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<TdsChallan>>(`/v1/tds/challans/${id}`);
+    return res.data.data;
+  },
+  createChallan: async (payload: Partial<TdsChallan>) => {
+    const res = await apiClient.post<ApiResponse<TdsChallan>>('/v1/tds/challans', payload);
+    return res.data.data;
+  },
+  updateChallan: async (id: string, payload: Partial<TdsChallan>) => {
+    const res = await apiClient.put<ApiResponse<TdsChallan>>(`/v1/tds/challans/${id}`, payload);
+    return res.data.data;
+  },
+
+  // Deductees
+  createDeducteeEntry: async (payload: Partial<TdsDeducteeEntry>) => {
+    const res = await apiClient.post<ApiResponse<TdsDeducteeEntry>>('/v1/tds/deductees', payload);
+    return res.data.data;
+  },
+  getDeducteesByProfile: async (profileId: string) => {
+    const res = await apiClient.get<ApiResponse<TdsDeducteeEntry[]>>(`/v1/tds/profiles/${profileId}/deductees`);
+    return res.data.data;
+  },
+  getDeducteesByReturn: async (returnId: string) => {
+    const res = await apiClient.get<ApiResponse<TdsDeducteeEntry[]>>(`/v1/tds/returns/${returnId}/deductees`);
+    return res.data.data;
+  },
+
+  // Form 16 / 16A Certificates
+  createCertificate: async (payload: Partial<TdsCertificate>) => {
+    const res = await apiClient.post<ApiResponse<TdsCertificate>>('/v1/tds/certificates', payload);
+    return res.data.data;
+  },
+  getCertificatesByProfile: async (profileId: string) => {
+    const res = await apiClient.get<ApiResponse<TdsCertificate[]>>(`/v1/tds/profiles/${profileId}/certificates`);
+    return res.data.data;
+  },
+  updateCertificateStatus: async (id: string, payload: { dispatchStatus: string; certificateNumber?: string; notes?: string }) => {
+    const res = await apiClient.patch<ApiResponse<TdsCertificate>>(`/v1/tds/certificates/${id}/status`, payload);
+    return res.data.data;
+  },
+
+  // Dashboard & Rate Engine
+  getWorkloadDashboard: async (quarter: string = 'Q1', financialYear: string = '2026-27', assignedEmployeeId?: string) => {
+    const res = await apiClient.get<ApiResponse<TdsWorkloadDashboard>>('/v1/tds/dashboard/workload', {
+      params: { quarter, financialYear, assignedEmployeeId },
+    });
+    return res.data.data;
+  },
+  computeTds: async (payload: TdsComputationRequest) => {
+    const res = await apiClient.post<ApiResponse<TdsComputationResult>>('/v1/tds/calculator/compute', payload);
+    return res.data.data;
+  },
+  getSectionRates: async () => {
+    const res = await apiClient.get<ApiResponse<TdsSectionRate[]>>('/v1/tds/calculator/rates');
     return res.data.data;
   },
 };

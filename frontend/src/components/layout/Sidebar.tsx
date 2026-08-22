@@ -16,6 +16,7 @@ import {
   Palette,
   LogOut,
   Sparkles,
+  Percent,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -43,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard, visible: true },
     { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2, visible: true },
     { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet, visible: true },
+    { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent, visible: true },
     { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
     { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
   ];
@@ -53,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, visible: true },
     { label: 'GST Compliance', path: '/gst', icon: Building2, visible: true },
     { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, visible: true },
+    { label: 'TDS Compliance', path: '/tds', icon: Percent, visible: true },
     { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
     { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },

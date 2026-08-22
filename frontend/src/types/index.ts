@@ -581,3 +581,223 @@ export interface ClientPortalDashboard {
   latestInvoices: Invoice[];
 }
 
+// 12. TDS / TCS Practice Management Interfaces
+export interface TdsProfile {
+  id: string;
+  clientId: string;
+  clientName?: string;
+  tan: string;
+  deductorType: 'COMPANY' | 'INDIVIDUAL_HUF' | 'FIRM' | 'LLP' | 'BRANCH_DIVISION' | 'GOVERNMENT_CENTRAL' | 'GOVERNMENT_STATE' | 'STATUTORY_BODY' | 'AUTONOMOUS_BODY' | 'OTHER';
+  branchDivisionName?: string;
+  paCode?: string;
+  ddoCode?: string;
+  ministryName?: string;
+  responsiblePersonName?: string;
+  responsiblePersonPan?: string;
+  responsiblePersonDesignation?: string;
+  responsiblePersonFatherName?: string;
+  responsiblePersonEmail?: string;
+  responsiblePersonMobile?: string;
+  responsiblePersonAddress?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SURRENDERED';
+  tracesUsername?: string;
+  tracesStatus: 'NOT_REGISTERED' | 'REGISTERED_ACTIVE' | 'PASSWORD_EXPIRED' | 'SUSPENDED';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TdsReturn {
+  id: string;
+  clientId: string;
+  clientName?: string;
+  tdsProfileId: string;
+  tan?: string;
+  formType: 'FORM_24Q' | 'FORM_26Q' | 'FORM_27Q' | 'FORM_27EQ' | 'FORM_26QB' | 'FORM_26QC' | 'FORM_26QD' | 'FORM_26QE';
+  quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  financialYear: string; // e.g. "2026-27"
+  assessmentYear: string; // e.g. "2027-28"
+  dueDate?: string;
+  filingStatus: 'PENDING' | 'DRAFT' | 'CHALLANS_ATTACHED' | 'UNDER_REVIEW' | 'READY_TO_FILE' | 'FILED' | 'OVERDUE' | 'CANCELLED';
+  filingDate?: string;
+  tokenNumber?: string;
+  receiptNumber?: string;
+  totalAmountPaid: number;
+  totalTaxDeducted: number;
+  totalTaxDeposited: number;
+  totalInterest?: number;
+  totalLateFee?: number;
+  totalPenalty?: number;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  fvuValidationStatus: 'NOT_VALIDATED' | 'VALIDATED' | 'FAILED';
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TdsChallan {
+  id: string;
+  tdsProfileId: string;
+  tan?: string;
+  clientName?: string;
+  tdsReturnId?: string;
+  bsrCode: string;
+  challanDate: string;
+  challanSerialNo: string;
+  cin?: string;
+  majorHead: 'HEAD_0020_COMPANY' | 'HEAD_0021_NON_COMPANY';
+  minorHead: 'HEAD_200_PAYABLE_BY_TAXPAYER' | 'HEAD_400_REGULAR_ASSESSMENT';
+  sectionCode: string;
+  tdsAmount: number;
+  surchargeAmount?: number;
+  cessAmount?: number;
+  interestAmount?: number;
+  feeAmount?: number;
+  penaltyAmount?: number;
+  totalAmount: number;
+  utilizedAmount: number;
+  balanceAmount: number;
+  challanStatus: 'UNUTILIZED' | 'PARTIALLY_UTILIZED' | 'FULLY_UTILIZED' | 'OVERUTILIZED';
+  quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  financialYear: string;
+  paymentMode: 'NET_BANKING' | 'DEBIT_CARD' | 'OVER_THE_COUNTER' | 'NEFT_RTGS';
+  bankName?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TdsDeducteeEntry {
+  id: string;
+  tdsProfileId: string;
+  tdsReturnId?: string;
+  challanId?: string;
+  deducteePan: string;
+  deducteeName: string;
+  deducteeType: 'COMPANY' | 'NON_COMPANY';
+  sectionCode: string;
+  paymentCreditDate: string;
+  invoiceRefNumber?: string;
+  amountPaidCredited: number;
+  tdsRate: number;
+  tdsAmount: number;
+  surchargeAmount?: number;
+  cessAmount?: number;
+  totalTaxDeducted: number;
+  deductionDate: string;
+  certificateNumber197?: string;
+  reasonCode: 'STANDARD' | 'LOWER_RATE_197' | 'NIL_RATE_197' | 'FORM_15G_15H' | 'TRANSPORTER_194C' | 'THRESHOLD_EXEMPTION' | 'HIGHER_RATE_206AA' | 'HIGHER_RATE_206AB';
+  quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  financialYear: string;
+  status: 'ACTIVE' | 'REVERSED';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TdsCertificate {
+  id: string;
+  tdsProfileId: string;
+  tan?: string;
+  clientName?: string;
+  tdsReturnId?: string;
+  certificateType: 'FORM_16_PART_A' | 'FORM_16_PART_B' | 'FORM_16A' | 'FORM_27D';
+  financialYear: string;
+  quarter?: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  deducteePan: string;
+  deducteeName: string;
+  tracesRequestNumber?: string;
+  certificateNumber?: string;
+  generationDate?: string;
+  dispatchStatus: 'PENDING' | 'REQUESTED_FROM_TRACES' | 'DOWNLOADED' | 'DIGITALLY_SIGNED' | 'SENT_TO_CLIENT' | 'SENT_TO_DEDUCTEE';
+  dispatchedAt?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TdsSectionRate {
+  sectionCode: string;
+  title: string;
+  returnForm: string;
+  rateIndividual: number;
+  rateOthers: number;
+  thresholdLimit: number;
+  singleTransactionLimit: number;
+  nonPanRate: number;
+  statutoryNotes: string;
+}
+
+export interface TdsComputationRequest {
+  sectionCode: string;
+  amount: number;
+  deducteeType?: 'COMPANY' | 'NON_COMPANY';
+  validPanProvided?: boolean;
+  specifiedNonFiler206AB?: boolean;
+  lowerDeductionRate?: number;
+  cumulativePaidInYear?: number;
+  paymentCreditDate?: string;
+  deductionDate?: string;
+  depositDate?: string;
+  filingDueDate?: string;
+  actualFilingDate?: string;
+}
+
+export interface TdsComputationResult {
+  sectionCode: string;
+  sectionTitle: string;
+  grossAmount: number;
+  thresholdExemptionApplicable: boolean;
+  effectiveRate: number;
+  baseTdsAmount: number;
+  surchargeRate: number;
+  surchargeAmount: number;
+  cessAmount: number;
+  totalTaxDeducted: number;
+  netPayableToDeductee: number;
+  delayInDeductionInterest: number;
+  delayInDepositInterest: number;
+  totalInterest: number;
+  delayDays: number;
+  lateFee234E: number;
+  totalPayableWithPenalties: number;
+  remarks: string;
+}
+
+export interface TdsWorkloadDashboard {
+  quarter: string;
+  financialYear: string;
+  totalTanClients: number;
+  activeTanProfiles: number;
+  totalScheduledReturns: number;
+  filedReturns: number;
+  pendingReturns: number;
+  underReviewReturns: number;
+  overdueReturns: number;
+  totalPracticeTdsDeducted: number;
+  totalPracticeChallansPaid: number;
+  unutilizedChallanBalance: number;
+  pendingCertificatesCount: number;
+  returnCards: TdsReturn[];
+}
+
+export interface BulkTdsProfileImportResult {
+  totalProcessed: number;
+  totalCreated: number;
+  totalSkipped: number;
+  totalFailed: number;
+  importedProfiles: TdsProfile[];
+  errorMessages: string[];
+}
+
+export interface BulkTdsReturnImportResult {
+  totalProcessed: number;
+  totalCreated: number;
+  totalSkipped: number;
+  totalFailed: number;
+  importedReturns: TdsReturn[];
+  errorMessages: string[];
+}
+
+

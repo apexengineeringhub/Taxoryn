@@ -41,10 +41,20 @@ import com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus;
 import com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstReturnType;
 import com.taxoryn.module.gst.repository.GstProfileRepository;
 import com.taxoryn.module.gst.repository.GstReturnFilingRepository;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentType;
 import com.taxoryn.module.portal.entity.ClientDocumentRequestEntity;
 import com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus;
 import com.taxoryn.module.portal.repository.ClientDocumentRequestRepository;
-import com.taxoryn.module.document.entity.DocumentEntity.DocumentType;
+import com.taxoryn.module.tds.entity.TdsChallanEntity;
+import com.taxoryn.module.tds.entity.TdsProfileEntity;
+import com.taxoryn.module.tds.entity.TdsReturnEntity;
+import com.taxoryn.module.tds.entity.TdsReturnEntity.FvuValidationStatus;
+import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus;
+import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFormType;
+import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsQuarter;
+import com.taxoryn.module.tds.repository.TdsChallanRepository;
+import com.taxoryn.module.tds.repository.TdsProfileRepository;
+import com.taxoryn.module.tds.repository.TdsReturnRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -78,6 +88,9 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final ItrReturnRepository itrReturnRepository;
     private final GstProfileRepository gstProfileRepository;
     private final GstReturnFilingRepository gstReturnFilingRepository;
+    private final TdsProfileRepository tdsProfileRepository;
+    private final TdsReturnRepository tdsReturnRepository;
+    private final TdsChallanRepository tdsChallanRepository;
     private final InvoiceRepository invoiceRepository;
     private final ClientDocumentRequestRepository docRequestRepository;
     private final PasswordEncoder passwordEncoder;
@@ -108,6 +121,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 "CLIENT_VIEW", "CLIENT_READ", "CLIENT_CREATE", "CLIENT_WRITE", "CLIENT_UPDATE", "CLIENT_DELETE",
                 "GST_VIEW", "GST_READ", "GST_CREATE", "GST_WRITE", "GST_UPDATE", "GST_DELETE",
                 "ITR_VIEW", "ITR_READ", "ITR_CREATE", "ITR_WRITE", "ITR_UPDATE", "ITR_DELETE",
+                "TDS_VIEW", "TDS_READ", "TDS_CREATE", "TDS_WRITE", "TDS_UPDATE", "TDS_DELETE",
                 "DOCUMENT_VIEW", "DOCUMENT_READ", "DOCUMENT_UPLOAD", "DOCUMENT_CREATE", "DOCUMENT_UPDATE",
                 "DASHBOARD_VIEW", "BILLING_VIEW", "BILLING_READ", "BILLING_CREATE", "BILLING_UPDATE",
                 "EMPLOYEE_VIEW", "EMPLOYEE_READ", "EMPLOYEE_CREATE", "EMPLOYEE_WRITE", "EMPLOYEE_UPDATE",
@@ -163,6 +177,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                         || p.getCode().startsWith("CLIENT_") && (p.getCode().contains("VIEW") || p.getCode().contains("READ"))
                         || p.getCode().startsWith("GST_") && !p.getCode().equals("GST_DELETE")
                         || p.getCode().startsWith("ITR_") && !p.getCode().equals("ITR_DELETE")
+                        || p.getCode().startsWith("TDS_") && !p.getCode().equals("TDS_DELETE")
                         || p.getCode().startsWith("DOCUMENT_") && !p.getCode().equals("DOCUMENT_DELETE")
                         || p.getCode().equals("DASHBOARD_VIEW")
                         || p.getCode().equals("EMPLOYEE_VIEW") || p.getCode().equals("EMPLOYEE_READ")
@@ -345,44 +360,34 @@ public class DemoDataSeeder implements CommandLineRunner {
 
             // Assign clients according to department
             if (d.email().contains("pooja.joshi")) {
-                List<ClientEntity> directTaxClients = List.of(cSneha, cRajesh, cVikram, cAarav);
+                List<ClientEntity> directTaxClients = java.util.stream.Stream.of(cSneha, cRajesh, cVikram, cAarav).filter(java.util.Objects::nonNull).toList();
                 for (ClientEntity cl : directTaxClients) {
-                    if (cl != null) {
-                        cl.setAssignedEmployeeId(savedEmp.getId());
-                        clientRepository.save(cl);
-                    }
+                    cl.setAssignedEmployeeId(savedEmp.getId());
+                    clientRepository.save(cl);
                 }
             } else if (d.email().contains("rajesh.patel")) {
-                List<ClientEntity> gstClients = List.of(cPawan, cRohan);
+                List<ClientEntity> gstClients = java.util.stream.Stream.of(cPawan, cRohan).filter(java.util.Objects::nonNull).toList();
                 for (ClientEntity cl : gstClients) {
-                    if (cl != null) {
-                        cl.setAssignedEmployeeId(savedEmp.getId());
-                        clientRepository.save(cl);
-                    }
+                    cl.setAssignedEmployeeId(savedEmp.getId());
+                    clientRepository.save(cl);
                 }
             } else if (d.email().contains("vikas.sharma")) {
-                List<ClientEntity> auditClients = List.of(cMundeshwari, cTrust);
+                List<ClientEntity> auditClients = java.util.stream.Stream.of(cMundeshwari, cTrust).filter(java.util.Objects::nonNull).toList();
                 for (ClientEntity cl : auditClients) {
-                    if (cl != null) {
-                        cl.setAssignedEmployeeId(savedEmp.getId());
-                        clientRepository.save(cl);
-                    }
+                    cl.setAssignedEmployeeId(savedEmp.getId());
+                    clientRepository.save(cl);
                 }
             } else if (d.email().contains("neha.sharma")) {
-                List<ClientEntity> directTaxClients = List.of(cSneha, cRajesh, cVikram, cAarav);
+                List<ClientEntity> directTaxClients = java.util.stream.Stream.of(cSneha, cRajesh, cVikram, cAarav).filter(java.util.Objects::nonNull).toList();
                 for (ClientEntity cl : directTaxClients) {
-                    if (cl != null) {
-                        cl.setAssignedEmployeeId(savedEmp.getId());
-                        clientRepository.save(cl);
-                    }
+                    cl.setAssignedEmployeeId(savedEmp.getId());
+                    clientRepository.save(cl);
                 }
             } else if (d.email().contains("amit.verma")) {
-                List<ClientEntity> complianceClients = List.of(cPawan, cRohan);
+                List<ClientEntity> complianceClients = java.util.stream.Stream.of(cPawan, cRohan).filter(java.util.Objects::nonNull).toList();
                 for (ClientEntity cl : complianceClients) {
-                    if (cl != null) {
-                        cl.setAssignedEmployeeId(savedEmp.getId());
-                        clientRepository.save(cl);
-                    }
+                    cl.setAssignedEmployeeId(savedEmp.getId());
+                    clientRepository.save(cl);
                 }
             }
 
@@ -535,10 +540,13 @@ public class DemoDataSeeder implements CommandLineRunner {
 
         List<DemoCustomer> demoCustomers = isMundeshwari ? List.of(
                 new DemoCustomer("client.mundeshwari@maamundeshwari.com", "Mundeshwari", "Director", "MAA MUNDESHWARI", clientAdminRole),
-                new DemoCustomer("client.sneha@maamundeshwari.com", "Sneha", "Kulkarni", "Sneha Kulkarni", clientUserRole)
+                new DemoCustomer("client.pawanassoc@maamundeshwari.com", "Pawan", "Pathak", "Pawan Pathak & Associates", clientUserRole),
+                new DemoCustomer("client.sneha@maamundeshwari.com", "Sneha", "Kulkarni", "Sneha Kulkarni", clientUserRole),
+                new DemoCustomer("client.rajesh@maamundeshwari.com", "Dr. Rajesh", "Sharma", "Dr. Rajesh Sharma", clientUserRole)
         ) : List.of(
                 new DemoCustomer("client.sneha@apextax.com", "Sneha", "Kulkarni", "Sneha Kulkarni", clientUserRole),
-                new DemoCustomer("client.rajesh@apextax.com", "Dr. Rajesh", "Sharma", "Dr. Rajesh Sharma", clientAdminRole)
+                new DemoCustomer("client.rajesh@apextax.com", "Dr. Rajesh", "Sharma", "Dr. Rajesh Sharma", clientAdminRole),
+                new DemoCustomer("client.vikram@apextax.com", "Vikram", "Mehta", "Vikram Mehta", clientUserRole)
         );
 
         for (DemoCustomer dc : demoCustomers) {
@@ -676,6 +684,67 @@ public class DemoDataSeeder implements CommandLineRunner {
                         .build();
                 gstr3b.setOrganizationId(org.getId());
                 gstReturnFilingRepository.save(gstr3b);
+            }
+
+            // 4. Seed demo TDS Profile & Filing
+            if (tdsProfileRepository.findByOrganizationIdAndClientId(org.getId(), client.getId()).isEmpty()) {
+                String tan = "BLRP" + (client.getPan() != null ? client.getPan().substring(0, 5) : "12345") + "A";
+                if (tdsProfileRepository.findByOrganizationIdAndTan(org.getId(), tan).isEmpty()) {
+                    TdsProfileEntity tdsProfile = TdsProfileEntity.builder()
+                            .clientId(client.getId())
+                            .tan(tan)
+                            .deductorType(TdsProfileEntity.DeductorType.COMPANY)
+                            .responsiblePersonName(client.getContactPersonName() != null ? client.getContactPersonName() : "Finance Director")
+                            .responsiblePersonPan(client.getPan())
+                            .responsiblePersonDesignation("Director")
+                            .responsiblePersonEmail(client.getEmail())
+                            .responsiblePersonMobile(client.getPhone())
+                            .status(TdsProfileEntity.TdsProfileStatus.ACTIVE)
+                            .tracesStatus(TdsProfileEntity.TracesStatus.REGISTERED_ACTIVE)
+                            .build();
+                    tdsProfile.setOrganizationId(org.getId());
+                    TdsProfileEntity savedTdsProfile = tdsProfileRepository.save(tdsProfile);
+
+                    TdsChallanEntity challan = TdsChallanEntity.builder()
+                            .tdsProfileId(savedTdsProfile.getId())
+                            .bsrCode("0510304")
+                            .challanDate(LocalDate.of(2026, 7, 7))
+                            .challanSerialNo("00101")
+                            .cin("05103042026070700101")
+                            .majorHead(TdsChallanEntity.MajorHead.HEAD_0021_NON_COMPANY)
+                            .minorHead(TdsChallanEntity.MinorHead.HEAD_200_PAYABLE_BY_TAXPAYER)
+                            .sectionCode("194C")
+                            .tdsAmount(new BigDecimal("35000.00"))
+                            .totalAmount(new BigDecimal("35000.00"))
+                            .utilizedAmount(new BigDecimal("35000.00"))
+                            .balanceAmount(BigDecimal.ZERO)
+                            .challanStatus(TdsChallanEntity.ChallanStatus.FULLY_UTILIZED)
+                            .quarter(TdsQuarter.Q1)
+                            .financialYear("2026-27")
+                            .build();
+                    challan.setOrganizationId(org.getId());
+                    tdsChallanRepository.save(challan);
+
+                    TdsReturnEntity tds26q = TdsReturnEntity.builder()
+                            .clientId(client.getId())
+                            .tdsProfileId(savedTdsProfile.getId())
+                            .formType(TdsFormType.FORM_26Q)
+                            .quarter(TdsQuarter.Q1)
+                            .financialYear("2026-27")
+                            .assessmentYear("2027-28")
+                            .dueDate(LocalDate.of(2026, 7, 31))
+                            .filingStatus(TdsFilingStatus.FILED)
+                            .filingDate(LocalDate.of(2026, 7, 28))
+                            .tokenNumber("010020304050601")
+                            .totalAmountPaid(new BigDecimal("1750000.00"))
+                            .totalTaxDeducted(new BigDecimal("35000.00"))
+                            .totalTaxDeposited(new BigDecimal("35000.00"))
+                            .fvuValidationStatus(FvuValidationStatus.VALIDATED)
+                            .notes("Quarterly statement processed via NSDL e-Gov.")
+                            .build();
+                    tds26q.setOrganizationId(org.getId());
+                    tdsReturnRepository.save(tds26q);
+                }
             }
         }
     }

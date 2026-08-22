@@ -57,6 +57,7 @@ public class TaskEntity extends TenantAuditableEntity {
     public enum TaskCategory {
         GST,
         ITR,
+        TDS,
         AUDIT,
         COMPLIANCE,
         BILLING,

@@ -16,6 +16,8 @@ import { GstCompliancePage } from './pages/GstCompliancePage';
 import { GstDataMigrationHubPage } from './pages/GstDataMigrationHubPage';
 import { ItrCompliancePage } from './pages/ItrCompliancePage';
 import { ItrDataMigrationHubPage } from './pages/ItrDataMigrationHubPage';
+import { TdsCompliancePage } from './pages/TdsCompliancePage';
+import { TdsDataMigrationHubPage } from './pages/TdsDataMigrationHubPage';
 import { ComplianceCalendarPage } from './pages/ComplianceCalendarPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { BillingPage } from './pages/BillingPage';
@@ -79,6 +81,8 @@ export const App: React.FC = () => {
               <Route path="/gst/migration" element={<GstDataMigrationHubPage />} />
               <Route path="/itr" element={<ItrCompliancePage />} />
               <Route path="/itr/migration" element={<ItrDataMigrationHubPage />} />
+              <Route path="/tds" element={<TdsCompliancePage />} />
+              <Route path="/tds/migration" element={<TdsDataMigrationHubPage />} />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/billing" element={<BillingPage />} />

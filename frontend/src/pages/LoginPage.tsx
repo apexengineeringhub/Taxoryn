@@ -47,13 +47,15 @@ export const LoginPage: React.FC = () => {
     setError('');
   };
 
+  const [demoTab, setDemoTab] = useState<'mundeshwari' | 'apex'>('mundeshwari');
+
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background Glows */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-500/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 border border-slate-100 z-10 space-y-6">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-8 border border-slate-100 z-10 space-y-6">
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl mx-auto shadow-lg shadow-brand-500/30">
             TX
@@ -62,80 +64,178 @@ export const LoginPage: React.FC = () => {
           <p className="text-xs text-slate-500">Enterprise Multi-Tenant Tax Practice Management</p>
         </div>
 
-        {/* Quick Demo Fill Pills */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+        {/* Quick Demo Fill Practice Selector Tabs */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              ⚡ 1-Click Quick Fill Logins
+              ⚡ 1-Click Quick Fill Demo Logins
             </span>
-            <span className="text-[10px] text-slate-400 font-mono">Password: Password123!</span>
+            <span className="text-[10px] text-slate-400 font-mono">Pwd: Password123!</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          {/* Firm Switcher Tabs */}
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/70 rounded-lg text-xs font-semibold">
             <button
               type="button"
-              onClick={() => handleQuickFill('pawanadv@gmail.com')}
-              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
-                email === 'pawanadv@gmail.com'
-                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              onClick={() => setDemoTab('mundeshwari')}
+              className={`py-1.5 px-2 rounded-md transition-all truncate text-center ${
+                demoTab === 'mundeshwari'
+                  ? 'bg-white text-brand-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[11px] truncate">Pawan Pathak</span>
-                <span className="px-1 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-bold rounded">Admin</span>
-              </div>
-              <span className="block text-[10px] text-slate-500 truncate mt-0.5">pawanadv@gmail.com</span>
+              Maa Mundeshwari Tax
             </button>
-
             <button
               type="button"
-              onClick={() => handleQuickFill('client.mundeshwari@maamundeshwari.com')}
-              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
-                email === 'client.mundeshwari@maamundeshwari.com'
-                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              onClick={() => setDemoTab('apex')}
+              className={`py-1.5 px-2 rounded-md transition-all truncate text-center ${
+                demoTab === 'apex'
+                  ? 'bg-white text-brand-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[11px] truncate">Mundeshwari Ent</span>
-                <span className="px-1 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold rounded">Client</span>
-              </div>
-              <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.mundeshwari@...</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickFill('admin@apextax.com')}
-              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
-                email === 'admin@apextax.com'
-                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[11px] truncate">Apex Admin</span>
-                <span className="px-1 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-bold rounded">Admin</span>
-              </div>
-              <span className="block text-[10px] text-slate-500 truncate mt-0.5">admin@apextax.com</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickFill('client.sneha@apextax.com')}
-              className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
-                email === 'client.sneha@apextax.com'
-                  ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[11px] truncate">Sneha Kulkarni</span>
-                <span className="px-1 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold rounded">Client</span>
-              </div>
-              <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.sneha@apextax...</span>
+              Apex Tax Advisors
             </button>
           </div>
+
+          {/* Mundeshwari Accounts */}
+          {demoTab === 'mundeshwari' && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickFill('pawanadv@gmail.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'pawanadv@gmail.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Pawan Pathak</span>
+                  <span className="px-1 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-bold rounded">Admin</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">pawanadv@gmail.com</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickFill('pooja.joshi@maamundeshwari.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'pooja.joshi@maamundeshwari.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Pooja Joshi</span>
+                  <span className="px-1 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold rounded">Staff</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">pooja.joshi@...</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickFill('client.mundeshwari@maamundeshwari.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'client.mundeshwari@maamundeshwari.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Mundeshwari Ent</span>
+                  <span className="px-1 py-0.2 bg-sky-100 text-sky-700 text-[9px] font-bold rounded">Client Admin</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.mundeshwari@...</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickFill('client.pawanassoc@maamundeshwari.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'client.pawanassoc@maamundeshwari.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Pawan Associates</span>
+                  <span className="px-1 py-0.2 bg-sky-100 text-sky-700 text-[9px] font-bold rounded">Client</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.pawanassoc@...</span>
+              </button>
+            </div>
+          )}
+
+          {/* Apex Tax Accounts */}
+          {demoTab === 'apex' && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickFill('admin@apextax.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'admin@apextax.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Apex Admin</span>
+                  <span className="px-1 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-bold rounded">Admin</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">admin@apextax.com</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickFill('neha.sharma@apextax.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'neha.sharma@apextax.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Neha Sharma</span>
+                  <span className="px-1 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold rounded">Staff</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">neha.sharma@...</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickFill('client.sneha@apextax.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'client.sneha@apextax.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Sneha Kulkarni</span>
+                  <span className="px-1 py-0.2 bg-sky-100 text-sky-700 text-[9px] font-bold rounded">Client</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.sneha@apextax...</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickFill('client.rajesh@apextax.com')}
+                className={`px-2.5 py-2 rounded-lg border text-left text-xs font-semibold transition-all ${
+                  email === 'client.rajesh@apextax.com'
+                    ? 'border-brand-600 bg-brand-50 text-brand-900 ring-1 ring-brand-500'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] truncate">Dr. Rajesh Sharma</span>
+                  <span className="px-1 py-0.2 bg-sky-100 text-sky-700 text-[9px] font-bold rounded">Client Admin</span>
+                </div>
+                <span className="block text-[10px] text-slate-500 truncate mt-0.5">client.rajesh@apextax...</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (
