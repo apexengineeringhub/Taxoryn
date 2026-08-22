@@ -33,7 +33,11 @@ public interface MarketplaceService {
     // 2. Practice Private Portal APIs
     PublicMarketplaceProfileDto getMyPracticeProfile();
 
+    PublicMarketplaceProfileDto createPracticeProfile(CreatePracticeProfileRequest request);
+
     PublicMarketplaceProfileDto updateMyPracticeProfile(UpdateMarketplaceProfileRequest request);
+
+    PublicMarketplaceProfileDto updateProfileVisibility(UpdateProfileVisibilityRequest request);
 
     List<MarketplaceServiceDto> getMyPracticeServices();
 

@@ -595,4 +595,141 @@ class MarketplaceServiceTest {
                 marketplaceService.convertLeadToClient(leadBId, convertRequest)
         );
     }
+
+    @Test
+    @DisplayName("API Design: create practice profile initializes listing with auto-generated slug")
+    void testCreatePracticeProfile_Succeeds() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.empty());
+        OrganizationEntity org = OrganizationEntity.builder()
+                .name("New Practice Firm")
+                .city("Delhi")
+                .state("Delhi")
+                .build();
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(org));
+        when(slugGenerator.generateUniqueSlug("New Practice Firm", null)).thenReturn("new-practice-firm");
+        when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> {
+            MarketplaceProfileEntity p = inv.getArgument(0);
+            p.setId(UUID.randomUUID());
+            return p;
+        });
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .displayName("New Practice Firm")
+                .slug("new-practice-firm")
+                .visibilityStatus(VisibilityStatus.PRIVATE)
+                .build();
+        when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+
+        CreatePracticeProfileRequest request = CreatePracticeProfileRequest.builder()
+                .displayName("New Practice Firm")
+                .city("Delhi")
+                .state("Delhi")
+                .build();
+
+        PublicMarketplaceProfileDto result = marketplaceService.createPracticeProfile(request);
+
+        assertNotNull(result);
+        assertEquals("New Practice Firm", result.getDisplayName());
+        verify(profileRepository).save(any(MarketplaceProfileEntity.class));
+        verify(auditService).logEvent(eq("PRACTICE_MARKETPLACE_PROFILE_CREATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("API Design: create practice profile throws exception when profile already exists")
+    void testCreatePracticeProfile_WhenAlreadyExists_ThrowsException() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+
+        CreatePracticeProfileRequest request = CreatePracticeProfileRequest.builder()
+                .displayName("Duplicate Firm Attempt")
+                .build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                marketplaceService.createPracticeProfile(request)
+        );
+
+        assertTrue(ex.getMessage().contains("already exists"));
+    }
+
+    @Test
+    @DisplayName("API Design: update visibility to PUBLIC succeeds when profile is eligible")
+    void testUpdateProfileVisibility_Public_WhenEligible_Succeeds() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .displayName(sampleProfile.getDisplayName())
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .isPublished(true)
+                .build();
+        when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+
+        UpdateProfileVisibilityRequest request = UpdateProfileVisibilityRequest.builder()
+                .visibility(VisibilityStatus.PUBLIC)
+                .build();
+
+        PublicMarketplaceProfileDto result = marketplaceService.updateProfileVisibility(request);
+
+        assertNotNull(result);
+        assertEquals(VisibilityStatus.PUBLIC, sampleProfile.getVisibilityStatus());
+        assertTrue(sampleProfile.getIsPublished());
+        verify(auditService).logEvent(eq("PRACTICE_MARKETPLACE_VISIBILITY_UPDATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("API Design: update visibility to PUBLIC fails when required fields are missing")
+    void testUpdateProfileVisibility_Public_WhenIncomplete_ThrowsBusinessValidationException() {
+        MarketplaceProfileEntity incompleteProfile = MarketplaceProfileEntity.builder()
+                .organizationId(organizationId)
+                .slug("incomplete-slug")
+                .displayName("Incomplete Firm")
+                .city(null) // Missing City
+                .state(null) // Missing State
+                .visibilityStatus(VisibilityStatus.PRIVATE)
+                .build();
+
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(incompleteProfile));
+
+        UpdateProfileVisibilityRequest request = UpdateProfileVisibilityRequest.builder()
+                .visibility(VisibilityStatus.PUBLIC)
+                .build();
+
+        BusinessValidationException ex = assertThrows(BusinessValidationException.class, () ->
+                marketplaceService.updateProfileVisibility(request)
+        );
+
+        assertTrue(ex.getMessage().contains("Cannot publish profile to Marketplace"));
+    }
+
+    @Test
+    @DisplayName("API Design: update visibility to PRIVATE sets status and unpublishes")
+    void testUpdateProfileVisibility_Private_Succeeds() {
+        sampleProfile.setVisibilityStatus(VisibilityStatus.PUBLIC);
+        sampleProfile.setIsPublished(true);
+
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .displayName(sampleProfile.getDisplayName())
+                .visibilityStatus(VisibilityStatus.PRIVATE)
+                .isPublished(false)
+                .build();
+        when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+
+        UpdateProfileVisibilityRequest request = UpdateProfileVisibilityRequest.builder()
+                .visibility(VisibilityStatus.PRIVATE)
+                .build();
+
+        PublicMarketplaceProfileDto result = marketplaceService.updateProfileVisibility(request);
+
+        assertNotNull(result);
+        assertEquals(VisibilityStatus.PRIVATE, sampleProfile.getVisibilityStatus());
+        assertFalse(sampleProfile.getIsPublished());
+    }
 }

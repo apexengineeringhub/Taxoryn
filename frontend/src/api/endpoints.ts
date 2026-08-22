@@ -857,8 +857,16 @@ export const marketplacePracticeApi = {
     const res = await apiClient.get<ApiResponse<MarketplaceProfile>>('/v1/practice/marketplace/profile');
     return res.data.data;
   },
+  createProfile: async (payload: Partial<MarketplaceProfile>) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceProfile>>('/v1/marketplace/practice-profile', payload);
+    return res.data.data;
+  },
   updateMyProfile: async (payload: Partial<MarketplaceProfile>) => {
-    const res = await apiClient.put<ApiResponse<MarketplaceProfile>>('/v1/practice/marketplace/profile', payload);
+    const res = await apiClient.put<ApiResponse<MarketplaceProfile>>('/v1/marketplace/practice-profile', payload);
+    return res.data.data;
+  },
+  updateVisibility: async (visibility: string) => {
+    const res = await apiClient.patch<ApiResponse<MarketplaceProfile>>('/v1/marketplace/practice-profile/visibility', { visibility });
     return res.data.data;
   },
   generateSlug: async (params?: { baseName?: string; city?: string }) => {

@@ -13,27 +13,32 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Request by Practice to update its public Marketplace Profile & Settings")
-public class UpdateMarketplaceProfileRequest {
+@Schema(description = "Request to create a new marketplace practice profile")
+public class CreatePracticeProfileRequest {
 
     @NotBlank(message = "Display name is required")
     @Schema(description = "Public Firm / Practitioner Name", example = "Apex Corporate & Tax Advisors")
     private String displayName;
 
-    @Schema(description = "Unique public URL slug (e.g. apex-tax-advisors-mumbai)", example = "apex-tax-advisors-mumbai")
+    @Schema(description = "Unique public URL slug (auto-generated if omitted)", example = "apex-corporate-tax-advisors")
     private String slug;
 
     @Schema(description = "Catchy Profile Headline", example = "Ex-Big4 Senior CAs specializing in Direct & Indirect Tax Optimization")
     private String headline;
 
-    @Schema(description = "Full Firm Bio / Value Proposition")
+    @Schema(description = "Full Firm Bio / Description")
+    private String description;
+
+    @Schema(description = "Full Firm Bio (alias)")
     private String bio;
 
     @Schema(description = "Professional category")
-    private ProfessionalType professionalType;
+    @Builder.Default
+    private ProfessionalType professionalType = ProfessionalType.CHARTERED_ACCOUNTANT;
 
     @Schema(description = "Years in Practice")
-    private Integer experienceYears;
+    @Builder.Default
+    private Integer experienceYears = 5;
 
     @Schema(description = "City", example = "Mumbai")
     private String city;
@@ -74,20 +79,13 @@ public class UpdateMarketplaceProfileRequest {
     @Schema(description = "Standard hourly advisory rate")
     private BigDecimal hourlyRate;
 
-    @Schema(description = "Publish toggle to show listing in public directory")
-    private Boolean isPublished;
-
-    @Schema(description = "Full Firm Bio / Description")
-    private String description;
-
-    @Schema(description = "Marketplace visibility lifecycle status (PRIVATE, PUBLIC, SUSPENDED)")
-    private VisibilityStatus visibilityStatus;
-
-    @Schema(description = "Visibility status (alias)")
-    private VisibilityStatus visibility;
+    @Schema(description = "Visibility status (PRIVATE, PUBLIC, SUSPENDED)")
+    @Builder.Default
+    private VisibilityStatus visibility = VisibilityStatus.PRIVATE;
 
     @Schema(description = "Enable direct paid consultation bookings")
-    private Boolean consultationEnabled;
+    @Builder.Default
+    private Boolean consultationEnabled = true;
 
     @Schema(description = "Fixed fee for introductory consultation")
     private BigDecimal consultationFee;
@@ -98,12 +96,6 @@ public class UpdateMarketplaceProfileRequest {
     public String resolveBio() {
         if (description != null && !description.isBlank()) return description.trim();
         if (bio != null && !bio.isBlank()) return bio.trim();
-        return null;
-    }
-
-    public VisibilityStatus resolveVisibility() {
-        if (visibility != null) return visibility;
-        if (visibilityStatus != null) return visibilityStatus;
         return null;
     }
 }

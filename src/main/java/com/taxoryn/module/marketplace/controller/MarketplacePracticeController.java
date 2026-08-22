@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping({"/api/v1/practice/marketplace", "/api/practice/marketplace"})
+@RequestMapping({"/api/v1/marketplace/practice-profile", "/api/v1/practice/marketplace", "/api/practice/marketplace"})
 @RequiredArgsConstructor
 @Tag(name = "Practice Marketplace Management", description = "Tax practitioner tools to manage marketplace directory listing, service packages, inbound leads, and client conversion")
 @SecurityRequirement(name = "BearerAuth")
@@ -33,23 +33,40 @@ public class MarketplacePracticeController {
 
     // --- Profile & Listing ---
 
-    @GetMapping("/profile")
+    @GetMapping({"", "/profile"})
     @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Get My Practice Listing Profile", description = "Retrieves the practice's current marketplace profile settings and visibility.")
+    @Operation(summary = "Get Practice Marketplace Profile", description = "Retrieves the practice's current marketplace profile settings and visibility.")
     public ResponseEntity<ApiResponse<PublicMarketplaceProfileDto>> getMyProfile() {
         PublicMarketplaceProfileDto profile = marketplaceService.getMyPracticeProfile();
         return ResponseEntity.ok(ApiResponse.success("Practice marketplace profile retrieved", profile));
     }
 
-    @PutMapping("/profile")
+    @PostMapping({"", "/profile"})
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Create Practice Marketplace Profile", description = "Initializes a new practice marketplace profile listing.")
+    public ResponseEntity<ApiResponse<PublicMarketplaceProfileDto>> createMyProfile(@Valid @RequestBody CreatePracticeProfileRequest request) {
+        PublicMarketplaceProfileDto profile = marketplaceService.createPracticeProfile(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Marketplace profile created successfully", profile));
+    }
+
+    @PutMapping({"", "/profile"})
     @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Update Marketplace Profile", description = "Updates bio, specializations, pricing, contact info, slug, and publish status.")
+    @Operation(summary = "Update Practice Marketplace Profile", description = "Updates bio, specializations, pricing, contact info, slug, and publish status.")
     public ResponseEntity<ApiResponse<PublicMarketplaceProfileDto>> updateMyProfile(@Valid @RequestBody UpdateMarketplaceProfileRequest request) {
         PublicMarketplaceProfileDto profile = marketplaceService.updateMyPracticeProfile(request);
         return ResponseEntity.ok(ApiResponse.success("Marketplace profile updated successfully", profile));
     }
 
-    @GetMapping("/profile/slug/generate")
+    @PatchMapping({"/visibility", "/profile/visibility"})
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Update Marketplace Visibility Status", description = "Toggles visibility status (PRIVATE, PUBLIC, SUSPENDED). Validates required publishing fields.")
+    public ResponseEntity<ApiResponse<PublicMarketplaceProfileDto>> updateVisibility(@Valid @RequestBody UpdateProfileVisibilityRequest request) {
+        PublicMarketplaceProfileDto profile = marketplaceService.updateProfileVisibility(request);
+        return ResponseEntity.ok(ApiResponse.success("Marketplace profile visibility updated successfully", profile));
+    }
+
+    @GetMapping({"/slug/generate", "/profile/slug/generate"})
     @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Generate Unique Public Slug", description = "Generates an available SEO-friendly public URL slug for the practice profile.")
     public ResponseEntity<ApiResponse<String>> generateSlug(
@@ -60,7 +77,7 @@ public class MarketplacePracticeController {
         return ResponseEntity.ok(ApiResponse.success("Unique slug generated", slug));
     }
 
-    @GetMapping("/profile/completeness")
+    @GetMapping({"/completeness", "/profile/completeness"})
     @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Get Profile Completeness Breakdown", description = "Calculates profile completeness percentage, completed items, and missing items.")
     public ResponseEntity<ApiResponse<ProfileCompletenessDto>> getMyProfileCompleteness() {

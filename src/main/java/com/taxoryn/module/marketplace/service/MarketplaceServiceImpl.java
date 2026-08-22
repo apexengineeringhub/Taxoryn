@@ -256,12 +256,70 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     // =========================================================================
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public PublicMarketplaceProfileDto getMyPracticeProfile() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId)
                 .orElseGet(() -> initializeDefaultProfile(organizationId));
         return enrichPublicProfile(profile);
+    }
+
+    @Override
+    @Transactional
+    public PublicMarketplaceProfileDto createPracticeProfile(CreatePracticeProfileRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (profileRepository.findByOrganizationId(organizationId).isPresent()) {
+            throw new IllegalArgumentException("A marketplace profile already exists for this practice organization. Use PUT to update.");
+        }
+
+        OrganizationEntity org = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", organizationId));
+
+        String candidateSlug = StringUtils.hasText(request.getSlug())
+                ? slugGenerator.sanitize(request.getSlug())
+                : slugGenerator.generateUniqueSlug(request.getDisplayName(), null);
+
+        if (slugGenerator.isSlugTaken(candidateSlug, null)) {
+            candidateSlug = slugGenerator.generateUniqueSlug(candidateSlug, null);
+        }
+
+        MarketplaceProfileEntity profile = MarketplaceProfileEntity.builder()
+                .organizationId(organizationId)
+                .slug(candidateSlug)
+                .displayName(request.getDisplayName().trim())
+                .headline(request.getHeadline())
+                .bio(request.resolveBio() != null ? request.resolveBio() : "Professional tax practice offering GST, Income Tax, TDS, and corporate compliance services.")
+                .professionalType(request.getProfessionalType() != null ? request.getProfessionalType() : ProfessionalType.CHARTERED_ACCOUNTANT)
+                .experienceYears(request.getExperienceYears() != null ? request.getExperienceYears() : 5)
+                .city(request.getCity() != null ? request.getCity() : org.getCity())
+                .state(request.getState() != null ? request.getState() : org.getState())
+                .pincode(request.getPincode() != null ? request.getPincode() : org.getPincode())
+                .address(request.getAddress() != null ? request.getAddress() : org.getAddress())
+                .phone(request.getPhone() != null ? request.getPhone() : org.getPhone())
+                .email(request.getEmail() != null ? request.getEmail() : org.getEmail())
+                .websiteUrl(request.getWebsiteUrl())
+                .avatarUrl(request.getAvatarUrl())
+                .bannerUrl(request.getBannerUrl())
+                .specializations(request.getSpecializations() != null ? String.join(", ", request.getSpecializations()) : "GST_FILING, ITR_FILING, TDS_COMPLIANCE")
+                .languagesSpoken(request.getLanguagesSpoken() != null ? request.getLanguagesSpoken() : "English, Hindi")
+                .startingFee(request.getStartingFee() != null ? request.getStartingFee() : new BigDecimal("999.00"))
+                .hourlyRate(request.getHourlyRate() != null ? request.getHourlyRate() : new BigDecimal("1500.00"))
+                .visibilityStatus(request.getVisibility() != null ? request.getVisibility() : VisibilityStatus.PRIVATE)
+                .isPublished(request.getVisibility() == VisibilityStatus.PUBLIC)
+                .consultationEnabled(request.getConsultationEnabled() != null ? request.getConsultationEnabled() : true)
+                .consultationFee(request.getConsultationFee() != null ? request.getConsultationFee() : new BigDecimal("499.00"))
+                .consultationDurationMinutes(request.getConsultationDurationMinutes() != null ? request.getConsultationDurationMinutes() : 30)
+                .build();
+
+        if (profile.getVisibilityStatus() == VisibilityStatus.PUBLIC) {
+            validatePublishingEligibility(profile);
+            profile.setIsPublished(true);
+        }
+
+        MarketplaceProfileEntity saved = profileRepository.save(profile);
+        auditService.logEvent("PRACTICE_MARKETPLACE_PROFILE_CREATED", "MARKETPLACE_PROFILE", saved.getId() != null ? saved.getId().toString() : "NEW", null, "Created profile " + saved.getDisplayName());
+
+        return enrichPublicProfile(saved);
     }
 
     @Override
@@ -282,7 +340,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             }
         }
         if (request.getHeadline() != null) profile.setHeadline(request.getHeadline());
-        if (request.getBio() != null) profile.setBio(request.getBio());
+        if (request.resolveBio() != null) profile.setBio(request.resolveBio());
         if (request.getProfessionalType() != null) profile.setProfessionalType(request.getProfessionalType());
         if (request.getExperienceYears() != null) profile.setExperienceYears(request.getExperienceYears());
         if (request.getCity() != null) profile.setCity(request.getCity());
@@ -301,16 +359,22 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (request.getStartingFee() != null) profile.setStartingFee(request.getStartingFee());
         if (request.getHourlyRate() != null) profile.setHourlyRate(request.getHourlyRate());
         
-        if (request.getVisibilityStatus() != null) {
-            if (request.getVisibilityStatus() == VisibilityStatus.PUBLIC) {
+        VisibilityStatus visibility = request.resolveVisibility();
+        if (visibility != null) {
+            if (visibility == VisibilityStatus.PUBLIC) {
                 validatePublishingEligibility(profile);
             }
-            profile.setVisibilityStatus(request.getVisibilityStatus());
+            profile.setVisibilityStatus(visibility);
+            profile.setIsPublished(visibility == VisibilityStatus.PUBLIC);
         } else if (Boolean.TRUE.equals(request.getIsPublished())) {
             validatePublishingEligibility(profile);
             profile.setIsPublished(true);
+            profile.setVisibilityStatus(VisibilityStatus.PUBLIC);
         } else if (Boolean.FALSE.equals(request.getIsPublished())) {
             profile.setIsPublished(false);
+            if (profile.getVisibilityStatus() == VisibilityStatus.PUBLIC) {
+                profile.setVisibilityStatus(VisibilityStatus.PRIVATE);
+            }
         }
 
         if (request.getConsultationEnabled() != null) profile.setConsultationEnabled(request.getConsultationEnabled());
@@ -319,6 +383,31 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
         MarketplaceProfileEntity saved = profileRepository.save(profile);
         auditService.logEvent("PRACTICE_MARKETPLACE_PROFILE_UPDATED", "MARKETPLACE_PROFILE", saved.getId().toString(), null, "Updated profile " + saved.getDisplayName());
+
+        return enrichPublicProfile(saved);
+    }
+
+    @Override
+    @Transactional
+    public PublicMarketplaceProfileDto updateProfileVisibility(UpdateProfileVisibilityRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId)
+                .orElseGet(() -> initializeDefaultProfile(organizationId));
+
+        if (request.getVisibility() == VisibilityStatus.PUBLIC) {
+            validatePublishingEligibility(profile);
+            profile.setVisibilityStatus(VisibilityStatus.PUBLIC);
+            profile.setIsPublished(true);
+        } else if (request.getVisibility() == VisibilityStatus.PRIVATE) {
+            profile.setVisibilityStatus(VisibilityStatus.PRIVATE);
+            profile.setIsPublished(false);
+        } else if (request.getVisibility() == VisibilityStatus.SUSPENDED) {
+            profile.setVisibilityStatus(VisibilityStatus.SUSPENDED);
+            profile.setIsPublished(false);
+        }
+
+        MarketplaceProfileEntity saved = profileRepository.save(profile);
+        auditService.logEvent("PRACTICE_MARKETPLACE_VISIBILITY_UPDATED", "MARKETPLACE_PROFILE", saved.getId().toString(), null, "Updated visibility to " + saved.getVisibilityStatus());
 
         return enrichPublicProfile(saved);
     }
