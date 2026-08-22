@@ -61,6 +61,8 @@ public interface MarketplaceService {
 
     String generateUniqueSlug(String baseName, String city);
 
+    ProfileCompletenessDto getMyProfileCompleteness();
+
     // 3. Platform Super Admin APIs
     PagedResponse<MarketplaceVerificationDto> getPendingVerifications(Pageable pageable);
 

@@ -41,6 +41,7 @@ import {
   BulkTdsProfileImportResult,
   BulkTdsReturnImportResult,
   MarketplaceProfile,
+  ProfileCompleteness,
   MarketplaceService,
   MarketplaceLead,
   MarketplaceConsultation,
@@ -862,6 +863,10 @@ export const marketplacePracticeApi = {
   },
   generateSlug: async (params?: { baseName?: string; city?: string }) => {
     const res = await apiClient.get<ApiResponse<string>>('/v1/practice/marketplace/profile/slug/generate', { params });
+    return res.data.data;
+  },
+  getProfileCompleteness: async () => {
+    const res = await apiClient.get<ApiResponse<ProfileCompleteness>>('/v1/practice/marketplace/profile/completeness');
     return res.data.data;
   },
   getMyServices: async () => {

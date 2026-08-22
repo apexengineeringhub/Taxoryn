@@ -79,6 +79,9 @@ class MarketplaceServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private ProfileCompletenessCalculator completenessCalculator;
+
     @InjectMocks
     private MarketplaceServiceImpl marketplaceService;
 
@@ -261,6 +264,11 @@ class MarketplaceServiceTest {
         when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(sampleProfile.getId())).thenReturn(List.of());
         when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(eq(sampleProfile.getId()), any()))
                 .thenReturn(List.of());
+        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+                .percentage(85)
+                .completedItems(List.of("Practice name", "Phone", "Email"))
+                .missingItems(List.of("Website"))
+                .build());
 
         PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
                 .id(sampleProfile.getId())
@@ -272,8 +280,31 @@ class MarketplaceServiceTest {
 
         assertNotNull(result);
         assertNotNull(result.getCompletenessScore());
-        assertTrue(result.getCompletenessScore() > 0);
-        assertNotNull(result.getMissingCompletenessFields());
+        assertEquals(85, result.getCompletenessScore());
+        assertEquals(1, result.getMissingCompletenessFields().size());
+        assertNotNull(result.getCompleteness());
+        assertEquals(3, result.getCompleteness().getCompletedItems().size());
+    }
+
+    @Test
+    @DisplayName("Profile Completeness: getMyProfileCompleteness delegates to calculator")
+    void testGetMyProfileCompleteness() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.empty());
+        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+                .percentage(70)
+                .completedItems(List.of("Practice name", "Description", "Phone"))
+                .missingItems(List.of("Website"))
+                .build());
+
+        ProfileCompletenessDto result = marketplaceService.getMyProfileCompleteness();
+
+        assertNotNull(result);
+        assertEquals(70, result.getPercentage());
+        assertEquals(3, result.getCompletedItems().size());
+        assertEquals(1, result.getMissingItems().size());
+        assertTrue(result.getCompletedItems().contains("Practice name"));
+        assertTrue(result.getMissingItems().contains("Website"));
     }
 
     @Test
@@ -282,6 +313,11 @@ class MarketplaceServiceTest {
         when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
         when(profileRepository.existsBySlug("custom-apex-mumbai")).thenReturn(false);
         when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+                .percentage(90)
+                .completedItems(List.of("Practice name"))
+                .missingItems(List.of())
+                .build());
 
         PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
                 .id(sampleProfile.getId())

@@ -60,6 +60,14 @@ public class MarketplacePracticeController {
         return ResponseEntity.ok(ApiResponse.success("Unique slug generated", slug));
     }
 
+    @GetMapping("/profile/completeness")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Profile Completeness Breakdown", description = "Calculates profile completeness percentage, completed items, and missing items.")
+    public ResponseEntity<ApiResponse<ProfileCompletenessDto>> getMyProfileCompleteness() {
+        ProfileCompletenessDto completeness = marketplaceService.getMyProfileCompleteness();
+        return ResponseEntity.ok(ApiResponse.success("Profile completeness metrics retrieved", completeness));
+    }
+
     // --- Service Packages ---
 
     @GetMapping("/services")

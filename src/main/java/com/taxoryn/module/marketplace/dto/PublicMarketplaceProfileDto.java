@@ -50,6 +50,7 @@ public class PublicMarketplaceProfileDto {
     private Integer consultationDurationMinutes;
     private List<MarketplaceServiceDto> services;
     private List<MarketplaceReviewDto> recentReviews;
+    private ProfileCompletenessDto completeness;
     private Integer completenessScore;
     private List<String> missingCompletenessFields;
 }

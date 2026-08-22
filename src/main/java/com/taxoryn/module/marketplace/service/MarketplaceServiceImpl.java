@@ -55,6 +55,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final TaskRepository taskRepository;
     private final MarketplaceMapper mapper;
     private final AuditService auditService;
+    private final ProfileCompletenessCalculator completenessCalculator;
 
     // =========================================================================
     // 1. Public Customer Discovery APIs
@@ -338,6 +339,15 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             uniqueSlug = baseSlug + "-" + count++;
         }
         return uniqueSlug;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileCompletenessDto getMyProfileCompleteness() {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId).orElse(null);
+        OrganizationEntity org = organizationRepository.findById(organizationId).orElse(null);
+        return completenessCalculator.calculate(profile, org);
     }
 
     @Override
@@ -892,50 +902,24 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         dto.setRecentReviews(mapper.toReviewDtoList(reviews));
         dto.setVisibilityStatus(entity.getVisibilityStatus());
 
-        // Calculate Profile Completeness (0 - 100%) & Missing Fields Checklist
-        int score = 0;
-        List<String> missing = new ArrayList<>();
-
-        // 1. Basic Info (25%)
-        if (StringUtils.hasText(entity.getDisplayName())) score += 10;
-        else missing.add("Firm / Display Name");
-
-        if (StringUtils.hasText(entity.getHeadline())) score += 5;
-        else missing.add("Profile Headline");
-
-        if (StringUtils.hasText(entity.getBio()) && entity.getBio().trim().length() >= 20) score += 10;
-        else missing.add("Detailed Firm Bio");
-
-        // 2. Location & Contact (20%)
-        if (StringUtils.hasText(entity.getCity()) && StringUtils.hasText(entity.getState())) score += 10;
-        else missing.add("City and State Location");
-
-        if (StringUtils.hasText(entity.getEmail()) || StringUtils.hasText(entity.getPhone())) score += 10;
-        else missing.add("Public Contact Phone & Email");
-
-        // 3. Credentials & Experience (20%)
-        if (entity.getExperienceYears() != null && entity.getExperienceYears() > 0) score += 10;
-        else missing.add("Years in Practice");
-
-        if (StringUtils.hasText(entity.getSpecializations())) score += 10;
-        else missing.add("Key Tax Specializations");
-
-        // 4. Pricing & Services (20%)
-        if (entity.getStartingFee() != null && entity.getStartingFee().compareTo(BigDecimal.ZERO) > 0) score += 5;
-        else missing.add("Starting Package Fee");
-
-        if (entity.getHourlyRate() != null && entity.getHourlyRate().compareTo(BigDecimal.ZERO) > 0) score += 5;
-        else missing.add("Hourly Advisory Rate");
-
-        if (!services.isEmpty()) score += 10;
-        else missing.add("At least 1 active Service Package");
-
-        // 5. Verification Badge (15%)
-        if (entity.getVerificationStatus() == MarketplaceProfileEntity.VerificationStatus.VERIFIED) score += 15;
-        else missing.add("ICAI / ICSI KYC Credential Verification");
-
-        dto.setCompletenessScore(Math.min(100, score));
-        dto.setMissingCompletenessFields(missing);
+        // Calculate Profile Completeness (percentage, completedItems, missingItems) via modular calculator
+        OrganizationEntity org = organizationRepository.findById(entity.getOrganizationId()).orElse(null);
+        ProfileCompletenessDto completeness = completenessCalculator != null
+                ? completenessCalculator.calculate(entity, org)
+                : null;
+        if (completeness != null) {
+            dto.setCompleteness(completeness);
+            dto.setCompletenessScore(completeness.getPercentage());
+            dto.setMissingCompletenessFields(completeness.getMissingItems());
+        } else {
+            dto.setCompleteness(ProfileCompletenessDto.builder()
+                    .percentage(0)
+                    .completedItems(Collections.emptyList())
+                    .missingItems(Collections.emptyList())
+                    .build());
+            dto.setCompletenessScore(0);
+            dto.setMissingCompletenessFields(Collections.emptyList());
+        }
 
         return dto;
     }

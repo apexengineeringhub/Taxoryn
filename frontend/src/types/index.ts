@@ -877,8 +877,15 @@ export interface MarketplaceProfile {
   consultationDurationMinutes: number;
   services?: MarketplaceService[];
   recentReviews?: MarketplaceReview[];
+  completeness?: ProfileCompleteness;
   completenessScore?: number;
   missingCompletenessFields?: string[];
+}
+
+export interface ProfileCompleteness {
+  percentage: number;
+  completedItems: string[];
+  missingItems: string[];
 }
 
 export interface MarketplaceLead {

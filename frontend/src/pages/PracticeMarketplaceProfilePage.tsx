@@ -206,9 +206,10 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     );
   }
 
-  // Calculate completeness (Requirement 6)
-  const completeness = profile?.completenessScore || 0;
-  const missingFields = profile?.missingCompletenessFields || [];
+  // Calculate completeness (percentage, completedItems, missingItems)
+  const completeness = profile?.completeness?.percentage ?? profile?.completenessScore ?? 0;
+  const completedItems = profile?.completeness?.completedItems ?? [];
+  const missingFields = profile?.completeness?.missingItems ?? profile?.missingCompletenessFields ?? [];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20">
@@ -369,22 +370,50 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {missingFields.length > 0 && (
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
-            <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Recommended steps to reach 100%:</div>
-            <div className="flex flex-wrap gap-2">
-              {missingFields.map((field, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-600 dark:text-slate-300"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  {field}
-                </span>
-              ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+          {completedItems.length > 0 && (
+            <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200/60 dark:border-emerald-800/40">
+              <div className="text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-2 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Completed Sections ({completedItems.length}):
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {completedItems.map((item, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white/90 dark:bg-slate-900 border border-emerald-200/60 dark:border-emerald-800/60 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300"
+                  >
+                    ✓ {item}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {missingFields.length > 0 ? (
+            <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200/60 dark:border-amber-800/40">
+              <div className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                Missing for 100% Completeness ({missingFields.length}):
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {missingFields.map((field, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/90 dark:bg-slate-900 border border-amber-200/60 dark:border-amber-800/60 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    {field}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 flex items-center justify-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              🎉 100% Profile Complete! Your listing is fully optimized for customer discovery.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Navigation Tabs */}
