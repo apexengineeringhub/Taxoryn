@@ -66,13 +66,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
     { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: true },
     { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, visible: true },
-    { label: 'Marketplace Listing', path: '/marketplace/practice-profile', icon: Sparkles, visible: isFirmAdmin },
-    { label: 'Find Tax Experts', path: '/marketplace', icon: Search, visible: true },
-    { label: 'Marketplace Admin', path: '/admin/marketplace', icon: ShieldCheck, visible: isSuperAdmin },
     { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: true },
     { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
     { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
+    { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
   ];
 

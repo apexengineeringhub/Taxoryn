@@ -848,6 +848,9 @@ export interface MarketplaceProfile {
   organizationId: string;
   slug: string;
   displayName: string;
+  publicSlug?: string;
+  description?: string;
+  website?: string;
   headline?: string;
   bio?: string;
   professionalType: ProfessionalType;
@@ -878,6 +881,7 @@ export interface MarketplaceProfile {
   services?: MarketplaceService[];
   recentReviews?: MarketplaceReview[];
   completeness?: ProfileCompleteness;
+  profileCompleteness?: ProfileCompleteness;
   completenessScore?: number;
   missingCompletenessFields?: string[];
 }
@@ -886,6 +890,7 @@ export interface ProfileCompleteness {
   percentage: number;
   completedItems: string[];
   missingItems: string[];
+  isEligibleForPublishing?: boolean;
 }
 
 export interface MarketplaceLead {
