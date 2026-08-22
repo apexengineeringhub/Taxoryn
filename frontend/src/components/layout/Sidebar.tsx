@@ -17,6 +17,9 @@ import {
   LogOut,
   Sparkles,
   Percent,
+  Store,
+  Search,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -35,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
   const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isSuperAdmin = userRoleCodes.includes('SUPER_ADMIN');
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
   const userPermissions = user?.permissions || [];
@@ -47,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent, visible: true },
     { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
     { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
+    { label: 'Find CA / CS / Advocates', path: '/marketplace', icon: Search, visible: true },
   ];
 
   const practiceNavItems = [
@@ -59,6 +64,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
     { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
+    { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: true },
+    { label: 'Marketplace Listing', path: '/marketplace/practice-profile', icon: Sparkles, visible: isFirmAdmin },
+    { label: 'Find Tax Experts', path: '/marketplace', icon: Search, visible: true },
+    { label: 'Marketplace Admin', path: '/admin/marketplace', icon: ShieldCheck, visible: isSuperAdmin },
     { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: true },
     { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
     { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },

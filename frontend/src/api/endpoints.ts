@@ -40,6 +40,13 @@ import {
   TdsWorkloadDashboard,
   BulkTdsProfileImportResult,
   BulkTdsReturnImportResult,
+  MarketplaceProfile,
+  MarketplaceService,
+  MarketplaceLead,
+  MarketplaceConsultation,
+  MarketplaceReview,
+  MarketplaceVerification,
+  MarketplaceStats,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -788,4 +795,133 @@ export const portalApi = {
     return res.data.data;
   },
 };
+
+// --- 13. Customer Marketplace & Discovery (Public) ---
+export const marketplacePublicApi = {
+  search: async (params?: { city?: string; professionalType?: string; specialization?: string; verifiedOnly?: boolean; search?: string; page?: number; size?: number; sortBy?: string; sortDirection?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceProfile>>>('/v1/marketplace/search', { params });
+    return res.data.data;
+  },
+  getFeatured: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceProfile[]>>('/v1/marketplace/featured');
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceProfile>>(`/v1/marketplace/profiles/${id}`);
+    return res.data.data;
+  },
+  getBySlug: async (slug: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceProfile>>(`/v1/marketplace/profiles/slug/${slug}`);
+    return res.data.data;
+  },
+  getServices: async (profileId: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceService[]>>(`/v1/marketplace/profiles/${profileId}/services`);
+    return res.data.data;
+  },
+  getReviews: async (profileId: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>(`/v1/marketplace/profiles/${profileId}/reviews`);
+    return res.data.data;
+  },
+  submitLead: async (payload: { marketplaceProfileId: string; serviceId?: string; clientName: string; clientEmail: string; clientPhone: string; city?: string; pan?: string; gstin?: string; serviceCategory?: string; requirementDescription: string; budgetRange?: string; urgency?: string }) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceLead>>('/v1/marketplace/leads', payload);
+    return res.data.data;
+  },
+  bookConsultation: async (payload: { marketplaceProfileId: string; clientName: string; clientEmail: string; clientPhone: string; topic: string; consultationMode?: string; bookingDate: string; startTime: string; endTime: string; notes?: string }) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceConsultation>>('/v1/marketplace/consultations', payload);
+    return res.data.data;
+  },
+  submitReview: async (payload: { marketplaceProfileId: string; reviewerName: string; reviewerDesignation?: string; reviewerCompany?: string; rating: number; reviewTitle?: string; reviewComment: string; serviceTaken?: string }) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceReview>>('/v1/marketplace/reviews', payload);
+    return res.data.data;
+  },
+  seedDemo: async () => {
+    const res = await apiClient.post<ApiResponse<MarketplaceProfile[]>>('/v1/marketplace/seed-demo');
+    return res.data.data;
+  },
+};
+
+// --- 14. Practice Marketplace Management ---
+export const marketplacePracticeApi = {
+  getMyProfile: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceProfile>>('/v1/practice/marketplace/profile');
+    return res.data.data;
+  },
+  updateMyProfile: async (payload: Partial<MarketplaceProfile>) => {
+    const res = await apiClient.put<ApiResponse<MarketplaceProfile>>('/v1/practice/marketplace/profile', payload);
+    return res.data.data;
+  },
+  getMyServices: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceService[]>>('/v1/practice/marketplace/services');
+    return res.data.data;
+  },
+  createService: async (payload: Partial<MarketplaceService>) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceService>>('/v1/practice/marketplace/services', payload);
+    return res.data.data;
+  },
+  updateService: async (id: string, payload: Partial<MarketplaceService>) => {
+    const res = await apiClient.put<ApiResponse<MarketplaceService>>(`/v1/practice/marketplace/services/${id}`, payload);
+    return res.data.data;
+  },
+  deleteService: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/practice/marketplace/services/${id}`);
+    return res.data;
+  },
+  getMyLeads: async (params?: { status?: string; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceLead>>>('/v1/practice/marketplace/leads', { params });
+    return res.data.data;
+  },
+  updateLeadStatus: async (id: string, params: { status?: string; notes?: string; assignedEmployeeId?: string }) => {
+    const res = await apiClient.patch<ApiResponse<MarketplaceLead>>(`/v1/practice/marketplace/leads/${id}/status`, null, { params });
+    return res.data.data;
+  },
+  convertLeadToClient: async (id: string, payload: { clientType?: string; assignedEmployeeId?: string; createOnboardingTask?: boolean; notes?: string }) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceLead>>(`/v1/practice/marketplace/leads/${id}/convert-to-client`, payload);
+    return res.data.data;
+  },
+  getMyConsultations: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceConsultation>>>('/v1/practice/marketplace/consultations', { params });
+    return res.data.data;
+  },
+  updateConsultationStatus: async (id: string, params: { status?: string; meetingLink?: string; notes?: string }) => {
+    const res = await apiClient.patch<ApiResponse<MarketplaceConsultation>>(`/v1/practice/marketplace/consultations/${id}/status`, null, { params });
+    return res.data.data;
+  },
+  submitVerification: async (payload: { professionalBody: string; membershipNumber: string; copNumber?: string; firmRegistrationNumber?: string; documentUrl?: string }) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceVerification>>('/v1/practice/marketplace/verification', payload);
+    return res.data.data;
+  },
+  getVerificationStatus: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceVerification>>('/v1/practice/marketplace/verification');
+    return res.data.data;
+  },
+  getStats: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceStats>>('/v1/practice/marketplace/stats');
+    return res.data.data;
+  },
+};
+
+// --- 15. Platform Admin Marketplace Governance ---
+export const marketplaceAdminApi = {
+  getPendingVerifications: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceVerification>>>('/v1/admin/marketplace/verifications/pending', { params });
+    return res.data.data;
+  },
+  processVerification: async (id: string, payload: { verificationStatus: string; rejectionReason?: string }) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceVerification>>(`/v1/admin/marketplace/verifications/${id}/process`, payload);
+    return res.data.data;
+  },
+  toggleFeatured: async (id: string, isFeatured: boolean) => {
+    const res = await apiClient.patch<ApiResponse<MarketplaceProfile>>(`/v1/admin/marketplace/profiles/${id}/featured`, null, { params: { isFeatured } });
+    return res.data.data;
+  },
+  togglePublish: async (id: string, isPublished: boolean) => {
+    const res = await apiClient.patch<ApiResponse<MarketplaceProfile>>(`/v1/admin/marketplace/profiles/${id}/publish`, null, { params: { isPublished } });
+    return res.data.data;
+  },
+  getPlatformStats: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceStats>>('/v1/admin/marketplace/stats');
+    return res.data.data;
+  },
+};
+
 

@@ -806,4 +806,152 @@ export interface BulkTdsReturnImportResult {
   errorMessages: string[];
 }
 
+// 13. Customer Marketplace & Discovery Interfaces
+export type ProfessionalType = 'CHARTERED_ACCOUNTANT' | 'COMPANY_SECRETARY' | 'COST_ACCOUNTANT' | 'TAX_ADVOCATE' | 'TAX_CONSULTANT';
+export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type LeadStatus = 'NEW' | 'CONTACTED' | 'PROPOSAL_SENT' | 'CONVERTED' | 'ARCHIVED';
+export type LeadUrgency = 'LOW' | 'STANDARD' | 'URGENT';
+export type ConsultationMode = 'VIDEO' | 'PHONE' | 'IN_PERSON';
+export type ConsultationStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+export interface MarketplaceService {
+  id?: string;
+  organizationId?: string;
+  marketplaceProfileId?: string;
+  title: string;
+  category: string;
+  description?: string;
+  price: number;
+  pricingType: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY' | 'CUSTOM';
+  deliveryDays: number;
+  deliverables?: string;
+  isActive: boolean;
+}
+
+export interface MarketplaceReview {
+  id: string;
+  marketplaceProfileId: string;
+  reviewerName: string;
+  reviewerDesignation?: string;
+  reviewerCompany?: string;
+  rating: number;
+  reviewTitle?: string;
+  reviewComment: string;
+  serviceTaken?: string;
+  isVerifiedClient?: boolean;
+  createdAt: string;
+}
+
+export interface MarketplaceProfile {
+  id: string;
+  organizationId: string;
+  slug: string;
+  displayName: string;
+  headline?: string;
+  bio?: string;
+  professionalType: ProfessionalType;
+  experienceYears: number;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  websiteUrl?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  specializations: string[];
+  languagesSpoken?: string;
+  startingFee: number;
+  hourlyRate: number;
+  averageRating: number;
+  totalReviews: number;
+  totalClientsServed: number;
+  verificationStatus: VerificationStatus;
+  isPublished: boolean;
+  isFeatured: boolean;
+  consultationEnabled: boolean;
+  consultationFee: number;
+  consultationDurationMinutes: number;
+  services?: MarketplaceService[];
+  recentReviews?: MarketplaceReview[];
+}
+
+export interface MarketplaceLead {
+  id: string;
+  organizationId: string;
+  marketplaceProfileId: string;
+  serviceId?: string;
+  serviceTitle?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  city?: string;
+  pan?: string;
+  gstin?: string;
+  serviceCategory?: string;
+  requirementDescription: string;
+  budgetRange?: string;
+  urgency: LeadUrgency;
+  leadStatus: LeadStatus;
+  convertedClientId?: string;
+  convertedClientName?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  practitionerNotes?: string;
+  createdAt: string;
+}
+
+export interface MarketplaceConsultation {
+  id: string;
+  organizationId: string;
+  marketplaceProfileId: string;
+  practiceDisplayName?: string;
+  leadId?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  topic: string;
+  consultationMode: ConsultationMode;
+  meetingLink?: string;
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+  feeAmount: number;
+  paymentStatus: 'PENDING' | 'PAID' | 'WAIVED' | 'REFUNDED';
+  consultationStatus: ConsultationStatus;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  notes?: string;
+}
+
+export interface MarketplaceVerification {
+  id: string;
+  organizationId: string;
+  organizationName?: string;
+  marketplaceProfileId: string;
+  professionalBody: string;
+  membershipNumber: string;
+  copNumber?: string;
+  firmRegistrationNumber?: string;
+  documentUrl?: string;
+  verificationStatus: VerificationStatus;
+  rejectionReason?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  createdAt: string;
+}
+
+export interface MarketplaceStats {
+  totalListedPractitioners: number;
+  totalVerifiedPractitioners: number;
+  totalPendingVerifications: number;
+  totalInboundLeads: number;
+  totalConvertedClients: number;
+  leadConversionRate: number;
+  totalConsultationsBooked: number;
+  estimatedMarketplacePipelineValue: number;
+}
+
+
 

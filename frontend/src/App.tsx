@@ -27,6 +27,12 @@ import { BulkEmployeeOnboardingPage } from './pages/BulkEmployeeOnboardingPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { PracticeBrandingPage } from './pages/PracticeBrandingPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
+import { MarketplaceExplorePage } from './pages/MarketplaceExplorePage';
+import { MarketplaceProfileDetailPage } from './pages/MarketplaceProfileDetailPage';
+import { MarketplaceComparePage } from './pages/MarketplaceComparePage';
+import { PracticeMarketplaceProfilePage } from './pages/PracticeMarketplaceProfilePage';
+import { MarketplaceLeadsPage } from './pages/MarketplaceLeadsPage';
+import { PlatformAdminMarketplacePage } from './pages/PlatformAdminMarketplacePage';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -59,9 +65,13 @@ export const App: React.FC = () => {
       <BrandingProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public Auth Routes */}
+            {/* Public Auth & Discovery Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterOrgPage />} />
+            <Route path="/marketplace" element={<MarketplaceExplorePage />} />
+            <Route path="/marketplace/profile/:id" element={<MarketplaceProfileDetailPage />} />
+            <Route path="/marketplace/:slug" element={<MarketplaceProfileDetailPage />} />
+            <Route path="/marketplace/compare" element={<MarketplaceComparePage />} />
 
             {/* Protected Application Routes */}
             <Route
@@ -86,6 +96,9 @@ export const App: React.FC = () => {
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/billing" element={<BillingPage />} />
+              <Route path="/marketplace/leads" element={<MarketplaceLeadsPage />} />
+              <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
+              <Route path="/admin/marketplace" element={<PlatformAdminMarketplacePage />} />
               <Route path="/portal" element={<ClientPortalManagementPage />} />
               <Route path="/team" element={<TeamManagementPage />} />
               <Route path="/team/bulk" element={<BulkEmployeeOnboardingPage />} />
