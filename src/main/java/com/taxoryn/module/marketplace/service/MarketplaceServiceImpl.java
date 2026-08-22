@@ -297,7 +297,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .address(request.getAddress() != null ? request.getAddress() : org.getAddress())
                 .phone(request.getPhone() != null ? request.getPhone() : org.getPhone())
                 .email(request.getEmail() != null ? request.getEmail() : org.getEmail())
-                .websiteUrl(request.getWebsiteUrl())
+                .websiteUrl(request.resolveWebsite())
                 .avatarUrl(request.getAvatarUrl())
                 .bannerUrl(request.getBannerUrl())
                 .specializations(request.getSpecializations() != null ? String.join(", ", request.getSpecializations()) : "GST_FILING, ITR_FILING, TDS_COMPLIANCE")
@@ -349,7 +349,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (request.getAddress() != null) profile.setAddress(request.getAddress());
         if (request.getPhone() != null) profile.setPhone(request.getPhone());
         if (request.getEmail() != null) profile.setEmail(request.getEmail());
-        if (request.getWebsiteUrl() != null) profile.setWebsiteUrl(request.getWebsiteUrl());
+        if (request.resolveWebsite() != null) profile.setWebsiteUrl(request.resolveWebsite());
         if (request.getAvatarUrl() != null) profile.setAvatarUrl(request.getAvatarUrl());
         if (request.getBannerUrl() != null) profile.setBannerUrl(request.getBannerUrl());
         if (request.getSpecializations() != null) {
