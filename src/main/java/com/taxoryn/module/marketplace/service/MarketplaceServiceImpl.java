@@ -299,7 +299,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (request.getLanguagesSpoken() != null) profile.setLanguagesSpoken(request.getLanguagesSpoken());
         if (request.getStartingFee() != null) profile.setStartingFee(request.getStartingFee());
         if (request.getHourlyRate() != null) profile.setHourlyRate(request.getHourlyRate());
-        if (request.getIsPublished() != null) profile.setIsPublished(request.getIsPublished());
+        if (request.getVisibilityStatus() != null) profile.setVisibilityStatus(request.getVisibilityStatus());
+        else if (request.getIsPublished() != null) profile.setIsPublished(request.getIsPublished());
         if (request.getConsultationEnabled() != null) profile.setConsultationEnabled(request.getConsultationEnabled());
         if (request.getConsultationFee() != null) profile.setConsultationFee(request.getConsultationFee());
         if (request.getConsultationDurationMinutes() != null) profile.setConsultationDurationMinutes(request.getConsultationDurationMinutes());
@@ -872,6 +873,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 entity.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
         );
         dto.setRecentReviews(mapper.toReviewDtoList(reviews));
+        dto.setVisibilityStatus(entity.getVisibilityStatus());
 
         // Calculate Profile Completeness (0 - 100%) & Missing Fields Checklist
         int score = 0;

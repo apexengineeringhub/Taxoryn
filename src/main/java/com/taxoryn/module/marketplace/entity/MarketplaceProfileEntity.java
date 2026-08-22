@@ -99,6 +99,11 @@ public class MarketplaceProfileEntity extends AuditableEntity {
     @Builder.Default
     private VerificationStatus verificationStatus = VerificationStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility_status", nullable = false, length = 50)
+    @Builder.Default
+    private VisibilityStatus visibilityStatus = VisibilityStatus.DRAFT;
+
     @Column(name = "is_published", nullable = false)
     @Builder.Default
     private Boolean isPublished = false;
@@ -131,5 +136,66 @@ public class MarketplaceProfileEntity extends AuditableEntity {
         PENDING,
         VERIFIED,
         REJECTED
+    }
+
+    public enum VisibilityStatus {
+        DRAFT,
+        PUBLISHED,
+        HIDDEN,
+        SUSPENDED
+    }
+
+    // Domain Aliases & Accessors for Marketplace Practice Profile
+    public String getPublicSlug() {
+        return this.slug;
+    }
+
+    public void setPublicSlug(String publicSlug) {
+        this.slug = publicSlug;
+    }
+
+    public String getDescription() {
+        return this.bio;
+    }
+
+    public void setDescription(String description) {
+        this.bio = description;
+    }
+
+    public String getLogoUrl() {
+        return this.avatarUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.avatarUrl = logoUrl;
+    }
+
+    public String getWebsite() {
+        return this.websiteUrl;
+    }
+
+    public void setWebsite(String website) {
+        this.websiteUrl = website;
+    }
+
+    public VisibilityStatus getVisibilityStatus() {
+        if (this.visibilityStatus != null) {
+            return this.visibilityStatus;
+        }
+        return Boolean.TRUE.equals(this.isPublished) ? VisibilityStatus.PUBLISHED : VisibilityStatus.DRAFT;
+    }
+
+    public void setVisibilityStatus(VisibilityStatus status) {
+        this.visibilityStatus = status != null ? status : VisibilityStatus.DRAFT;
+        this.isPublished = (this.visibilityStatus == VisibilityStatus.PUBLISHED);
+    }
+
+    public void setIsPublished(Boolean isPublished) {
+        this.isPublished = Boolean.TRUE.equals(isPublished);
+        if (this.isPublished) {
+            this.visibilityStatus = VisibilityStatus.PUBLISHED;
+        } else if (this.visibilityStatus == VisibilityStatus.PUBLISHED) {
+            this.visibilityStatus = VisibilityStatus.DRAFT;
+        }
     }
 }

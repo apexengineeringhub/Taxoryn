@@ -1,6 +1,7 @@
 package com.taxoryn.module.marketplace.dto;
 
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.ProfessionalType;
+import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -75,6 +76,9 @@ public class UpdateMarketplaceProfileRequest {
 
     @Schema(description = "Publish toggle to show listing in public directory")
     private Boolean isPublished;
+
+    @Schema(description = "Marketplace visibility lifecycle status (DRAFT, PUBLISHED, HIDDEN, SUSPENDED)")
+    private VisibilityStatus visibilityStatus;
 
     @Schema(description = "Enable direct paid consultation bookings")
     private Boolean consultationEnabled;

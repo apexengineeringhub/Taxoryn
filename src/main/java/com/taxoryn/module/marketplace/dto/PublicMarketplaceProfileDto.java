@@ -2,6 +2,7 @@ package com.taxoryn.module.marketplace.dto;
 
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.ProfessionalType;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VerificationStatus;
+import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
@@ -41,6 +42,7 @@ public class PublicMarketplaceProfileDto {
     private Integer totalReviews;
     private Integer totalClientsServed;
     private VerificationStatus verificationStatus;
+    private VisibilityStatus visibilityStatus;
     private Boolean isPublished;
     private Boolean isFeatured;
     private Boolean consultationEnabled;
