@@ -1079,7 +1079,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         }
 
         if (!missingFields.isEmpty()) {
-            throw new BusinessValidationException("Cannot publish profile to Marketplace. Minimum required fields: " + String.join(", ", missingFields));
+            throw new com.taxoryn.module.marketplace.exception.MarketplacePublishingIneligibleException(missingFields);
         }
     }
 }
