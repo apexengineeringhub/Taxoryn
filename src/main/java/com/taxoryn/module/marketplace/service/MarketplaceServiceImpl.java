@@ -172,6 +172,28 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         log.info("New marketplace consultation booked: {} on {} {} with {}", saved.getId(), saved.getBookingDate(), saved.getStartTime(), profile.getDisplayName());
         auditService.logEvent("MARKETPLACE_CONSULTATION_BOOKED", "MARKETPLACE_CONSULTATION", saved.getId().toString(), null, "Consultation with " + saved.getClientName());
 
+        // Unify into Practice Inbound Leads CRM so the practitioner immediately sees this booking in their Leads pipeline
+        try {
+            MarketplaceLeadEntity lead = MarketplaceLeadEntity.builder()
+                    .organizationId(profile.getOrganizationId())
+                    .marketplaceProfileId(profile.getId())
+                    .clientName(request.getClientName().trim())
+                    .clientEmail(request.getClientEmail().trim().toLowerCase())
+                    .clientPhone(request.getClientPhone().trim())
+                    .serviceCategory("Paid Consultation")
+                    .requirementDescription("Booked 30-min strategy consultation on " + request.getBookingDate() + " at " + request.getStartTime() +
+                            " (" + request.getConsultationMode() + "). Topic: " + request.getTopic() +
+                            (StringUtils.hasText(request.getNotes()) ? " | Client Notes: " + request.getNotes() : ""))
+                    .urgency(MarketplaceLeadEntity.Urgency.URGENT)
+                    .leadStatus(LeadStatus.NEW)
+                    .practitionerNotes("Paid consultation booked via Marketplace. Slot: " + request.getBookingDate() + " " + request.getStartTime())
+                    .build();
+            leadRepository.save(lead);
+            log.info("Linked Inbound Lead created for consultation booking {}", saved.getId());
+        } catch (Exception e) {
+            log.warn("Could not create linked lead for consultation booking: {}", e.getMessage());
+        }
+
         return enrichConsultationDto(saved);
     }
 
