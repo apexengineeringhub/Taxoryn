@@ -1,5 +1,6 @@
 package com.taxoryn.module.marketplace.service;
 
+import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.TenantContext;
@@ -12,6 +13,7 @@ import com.taxoryn.module.marketplace.entity.*;
 import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.ProfessionalType;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VerificationStatus;
+import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus;
 import com.taxoryn.module.marketplace.mapper.MarketplaceMapper;
 import com.taxoryn.module.marketplace.repository.*;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
@@ -111,9 +113,13 @@ class MarketplaceServiceTest {
                 .headline("Premier GST & ITR Practice")
                 .professionalType(ProfessionalType.CHARTERED_ACCOUNTANT)
                 .city("Mumbai")
+                .state("Maharashtra")
+                .phone("9820011223")
+                .email("contact@apextax.com")
                 .startingFee(new BigDecimal("999.00"))
                 .averageRating(new BigDecimal("4.95"))
                 .verificationStatus(VerificationStatus.VERIFIED)
+                .visibilityStatus(VisibilityStatus.PUBLIC)
                 .isPublished(true)
                 .build();
         sampleProfile.setId(profileId);
@@ -333,5 +339,112 @@ class MarketplaceServiceTest {
         String slug = marketplaceService.generateUniqueSlug("Apex Tax", "Mumbai");
 
         assertEquals("apex-tax-mumbai-1", slug);
+    }
+
+    @Test
+    @DisplayName("Status Design: publishing with complete information succeeds")
+    void testPublishing_WhenAllRequiredFieldsPresent_Succeeds() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .id(sampleProfile.getId())
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .isPublished(true)
+                .build();
+        when(mapper.toProfileDto(any())).thenReturn(mockDto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+
+        UpdateMarketplaceProfileRequest request = UpdateMarketplaceProfileRequest.builder()
+                .displayName("Apex Corporate & Tax Advisors")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .phone("9820011223")
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .build();
+
+        PublicMarketplaceProfileDto result = marketplaceService.updateMyPracticeProfile(request);
+
+        assertNotNull(result);
+        assertEquals(VisibilityStatus.PUBLIC, sampleProfile.getVisibilityStatus());
+        assertTrue(sampleProfile.getIsPublished());
+    }
+
+    @Test
+    @DisplayName("Status Design: publishing when minimum required information is missing throws BusinessValidationException")
+    void testPublishing_WhenMinimumFieldsMissing_ThrowsBusinessValidationException() {
+        MarketplaceProfileEntity incompleteProfile = MarketplaceProfileEntity.builder()
+                .organizationId(organizationId)
+                .slug("incomplete-slug")
+                .displayName("Incomplete Firm")
+                .professionalType(ProfessionalType.CHARTERED_ACCOUNTANT)
+                .city(null) // Missing City
+                .state(null) // Missing State
+                .phone(null)
+                .email(null) // Missing Contact
+                .visibilityStatus(VisibilityStatus.PRIVATE)
+                .isPublished(false)
+                .build();
+
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(incompleteProfile));
+
+        UpdateMarketplaceProfileRequest request = UpdateMarketplaceProfileRequest.builder()
+                .displayName("Incomplete Firm")
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .build();
+
+        BusinessValidationException ex = assertThrows(BusinessValidationException.class, () ->
+                marketplaceService.updateMyPracticeProfile(request)
+        );
+
+        assertTrue(ex.getMessage().contains("Cannot publish profile to Marketplace"));
+        assertTrue(ex.getMessage().contains("City"));
+    }
+
+    @Test
+    @DisplayName("Status Design: orthogonal status combinations are fully representable")
+    void testOrthogonalStatusCombinations() {
+        // 1. VERIFIED + PRIVATE
+        MarketplaceProfileEntity p1 = MarketplaceProfileEntity.builder()
+                .visibilityStatus(VisibilityStatus.PRIVATE)
+                .verificationStatus(VerificationStatus.VERIFIED)
+                .build();
+        assertEquals(VisibilityStatus.PRIVATE, p1.getVisibilityStatus());
+        assertEquals(VerificationStatus.VERIFIED, p1.getVerificationStatus());
+        assertFalse(p1.getIsPublished());
+
+        // 2. PUBLIC + PENDING
+        MarketplaceProfileEntity p2 = MarketplaceProfileEntity.builder()
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .verificationStatus(VerificationStatus.PENDING)
+                .build();
+        assertEquals(VisibilityStatus.PUBLIC, p2.getVisibilityStatus());
+        assertEquals(VerificationStatus.PENDING, p2.getVerificationStatus());
+
+        // 3. PUBLIC + VERIFIED
+        MarketplaceProfileEntity p3 = MarketplaceProfileEntity.builder()
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .verificationStatus(VerificationStatus.VERIFIED)
+                .build();
+        assertEquals(VisibilityStatus.PUBLIC, p3.getVisibilityStatus());
+        assertEquals(VerificationStatus.VERIFIED, p3.getVerificationStatus());
+
+        // 4. PUBLIC + NOT_SUBMITTED
+        MarketplaceProfileEntity p4 = MarketplaceProfileEntity.builder()
+                .visibilityStatus(VisibilityStatus.PUBLIC)
+                .verificationStatus(VerificationStatus.NOT_SUBMITTED)
+                .build();
+        assertEquals(VisibilityStatus.PUBLIC, p4.getVisibilityStatus());
+        assertEquals(VerificationStatus.NOT_SUBMITTED, p4.getVerificationStatus());
+
+        // 5. SUSPENDED + VERIFIED
+        MarketplaceProfileEntity p5 = MarketplaceProfileEntity.builder()
+                .visibilityStatus(VisibilityStatus.SUSPENDED)
+                .verificationStatus(VerificationStatus.VERIFIED)
+                .build();
+        assertEquals(VisibilityStatus.SUSPENDED, p5.getVisibilityStatus());
+        assertEquals(VerificationStatus.VERIFIED, p5.getVerificationStatus());
+        assertFalse(p5.getIsPublished());
     }
 }

@@ -97,12 +97,12 @@ public class MarketplaceProfileEntity extends AuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false, length = 50)
     @Builder.Default
-    private VerificationStatus verificationStatus = VerificationStatus.PENDING;
+    private VerificationStatus verificationStatus = VerificationStatus.NOT_SUBMITTED;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility_status", nullable = false, length = 50)
     @Builder.Default
-    private VisibilityStatus visibilityStatus = VisibilityStatus.DRAFT;
+    private VisibilityStatus visibilityStatus = VisibilityStatus.PRIVATE;
 
     @Column(name = "is_published", nullable = false)
     @Builder.Default
@@ -133,15 +133,15 @@ public class MarketplaceProfileEntity extends AuditableEntity {
     }
 
     public enum VerificationStatus {
+        NOT_SUBMITTED,
         PENDING,
         VERIFIED,
         REJECTED
     }
 
     public enum VisibilityStatus {
-        DRAFT,
-        PUBLISHED,
-        HIDDEN,
+        PRIVATE,
+        PUBLIC,
         SUSPENDED
     }
 
@@ -182,20 +182,20 @@ public class MarketplaceProfileEntity extends AuditableEntity {
         if (this.visibilityStatus != null) {
             return this.visibilityStatus;
         }
-        return Boolean.TRUE.equals(this.isPublished) ? VisibilityStatus.PUBLISHED : VisibilityStatus.DRAFT;
+        return Boolean.TRUE.equals(this.isPublished) ? VisibilityStatus.PUBLIC : VisibilityStatus.PRIVATE;
     }
 
     public void setVisibilityStatus(VisibilityStatus status) {
-        this.visibilityStatus = status != null ? status : VisibilityStatus.DRAFT;
-        this.isPublished = (this.visibilityStatus == VisibilityStatus.PUBLISHED);
+        this.visibilityStatus = status != null ? status : VisibilityStatus.PRIVATE;
+        this.isPublished = (this.visibilityStatus == VisibilityStatus.PUBLIC);
     }
 
     public void setIsPublished(Boolean isPublished) {
         this.isPublished = Boolean.TRUE.equals(isPublished);
         if (this.isPublished) {
-            this.visibilityStatus = VisibilityStatus.PUBLISHED;
-        } else if (this.visibilityStatus == VisibilityStatus.PUBLISHED) {
-            this.visibilityStatus = VisibilityStatus.DRAFT;
+            this.visibilityStatus = VisibilityStatus.PUBLIC;
+        } else if (this.visibilityStatus == VisibilityStatus.PUBLIC) {
+            this.visibilityStatus = VisibilityStatus.PRIVATE;
         }
     }
 }

@@ -221,15 +221,45 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-extrabold">{profile?.displayName || 'My Practice'}</h1>
-            {profile?.isPublished ? (
+            
+            {/* 1. Visibility Status Badge (PRIVATE / PUBLIC / SUSPENDED) */}
+            {profile?.visibilityStatus === 'PUBLIC' || (profile?.isPublished && profile?.visibilityStatus !== 'SUSPENDED') ? (
               <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Live on Directory
+                <Globe className="w-3.5 h-3.5" />
+                Visibility: PUBLIC (Live)
+              </span>
+            ) : profile?.visibilityStatus === 'SUSPENDED' ? (
+              <span className="px-3 py-1 rounded-full bg-rose-500/20 border border-rose-400/40 text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Visibility: SUSPENDED
               </span>
             ) : (
               <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold flex items-center gap-1.5">
                 <Lock className="w-3.5 h-3.5" />
-                Draft Mode (Hidden from Customer Search)
+                Visibility: PRIVATE (Draft)
+              </span>
+            )}
+
+            {/* 2. Verification Status Badge (NOT_SUBMITTED / PENDING / VERIFIED / REJECTED) */}
+            {profile?.verificationStatus === 'VERIFIED' ? (
+              <span className="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/40 text-blue-300 text-xs font-bold flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Verification: VERIFIED
+              </span>
+            ) : profile?.verificationStatus === 'PENDING' ? (
+              <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Verification: PENDING REVIEW
+              </span>
+            ) : profile?.verificationStatus === 'REJECTED' ? (
+              <span className="px-3 py-1 rounded-full bg-rose-500/20 border border-rose-400/40 text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Verification: REJECTED
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-slate-500/20 border border-slate-400/40 text-slate-300 text-xs font-bold flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                Verification: NOT SUBMITTED
               </span>
             )}
           </div>

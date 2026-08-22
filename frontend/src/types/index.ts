@@ -808,7 +808,8 @@ export interface BulkTdsReturnImportResult {
 
 // 13. Customer Marketplace & Discovery Interfaces
 export type ProfessionalType = 'CHARTERED_ACCOUNTANT' | 'COMPANY_SECRETARY' | 'COST_ACCOUNTANT' | 'TAX_ADVOCATE' | 'TAX_CONSULTANT';
-export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type VisibilityStatus = 'PRIVATE' | 'PUBLIC' | 'SUSPENDED';
+export type VerificationStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'PROPOSAL_SENT' | 'CONVERTED' | 'ARCHIVED';
 export type LeadUrgency = 'LOW' | 'STANDARD' | 'URGENT';
 export type ConsultationMode = 'VIDEO' | 'PHONE' | 'IN_PERSON';
@@ -868,6 +869,7 @@ export interface MarketplaceProfile {
   totalReviews: number;
   totalClientsServed: number;
   verificationStatus: VerificationStatus;
+  visibilityStatus?: VisibilityStatus;
   isPublished: boolean;
   isFeatured: boolean;
   consultationEnabled: boolean;

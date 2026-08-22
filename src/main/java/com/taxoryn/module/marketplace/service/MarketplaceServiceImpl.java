@@ -1,5 +1,6 @@
 package com.taxoryn.module.marketplace.service;
 
+import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
@@ -15,6 +16,7 @@ import com.taxoryn.module.marketplace.entity.MarketplaceConsultationEntity.Consu
 import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.ProfessionalType;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VerificationStatus;
+import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus;
 import com.taxoryn.module.marketplace.mapper.MarketplaceMapper;
 import com.taxoryn.module.marketplace.repository.*;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
@@ -299,8 +301,19 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (request.getLanguagesSpoken() != null) profile.setLanguagesSpoken(request.getLanguagesSpoken());
         if (request.getStartingFee() != null) profile.setStartingFee(request.getStartingFee());
         if (request.getHourlyRate() != null) profile.setHourlyRate(request.getHourlyRate());
-        if (request.getVisibilityStatus() != null) profile.setVisibilityStatus(request.getVisibilityStatus());
-        else if (request.getIsPublished() != null) profile.setIsPublished(request.getIsPublished());
+        
+        if (request.getVisibilityStatus() != null) {
+            if (request.getVisibilityStatus() == VisibilityStatus.PUBLIC) {
+                validatePublishingEligibility(profile);
+            }
+            profile.setVisibilityStatus(request.getVisibilityStatus());
+        } else if (Boolean.TRUE.equals(request.getIsPublished())) {
+            validatePublishingEligibility(profile);
+            profile.setIsPublished(true);
+        } else if (Boolean.FALSE.equals(request.getIsPublished())) {
+            profile.setIsPublished(false);
+        }
+
         if (request.getConsultationEnabled() != null) profile.setConsultationEnabled(request.getConsultationEnabled());
         if (request.getConsultationFee() != null) profile.setConsultationFee(request.getConsultationFee());
         if (request.getConsultationDurationMinutes() != null) profile.setConsultationDurationMinutes(request.getConsultationDurationMinutes());
@@ -635,6 +648,9 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     public PublicMarketplaceProfileDto togglePublishStatus(UUID profileId, boolean isPublished) {
         MarketplaceProfileEntity profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", profileId));
+        if (isPublished) {
+            validatePublishingEligibility(profile);
+        }
         profile.setIsPublished(isPublished);
         return enrichPublicProfile(profileRepository.save(profile));
     }
@@ -852,7 +868,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .averageRating(new BigDecimal("4.90"))
                 .totalReviews(0)
                 .totalClientsServed(0)
-                .verificationStatus(VerificationStatus.PENDING)
+                .verificationStatus(VerificationStatus.NOT_SUBMITTED)
+                .visibilityStatus(VisibilityStatus.PRIVATE)
                 .isPublished(false)
                 .isFeatured(false)
                 .consultationEnabled(true)
@@ -972,5 +989,31 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (cat.contains("AUDIT")) return TaskEntity.TaskCategory.AUDIT;
         if (cat.contains("ROC") || cat.contains("COMPANY")) return TaskEntity.TaskCategory.COMPLIANCE;
         return TaskEntity.TaskCategory.OTHER;
+    }
+
+    private void validatePublishingEligibility(MarketplaceProfileEntity profile) {
+        List<String> missingFields = new ArrayList<>();
+        if (!StringUtils.hasText(profile.getDisplayName())) {
+            missingFields.add("Firm / Display Name");
+        }
+        if (!StringUtils.hasText(profile.getSlug())) {
+            missingFields.add("Public Slug");
+        }
+        if (!StringUtils.hasText(profile.getCity())) {
+            missingFields.add("City");
+        }
+        if (!StringUtils.hasText(profile.getState())) {
+            missingFields.add("State");
+        }
+        if (!StringUtils.hasText(profile.getEmail()) && !StringUtils.hasText(profile.getPhone())) {
+            missingFields.add("Contact Phone or Email");
+        }
+        if (profile.getProfessionalType() == null) {
+            missingFields.add("Professional Designation");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new BusinessValidationException("Cannot publish profile to Marketplace. Minimum required fields: " + String.join(", ", missingFields));
+        }
     }
 }
