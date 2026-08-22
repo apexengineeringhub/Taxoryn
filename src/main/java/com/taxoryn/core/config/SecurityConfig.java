@@ -85,8 +85,20 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh-token",
                                 "/api/subscriptions/plans",
                                 "/api/v1/subscriptions/plans",
-                                "/api/marketplace/**",
-                                "/api/v1/marketplace/**"
+                                "/api/marketplace/search",
+                                "/api/marketplace/featured",
+                                "/api/marketplace/profiles/**",
+                                "/api/marketplace/leads",
+                                "/api/marketplace/consultations",
+                                "/api/marketplace/reviews/**",
+                                "/api/v1/marketplace/search",
+                                "/api/v1/marketplace/featured",
+                                "/api/v1/marketplace/profiles/**",
+                                "/api/v1/marketplace/leads",
+                                "/api/v1/marketplace/consultations",
+                                "/api/v1/marketplace/reviews/**",
+                                "/api/v1/marketplace/onboarding/proposals/**",
+                                "/api/v1/marketplace/onboarding/workspaces/**"
                         ).permitAll()
                         // Swagger & OpenAPI
                         .requestMatchers(
