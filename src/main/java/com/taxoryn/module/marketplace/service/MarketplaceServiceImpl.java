@@ -615,7 +615,30 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional
     public List<PublicMarketplaceProfileDto> seedDemoMarketplaceData() {
-        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID organizationId;
+        try {
+            organizationId = SecurityUtils.getCurrentOrganizationId();
+        } catch (Exception e) {
+            organizationId = null;
+        }
+
+        if (organizationId == null) {
+            organizationId = organizationRepository.findAll().stream().findFirst().map(OrganizationEntity::getId).orElseGet(() -> {
+                OrganizationEntity org = OrganizationEntity.builder()
+                        .name("Apex Corporate & Tax Advisors")
+                        .legalName("Apex Corporate & Tax Advisors LLP")
+                        .email("admin@apextax.com")
+                        .phone("+91 98201 12233")
+                        .city("Mumbai")
+                        .state("Maharashtra")
+                        .pincode("400001")
+                        .pan("AABCA1234F")
+                        .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                        .build();
+                return organizationRepository.save(org).getId();
+            });
+        }
+        final UUID targetOrgId = organizationId;
         List<PublicMarketplaceProfileDto> seeded = new ArrayList<>();
 
         record DemoFirm(
@@ -664,7 +687,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             MarketplaceProfileEntity profile = profileRepository.findBySlug(f.slug())
                     .orElseGet(() -> {
                         MarketplaceProfileEntity p = MarketplaceProfileEntity.builder()
-                                .organizationId(organizationId)
+                                .organizationId(targetOrgId)
                                 .slug(f.slug())
                                 .displayName(f.displayName())
                                 .headline(f.headline())
@@ -695,7 +718,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             // Seed services for this firm
             if (serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(profile.getId()).isEmpty()) {
                 serviceRepository.save(MarketplaceServiceEntity.builder()
-                        .organizationId(organizationId)
+                        .organizationId(targetOrgId)
                         .marketplaceProfileId(profile.getId())
                         .title("Comprehensive ITR Filing (Salary + Capital Gains)")
                         .category("INCOME_TAX")
@@ -708,7 +731,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                         .build());
 
                 serviceRepository.save(MarketplaceServiceEntity.builder()
-                        .organizationId(organizationId)
+                        .organizationId(targetOrgId)
                         .marketplaceProfileId(profile.getId())
                         .title("Monthly GST Compliance & ITC 2B Matching")
                         .category("GST")
@@ -724,7 +747,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             // Seed sample reviews
             if (reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED).isEmpty()) {
                 reviewRepository.save(MarketplaceReviewEntity.builder()
-                        .organizationId(organizationId)
+                        .organizationId(targetOrgId)
                         .marketplaceProfileId(profile.getId())
                         .reviewerName("Vikram Singhania")
                         .reviewerDesignation("Founder & CEO")

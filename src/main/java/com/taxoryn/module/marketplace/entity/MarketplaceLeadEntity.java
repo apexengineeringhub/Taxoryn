@@ -74,7 +74,9 @@ public class MarketplaceLeadEntity extends AuditableEntity {
         NEW,
         CONTACTED,
         PROPOSAL_SENT,
+        ACCEPTED,
         CONVERTED,
+        CLOSED_LOST,
         ARCHIVED
     }
 

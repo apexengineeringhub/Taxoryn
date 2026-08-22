@@ -33,6 +33,8 @@ import { MarketplaceComparePage } from './pages/MarketplaceComparePage';
 import { PracticeMarketplaceProfilePage } from './pages/PracticeMarketplaceProfilePage';
 import { MarketplaceLeadsPage } from './pages/MarketplaceLeadsPage';
 import { PlatformAdminMarketplacePage } from './pages/PlatformAdminMarketplacePage';
+import { MarketplaceOnboardingHubPage } from './pages/MarketplaceOnboardingHubPage';
+import { CustomerOnboardingPortalPage } from './pages/CustomerOnboardingPortalPage';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -72,6 +74,8 @@ export const App: React.FC = () => {
             <Route path="/marketplace/profile/:id" element={<MarketplaceProfileDetailPage />} />
             <Route path="/marketplace/:slug" element={<MarketplaceProfileDetailPage />} />
             <Route path="/marketplace/compare" element={<MarketplaceComparePage />} />
+            <Route path="/marketplace/onboarding/:token" element={<CustomerOnboardingPortalPage />} />
+            <Route path="/marketplace/proposal/:token" element={<CustomerOnboardingPortalPage />} />
 
             {/* Protected Application Routes */}
             <Route
@@ -97,6 +101,7 @@ export const App: React.FC = () => {
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/billing" element={<BillingPage />} />
               <Route path="/marketplace/leads" element={<MarketplaceLeadsPage />} />
+              <Route path="/marketplace/onboarding" element={<MarketplaceOnboardingHubPage />} />
               <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
               <Route path="/admin/marketplace" element={<PlatformAdminMarketplacePage />} />
               <Route path="/portal" element={<ClientPortalManagementPage />} />

@@ -47,6 +47,16 @@ import {
   MarketplaceReview,
   MarketplaceVerification,
   MarketplaceStats,
+  MarketplaceProposal,
+  MarketplaceOnboarding,
+  OnboardingDocument,
+  CreateProposalRequest,
+  AcceptProposalRequest,
+  InitiateOnboardingRequest,
+  UpdateOnboardingDetailsRequest,
+  SignEngagementLetterRequest,
+  VerifyOnboardingDocumentRequest,
+  ApproveAndPromoteClientRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -924,4 +934,75 @@ export const marketplaceAdminApi = {
   },
 };
 
+// --- 16. Practice Marketplace Onboarding Hub ---
+export const marketplaceOnboardingPracticeApi = {
+  sendProposal: async (payload: CreateProposalRequest) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceProposal>>('/v1/practice/marketplace/onboarding/proposals', payload);
+    return res.data.data;
+  },
+  getProposals: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceProposal>>>('/v1/practice/marketplace/onboarding/proposals', { params });
+    return res.data.data;
+  },
+  initiateOnboarding: async (payload: InitiateOnboardingRequest) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceOnboarding>>('/v1/practice/marketplace/onboarding/initiate', payload);
+    return res.data.data;
+  },
+  getOnboardings: async (params?: { status?: string; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceOnboarding>>>('/v1/practice/marketplace/onboarding', { params });
+    return res.data.data;
+  },
+  getOnboardingById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceOnboarding>>(`/v1/practice/marketplace/onboarding/${id}`);
+    return res.data.data;
+  },
+  verifyDocument: async (onboardingId: string, documentId: string, payload: VerifyOnboardingDocumentRequest) => {
+    const res = await apiClient.put<ApiResponse<OnboardingDocument>>(
+      `/v1/practice/marketplace/onboarding/${onboardingId}/documents/${documentId}/verify`,
+      payload
+    );
+    return res.data.data;
+  },
+  promoteToClient: async (onboardingId: string, payload?: ApproveAndPromoteClientRequest) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceOnboarding>>(
+      `/v1/practice/marketplace/onboarding/${onboardingId}/promote-to-client`,
+      payload || {}
+    );
+    return res.data.data;
+  },
+};
 
+// --- 17. Public Customer Self-Serve Onboarding Portal ---
+export const marketplaceOnboardingPublicApi = {
+  getProposalByToken: async (token: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceProposal>>(`/v1/marketplace/onboarding/proposal/${token}`);
+    return res.data.data;
+  },
+  respondToProposal: async (token: string, payload: AcceptProposalRequest) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceProposal>>(`/v1/marketplace/onboarding/proposal/${token}/respond`, payload);
+    return res.data.data;
+  },
+  getOnboardingByToken: async (token: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceOnboarding>>(`/v1/marketplace/onboarding/session/${token}`);
+    return res.data.data;
+  },
+  updateDetails: async (token: string, payload: UpdateOnboardingDetailsRequest) => {
+    const res = await apiClient.put<ApiResponse<MarketplaceOnboarding>>(`/v1/marketplace/onboarding/session/${token}/details`, payload);
+    return res.data.data;
+  },
+  signEngagement: async (token: string, payload: SignEngagementLetterRequest) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceOnboarding>>(`/v1/marketplace/onboarding/session/${token}/sign-engagement`, payload);
+    return res.data.data;
+  },
+  uploadDocument: async (
+    token: string,
+    params: { documentType: string; documentName: string; filePath: string; fileSizeBytes?: number; contentType?: string }
+  ) => {
+    const res = await apiClient.post<ApiResponse<OnboardingDocument>>(
+      `/v1/marketplace/onboarding/session/${token}/upload-document`,
+      null,
+      { params }
+    );
+    return res.data.data;
+  },
+};

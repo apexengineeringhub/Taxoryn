@@ -953,5 +953,154 @@ export interface MarketplaceStats {
   estimatedMarketplacePipelineValue: number;
 }
 
+// 14. Marketplace Proposal & Onboarding Pipeline Types
+export type ProposalStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+export type OnboardingStatus = 'INITIATED' | 'DOCUMENTS_PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+export type OnboardingDocType =
+  | 'PAN_CARD'
+  | 'AADHAAR_CARD'
+  | 'CERTIFICATE_OF_INCORPORATION'
+  | 'GST_CERTIFICATE'
+  | 'ADDRESS_PROOF'
+  | 'BOARD_RESOLUTION'
+  | 'CANCELLED_CHEQUE'
+  | 'OTHER';
+export type DocVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 
+export interface MarketplaceProposal {
+  id: string;
+  organizationId: string;
+  practiceDisplayName?: string;
+  marketplaceProfileId: string;
+  leadId: string;
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  serviceId?: string;
+  serviceTitle?: string;
+  proposalTitle: string;
+  scopeOfWork: string;
+  deliverables?: string;
+  feeAmount: number;
+  pricingType: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
+  estimatedTimelineDays: number;
+  proposalStatus: ProposalStatus;
+  accessToken: string;
+  validUntil?: string;
+  rejectionReason?: string;
+  acceptedAt?: string;
+  createdAt: string;
+}
 
+export interface OnboardingDocument {
+  id: string;
+  onboardingId: string;
+  documentType: OnboardingDocType;
+  documentName: string;
+  filePath: string;
+  fileSizeBytes: number;
+  contentType?: string;
+  isRequired: boolean;
+  verificationStatus: DocVerificationStatus;
+  rejectionReason?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  createdAt: string;
+}
+
+export interface MarketplaceOnboarding {
+  id: string;
+  organizationId: string;
+  practiceDisplayName?: string;
+  marketplaceProfileId: string;
+  leadId: string;
+  proposalId?: string;
+  proposalTitle?: string;
+  accessToken: string;
+  clientName: string;
+  legalName?: string;
+  clientEmail: string;
+  clientPhone: string;
+  entityType: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  pan?: string;
+  gstin?: string;
+  tan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  onboardingStatus: OnboardingStatus;
+  engagementLetterSigned: boolean;
+  engagementSignedAt?: string;
+  engagementLetterUrl?: string;
+  feeAgreementAgreed: boolean;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  promotedClientId?: string;
+  portalUserId?: string;
+  reviewerNotes?: string;
+  rejectionReason?: string;
+  completedAt?: string;
+  createdAt: string;
+  documents?: OnboardingDocument[];
+}
+
+export interface CreateProposalRequest {
+  leadId: string;
+  serviceId?: string;
+  proposalTitle: string;
+  scopeOfWork: string;
+  deliverables?: string;
+  feeAmount: number;
+  pricingType?: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
+  estimatedTimelineDays?: number;
+  validUntil?: string;
+}
+
+export interface AcceptProposalRequest {
+  isAccepted: boolean;
+  rejectionReason?: string;
+  clientNotes?: string;
+}
+
+export interface InitiateOnboardingRequest {
+  leadId: string;
+  proposalId?: string;
+  entityType?: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  assignedEmployeeId?: string;
+}
+
+export interface UpdateOnboardingDetailsRequest {
+  clientName: string;
+  legalName?: string;
+  entityType?: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  pan?: string;
+  gstin?: string;
+  tan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
+
+export interface SignEngagementLetterRequest {
+  signedConsent: boolean;
+  agreedToFees: boolean;
+  signatureName?: string;
+  signatureIpAddress?: string;
+}
+
+export interface VerifyOnboardingDocumentRequest {
+  verificationStatus: DocVerificationStatus;
+  rejectionReason?: string;
+}
+
+export interface ApproveAndPromoteClientRequest {
+  assignedEmployeeId?: string;
+  createOnboardingTask?: boolean;
+  provisionClientPortalUser?: boolean;
+  initialPortalPassword?: string;
+  reviewerNotes?: string;
+}

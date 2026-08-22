@@ -20,11 +20,13 @@ import {
   Building,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
-import { marketplacePracticeApi, employeeApi } from '../api/endpoints';
-import { MarketplaceLead, MarketplaceStats, Employee } from '../types';
+import { marketplacePracticeApi, marketplaceOnboardingPracticeApi, employeeApi } from '../api/endpoints';
+import { MarketplaceLead, MarketplaceStats, Employee, CreateProposalRequest } from '../types';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 
 export const MarketplaceLeadsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [leads, setLeads] = useState<MarketplaceLead[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stats, setStats] = useState<MarketplaceStats | null>(null);
@@ -33,6 +35,18 @@ export const MarketplaceLeadsPage: React.FC = () => {
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Proposal Modal
+  const [selectedLeadForProposal, setSelectedLeadForProposal] = useState<MarketplaceLead | null>(null);
+  const [proposalForm, setProposalForm] = useState<CreateProposalRequest>({
+    leadId: '',
+    proposalTitle: 'Statutory Tax Compliance & Advisory Engagement',
+    scopeOfWork: 'Preparation and filing of monthly GST returns (GSTR-1, GSTR-3B), TDS computations, advance tax forecasting, and audit preparation.',
+    deliverables: 'Filed return acknowledgements (ARN), Monthly ITC analysis report, Form 26AS/AIS reconciliation sheet.',
+    feeAmount: 4999,
+    pricingType: 'MONTHLY_RETAINER',
+    estimatedTimelineDays: 7,
+  });
 
   // Conversion Modal
   const [selectedLeadForConvert, setSelectedLeadForConvert] = useState<MarketplaceLead | null>(null);
@@ -105,6 +119,27 @@ export const MarketplaceLeadsPage: React.FC = () => {
       );
     } catch (err) {
       alert('Failed to convert lead to client.');
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  const handleSendProposal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLeadForProposal) return;
+    try {
+      setIsConverting(true);
+      const prop = await marketplaceOnboardingPracticeApi.sendProposal({
+        ...proposalForm,
+        leadId: selectedLeadForProposal.id,
+      });
+      setSelectedLeadForProposal(null);
+      await fetchLeadsData();
+      setSuccessBanner(
+        `Formal engagement proposal dispatched to ${selectedLeadForProposal.clientName}! Public link: /marketplace/onboarding/${prop.accessToken}`
+      );
+    } catch (err) {
+      alert('Failed to send engagement proposal.');
     } finally {
       setIsConverting(false);
     }
@@ -306,23 +341,45 @@ export const MarketplaceLeadsPage: React.FC = () => {
                           Client Active
                         </span>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => {
-                            setSelectedLeadForConvert(lead);
-                            setConvertForm({
-                              clientType: 'INDIVIDUAL',
-                              assignedEmployeeId: lead.assignedEmployeeId || '',
-                              createOnboardingTask: true,
-                              notes: `Acquired from Marketplace Inquiry: ${lead.requirementDescription}`,
-                            });
-                          }}
-                          className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                          <UserPlus className="w-3.5 h-3.5 mr-1" />
-                          Convert to Client
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setSelectedLeadForProposal(lead);
+                              setProposalForm({
+                                leadId: lead.id,
+                                proposalTitle: `Engagement for ${lead.serviceCategory || 'Tax Advisory'}`,
+                                scopeOfWork: lead.requirementDescription || 'Statutory tax compliance, documentation and representation.',
+                                deliverables: 'Filing acknowledgements, monthly ITC reconciliations, and compliance reports.',
+                                feeAmount: 3999,
+                                pricingType: 'MONTHLY_RETAINER',
+                                estimatedTimelineDays: 7,
+                              });
+                            }}
+                            className="text-xs"
+                          >
+                            <FileText className="w-3.5 h-3.5 mr-1" />
+                            Send Proposal
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => {
+                              setSelectedLeadForConvert(lead);
+                              setConvertForm({
+                                clientType: 'INDIVIDUAL',
+                                assignedEmployeeId: lead.assignedEmployeeId || '',
+                                createOnboardingTask: true,
+                                notes: `Acquired from Marketplace Inquiry: ${lead.requirementDescription}`,
+                              });
+                            }}
+                            className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                          >
+                            <UserPlus className="w-3.5 h-3.5 mr-1" />
+                            Convert
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -332,6 +389,86 @@ export const MarketplaceLeadsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Send Proposal Modal */}
+      {selectedLeadForProposal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Send Engagement Proposal
+                  </h3>
+                  <p className="text-xs text-slate-500">For {selectedLeadForProposal.clientName} ({selectedLeadForProposal.clientEmail})</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedLeadForProposal(null)} className="text-gray-400 hover:text-gray-600 font-bold">&times;</button>
+            </div>
+
+            <form onSubmit={handleSendProposal} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Proposal Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={proposalForm.proposalTitle}
+                  onChange={(e) => setProposalForm({ ...proposalForm, proposalTitle: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Scope of Work *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={proposalForm.scopeOfWork}
+                  onChange={(e) => setProposalForm({ ...proposalForm, scopeOfWork: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Proposed Fee (₹) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={proposalForm.feeAmount}
+                    onChange={(e) => setProposalForm({ ...proposalForm, feeAmount: parseFloat(e.target.value) || 0 })}
+                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Pricing Model</label>
+                  <select
+                    value={proposalForm.pricingType}
+                    onChange={(e) => setProposalForm({ ...proposalForm, pricingType: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                  >
+                    <option value="FIXED">One-Time Fixed Fee</option>
+                    <option value="MONTHLY_RETAINER">Monthly Retainer</option>
+                    <option value="HOURLY">Hourly Advisory</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t">
+                <Button variant="secondary" onClick={() => setSelectedLeadForProposal(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={isConverting}>
+                  {isConverting ? 'Sending...' : 'Dispatch Proposal to Client'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Convert to Client Modal */}
       {selectedLeadForConvert && (

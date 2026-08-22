@@ -48,6 +48,27 @@ public interface MarketplaceMapper {
 
     List<MarketplaceVerificationDto> toVerificationDtoList(List<MarketplaceVerificationEntity> entities);
 
+    @Mapping(target = "practiceDisplayName", ignore = true)
+    @Mapping(target = "clientName", ignore = true)
+    @Mapping(target = "clientEmail", ignore = true)
+    @Mapping(target = "clientPhone", ignore = true)
+    @Mapping(target = "serviceTitle", ignore = true)
+    MarketplaceProposalDto toProposalDto(MarketplaceProposalEntity entity);
+
+    List<MarketplaceProposalDto> toProposalDtoList(List<MarketplaceProposalEntity> entities);
+
+    @Mapping(target = "practiceDisplayName", ignore = true)
+    @Mapping(target = "proposalTitle", ignore = true)
+    @Mapping(target = "assignedEmployeeName", ignore = true)
+    @Mapping(target = "documents", ignore = true)
+    MarketplaceOnboardingDto toOnboardingDto(MarketplaceOnboardingEntity entity);
+
+    List<MarketplaceOnboardingDto> toOnboardingDtoList(List<MarketplaceOnboardingEntity> entities);
+
+    OnboardingDocumentDto toOnboardingDocumentDto(MarketplaceOnboardingDocumentEntity entity);
+
+    List<OnboardingDocumentDto> toOnboardingDocumentDtoList(List<MarketplaceOnboardingDocumentEntity> entities);
+
     @Named("stringToList")
     default List<String> stringToList(String value) {
         if (value == null || value.trim().isEmpty()) {

@@ -65,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
     { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: true },
+    { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, visible: true },
     { label: 'Marketplace Listing', path: '/marketplace/practice-profile', icon: Sparkles, visible: isFirmAdmin },
     { label: 'Find Tax Experts', path: '/marketplace', icon: Search, visible: true },
     { label: 'Marketplace Admin', path: '/admin/marketplace', icon: ShieldCheck, visible: isSuperAdmin },
