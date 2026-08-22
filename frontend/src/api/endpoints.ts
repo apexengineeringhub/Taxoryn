@@ -58,6 +58,11 @@ import {
   SignEngagementLetterRequest,
   VerifyOnboardingDocumentRequest,
   ApproveAndPromoteClientRequest,
+  RegisterCustomerRequest,
+  CustomerAuthResponse,
+  CustomerProfile,
+  UpdateCustomerProfileRequest,
+  CustomerDashboard,
 } from '../types';
 
 // --- 1. Authentication ---

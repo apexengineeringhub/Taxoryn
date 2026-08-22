@@ -325,12 +325,12 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                         <span className="text-xs font-bold text-slate-900">{p.proposalTitle}</span>
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            p.status === 'ACCEPTED'
+                            p.proposalStatus === 'ACCEPTED'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                               : 'bg-amber-50 text-amber-700 border border-amber-100'
                           }`}
                         >
-                          {p.status}
+                          {p.proposalStatus}
                         </span>
                       </div>
                       <p className="text-xs text-slate-600">{p.practiceDisplayName || 'Tax Practice'}</p>
