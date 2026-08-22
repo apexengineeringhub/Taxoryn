@@ -317,7 +317,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         }
 
         MarketplaceProfileEntity saved = profileRepository.save(profile);
-        auditService.logEvent("PRACTICE_MARKETPLACE_PROFILE_CREATED", "MARKETPLACE_PROFILE", saved.getId() != null ? saved.getId().toString() : "NEW", null, "Created profile " + saved.getDisplayName());
+        auditService.logEvent("MARKETPLACE_PROFILE_CREATED", "MARKETPLACE_PROFILE", saved.getId() != null ? saved.getId().toString() : "NEW", null, "Created marketplace profile " + saved.getDisplayName());
 
         return enrichPublicProfile(saved);
     }
@@ -382,7 +382,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (request.getConsultationDurationMinutes() != null) profile.setConsultationDurationMinutes(request.getConsultationDurationMinutes());
 
         MarketplaceProfileEntity saved = profileRepository.save(profile);
-        auditService.logEvent("PRACTICE_MARKETPLACE_PROFILE_UPDATED", "MARKETPLACE_PROFILE", saved.getId().toString(), null, "Updated profile " + saved.getDisplayName());
+        auditService.logEvent("MARKETPLACE_PROFILE_UPDATED", "MARKETPLACE_PROFILE", saved.getId().toString(), null, "Updated marketplace profile " + saved.getDisplayName());
 
         return enrichPublicProfile(saved);
     }
@@ -393,6 +393,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId)
                 .orElseGet(() -> initializeDefaultProfile(organizationId));
+
+        VisibilityStatus oldVisibility = profile.getVisibilityStatus();
 
         if (request.getVisibility() == VisibilityStatus.PUBLIC) {
             validatePublishingEligibility(profile);
@@ -407,7 +409,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         }
 
         MarketplaceProfileEntity saved = profileRepository.save(profile);
-        auditService.logEvent("PRACTICE_MARKETPLACE_VISIBILITY_UPDATED", "MARKETPLACE_PROFILE", saved.getId().toString(), null, "Updated visibility to " + saved.getVisibilityStatus());
+        auditService.logEvent("MARKETPLACE_PROFILE_VISIBILITY_CHANGED", "MARKETPLACE_PROFILE", saved.getId().toString(), oldVisibility != null ? oldVisibility.name() : null, saved.getVisibilityStatus().name());
 
         return enrichPublicProfile(saved);
     }

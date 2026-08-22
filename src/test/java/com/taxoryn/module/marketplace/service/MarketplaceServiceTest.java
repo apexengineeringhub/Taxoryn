@@ -350,7 +350,7 @@ class MarketplaceServiceTest {
         assertEquals("custom-apex-mumbai", sampleProfile.getSlug());
         assertFalse(sampleProfile.getIsPublished());
         verify(profileRepository).save(sampleProfile);
-        verify(auditService).logEvent(eq("PRACTICE_MARKETPLACE_PROFILE_UPDATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
+        verify(auditService).logEvent(eq("MARKETPLACE_PROFILE_UPDATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
     }
 
     @Test
@@ -633,7 +633,7 @@ class MarketplaceServiceTest {
         assertNotNull(result);
         assertEquals("New Practice Firm", result.getDisplayName());
         verify(profileRepository).save(any(MarketplaceProfileEntity.class));
-        verify(auditService).logEvent(eq("PRACTICE_MARKETPLACE_PROFILE_CREATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
+        verify(auditService).logEvent(eq("MARKETPLACE_PROFILE_CREATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
     }
 
     @Test
@@ -676,7 +676,7 @@ class MarketplaceServiceTest {
         assertNotNull(result);
         assertEquals(VisibilityStatus.PUBLIC, sampleProfile.getVisibilityStatus());
         assertTrue(sampleProfile.getIsPublished());
-        verify(auditService).logEvent(eq("PRACTICE_MARKETPLACE_VISIBILITY_UPDATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
+        verify(auditService).logEvent(eq("MARKETPLACE_PROFILE_VISIBILITY_CHANGED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
     }
 
     @Test
@@ -794,5 +794,34 @@ class MarketplaceServiceTest {
         assertEquals(85, result.getProfileCompleteness().getPercentage());
         assertEquals(3, result.getProfileCompleteness().getCompletedItems().size());
         assertEquals(1, result.getProfileCompleteness().getMissingItems().size());
+    }
+
+    @Test
+    @DisplayName("Audit: captures MARKETPLACE_PROFILE_UPDATED when profile details are modified")
+    void testAudit_ProfileUpdatedEvent() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .displayName("Updated Name")
+                .build();
+        when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+
+        UpdateMarketplaceProfileRequest request = UpdateMarketplaceProfileRequest.builder()
+                .displayName("Updated Name")
+                .headline("New Headline")
+                .build();
+
+        marketplaceService.updateMyPracticeProfile(request);
+
+        verify(auditService).logEvent(
+                eq("MARKETPLACE_PROFILE_UPDATED"),
+                eq("MARKETPLACE_PROFILE"),
+                eq(sampleProfile.getId().toString()),
+                isNull(),
+                contains("Updated marketplace profile")
+        );
     }
 }
