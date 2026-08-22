@@ -20,4 +20,8 @@ public interface MarketplaceProposalRepository extends JpaRepository<Marketplace
     Page<MarketplaceProposalEntity> findByOrganizationIdOrderByCreatedAtDesc(UUID organizationId, Pageable pageable);
 
     Optional<MarketplaceProposalEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
+    List<MarketplaceProposalEntity> findAllByCustomerIdOrderByCreatedAtDesc(UUID customerId);
+
+    long countByCustomerId(UUID customerId);
 }

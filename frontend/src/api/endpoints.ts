@@ -1023,3 +1023,39 @@ export const marketplaceOnboardingPublicApi = {
     return res.data.data;
   },
 };
+
+// --- 18. Marketplace Customer Account & Self-Service Portal ---
+export const marketplaceCustomerApi = {
+  register: async (payload: RegisterCustomerRequest) => {
+    const res = await apiClient.post<ApiResponse<CustomerAuthResponse>>('/v1/marketplace/customer/register', payload);
+    return res.data.data;
+  },
+  getProfile: async () => {
+    const res = await apiClient.get<ApiResponse<CustomerProfile>>('/v1/marketplace/customer/profile');
+    return res.data.data;
+  },
+  updateProfile: async (payload: UpdateCustomerProfileRequest) => {
+    const res = await apiClient.put<ApiResponse<CustomerProfile>>('/v1/marketplace/customer/profile', payload);
+    return res.data.data;
+  },
+  getDashboard: async () => {
+    const res = await apiClient.get<ApiResponse<CustomerDashboard>>('/v1/marketplace/customer/dashboard');
+    return res.data.data;
+  },
+  getLeads: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceLead[]>>('/v1/marketplace/customer/leads');
+    return res.data.data;
+  },
+  getConsultations: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceConsultation[]>>('/v1/marketplace/customer/consultations');
+    return res.data.data;
+  },
+  getProposals: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceProposal[]>>('/v1/marketplace/customer/proposals');
+    return res.data.data;
+  },
+  getReviews: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>('/v1/marketplace/customer/reviews');
+    return res.data.data;
+  },
+};

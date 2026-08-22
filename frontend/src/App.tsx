@@ -35,6 +35,9 @@ import { MarketplaceLeadsPage } from './pages/MarketplaceLeadsPage';
 import { PlatformAdminMarketplacePage } from './pages/PlatformAdminMarketplacePage';
 import { MarketplaceOnboardingHubPage } from './pages/MarketplaceOnboardingHubPage';
 import { CustomerOnboardingPortalPage } from './pages/CustomerOnboardingPortalPage';
+import { RegisterCustomerPage } from './pages/RegisterCustomerPage';
+import { MarketplaceCustomerDashboardPage } from './pages/MarketplaceCustomerDashboardPage';
+import { CustomerProfilePage } from './pages/CustomerProfilePage';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -48,7 +51,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
           </svg>
-          <span>Authenticating practice context...</span>
+          <span>Authenticating context...</span>
         </div>
       </div>
     );
@@ -70,12 +73,33 @@ export const App: React.FC = () => {
             {/* Public Auth & Discovery Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterOrgPage />} />
+            <Route path="/marketplace/register" element={<RegisterCustomerPage />} />
             <Route path="/marketplace" element={<MarketplaceExplorePage />} />
             <Route path="/marketplace/profile/:id" element={<MarketplaceProfileDetailPage />} />
             <Route path="/marketplace/:slug" element={<MarketplaceProfileDetailPage />} />
             <Route path="/marketplace/compare" element={<MarketplaceComparePage />} />
             <Route path="/marketplace/onboarding/:token" element={<CustomerOnboardingPortalPage />} />
             <Route path="/marketplace/proposal/:token" element={<CustomerOnboardingPortalPage />} />
+
+            {/* Customer Self-Service Routes */}
+            <Route
+              path="/marketplace/customer/dashboard"
+              element={
+                <ProtectedRoute>
+                  <MarketplaceCustomerDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/marketplace/customer/profile"
+              element={
+                <ProtectedRoute>
+                  <CustomerProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/customer/dashboard" element={<Navigate to="/marketplace/customer/dashboard" replace />} />
+            <Route path="/customer/profile" element={<Navigate to="/marketplace/customer/profile" replace />} />
 
             {/* Protected Application Routes */}
             <Route

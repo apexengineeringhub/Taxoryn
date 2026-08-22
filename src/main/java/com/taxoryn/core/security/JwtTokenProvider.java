@@ -73,7 +73,9 @@ public class JwtTokenProvider {
 
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId.toString());
-        claims.put("organizationId", organizationId.toString());
+        if (organizationId != null) {
+            claims.put("organizationId", organizationId.toString());
+        }
         if (clientId != null) {
             claims.put("clientId", clientId.toString());
         }

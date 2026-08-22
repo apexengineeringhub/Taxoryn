@@ -21,6 +21,9 @@ public class MarketplaceLeadEntity extends AuditableEntity {
     @Column(name = "marketplace_profile_id", nullable = false)
     private UUID marketplaceProfileId;
 
+    @Column(name = "customer_id")
+    private UUID customerId;
+
     @Column(name = "service_id")
     private UUID serviceId;
 

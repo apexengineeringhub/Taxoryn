@@ -72,6 +72,11 @@ public interface MarketplaceMapper {
 
     List<OnboardingDocumentDto> toOnboardingDocumentDtoList(List<MarketplaceOnboardingDocumentEntity> entities);
 
+    @Mapping(target = "profileCompleteness", ignore = true)
+    CustomerProfileDto toCustomerProfileDto(MarketplaceCustomerProfileEntity entity);
+
+    List<CustomerProfileDto> toCustomerProfileDtoList(List<MarketplaceCustomerProfileEntity> entities);
+
     @Named("stringToList")
     default List<String> stringToList(String value) {
         if (value == null || value.trim().isEmpty()) {

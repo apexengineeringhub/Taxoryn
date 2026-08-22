@@ -1120,3 +1120,80 @@ export interface ApproveAndPromoteClientRequest {
   initialPortalPassword?: string;
   reviewerNotes?: string;
 }
+
+// 8. Marketplace Customer Account & Profile
+export interface CustomerProfileCompleteness {
+  percentage: number;
+  completedItems: string[];
+  missingItems: string[];
+}
+
+export interface CustomerProfile {
+  id: string;
+  userId: string;
+  customerType: 'INDIVIDUAL' | 'BUSINESS';
+  firstName: string;
+  lastName?: string;
+  displayName: string;
+  email: string;
+  phone?: string;
+  profilePhotoUrl?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+  businessName?: string;
+  status: 'ACTIVE' | 'BLOCKED' | 'DEACTIVATED';
+  profileCompleteness?: CustomerProfileCompleteness;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RegisterCustomerRequest {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  password: string;
+  customerType?: 'INDIVIDUAL' | 'BUSINESS';
+  businessName?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+}
+
+export interface UpdateCustomerProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  phone?: string;
+  profilePhotoUrl?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+  customerType?: 'INDIVIDUAL' | 'BUSINESS';
+  businessName?: string;
+}
+
+export interface CustomerDashboard {
+  profile: CustomerProfile;
+  totalRequests: number;
+  totalConsultations: number;
+  totalProposals: number;
+  totalReviews: number;
+  recentLeads: MarketplaceLead[];
+  recentConsultations: MarketplaceConsultation[];
+  recentProposals: MarketplaceProposal[];
+  recentReviews: MarketplaceReview[];
+}
+
+export interface CustomerAuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  customer: CustomerProfile;
+}
+

@@ -29,7 +29,9 @@ export const LoginPage: React.FC = () => {
       const loggedInUser = await login(email.trim(), password);
       localStorage.setItem('taxoryn_last_user_email', email.trim());
       const roleCodes = (loggedInUser?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-      if (roleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r))) {
+      if (roleCodes.some((r: string) => ['MARKETPLACE_CUSTOMER'].includes(r))) {
+        navigate('/marketplace/customer/dashboard');
+      } else if (roleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r))) {
         navigate('/portal');
       } else {
         navigate('/dashboard');
@@ -280,11 +282,21 @@ export const LoginPage: React.FC = () => {
           </Button>
         </form>
 
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <span className="text-[11px]">Default Password: <code className="font-mono font-bold text-slate-700">Password123!</code></span>
-          <Link to="/register" className="hover:text-slate-800 font-semibold text-brand-600">
-            Register Firm →
-          </Link>
+        <div className="pt-2 border-t border-slate-100 flex flex-col gap-2 text-xs text-slate-500">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px]">Default Password: <code className="font-mono font-bold text-slate-700">Password123!</code></span>
+            <Link to="/register" className="hover:text-slate-800 font-semibold text-brand-600">
+              Register Practice →
+            </Link>
+          </div>
+          <div className="flex items-center justify-between pt-1 border-t border-slate-50 text-[11px]">
+            <Link to="/marketplace/register" className="text-purple-600 font-bold hover:underline">
+              ✦ Customer? Sign up here
+            </Link>
+            <Link to="/marketplace" className="text-slate-500 hover:text-slate-800">
+              Explore Marketplace →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

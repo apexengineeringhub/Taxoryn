@@ -21,6 +21,9 @@ public class MarketplaceReviewEntity extends AuditableEntity {
     @Column(name = "marketplace_profile_id", nullable = false)
     private UUID marketplaceProfileId;
 
+    @Column(name = "customer_id")
+    private UUID customerId;
+
     @Column(name = "reviewer_name", nullable = false)
     private String reviewerName;
 

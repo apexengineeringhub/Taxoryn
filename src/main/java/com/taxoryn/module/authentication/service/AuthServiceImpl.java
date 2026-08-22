@@ -6,6 +6,7 @@ import com.taxoryn.core.exception.ErrorCode;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.exception.UnauthorizedException;
 import com.taxoryn.core.security.JwtTokenProvider;
+import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.authentication.dto.LoginRequest;
 import com.taxoryn.module.authentication.dto.LoginResponse;
@@ -76,15 +77,20 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "User account is " + user.getStatus() + ". Please contact administrator");
         }
 
-        OrganizationEntity organization = organizationRepository.findById(user.getOrganizationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", user.getOrganizationId()));
+        if (user.getOrganizationId() != null) {
+            OrganizationEntity organization = organizationRepository.findById(user.getOrganizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", user.getOrganizationId()));
 
-        if (organization.getStatus() != OrganizationStatus.ACTIVE) {
-            throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "Organization account is " + organization.getStatus() + ". Access suspended");
+            if (organization.getStatus() != OrganizationStatus.ACTIVE) {
+                throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "Organization account is " + organization.getStatus() + ". Access suspended");
+            }
+
+            log.info("User {} successfully logged in for organization {}", user.getId(), organization.getId());
+            return createAuthResponse(user, organization);
+        } else {
+            log.info("Marketplace customer user {} successfully logged in", user.getId());
+            return createAuthResponse(user, null);
         }
-
-        log.info("User {} successfully logged in for organization {}", user.getId(), organization.getId());
-        return createAuthResponse(user, organization);
     }
 
     @Override
@@ -190,18 +196,27 @@ public class AuthServiceImpl implements AuthService {
         UUID userId = jwtTokenProvider.getUserIdFromToken(token);
         UUID organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
-                .orElseThrow(() -> new UnauthorizedException("User not found for refresh token"));
+        UserEntity user;
+        if (organizationId != null) {
+            user = userRepository.findByIdAndOrganizationId(userId, organizationId)
+                    .orElseThrow(() -> new UnauthorizedException("User not found for refresh token"));
+        } else {
+            user = userRepository.findById(userId)
+                    .orElseThrow(() -> new UnauthorizedException("User not found for refresh token"));
+        }
 
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "User account is " + user.getStatus());
         }
 
-        OrganizationEntity organization = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new UnauthorizedException("Organization not found for refresh token"));
+        OrganizationEntity organization = null;
+        if (organizationId != null) {
+            organization = organizationRepository.findById(organizationId)
+                    .orElseThrow(() -> new UnauthorizedException("Organization not found for refresh token"));
 
-        if (organization.getStatus() != OrganizationStatus.ACTIVE) {
-            throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "Organization account is " + organization.getStatus());
+            if (organization.getStatus() != OrganizationStatus.ACTIVE) {
+                throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "Organization account is " + organization.getStatus());
+            }
         }
 
         return createAuthResponse(user, organization);
@@ -211,10 +226,16 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public UserDto getMe() {
         UUID userId = SecurityUtils.getCurrentUserId();
-        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID organizationId = SecurityUtils.getCurrentUser().map(SecurityUser::getOrganizationId).orElse(null);
 
-        UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        UserEntity user;
+        if (organizationId != null) {
+            user = userRepository.findByIdAndOrganizationId(userId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        } else {
+            user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        }
 
         return userMapper.toDto(user);
     }
@@ -245,7 +266,7 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getId(),
-                organization.getId(),
+                organization != null ? organization.getId() : null,
                 user.getClientId(),
                 user.getEmail(),
                 roleCodes,
@@ -254,13 +275,13 @@ public class AuthServiceImpl implements AuthService {
 
         String refreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getId(),
-                organization.getId(),
+                organization != null ? organization.getId() : null,
                 user.getClientId(),
                 user.getEmail()
         );
 
         UserDto userDto = userMapper.toDto(user);
-        OrganizationDto orgDto = organizationMapper.toDto(organization);
+        OrganizationDto orgDto = organization != null ? organizationMapper.toDto(organization) : null;
 
         return LoginResponse.builder()
                 .accessToken(accessToken)

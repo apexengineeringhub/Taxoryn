@@ -11,12 +11,14 @@ export const Header: React.FC = () => {
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isMarketplaceCustomer = userRoleCodes.includes('MARKETPLACE_CUSTOMER');
   const isClientAdmin = userRoleCodes.includes('CLIENT_ADMIN');
   const isClientUser = userRoleCodes.includes('CLIENT_USER') || isClientAdmin;
   const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r));
 
   const getHeaderRoleLabel = () => {
+    if (isMarketplaceCustomer) return 'Customer';
     if (isClientAdmin) return 'Client Admin';
     if (isClientUser) return 'Client';
     if (isFirmAdmin) return 'Practice Admin';

@@ -132,9 +132,12 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(request.getMarketplaceProfileId(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", request.getMarketplaceProfileId()));
 
+        UUID currentCustomerId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
+
         MarketplaceLeadEntity entity = MarketplaceLeadEntity.builder()
                 .organizationId(profile.getOrganizationId())
                 .marketplaceProfileId(profile.getId())
+                .customerId(currentCustomerId)
                 .serviceId(request.getServiceId())
                 .clientName(request.getClientName().trim())
                 .clientEmail(request.getClientEmail().trim().toLowerCase())
@@ -162,9 +165,12 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(request.getMarketplaceProfileId(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", request.getMarketplaceProfileId()));
 
+        UUID currentCustomerId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
+
         MarketplaceConsultationEntity consultation = MarketplaceConsultationEntity.builder()
                 .organizationId(profile.getOrganizationId())
                 .marketplaceProfileId(profile.getId())
+                .customerId(currentCustomerId)
                 .clientName(request.getClientName().trim())
                 .clientEmail(request.getClientEmail().trim().toLowerCase())
                 .clientPhone(request.getClientPhone().trim())
@@ -188,6 +194,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             MarketplaceLeadEntity lead = MarketplaceLeadEntity.builder()
                     .organizationId(profile.getOrganizationId())
                     .marketplaceProfileId(profile.getId())
+                    .customerId(currentCustomerId)
                     .clientName(request.getClientName().trim())
                     .clientEmail(request.getClientEmail().trim().toLowerCase())
                     .clientPhone(request.getClientPhone().trim())
@@ -219,9 +226,12 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             throw new com.taxoryn.core.exception.BusinessValidationException("Rating must be between 1 and 5 stars");
         }
 
+        UUID currentCustomerId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
+
         MarketplaceReviewEntity review = MarketplaceReviewEntity.builder()
                 .organizationId(profile.getOrganizationId())
                 .marketplaceProfileId(profile.getId())
+                .customerId(currentCustomerId)
                 .reviewerName(request.getReviewerName().trim())
                 .reviewerDesignation(request.getReviewerDesignation())
                 .reviewerCompany(request.getReviewerCompany())

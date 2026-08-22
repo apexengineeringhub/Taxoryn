@@ -69,6 +69,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                uri.startsWith("/api/v1/marketplace/consultations") ||
                uri.startsWith("/api/marketplace/reviews") ||
                uri.startsWith("/api/v1/marketplace/reviews") ||
+               uri.startsWith("/api/marketplace/customer/register") ||
+               uri.startsWith("/api/v1/marketplace/customer/register") ||
                uri.startsWith("/api/v1/marketplace/onboarding/proposal");
     }
 

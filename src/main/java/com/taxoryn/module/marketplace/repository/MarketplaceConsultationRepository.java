@@ -23,4 +23,8 @@ public interface MarketplaceConsultationRepository extends JpaRepository<Marketp
     Page<MarketplaceConsultationEntity> findAllByOrganizationIdOrderByBookingDateDesc(UUID organizationId, Pageable pageable);
 
     long countByOrganizationIdAndConsultationStatus(UUID organizationId, MarketplaceConsultationEntity.ConsultationStatus status);
+
+    List<MarketplaceConsultationEntity> findAllByCustomerIdOrderByBookingDateDesc(UUID customerId);
+
+    long countByCustomerId(UUID customerId);
 }

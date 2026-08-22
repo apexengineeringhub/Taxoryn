@@ -1,6 +1,6 @@
 package com.taxoryn.module.user.entity;
 
-import com.taxoryn.core.domain.TenantAuditableEntity;
+import com.taxoryn.core.domain.AuditableEntity;
 import com.taxoryn.module.role.entity.RoleEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,7 +28,10 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserEntity extends TenantAuditableEntity {
+public class UserEntity extends AuditableEntity {
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @Column(name = "email", nullable = false)
     private String email;

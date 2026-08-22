@@ -29,7 +29,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class AuditLogEntity extends BaseEntity {
 
-    @Column(name = "organization_id", nullable = false, updatable = false)
+    @Column(name = "organization_id", updatable = false)
     private UUID organizationId;
 
     @Column(name = "user_id", updatable = false)

@@ -16,4 +16,8 @@ public interface MarketplaceReviewRepository extends JpaRepository<MarketplaceRe
     );
 
     List<MarketplaceReviewEntity> findAllByOrganizationId(UUID organizationId);
+
+    List<MarketplaceReviewEntity> findAllByCustomerIdOrderByCreatedAtDesc(UUID customerId);
+
+    long countByCustomerId(UUID customerId);
 }

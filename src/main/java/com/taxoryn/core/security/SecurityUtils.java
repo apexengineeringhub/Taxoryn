@@ -55,6 +55,10 @@ public final class SecurityUtils {
         return hasRole("CLIENT_ADMIN") || hasRole("CLIENT_USER") || getCurrentClientId().isPresent();
     }
 
+    public static boolean isMarketplaceCustomer() {
+        return hasRole("MARKETPLACE_CUSTOMER");
+    }
+
     public static boolean hasRole(String role) {
         return getCurrentUser()
                 .map(user -> user.getRoles().contains(role) || user.getRoles().contains("ROLE_" + role))
