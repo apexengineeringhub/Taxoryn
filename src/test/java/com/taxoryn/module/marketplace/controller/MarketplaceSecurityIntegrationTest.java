@@ -319,4 +319,66 @@ class MarketplaceSecurityIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.displayName").value("Alpha Tax Group"));
     }
+
+    @Test
+    @DisplayName("Integration: Validation failures return 400 Bad Request with field errors")
+    void testValidationFailures_Return400BadRequest() throws Exception {
+        // Blank display name, negative experience, invalid email format
+        CreatePracticeProfileRequest invalidRequest = CreatePracticeProfileRequest.builder()
+                .displayName("")
+                .email("invalid-email-string")
+                .phone("bad-phone-###")
+                .experienceYears(-5)
+                .build();
+
+        mockMvc.perform(post("/api/v1/marketplace/practice-profile")
+                        .header("Authorization", "Bearer " + orgAdminTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Security: Practice A cannot access or mutate Practice B profile")
+    void testPracticeA_CannotAccessOrMutatePracticeB() throws Exception {
+        // Create Practice B Profile directly in database
+        com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity profileB = marketplaceProfileRepository.save(
+                com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.builder()
+                        .organizationId(orgB.getId())
+                        .displayName("Beta Secret Practice Profile")
+                        .slug("beta-secret-practice")
+                        .city("Delhi")
+                        .state("Delhi")
+                        .phone("+919844455566")
+                        .email("admin@practicebeta.com")
+                        .visibilityStatus(VisibilityStatus.PRIVATE)
+                        .isPublished(false)
+                        .build()
+        );
+
+        // Practice A Admin calls GET /api/v1/marketplace/practice-profile
+        // Must return Practice A's profile (or initialized default for Org A), NEVER Practice B's
+        mockMvc.perform(get("/api/v1/marketplace/practice-profile")
+                        .header("Authorization", "Bearer " + orgAdminTokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.displayName").value(orgA.getName()));
+
+        // Practice A Admin calls PUT /api/v1/marketplace/practice-profile
+        // Modifying profile only updates Org A, profile B in DB remains completely unchanged
+        UpdateMarketplaceProfileRequest updateRequestA = UpdateMarketplaceProfileRequest.builder()
+                .displayName("Alpha Overwrite Attempt")
+                .build();
+
+        mockMvc.perform(put("/api/v1/marketplace/practice-profile")
+                        .header("Authorization", "Bearer " + orgAdminTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequestA)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.displayName").value("Alpha Overwrite Attempt"));
+
+        // Verify Practice B profile was NOT touched
+        com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity untouchedB = marketplaceProfileRepository.findById(profileB.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("Beta Secret Practice Profile", untouchedB.getDisplayName());
+        org.junit.jupiter.api.Assertions.assertEquals(orgB.getId(), untouchedB.getOrganizationId());
+    }
 }
