@@ -16,6 +16,9 @@ import java.util.stream.Collectors;
 public interface MarketplaceMapper {
 
     @Mapping(target = "specializations", source = "specializations", qualifiedByName = "stringToList")
+    @Mapping(target = "publicSlug", source = "slug")
+    @Mapping(target = "description", source = "bio")
+    @Mapping(target = "website", source = "websiteUrl")
     @Mapping(target = "services", ignore = true)
     @Mapping(target = "recentReviews", ignore = true)
     PublicMarketplaceProfileDto toProfileDto(MarketplaceProfileEntity entity);

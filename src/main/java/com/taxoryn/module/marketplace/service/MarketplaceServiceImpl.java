@@ -966,6 +966,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private PublicMarketplaceProfileDto enrichPublicProfile(MarketplaceProfileEntity entity) {
         PublicMarketplaceProfileDto dto = mapper.toProfileDto(entity);
 
+        dto.setPublicSlug(entity.getSlug());
+        dto.setDescription(entity.getBio());
+        dto.setWebsite(entity.getWebsiteUrl());
+
         List<MarketplaceServiceEntity> services = serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(entity.getId());
         dto.setServices(mapper.toServiceDtoList(services));
 
@@ -982,14 +986,17 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 : null;
         if (completeness != null) {
             dto.setCompleteness(completeness);
+            dto.setProfileCompleteness(completeness);
             dto.setCompletenessScore(completeness.getPercentage());
             dto.setMissingCompletenessFields(completeness.getMissingItems());
         } else {
-            dto.setCompleteness(ProfileCompletenessDto.builder()
+            ProfileCompletenessDto emptyCompleteness = ProfileCompletenessDto.builder()
                     .percentage(0)
                     .completedItems(Collections.emptyList())
                     .missingItems(Collections.emptyList())
-                    .build());
+                    .build();
+            dto.setCompleteness(emptyCompleteness);
+            dto.setProfileCompleteness(emptyCompleteness);
             dto.setCompletenessScore(0);
             dto.setMissingCompletenessFields(Collections.emptyList());
         }

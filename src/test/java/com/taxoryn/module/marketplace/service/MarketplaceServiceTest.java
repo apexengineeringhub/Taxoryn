@@ -732,4 +732,67 @@ class MarketplaceServiceTest {
         assertEquals(VisibilityStatus.PRIVATE, sampleProfile.getVisibilityStatus());
         assertFalse(sampleProfile.getIsPublished());
     }
+
+    @Test
+    @DisplayName("Response Design: DTO exposes public fields, publicSlug, description, website, and completeness while hiding internal tenant details")
+    void testResponseDesign_ExposesPublicFieldsAndHidesInternalTenantSecurityDetails() {
+        MarketplaceProfileEntity testProfile = MarketplaceProfileEntity.builder()
+                .organizationId(organizationId)
+                .slug("apex-tax-consultants")
+                .displayName("Apex Tax Consultants")
+                .bio("Top direct and indirect tax consultancy")
+                .phone("+91 98200 11223")
+                .email("contact@apextax.com")
+                .websiteUrl("https://apextax.com")
+                .experienceYears(10)
+                .visibilityStatus(VisibilityStatus.PRIVATE)
+                .verificationStatus(VerificationStatus.NOT_SUBMITTED)
+                .build();
+        testProfile.setId(UUID.randomUUID());
+
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(testProfile));
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(OrganizationEntity.builder().name("Apex Tax Consultants").build()));
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .id(testProfile.getId())
+                .displayName("Apex Tax Consultants")
+                .publicSlug("apex-tax-consultants")
+                .slug("apex-tax-consultants")
+                .description("Top direct and indirect tax consultancy")
+                .bio("Top direct and indirect tax consultancy")
+                .phone("+91 98200 11223")
+                .email("contact@apextax.com")
+                .website("https://apextax.com")
+                .websiteUrl("https://apextax.com")
+                .experienceYears(10)
+                .visibilityStatus(VisibilityStatus.PRIVATE)
+                .verificationStatus(VerificationStatus.NOT_SUBMITTED)
+                .build();
+        when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
+
+        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+                .percentage(85)
+                .completedItems(List.of("Basic Information", "Contact Details", "Location"))
+                .missingItems(List.of("KYC Verification"))
+                .build());
+
+        PublicMarketplaceProfileDto result = marketplaceService.getMyPracticeProfile();
+
+        assertNotNull(result);
+        assertEquals("Apex Tax Consultants", result.getDisplayName());
+        assertEquals("apex-tax-consultants", result.getPublicSlug());
+        assertEquals("Top direct and indirect tax consultancy", result.getDescription());
+        assertEquals("+91 98200 11223", result.getPhone());
+        assertEquals("contact@apextax.com", result.getEmail());
+        assertEquals("https://apextax.com", result.getWebsite());
+        assertEquals(10, result.getExperienceYears());
+        assertEquals(VisibilityStatus.PRIVATE, result.getVisibilityStatus());
+        assertEquals(VerificationStatus.NOT_SUBMITTED, result.getVerificationStatus());
+        assertNotNull(result.getProfileCompleteness());
+        assertEquals(85, result.getProfileCompleteness().getPercentage());
+        assertEquals(3, result.getProfileCompleteness().getCompletedItems().size());
+        assertEquals(1, result.getProfileCompleteness().getMissingItems().size());
+    }
 }
