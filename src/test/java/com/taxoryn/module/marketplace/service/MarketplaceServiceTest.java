@@ -1,6 +1,7 @@
 package com.taxoryn.module.marketplace.service;
 
 import com.taxoryn.core.exception.BusinessValidationException;
+import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.TenantContext;
@@ -514,5 +515,84 @@ class MarketplaceServiceTest {
         assertEquals(VisibilityStatus.SUSPENDED, p5.getVisibilityStatus());
         assertEquals(VerificationStatus.VERIFIED, p5.getVerificationStatus());
         assertFalse(p5.getIsPublished());
+    }
+
+    @Test
+    @DisplayName("Tenant Isolation: getMyPracticeProfile strictly derives tenant from Security Context")
+    void testTenantIsolation_GetProfile_StrictlyDerivesFromSecurityContext() {
+        UUID tenantAId = UUID.randomUUID();
+        TenantContext.setTenantId(tenantAId);
+
+        MarketplaceProfileEntity tenantAProfile = MarketplaceProfileEntity.builder()
+                .organizationId(tenantAId)
+                .displayName("Practice A Firm")
+                .slug("practice-a-firm")
+                .build();
+
+        when(profileRepository.findByOrganizationId(tenantAId)).thenReturn(Optional.of(tenantAProfile));
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+        when(mapper.toProfileDto(tenantAProfile)).thenReturn(PublicMarketplaceProfileDto.builder()
+                .id(tenantAProfile.getId())
+                .displayName("Practice A Firm")
+                .build());
+
+        PublicMarketplaceProfileDto result = marketplaceService.getMyPracticeProfile();
+
+        assertNotNull(result);
+        assertEquals("Practice A Firm", result.getDisplayName());
+        verify(profileRepository).findByOrganizationId(tenantAId);
+    }
+
+    @Test
+    @DisplayName("Tenant Isolation: Practice A cannot modify Practice B's service packages")
+    void testTenantIsolation_PracticeACannotModifyPracticeBService() {
+        UUID tenantAId = organizationId;
+        UUID tenantBId = UUID.randomUUID();
+        UUID serviceBId = UUID.randomUUID();
+
+        MarketplaceServiceEntity serviceOfTenantB = MarketplaceServiceEntity.builder()
+                .organizationId(tenantBId)
+                .title("Practice B Package")
+                .build();
+        serviceOfTenantB.setId(serviceBId);
+
+        when(serviceRepository.findById(serviceBId)).thenReturn(Optional.of(serviceOfTenantB));
+
+        CreateMarketplaceServiceRequest request = CreateMarketplaceServiceRequest.builder()
+                .title("Malicious Attempt by Practice A")
+                .category("TAX")
+                .price(new BigDecimal("1000.00"))
+                .build();
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                marketplaceService.updatePracticeService(serviceBId, request)
+        );
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                marketplaceService.deletePracticeService(serviceBId)
+        );
+    }
+
+    @Test
+    @DisplayName("Tenant Isolation: Practice A cannot modify or convert Practice B's leads")
+    void testTenantIsolation_PracticeACannotAccessPracticeBLead() {
+        UUID tenantAId = organizationId;
+        UUID leadBId = UUID.randomUUID();
+
+        // Lead lookup with tenantAId returns empty (as lead belongs to Tenant B)
+        when(leadRepository.findByIdAndOrganizationId(leadBId, tenantAId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                marketplaceService.updateLeadStatus(leadBId, LeadStatus.CONTACTED, "Notes", null)
+        );
+
+        ConvertLeadToClientRequest convertRequest = ConvertLeadToClientRequest.builder()
+                .clientType(ClientEntity.ClientType.INDIVIDUAL)
+                .build();
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                marketplaceService.convertLeadToClient(leadBId, convertRequest)
+        );
     }
 }
