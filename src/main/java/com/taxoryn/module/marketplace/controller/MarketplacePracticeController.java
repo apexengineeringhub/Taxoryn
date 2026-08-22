@@ -43,10 +43,21 @@ public class MarketplacePracticeController {
 
     @PutMapping("/profile")
     @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Update Marketplace Profile", description = "Updates bio, specializations, pricing, contact info, and publish status.")
+    @Operation(summary = "Update Marketplace Profile", description = "Updates bio, specializations, pricing, contact info, slug, and publish status.")
     public ResponseEntity<ApiResponse<PublicMarketplaceProfileDto>> updateMyProfile(@Valid @RequestBody UpdateMarketplaceProfileRequest request) {
         PublicMarketplaceProfileDto profile = marketplaceService.updateMyPracticeProfile(request);
         return ResponseEntity.ok(ApiResponse.success("Marketplace profile updated successfully", profile));
+    }
+
+    @GetMapping("/profile/slug/generate")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Generate Unique Public Slug", description = "Generates an available SEO-friendly public URL slug for the practice profile.")
+    public ResponseEntity<ApiResponse<String>> generateSlug(
+            @RequestParam(required = false) String baseName,
+            @RequestParam(required = false) String city
+    ) {
+        String slug = marketplaceService.generateUniqueSlug(baseName, city);
+        return ResponseEntity.ok(ApiResponse.success("Unique slug generated", slug));
     }
 
     // --- Service Packages ---

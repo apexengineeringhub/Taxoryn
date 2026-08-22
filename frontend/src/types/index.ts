@@ -875,6 +875,8 @@ export interface MarketplaceProfile {
   consultationDurationMinutes: number;
   services?: MarketplaceService[];
   recentReviews?: MarketplaceReview[];
+  completenessScore?: number;
+  missingCompletenessFields?: string[];
 }
 
 export interface MarketplaceLead {

@@ -17,6 +17,16 @@ import {
   Users,
   Eye,
   TrendingUp,
+  Globe,
+  MapPin,
+  Phone,
+  Mail,
+  RefreshCw,
+  Award,
+  Check,
+  X,
+  Lock,
+  EyeOff,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { marketplacePracticeApi } from '../api/endpoints';
@@ -31,7 +41,9 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
   const [stats, setStats] = useState<MarketplaceStats | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isGeneratingSlug, setIsGeneratingSlug] = useState<boolean>(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Service Modal
   const [showServiceModal, setShowServiceModal] = useState<boolean>(false);
@@ -58,6 +70,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
 
   const loadPracticeData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const [profRes, svcRes, kycRes, statsRes] = await Promise.all([
         marketplacePracticeApi.getMyProfile(),
@@ -70,8 +83,9 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
       setServices(svcRes || []);
       setVerification(kycRes);
       setStats(statsRes);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load practice marketplace profile', err);
+      setErrorMessage('Could not load profile. Please verify your practice organization settings.');
     } finally {
       setIsLoading(false);
     }
@@ -81,18 +95,50 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     loadPracticeData();
   }, []);
 
-  const handleProfileSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 1. Save Profile (Update)
+  const handleProfileSave = async (e?: React.FormEvent, publishOverride?: boolean) => {
+    if (e) e.preventDefault();
     if (!profile) return;
     setIsSaving(true);
+    setErrorMessage(null);
     try {
-      const updated = await marketplacePracticeApi.updateMyProfile(profile);
+      const payload: Partial<MarketplaceProfile> = {
+        ...profile,
+        ...(publishOverride !== undefined ? { isPublished: publishOverride } : {}),
+      };
+
+      const updated = await marketplacePracticeApi.updateMyProfile(payload);
       setProfile(updated);
-      setSuccessBanner('Marketplace listing & preferences updated successfully!');
-    } catch (err) {
-      alert('Failed to save profile changes.');
+      setSuccessBanner(
+        publishOverride === true
+          ? 'Profile published to Marketplace directory!'
+          : publishOverride === false
+          ? 'Profile saved in Draft mode (hidden from customer search).'
+          : 'Marketplace profile settings updated successfully!'
+      );
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Failed to save profile changes.';
+      setErrorMessage(msg);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // 2. Generate Unique Public Slug
+  const handleGenerateSlug = async () => {
+    if (!profile) return;
+    setIsGeneratingSlug(true);
+    try {
+      const newSlug = await marketplacePracticeApi.generateSlug({
+        baseName: profile.displayName,
+        city: profile.city,
+      });
+      setProfile({ ...profile, slug: newSlug });
+      setSuccessBanner(`Generated new unique URL slug: ${newSlug}`);
+    } catch (err) {
+      alert('Could not auto-generate slug. You can enter a custom slug manually.');
+    } finally {
+      setIsGeneratingSlug(false);
     }
   };
 
@@ -110,6 +156,9 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
       const svc = await marketplacePracticeApi.getMyServices();
       setServices(svc);
       setSuccessBanner('Service package saved successfully!');
+      // Reload profile to refresh completeness score
+      const prof = await marketplacePracticeApi.getMyProfile();
+      setProfile(prof);
     } catch (err) {
       alert('Failed to save service package.');
     } finally {
@@ -123,6 +172,8 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
       await marketplacePracticeApi.deleteService(serviceId);
       setServices(services.filter((s) => s.id !== serviceId));
       setSuccessBanner('Service package deleted.');
+      const prof = await marketplacePracticeApi.getMyProfile();
+      setProfile(prof);
     } catch (err) {
       alert('Failed to delete service.');
     }
@@ -135,6 +186,8 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
       const res = await marketplacePracticeApi.submitVerification(kycForm);
       setVerification(res);
       setSuccessBanner('KYC verification credentials submitted! Platform Admin will review shortly.');
+      const prof = await marketplacePracticeApi.getMyProfile();
+      setProfile(prof);
     } catch (err) {
       alert('Failed to submit KYC credentials.');
     } finally {
@@ -153,45 +206,158 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     );
   }
 
+  // Calculate completeness (Requirement 6)
+  const completeness = profile?.completenessScore || 0;
+  const missingFields = profile?.missingCompletenessFields || [];
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20">
-      {/* Top Banner */}
+      {/* Top Banner & Public Preview */}
       <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 p-6 sm:p-8 rounded-3xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold">
             <Store className="w-3.5 h-3.5" />
-            Taxoryn Practice Marketplace Presence
+            Marketplace Practice Profile Foundation
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold">{profile?.displayName || 'My Practice'} Directory Listing</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-extrabold">{profile?.displayName || 'My Practice'}</h1>
+            {profile?.isPublished ? (
+              <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Live on Directory
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                Draft Mode (Hidden from Customer Search)
+              </span>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-            Showcase your firm to thousands of taxpayers, startups, and SMEs searching for verified Chartered Accountants and tax consultants across India.
+            Configure your firm's public listing, hourly pricing, service packages, public URL slug, and KYC credentials.
           </p>
         </div>
 
-        {profile?.slug && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open(`/marketplace/profile/${profile.id}`, '_blank')}
-            className="rounded-2xl text-xs bg-white/10 text-white border-white/20 hover:bg-white/20 shrink-0"
-          >
-            <Eye className="w-3.5 h-3.5 mr-1.5" />
-            Preview Public Listing
-          </Button>
-        )}
+        <div className="flex items-center gap-3 shrink-0 flex-wrap">
+          {profile?.slug && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(`/marketplace/profile/${profile.id}`, '_blank')}
+              className="rounded-2xl text-xs bg-white/10 text-white border-white/20 hover:bg-white/20"
+            >
+              <Eye className="w-3.5 h-3.5 mr-1.5" />
+              Preview Profile
+            </Button>
+          )}
+
+          {profile?.isPublished ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isSaving}
+              onClick={() => handleProfileSave(undefined, false)}
+              className="rounded-2xl text-xs bg-amber-500/20 text-amber-200 border-amber-400/40 hover:bg-amber-500/30"
+            >
+              <EyeOff className="w-3.5 h-3.5 mr-1.5" />
+              Take Offline
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={isSaving}
+              onClick={() => handleProfileSave(undefined, true)}
+              className="rounded-2xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              <Globe className="w-3.5 h-3.5 mr-1.5" />
+              Publish to Directory
+            </Button>
+          )}
+        </div>
       </div>
 
       {successBanner && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/50 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-sm text-emerald-800 dark:text-emerald-200">
+        <div className="bg-emerald-50 dark:bg-emerald-950/50 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-sm text-emerald-800 dark:text-emerald-200 animate-fadeIn">
           <div className="flex items-center gap-2 font-medium">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <span>{successBanner}</span>
           </div>
-          <button onClick={() => setSuccessBanner(null)} className="text-emerald-600">×</button>
+          <button onClick={() => setSuccessBanner(null)} className="text-emerald-600 font-bold hover:opacity-75">×</button>
         </div>
       )}
 
-      {/* Nav Tabs */}
+      {errorMessage && (
+        <div className="bg-rose-50 dark:bg-rose-950/50 p-4 rounded-2xl border border-rose-200 dark:border-rose-800 flex items-center justify-between text-sm text-rose-800 dark:text-rose-200 animate-fadeIn">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button onClick={() => setErrorMessage(null)} className="text-rose-600 font-bold hover:opacity-75">×</button>
+        </div>
+      )}
+
+      {/* Profile Completeness Card (Requirement 6) */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-indigo-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Profile Completeness</h3>
+              <span
+                className={clsx(
+                  'px-2.5 py-0.5 rounded-full text-xs font-extrabold',
+                  completeness >= 80
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                    : completeness >= 50
+                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                    : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                )}
+              >
+                {completeness}% {completeness >= 80 ? 'Excellent' : completeness >= 50 ? 'Good' : 'Incomplete'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Complete profiles rank higher and convert 3.5x more prospective clients on the marketplace.
+            </p>
+          </div>
+
+          <div className="w-full sm:w-64 space-y-1.5">
+            <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-400">
+              <span>Overall Score</span>
+              <span>{completeness} / 100</span>
+            </div>
+            <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className={clsx(
+                  'h-full transition-all duration-500 rounded-full',
+                  completeness >= 80 ? 'bg-emerald-500' : completeness >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                )}
+                style={{ width: `${completeness}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {missingFields.length > 0 && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+            <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Recommended steps to reach 100%:</div>
+            <div className="flex flex-wrap gap-2">
+              {missingFields.map((field, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-600 dark:text-slate-300"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  {field}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap">
         <button
           onClick={() => setActiveTab('PROFILE')}
@@ -248,35 +414,91 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
 
       {/* Tab 1: Profile & Settings */}
       {activeTab === 'PROFILE' && profile && (
-        <form onSubmit={handleProfileSave} className="space-y-6">
+        <form onSubmit={(e) => handleProfileSave(e)} className="space-y-6">
           <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+            
+            {/* Visibility & Draft Status (Requirements 4 & 5) */}
+            <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Directory Visibility</h3>
-                <p className="text-xs text-slate-500">Toggle whether your practice profile appears in public search.</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-indigo-600" />
+                  Marketplace Search Visibility
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Control whether prospective clients can find your profile in customer marketplace search.
+                </p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  {profile.isPublished ? 'Publicly Listed' : 'Draft / Hidden'}
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={profile.isPublished}
+                    onChange={(e) => setProfile({ ...profile, isPublished: e.target.checked })}
+                    className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    {profile.isPublished ? 'Public Listing Enabled' : 'Draft Mode (Hidden)'}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Public Slug Manager (Requirement 7) */}
+            <div className="p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                    <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
+                    Public Directory URL Slug
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Your unique URL identifier for sharing with prospective clients.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isGeneratingSlug}
+                  onClick={handleGenerateSlug}
+                  className="rounded-xl text-xs shrink-0"
+                >
+                  <RefreshCw className={clsx('w-3.5 h-3.5 mr-1.5', isGeneratingSlug && 'animate-spin')} />
+                  {isGeneratingSlug ? 'Generating...' : 'Auto-Generate Slug'}
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 select-none">
+                  taxoryn.com/marketplace/profile/
                 </span>
                 <input
-                  type="checkbox"
-                  checked={profile.isPublished}
-                  onChange={(e) => setProfile({ ...profile, isPublished: e.target.checked })}
-                  className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  type="text"
+                  required
+                  value={profile.slug || ''}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+                    })
+                  }
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono text-indigo-600 dark:text-indigo-400 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="firm-unique-slug"
                 />
               </div>
             </div>
 
+            {/* Basic Information (Requirements 1 & 3) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Firm / Display Name *</label>
                 <input
                   type="text"
                   required
-                  value={profile.displayName}
+                  value={profile.displayName || ''}
                   onChange={(e) => setProfile({ ...profile, displayName: e.target.value })}
                   className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Apex Corporate & Tax Advisors"
                 />
               </div>
 
@@ -303,7 +525,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 value={profile.headline || ''}
                 onChange={(e) => setProfile({ ...profile, headline: e.target.value })}
                 className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="e.g. Ex-Big4 Senior CAs specializing in Corporate Direct & Indirect Tax"
+                placeholder="e.g. Ex-Big4 Senior CAs specializing in Corporate Direct & Indirect Tax Optimization"
               />
             </div>
 
@@ -314,11 +536,90 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 value={profile.bio || ''}
                 onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
                 className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed"
-                placeholder="Describe your firm's background, team qualifications, core competencies..."
+                placeholder="Describe your practice history, partners' qualifications, core areas of expertise..."
               />
             </div>
 
+            {/* Location & Contact Information */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">City *</label>
+                <input
+                  type="text"
+                  value={profile.city || ''}
+                  onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Mumbai"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">State *</label>
+                <input
+                  type="text"
+                  value={profile.state || ''}
+                  onChange={(e) => setProfile({ ...profile, state: e.target.value })}
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Maharashtra"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Pincode</label>
+                <input
+                  type="text"
+                  value={profile.pincode || ''}
+                  onChange={(e) => setProfile({ ...profile, pincode: e.target.value })}
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="400001"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Office Phone</label>
+                <input
+                  type="text"
+                  value={profile.phone || ''}
+                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="+91 98201 12233"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Public Email</label>
+                <input
+                  type="email"
+                  value={profile.email || ''}
+                  onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="contact@apextax.in"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Website URL</label>
+                <input
+                  type="url"
+                  value={profile.websiteUrl || ''}
+                  onChange={(e) => setProfile({ ...profile, websiteUrl: e.target.value })}
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="https://apextax.in"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Office Address</label>
+              <input
+                type="text"
+                value={profile.address || ''}
+                onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+                className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Suite 402, Trade Center, BKC, Bandra East"
+              />
+            </div>
+
+            {/* Experience, Languages & Specializations */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Years in Practice</label>
                 <input
@@ -329,7 +630,21 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Starting Service Fee (₹)</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Languages Spoken</label>
+                <input
+                  type="text"
+                  value={profile.languagesSpoken || ''}
+                  onChange={(e) => setProfile({ ...profile, languagesSpoken: e.target.value })}
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. English, Hindi, Marathi, Gujarati"
+                />
+              </div>
+            </div>
+
+            {/* Pricing Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Starting Service Package Fee (₹)</label>
                 <input
                   type="number"
                   value={profile.startingFee}
@@ -338,7 +653,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Standard Hourly Rate (₹)</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Standard Hourly Advisory Rate (₹)</label>
                 <input
                   type="number"
                   value={profile.hourlyRate}
@@ -387,11 +702,32 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button type="submit" variant="primary" size="md" disabled={isSaving} className="rounded-2xl px-6">
-                <Save className="w-4 h-4 mr-2" />
-                {isSaving ? 'Saving...' : 'Save Profile Changes'}
+            {/* Action Bar (Requirements 3, 4, 5) */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={isSaving}
+                onClick={() => handleProfileSave(undefined, false)}
+                className="w-full sm:w-auto rounded-2xl"
+              >
+                <Save className="w-4 h-4 mr-2 text-amber-500" />
+                Save as Draft (Offline)
               </Button>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  disabled={isSaving}
+                  className="w-full sm:w-auto rounded-2xl px-6"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSaving ? 'Saving Changes...' : 'Save Profile Changes'}
+                </Button>
+              </div>
             </div>
           </div>
         </form>

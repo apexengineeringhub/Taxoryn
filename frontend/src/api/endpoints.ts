@@ -860,6 +860,10 @@ export const marketplacePracticeApi = {
     const res = await apiClient.put<ApiResponse<MarketplaceProfile>>('/v1/practice/marketplace/profile', payload);
     return res.data.data;
   },
+  generateSlug: async (params?: { baseName?: string; city?: string }) => {
+    const res = await apiClient.get<ApiResponse<string>>('/v1/practice/marketplace/profile/slug/generate', { params });
+    return res.data.data;
+  },
   getMyServices: async () => {
     const res = await apiClient.get<ApiResponse<MarketplaceService[]>>('/v1/practice/marketplace/services');
     return res.data.data;

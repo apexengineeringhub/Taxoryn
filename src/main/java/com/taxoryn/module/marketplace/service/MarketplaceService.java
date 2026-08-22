@@ -59,6 +59,8 @@ public interface MarketplaceService {
 
     MarketplaceStatsDto getMyPracticeMarketplaceStats();
 
+    String generateUniqueSlug(String baseName, String city);
+
     // 3. Platform Super Admin APIs
     PagedResponse<MarketplaceVerificationDto> getPendingVerifications(Pageable pageable);
 

@@ -247,4 +247,91 @@ class MarketplaceServiceTest {
         verify(clientRepository).save(any(ClientEntity.class));
         verify(taskRepository).save(any(TaskEntity.class));
     }
+
+    @Test
+    @DisplayName("Practice Profile Foundation: calculate profile completeness score and missing fields")
+    void testGetMyPracticeProfile_CalculatesCompleteness() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(sampleProfile.getId())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(eq(sampleProfile.getId()), any()))
+                .thenReturn(List.of());
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .id(sampleProfile.getId())
+                .displayName(sampleProfile.getDisplayName())
+                .build();
+        when(mapper.toProfileDto(sampleProfile)).thenReturn(mockDto);
+
+        PublicMarketplaceProfileDto result = marketplaceService.getMyPracticeProfile();
+
+        assertNotNull(result);
+        assertNotNull(result.getCompletenessScore());
+        assertTrue(result.getCompletenessScore() > 0);
+        assertNotNull(result.getMissingCompletenessFields());
+    }
+
+    @Test
+    @DisplayName("Practice Profile Foundation: update profile, save as draft, and update slug")
+    void testUpdateMyPracticeProfile_UpdatesProfileAndSlug() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.existsBySlug("custom-apex-mumbai")).thenReturn(false);
+        when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PublicMarketplaceProfileDto mockDto = PublicMarketplaceProfileDto.builder()
+                .id(sampleProfile.getId())
+                .displayName("Updated Firm Name")
+                .slug("custom-apex-mumbai")
+                .isPublished(false)
+                .build();
+        when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
+        when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(any())).thenReturn(List.of());
+        when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(List.of());
+
+        UpdateMarketplaceProfileRequest request = UpdateMarketplaceProfileRequest.builder()
+                .displayName("Updated Firm Name")
+                .slug("custom-apex-mumbai")
+                .isPublished(false) // Save as Draft
+                .city("Mumbai")
+                .state("Maharashtra")
+                .hourlyRate(new BigDecimal("3000.00"))
+                .build();
+
+        PublicMarketplaceProfileDto result = marketplaceService.updateMyPracticeProfile(request);
+
+        assertNotNull(result);
+        assertEquals("Updated Firm Name", sampleProfile.getDisplayName());
+        assertEquals("custom-apex-mumbai", sampleProfile.getSlug());
+        assertFalse(sampleProfile.getIsPublished());
+        verify(profileRepository).save(sampleProfile);
+        verify(auditService).logEvent(eq("PRACTICE_MARKETPLACE_PROFILE_UPDATED"), eq("MARKETPLACE_PROFILE"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Practice Profile Foundation: duplicate slug is rejected")
+    void testUpdateMyPracticeProfile_RejectsDuplicateSlug() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(profileRepository.existsBySlug("taken-slug")).thenReturn(true);
+
+        UpdateMarketplaceProfileRequest request = UpdateMarketplaceProfileRequest.builder()
+                .displayName("Updated Firm Name")
+                .slug("taken-slug")
+                .build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                marketplaceService.updateMyPracticeProfile(request)
+        );
+
+        assertTrue(ex.getMessage().contains("already taken"));
+    }
+
+    @Test
+    @DisplayName("Practice Profile Foundation: generate unique SEO public slug")
+    void testGenerateUniqueSlug() {
+        when(profileRepository.existsBySlug("apex-tax-mumbai")).thenReturn(true);
+        when(profileRepository.existsBySlug("apex-tax-mumbai-1")).thenReturn(false);
+
+        String slug = marketplaceService.generateUniqueSlug("Apex Tax", "Mumbai");
+
+        assertEquals("apex-tax-mumbai-1", slug);
+    }
 }

@@ -19,6 +19,9 @@ public class UpdateMarketplaceProfileRequest {
     @Schema(description = "Public Firm / Practitioner Name", example = "Apex Corporate & Tax Advisors")
     private String displayName;
 
+    @Schema(description = "Unique public URL slug (e.g. apex-tax-advisors-mumbai)", example = "apex-tax-advisors-mumbai")
+    private String slug;
+
     @Schema(description = "Catchy Profile Headline", example = "Ex-Big4 Senior CAs specializing in Direct & Indirect Tax Optimization")
     private String headline;
 

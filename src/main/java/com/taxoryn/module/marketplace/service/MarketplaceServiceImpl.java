@@ -268,6 +268,18 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .orElseGet(() -> initializeDefaultProfile(organizationId));
 
         if (StringUtils.hasText(request.getDisplayName())) profile.setDisplayName(request.getDisplayName().trim());
+        if (StringUtils.hasText(request.getSlug())) {
+            String cleanSlug = request.getSlug().trim().toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-");
+            if (cleanSlug.startsWith("-")) cleanSlug = cleanSlug.substring(1);
+            if (cleanSlug.endsWith("-")) cleanSlug = cleanSlug.substring(0, cleanSlug.length() - 1);
+
+            if (StringUtils.hasText(cleanSlug) && !cleanSlug.equalsIgnoreCase(profile.getSlug())) {
+                if (profileRepository.existsBySlug(cleanSlug)) {
+                    throw new IllegalArgumentException("The public slug '" + cleanSlug + "' is already taken. Please choose another unique slug.");
+                }
+                profile.setSlug(cleanSlug);
+            }
+        }
         if (request.getHeadline() != null) profile.setHeadline(request.getHeadline());
         if (request.getBio() != null) profile.setBio(request.getBio());
         if (request.getProfessionalType() != null) profile.setProfessionalType(request.getProfessionalType());
@@ -296,6 +308,22 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         auditService.logEvent("PRACTICE_MARKETPLACE_PROFILE_UPDATED", "MARKETPLACE_PROFILE", saved.getId().toString(), null, "Updated profile " + saved.getDisplayName());
 
         return enrichPublicProfile(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String generateUniqueSlug(String baseName, String city) {
+        String raw = (StringUtils.hasText(baseName) ? baseName : "tax-firm") + (StringUtils.hasText(city) ? "-" + city : "");
+        String baseSlug = raw.toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-");
+        if (baseSlug.startsWith("-")) baseSlug = baseSlug.substring(1);
+        if (baseSlug.endsWith("-")) baseSlug = baseSlug.substring(0, baseSlug.length() - 1);
+
+        String uniqueSlug = baseSlug;
+        int count = 1;
+        while (profileRepository.existsBySlug(uniqueSlug)) {
+            uniqueSlug = baseSlug + "-" + count++;
+        }
+        return uniqueSlug;
     }
 
     @Override
@@ -844,6 +872,51 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 entity.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
         );
         dto.setRecentReviews(mapper.toReviewDtoList(reviews));
+
+        // Calculate Profile Completeness (0 - 100%) & Missing Fields Checklist
+        int score = 0;
+        List<String> missing = new ArrayList<>();
+
+        // 1. Basic Info (25%)
+        if (StringUtils.hasText(entity.getDisplayName())) score += 10;
+        else missing.add("Firm / Display Name");
+
+        if (StringUtils.hasText(entity.getHeadline())) score += 5;
+        else missing.add("Profile Headline");
+
+        if (StringUtils.hasText(entity.getBio()) && entity.getBio().trim().length() >= 20) score += 10;
+        else missing.add("Detailed Firm Bio");
+
+        // 2. Location & Contact (20%)
+        if (StringUtils.hasText(entity.getCity()) && StringUtils.hasText(entity.getState())) score += 10;
+        else missing.add("City and State Location");
+
+        if (StringUtils.hasText(entity.getEmail()) || StringUtils.hasText(entity.getPhone())) score += 10;
+        else missing.add("Public Contact Phone & Email");
+
+        // 3. Credentials & Experience (20%)
+        if (entity.getExperienceYears() != null && entity.getExperienceYears() > 0) score += 10;
+        else missing.add("Years in Practice");
+
+        if (StringUtils.hasText(entity.getSpecializations())) score += 10;
+        else missing.add("Key Tax Specializations");
+
+        // 4. Pricing & Services (20%)
+        if (entity.getStartingFee() != null && entity.getStartingFee().compareTo(BigDecimal.ZERO) > 0) score += 5;
+        else missing.add("Starting Package Fee");
+
+        if (entity.getHourlyRate() != null && entity.getHourlyRate().compareTo(BigDecimal.ZERO) > 0) score += 5;
+        else missing.add("Hourly Advisory Rate");
+
+        if (!services.isEmpty()) score += 10;
+        else missing.add("At least 1 active Service Package");
+
+        // 5. Verification Badge (15%)
+        if (entity.getVerificationStatus() == MarketplaceProfileEntity.VerificationStatus.VERIFIED) score += 15;
+        else missing.add("ICAI / ICSI KYC Credential Verification");
+
+        dto.setCompletenessScore(Math.min(100, score));
+        dto.setMissingCompletenessFields(missing);
 
         return dto;
     }
