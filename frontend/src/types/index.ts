@@ -87,6 +87,12 @@ export interface OrganizationDashboard {
     filed: number;
     overdue: number;
   };
+  tds?: {
+    totalTdsClients: number;
+    pending: number;
+    filed: number;
+    overdue: number;
+  };
   billing: {
     totalInvoiceAmount: number;
     paidAmount: number;

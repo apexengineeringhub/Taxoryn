@@ -30,6 +30,9 @@ public class OrganizationDashboardDto {
     @Schema(description = "ITR compliance statistics summary")
     private ItrStatsDto itr;
 
+    @Schema(description = "TDS compliance statistics summary")
+    private TdsStatsDto tds;
+
     @Schema(description = "Billing and revenue statistics summary")
     private BillingStatsDto billing;
 

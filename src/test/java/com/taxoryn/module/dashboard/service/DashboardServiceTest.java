@@ -13,6 +13,8 @@ import com.taxoryn.module.gst.repository.GstProfileRepository;
 import com.taxoryn.module.gst.repository.GstReturnFilingRepository;
 import com.taxoryn.module.itr.repository.ItrProfileRepository;
 import com.taxoryn.module.itr.repository.ItrReturnRepository;
+import com.taxoryn.module.tds.repository.TdsProfileRepository;
+import com.taxoryn.module.tds.repository.TdsReturnRepository;
 import com.taxoryn.module.task.repository.TaskRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +64,12 @@ class DashboardServiceTest {
 
     @Mock
     private ItrReturnRepository itrReturnRepository;
+
+    @Mock
+    private TdsProfileRepository tdsProfileRepository;
+
+    @Mock
+    private TdsReturnRepository tdsReturnRepository;
 
     @Mock
     private InvoiceRepository invoiceRepository;
@@ -131,11 +139,17 @@ class DashboardServiceTest {
         when(itrReturnRepository.getItrDashboardStats(eq(tenantId), any(LocalDate.class)))
                 .thenReturn(Collections.singletonList(new Object[]{18L, 50L, 4L}));
 
-        // 6. Billing Mock
+        // 6. TDS Mock
+        when(tdsProfileRepository.countDistinctClientsByOrganizationId(tenantId))
+                .thenReturn(40L);
+        when(tdsReturnRepository.getTdsDashboardStats(eq(tenantId), any(LocalDate.class)))
+                .thenReturn(Collections.singletonList(new Object[]{10L, 28L, 2L}));
+
+        // 7. Billing Mock
         when(invoiceRepository.getBillingDashboardStatsSummary(tenantId))
                 .thenReturn(Collections.singletonList(new Object[]{new BigDecimal("500000.00"), new BigDecimal("420000.00"), new BigDecimal("80000.00")}));
 
-        // 7. Employee Workload Mock
+        // 8. Employee Workload Mock
         EmployeeEntity emp = EmployeeEntity.builder()
                 .employeeCode("EMP-001")
                 .firstName("Rohan")
@@ -186,6 +200,12 @@ class DashboardServiceTest {
         assertEquals(50L, result.getItr().getFiled());
         assertEquals(4L, result.getItr().getOverdue());
 
+        // TDS
+        assertEquals(40L, result.getTds().getTotalTdsClients());
+        assertEquals(10L, result.getTds().getPending());
+        assertEquals(28L, result.getTds().getFiled());
+        assertEquals(2L, result.getTds().getOverdue());
+
         // Billing
         assertEquals(new BigDecimal("500000.00"), result.getBilling().getTotalInvoiceAmount());
         assertEquals(new BigDecimal("420000.00"), result.getBilling().getPaidAmount());
@@ -211,6 +231,8 @@ class DashboardServiceTest {
         when(gstReturnFilingRepository.getGstDashboardStats(eq(tenantId), any(LocalDate.class))).thenReturn(Collections.emptyList());
         when(itrProfileRepository.countDistinctClientsByOrganizationId(tenantId)).thenReturn(0L);
         when(itrReturnRepository.getItrDashboardStats(eq(tenantId), any(LocalDate.class))).thenReturn(Collections.emptyList());
+        when(tdsProfileRepository.countDistinctClientsByOrganizationId(tenantId)).thenReturn(0L);
+        when(tdsReturnRepository.getTdsDashboardStats(eq(tenantId), any(LocalDate.class))).thenReturn(Collections.emptyList());
         when(invoiceRepository.getBillingDashboardStatsSummary(tenantId)).thenReturn(Collections.emptyList());
         when(employeeRepository.findAllByOrganizationIdAndStatus(tenantId, EmployeeStatus.ACTIVE)).thenReturn(Collections.emptyList());
         when(employeeRepository.findAllByOrganizationId(tenantId)).thenReturn(Collections.emptyList());
@@ -224,6 +246,7 @@ class DashboardServiceTest {
         assertEquals(0L, result.getTasks().getTotal());
         assertEquals(0L, result.getGst().getTotalGstClients());
         assertEquals(0L, result.getItr().getTotalItrClients());
+        assertEquals(0L, result.getTds().getTotalTdsClients());
         assertEquals(BigDecimal.ZERO, result.getBilling().getTotalInvoiceAmount());
         assertEquals(0, result.getEmployeeWorkload().size());
     }

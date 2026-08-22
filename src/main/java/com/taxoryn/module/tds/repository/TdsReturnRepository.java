@@ -29,6 +29,8 @@ public interface TdsReturnRepository extends JpaRepository<TdsReturnEntity, UUID
             String financialYear
     );
 
+    List<TdsReturnEntity> findAllByOrganizationId(UUID organizationId);
+
     List<TdsReturnEntity> findAllByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 
     List<TdsReturnEntity> findAllByOrganizationIdAndTdsProfileId(UUID organizationId, UUID tdsProfileId);
@@ -78,4 +80,11 @@ public interface TdsReturnRepository extends JpaRepository<TdsReturnEntity, UUID
     long countByOrganizationIdAndFinancialYear(UUID organizationId, String financialYear);
 
     long countByOrganizationIdAndFilingStatus(UUID organizationId, TdsFilingStatus filingStatus);
+
+    @Query("SELECT " +
+           "COUNT(CASE WHEN r.filingStatus NOT IN ('FILED', 'CANCELLED') AND (r.dueDate IS NULL OR r.dueDate >= :today) THEN 1 END), " +
+           "COUNT(CASE WHEN r.filingStatus = 'FILED' THEN 1 END), " +
+           "COUNT(CASE WHEN r.filingStatus NOT IN ('FILED', 'CANCELLED') AND r.dueDate < :today THEN 1 END) " +
+           "FROM TdsReturnEntity r WHERE r.organizationId = :organizationId")
+    List<Object[]> getTdsDashboardStats(@Param("organizationId") UUID organizationId, @Param("today") LocalDate today);
 }

@@ -14,6 +14,7 @@ import com.taxoryn.module.dashboard.dto.GstStatsDto;
 import com.taxoryn.module.dashboard.dto.ItrStatsDto;
 import com.taxoryn.module.dashboard.dto.OrganizationDashboardDto;
 import com.taxoryn.module.dashboard.dto.TaskStatsDto;
+import com.taxoryn.module.dashboard.dto.TdsStatsDto;
 import com.taxoryn.module.employee.entity.EmployeeEntity;
 import com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
@@ -28,6 +29,10 @@ import com.taxoryn.module.itr.repository.ItrProfileRepository;
 import com.taxoryn.module.itr.repository.ItrReturnRepository;
 import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
 import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.tds.entity.TdsReturnEntity;
+import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus;
+import com.taxoryn.module.tds.repository.TdsProfileRepository;
+import com.taxoryn.module.tds.repository.TdsReturnRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,6 +60,8 @@ public class DashboardServiceImpl implements DashboardService {
     private final GstReturnFilingRepository gstReturnFilingRepository;
     private final ItrProfileRepository itrProfileRepository;
     private final ItrReturnRepository itrReturnRepository;
+    private final TdsProfileRepository tdsProfileRepository;
+    private final TdsReturnRepository tdsReturnRepository;
     private final InvoiceRepository invoiceRepository;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
@@ -82,12 +89,15 @@ public class DashboardServiceImpl implements DashboardService {
         // 5. ITR Compliance Statistics Aggregation
         ItrStatsDto itrStats = getItrStats(organizationId, today, scope);
 
-        // 6. Billing & Financial Summary - Confidential data isolation
+        // 6. TDS Compliance Statistics Aggregation
+        TdsStatsDto tdsStats = getTdsStats(organizationId, today, scope);
+
+        // 7. Billing & Financial Summary - Confidential data isolation
         BillingStatsDto billingStats = securityScopeEvaluator.hasBillingAccess(scope)
                 ? getBillingStats(organizationId)
                 : null;
 
-        // 7. Employee Workload Distribution
+        // 8. Employee Workload Distribution
         List<EmployeeWorkloadItemDto> employeeWorkload = getEmployeeWorkload(organizationId, today, scope);
 
         return OrganizationDashboardDto.builder()
@@ -96,6 +106,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .tasks(taskStats)
                 .gst(gstStats)
                 .itr(itrStats)
+                .tds(tdsStats)
                 .billing(billingStats)
                 .employeeWorkload(employeeWorkload)
                 .build();
@@ -317,6 +328,52 @@ public class DashboardServiceImpl implements DashboardService {
 
         return ItrStatsDto.builder()
                 .totalItrClients(totalItrClients)
+                .pending(pending)
+                .filed(filed)
+                .overdue(overdue)
+                .build();
+    }
+
+    private TdsStatsDto getTdsStats(UUID organizationId, LocalDate today, PracticeSecurityScope scope) {
+        if (scope.isFirmAdmin()) {
+            long totalTdsClients = tdsProfileRepository.countDistinctClientsByOrganizationId(organizationId);
+            List<Object[]> results = tdsReturnRepository.getTdsDashboardStats(organizationId, today);
+
+            long pending = 0;
+            long filed = 0;
+            long overdue = 0;
+
+            if (results != null && !results.isEmpty() && results.get(0) != null) {
+                Object[] row = results.get(0);
+                pending = toLong(row[0]);
+                filed = toLong(row[1]);
+                overdue = toLong(row[2]);
+            }
+
+            return TdsStatsDto.builder()
+                    .totalTdsClients(totalTdsClients)
+                    .pending(pending)
+                    .filed(filed)
+                    .overdue(overdue)
+                    .build();
+        }
+
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+        if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+            return TdsStatsDto.builder().totalTdsClients(0).pending(0).filed(0).overdue(0).build();
+        }
+
+        List<TdsReturnEntity> returns = tdsReturnRepository.findAllByOrganizationId(organizationId).stream()
+                .filter(r -> accessibleClientIds.contains(r.getClientId()))
+                .toList();
+
+        long totalTdsClients = returns.stream().map(TdsReturnEntity::getClientId).distinct().count();
+        long filed = returns.stream().filter(r -> r.getFilingStatus() == TdsFilingStatus.FILED).count();
+        long overdue = returns.stream().filter(r -> r.getFilingStatus() != TdsFilingStatus.FILED && r.getDueDate() != null && r.getDueDate().isBefore(today)).count();
+        long pending = returns.stream().filter(r -> r.getFilingStatus() != TdsFilingStatus.FILED && (r.getDueDate() == null || !r.getDueDate().isBefore(today))).count();
+
+        return TdsStatsDto.builder()
+                .totalTdsClients(totalTdsClients)
                 .pending(pending)
                 .filed(filed)
                 .overdue(overdue)

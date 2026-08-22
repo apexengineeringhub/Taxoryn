@@ -42,4 +42,7 @@ public interface TdsProfileRepository extends JpaRepository<TdsProfileEntity, UU
     long countByOrganizationId(UUID organizationId);
 
     long countByOrganizationIdAndStatus(UUID organizationId, TdsProfileEntity.TdsProfileStatus status);
+
+    @Query("SELECT COUNT(DISTINCT p.clientId) FROM TdsProfileEntity p WHERE p.organizationId = :organizationId")
+    long countDistinctClientsByOrganizationId(@Param("organizationId") UUID organizationId);
 }

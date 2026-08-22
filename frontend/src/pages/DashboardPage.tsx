@@ -11,6 +11,7 @@ import {
   TrendingUp,
   ArrowUpRight,
   Sparkles,
+  Percent,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -100,9 +101,9 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Top Row: Core Practice KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Active Clients Card */}
+      {/* Top Row: Core Practice KPI Cards (5 Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {/* 1. Active Clients Card */}
         <Link
           to="/clients"
           className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-slate-300 transition-all group block"
@@ -129,7 +130,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </Link>
 
-        {/* GST Compliance Card */}
+        {/* 2. GST Compliance Card */}
         <Link
           to="/gst"
           className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-emerald-300 transition-all group block"
@@ -157,7 +158,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </Link>
 
-        {/* ITR Compliance Card */}
+        {/* 3. ITR Compliance Card */}
         <Link
           to="/itr"
           className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-purple-300 transition-all group block"
@@ -174,7 +175,7 @@ export const DashboardPage: React.FC = () => {
             <span className="text-3xl font-black text-purple-600">
               {isLoading ? '...' : dashboard?.itr?.totalItrClients ?? 0}
             </span>
-            <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
               ITR Clients
             </span>
           </div>
@@ -185,7 +186,35 @@ export const DashboardPage: React.FC = () => {
           </div>
         </Link>
 
-        {/* 4th Card: Fee Realization for Admins OR Assigned Deliverables for Staff */}
+        {/* 4. TDS Compliance Card */}
+        <Link
+          to="/tds"
+          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-indigo-300 transition-all group block"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
+              TDS Compliance
+            </span>
+            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+              <Percent className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-baseline justify-between">
+            <span className="text-3xl font-black text-indigo-600">
+              {isLoading ? '...' : dashboard?.tds?.totalTdsClients ?? 0}
+            </span>
+            <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+              TAN Clients
+            </span>
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-indigo-700 font-medium">Filed: {dashboard?.tds?.filed ?? 0}</span>
+            <span className="text-amber-700 font-medium">Pending: {dashboard?.tds?.pending ?? 0}</span>
+            <span className="text-rose-600 font-bold">Overdue: {dashboard?.tds?.overdue ?? 0}</span>
+          </div>
+        </Link>
+
+        {/* 5. Fee Realization for Admins OR Assigned Deliverables for Staff */}
         {hasBillingAccess ? (
           <Link
             to="/billing"
