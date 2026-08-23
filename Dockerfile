@@ -39,7 +39,7 @@ COPY --from=builder --chown=taxoryn:taxoryn /build/target/taxoryn-core-*.jar /ap
 USER taxoryn:taxoryn
 
 # Set JVM and Application Environment Defaults
-ENV SPRING_PROFILES_ACTIVE=prod \
+ENV SPRING_PROFILES_ACTIVE=demo \
     SERVER_PORT=8088 \
     JAVA_OPTS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
 
