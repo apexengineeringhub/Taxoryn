@@ -818,7 +818,27 @@ export const portalApi = {
 
 // --- 13. Customer Marketplace & Discovery (Public) ---
 export const marketplacePublicApi = {
-  search: async (params?: { city?: string; professionalType?: string; specialization?: string; verifiedOnly?: boolean; search?: string; page?: number; size?: number; sortBy?: string; sortDirection?: string }) => {
+  search: async (params?: {
+    city?: string;
+    state?: string;
+    pincode?: string;
+    professionalType?: string;
+    specialization?: string;
+    service?: string;
+    verifiedOnly?: boolean;
+    verified?: boolean;
+    minRating?: number;
+    search?: string;
+    q?: string;
+    latitude?: number;
+    longitude?: number;
+    radiusKm?: number;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sort?: string;
+    sortDirection?: string;
+  }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceProfile>>>('/v1/marketplace/search', { params });
     return res.data.data;
   },

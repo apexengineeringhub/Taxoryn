@@ -42,4 +42,16 @@ public interface PracticeLocationRepository extends JpaRepository<PracticeLocati
     @Modifying
     @Query("UPDATE PracticeLocationEntity l SET l.isPrimary = false WHERE l.marketplaceProfileId = :profileId")
     void clearAllPrimaryLocations(@Param("profileId") UUID profileId);
+
+    @Query("SELECT l FROM PracticeLocationEntity l " +
+           "WHERE l.isActive = true " +
+           "AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL " +
+           "AND l.latitude >= :minLat AND l.latitude <= :maxLat " +
+           "AND l.longitude >= :minLng AND l.longitude <= :maxLng")
+    List<PracticeLocationEntity> findActiveLocationsInBoundingBox(
+            @Param("minLat") java.math.BigDecimal minLat,
+            @Param("maxLat") java.math.BigDecimal maxLat,
+            @Param("minLng") java.math.BigDecimal minLng,
+            @Param("maxLng") java.math.BigDecimal maxLng
+    );
 }

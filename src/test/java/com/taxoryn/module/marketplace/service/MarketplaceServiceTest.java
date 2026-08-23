@@ -1061,4 +1061,164 @@ class MarketplaceServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> marketplaceService.getPracticeLocationById(locationId));
     }
+
+    @Test
+    @DisplayName("Geo Search: coordinates within radius returns practice with distance and nearest location")
+    void testSearchProfiles_WithCoordinates_ReturnsNearestPracticeWithDistanceAndLocation() {
+        // Customer location: Bangalore MG Road (12.9716, 77.5946)
+        MarketplaceSearchRequest searchReq = MarketplaceSearchRequest.builder()
+                .latitude(new BigDecimal("12.971600"))
+                .longitude(new BigDecimal("77.594600"))
+                .radiusKm(10.0)
+                .build();
+
+        // Practice location: Indiranagar (~4.5 km away)
+        UUID locId = UUID.randomUUID();
+        PracticeLocationEntity branchLoc = PracticeLocationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(sampleProfile.getId())
+                .locationName("Indiranagar Branch")
+                .addressLine1("100 Feet Road")
+                .city("Bengaluru")
+                .state("Karnataka")
+                .pincode("560038")
+                .latitude(new BigDecimal("12.978400"))
+                .longitude(new BigDecimal("77.640800"))
+                .isActive(true)
+                .isPrimary(true)
+                .build();
+        branchLoc.setId(locId);
+
+        when(locationRepository.findActiveLocationsInBoundingBox(any(), any(), any(), any()))
+                .thenReturn(List.of(branchLoc));
+
+        when(profileRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
+                .thenReturn(List.of(sampleProfile));
+
+        PublicPracticeLocationDto locDto = PublicPracticeLocationDto.builder()
+                .id(locId)
+                .locationName("Indiranagar Branch")
+                .city("Bengaluru")
+                .state("Karnataka")
+                .pincode("560038")
+                .latitude(new BigDecimal("12.978400"))
+                .longitude(new BigDecimal("77.640800"))
+                .build();
+        when(mapper.toPublicLocationDto(branchLoc)).thenReturn(locDto);
+
+        PublicMarketplaceProfileDto profileDto = PublicMarketplaceProfileDto.builder()
+                .id(sampleProfile.getId())
+                .displayName(sampleProfile.getDisplayName())
+                .slug(sampleProfile.getSlug())
+                .build();
+        when(mapper.toProfileDto(sampleProfile)).thenReturn(profileDto);
+
+        PagedResponse<PublicMarketplaceProfileDto> result = marketplaceService.searchProfiles(searchReq);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        PublicMarketplaceProfileDto hit = result.getContent().get(0);
+        assertNotNull(hit.getDistanceKm());
+        assertTrue(hit.getDistanceKm() > 3.0 && hit.getDistanceKm() < 6.0);
+        assertNotNull(hit.getNearestLocation());
+        assertEquals("Indiranagar Branch", hit.getNearestLocation().getLocationName());
+    }
+
+    @Test
+    @DisplayName("Geo Search: multiple branches under one practice return single practice with shortest distance")
+    void testSearchProfiles_MultipleBranches_ReturnsSinglePracticeWithMinimumDistance() {
+        MarketplaceSearchRequest searchReq = MarketplaceSearchRequest.builder()
+                .latitude(new BigDecimal("12.971600"))
+                .longitude(new BigDecimal("77.594600"))
+                .radiusKm(20.0)
+                .build();
+
+        // Branch 1: Indiranagar (~5 km)
+        UUID loc1Id = UUID.randomUUID();
+        PracticeLocationEntity loc1 = PracticeLocationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(sampleProfile.getId())
+                .locationName("Indiranagar Branch")
+                .city("Bengaluru")
+                .state("Karnataka")
+                .latitude(new BigDecimal("12.978400"))
+                .longitude(new BigDecimal("77.640800"))
+                .isActive(true)
+                .build();
+        loc1.setId(loc1Id);
+
+        // Branch 2: Whitefield (~17 km)
+        UUID loc2Id = UUID.randomUUID();
+        PracticeLocationEntity loc2 = PracticeLocationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(sampleProfile.getId())
+                .locationName("Whitefield Branch")
+                .city("Bengaluru")
+                .state("Karnataka")
+                .latitude(new BigDecimal("12.969800"))
+                .longitude(new BigDecimal("77.749900"))
+                .isActive(true)
+                .build();
+        loc2.setId(loc2Id);
+
+        when(locationRepository.findActiveLocationsInBoundingBox(any(), any(), any(), any()))
+                .thenReturn(List.of(loc1, loc2));
+
+        when(profileRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
+                .thenReturn(List.of(sampleProfile));
+
+        PublicPracticeLocationDto loc1Dto = PublicPracticeLocationDto.builder()
+                .id(loc1Id)
+                .locationName("Indiranagar Branch")
+                .build();
+        when(mapper.toPublicLocationDto(loc1)).thenReturn(loc1Dto);
+
+        PublicMarketplaceProfileDto profileDto = PublicMarketplaceProfileDto.builder()
+                .id(sampleProfile.getId())
+                .displayName(sampleProfile.getDisplayName())
+                .build();
+        when(mapper.toProfileDto(sampleProfile)).thenReturn(profileDto);
+
+        PagedResponse<PublicMarketplaceProfileDto> result = marketplaceService.searchProfiles(searchReq);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        PublicMarketplaceProfileDto hit = result.getContent().get(0);
+        // Shortest distance must be chosen (Indiranagar ~5 km vs Whitefield ~17 km)
+        assertTrue(hit.getDistanceKm() < 7.0);
+        assertEquals("Indiranagar Branch", hit.getNearestLocation().getLocationName());
+    }
+
+    @Test
+    @DisplayName("Geo Search: returns empty PagedResponse when no practice locations are within radius")
+    void testSearchProfiles_NoLocationsInRadius_ReturnsEmpty() {
+        MarketplaceSearchRequest searchReq = MarketplaceSearchRequest.builder()
+                .latitude(new BigDecimal("12.971600"))
+                .longitude(new BigDecimal("77.594600"))
+                .radiusKm(5.0)
+                .build();
+
+        // Location is in Mumbai (~840 km away)
+        PracticeLocationEntity farLoc = PracticeLocationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(sampleProfile.getId())
+                .locationName("Mumbai Branch")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .latitude(new BigDecimal("19.076000"))
+                .longitude(new BigDecimal("72.877700"))
+                .isActive(true)
+                .build();
+        farLoc.setId(UUID.randomUUID());
+
+        // Bounding box query returns no matching locations in Bangalore 5km bounding box
+        when(locationRepository.findActiveLocationsInBoundingBox(any(), any(), any(), any()))
+                .thenReturn(List.of());
+
+        PagedResponse<PublicMarketplaceProfileDto> result = marketplaceService.searchProfiles(searchReq);
+
+        assertNotNull(result);
+        assertTrue(result.getContent().isEmpty());
+        assertEquals(0, result.getTotalElements());
+    }
 }

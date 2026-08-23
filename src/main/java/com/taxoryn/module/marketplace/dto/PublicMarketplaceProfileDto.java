@@ -142,6 +142,12 @@ public class PublicMarketplaceProfileDto {
     @Schema(description = "Primary headquarter / main location of the practice")
     private PublicPracticeLocationDto primaryLocation;
 
+    @Schema(description = "Distance in kilometers from customer search coordinates", example = "2.4")
+    private Double distanceKm;
+
+    @Schema(description = "Nearest active branch location matching geographic search criteria")
+    private PublicPracticeLocationDto nearestLocation;
+
     public String getPublicSlug() {
         return publicSlug != null ? publicSlug : slug;
     }

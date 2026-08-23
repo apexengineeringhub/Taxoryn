@@ -54,6 +54,12 @@ export const MarketplaceExplorePage: React.FC = () => {
   // Filters
   const [search, setSearch] = useState<string>(searchParams.get('q') || '');
   const [city, setCity] = useState<string>(searchParams.get('city') || '');
+  const [stateFilter, setStateFilter] = useState<string>(searchParams.get('state') || '');
+  const [pincode, setPincode] = useState<string>(searchParams.get('pincode') || '');
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [radiusKm, setRadiusKm] = useState<number>(10);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [distanceRadius, setDistanceRadius] = useState<string>('ANY'); // '5KM', '15KM', '50KM', 'ANY'
   const [professionalType, setProfessionalType] = useState<string>(searchParams.get('type') || '');
   const [specialization, setSpecialization] = useState<string>(searchParams.get('spec') || '');
@@ -132,6 +138,42 @@ export const MarketplaceExplorePage: React.FC = () => {
     { id: 'TAX_CONSULTANT', label: 'Tax Consultant', icon: ShieldCheck },
   ];
 
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLocating(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        setUserCoords({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        setSortBy('distance');
+        setSortDirection('asc');
+      },
+      (err) => {
+        setIsLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationError('Location access was denied. You can search manually by city, state, or pincode.');
+        } else {
+          setLocationError('Could not obtain your location. Please enter a city or pincode.');
+        }
+      },
+      { timeout: 10000 }
+    );
+  };
+
+  const handleClearLocation = () => {
+    setUserCoords(null);
+    setLocationError(null);
+    setSortBy('averageRating');
+    setSortDirection('desc');
+  };
+
   const fetchProfiles = async () => {
     setIsLoading(true);
     try {
@@ -139,6 +181,11 @@ export const MarketplaceExplorePage: React.FC = () => {
         marketplacePublicApi.search({
           search: search || undefined,
           city: city || undefined,
+          state: stateFilter || undefined,
+          pincode: pincode || undefined,
+          latitude: userCoords ? userCoords.latitude : undefined,
+          longitude: userCoords ? userCoords.longitude : undefined,
+          radiusKm: userCoords ? radiusKm : undefined,
           professionalType: professionalType || undefined,
           specialization: specialization || undefined,
           verifiedOnly: verifiedOnly ? true : undefined,
@@ -172,7 +219,7 @@ export const MarketplaceExplorePage: React.FC = () => {
 
   useEffect(() => {
     fetchProfiles();
-  }, [city, professionalType, specialization, verifiedOnly, sortBy, sortDirection]);
+  }, [city, stateFilter, pincode, userCoords, radiusKm, professionalType, specialization, verifiedOnly, sortBy, sortDirection]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -643,37 +690,97 @@ export const MarketplaceExplorePage: React.FC = () => {
 
           {/* Directory Search Mode */}
           {activeTab === 'DIRECTORY' && (
-            <form
-              onSubmit={handleSearchSubmit}
-              className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl mx-auto flex flex-col md:flex-row gap-3"
-            >
-              <div className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                <Search className="w-5 h-5 text-indigo-500 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Search by firm name, CA name, or service (e.g. Apex Tax, Audit)..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
-                />
-              </div>
+            <div className="space-y-3 max-w-4xl mx-auto">
+              <form
+                onSubmit={handleSearchSubmit}
+                className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row gap-3"
+              >
+                <div className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                  <Search className="w-5 h-5 text-indigo-500 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search by firm name, CA name, or service (e.g. Apex Tax, Audit)..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
+                  />
+                </div>
 
-              <div className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                <MapPin className="w-5 h-5 text-emerald-500 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="City, State or Pincode (e.g. Mumbai, 400001)..."
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
-                />
-              </div>
+                <div className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                  <MapPin className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="City, State or Pincode (e.g. Bengaluru, 560001)..."
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
+                  />
+                </div>
 
-              <Button type="submit" variant="primary" size="md" className="rounded-2xl px-6 py-3 shrink-0">
-                <Search className="w-4 h-4 mr-2" />
-                Search Directory
-              </Button>
-            </form>
+                <Button
+                  type="button"
+                  variant={userCoords ? 'primary' : 'outline'}
+                  size="md"
+                  onClick={userCoords ? handleClearLocation : handleUseMyLocation}
+                  disabled={isLocating}
+                  className="rounded-2xl px-4 py-3 shrink-0 flex items-center gap-2 text-xs font-bold"
+                >
+                  <Navigation className={clsx('w-4 h-4 text-rose-500', isLocating && 'animate-spin')} />
+                  <span>{isLocating ? 'Locating...' : userCoords ? 'Location Active ✓' : 'Use My Location'}</span>
+                </Button>
+
+                <Button type="submit" variant="primary" size="md" className="rounded-2xl px-6 py-3 shrink-0">
+                  <Search className="w-4 h-4 mr-2" />
+                  Search Directory
+                </Button>
+              </form>
+
+              {/* Active Geo Location Indicator & Radius Selector */}
+              {userCoords && (
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-indigo-900/70 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-indigo-500/30 text-white text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Searching within <strong>{radiusKm} km</strong> of your coordinates ({userCoords.latitude.toFixed(4)}, {userCoords.longitude.toFixed(4)})</span>
+                    <button
+                      type="button"
+                      onClick={handleClearLocation}
+                      className="ml-2 text-indigo-300 hover:text-white underline font-semibold"
+                    >
+                      Clear Location
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-indigo-200">Radius:</span>
+                    {[5, 10, 25, 50, 100].map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRadiusKm(r)}
+                        className={clsx(
+                          'px-2.5 py-1 rounded-lg text-xs font-bold transition-all',
+                          radiusKm === r
+                            ? 'bg-white text-indigo-900 shadow-sm'
+                            : 'bg-indigo-800/80 text-indigo-200 hover:bg-indigo-700'
+                        )}
+                      >
+                        {r} km
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Location Error Alert */}
+              {locationError && (
+                <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 p-3 rounded-2xl text-xs text-amber-800 dark:text-amber-300">
+                  <span>{locationError}</span>
+                  <button type="button" onClick={() => setLocationError(null)} className="text-amber-600 hover:text-amber-900 font-bold ml-2">
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -903,13 +1010,24 @@ export const MarketplaceExplorePage: React.FC = () => {
                         )}
 
                         {/* Location, Distance & Rating Strip */}
-                        <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
-                            <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                            <span>{profile.city || 'India'}</span>
-                            <span className="text-[10px] text-slate-400">(Digital & In-Office)</span>
+                        <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 flex-wrap gap-2">
+                          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 flex-wrap">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                            <span className="font-medium text-slate-900 dark:text-white">
+                              {profile.nearestLocation?.city || profile.city || 'India'}
+                            </span>
+                            {profile.distanceKm !== undefined && profile.distanceKm !== null && (
+                              <span className="font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md text-[11px] border border-indigo-200 dark:border-indigo-800">
+                                📍 {profile.distanceKm} km away
+                              </span>
+                            )}
+                            {profile.nearestLocation && (
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                ({profile.nearestLocation.locationName})
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+                          <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400 shrink-0">
                             <Star className="w-3.5 h-3.5 fill-current" />
                             <span>{profile.averageRating?.toFixed(1) || '5.0'}</span>
                             <span className="text-slate-400 font-normal">({profile.totalReviews || 0} reviews)</span>

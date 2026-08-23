@@ -19,6 +19,7 @@ import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.Verificati
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus;
 import com.taxoryn.module.marketplace.mapper.MarketplaceMapper;
 import com.taxoryn.module.marketplace.repository.*;
+import com.taxoryn.module.marketplace.util.GeoUtils;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.task.entity.TaskEntity;
@@ -63,63 +64,245 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     // 1. Public Customer Discovery APIs (Hardened for Production & Tenant Isolation)
     // =========================================================================
 
+    private record PracticeGeoMatch(UUID profileId, double minDistanceKm, PracticeLocationEntity nearestLocation) {}
+
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<PublicMarketplaceProfileDto> searchProfiles(MarketplaceSearchRequest request) {
+        if (request.hasCoordinates()) {
+            return searchProfilesWithGeo(request);
+        } else {
+            return searchProfilesAdministrative(request);
+        }
+    }
+
+    private PagedResponse<PublicMarketplaceProfileDto> searchProfilesWithGeo(MarketplaceSearchRequest request) {
+        double lat = request.getLatitude().doubleValue();
+        double lng = request.getLongitude().doubleValue();
+        double radius = request.getRadiusKm() != null ? request.getRadiusKm() : 10.0;
+
+        // 1. Calculate Bounding Box
+        GeoUtils.BoundingBox bbox = GeoUtils.calculateBoundingBox(lat, lng, radius);
+
+        // 2. Query candidate active locations in bounding box
+        List<PracticeLocationEntity> candidateLocs = locationRepository.findActiveLocationsInBoundingBox(
+                bbox.minLat(), bbox.maxLat(), bbox.minLng(), bbox.maxLng()
+        );
+
+        // 3. Compute accurate Haversine distance and filter candidates <= radius
+        Map<UUID, PracticeGeoMatch> matchesByProfileId = new HashMap<>();
+        for (PracticeLocationEntity loc : candidateLocs) {
+            if (loc.getLatitude() == null || loc.getLongitude() == null) continue;
+            double dist = GeoUtils.calculateDistanceKm(
+                    lat, lng,
+                    loc.getLatitude().doubleValue(), loc.getLongitude().doubleValue()
+            );
+            if (dist <= radius) {
+                UUID pid = loc.getMarketplaceProfileId();
+                PracticeGeoMatch current = matchesByProfileId.get(pid);
+                if (current == null || dist < current.minDistanceKm()) {
+                    matchesByProfileId.put(pid, new PracticeGeoMatch(pid, dist, loc));
+                }
+            }
+        }
+
+        if (matchesByProfileId.isEmpty()) {
+            return PagedResponse.<PublicMarketplaceProfileDto>builder()
+                    .content(Collections.emptyList())
+                    .pageNumber(request.getPage())
+                    .pageSize(request.getSize())
+                    .totalElements(0L)
+                    .totalPages(0)
+                    .isFirst(true)
+                    .isLast(true)
+                    .hasNext(false)
+                    .hasPrevious(false)
+                    .build();
+        }
+
+        // 4. Build Specification for matching profiles
+        org.springframework.data.jpa.domain.Specification<MarketplaceProfileEntity> spec = (root, query, cb) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.isTrue(root.get("isPublished")));
+            predicates.add(cb.equal(root.get("visibilityStatus"), VisibilityStatus.PUBLIC));
+            predicates.add(root.get("id").in(matchesByProfileId.keySet()));
+
+            applyFilterPredicates(predicates, root, query, cb, request);
+
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        boolean isExplicitNonDistanceSort = (StringUtils.hasText(request.getSort()) && !"distance".equalsIgnoreCase(request.getSort()))
+                || (StringUtils.hasText(request.getSortBy()) && !"averageRating".equalsIgnoreCase(request.getSortBy()) && !"distance".equalsIgnoreCase(request.getSortBy()));
+        boolean isDistanceSort = !isExplicitNonDistanceSort;
+
+        if (isDistanceSort) {
+            List<MarketplaceProfileEntity> matchingEntities = new ArrayList<>(profileRepository.findAll(spec));
+            boolean isAsc = !"desc".equalsIgnoreCase(request.getSortDirection());
+            matchingEntities.sort((a, b) -> {
+                double d1 = matchesByProfileId.get(a.getId()).minDistanceKm();
+                double d2 = matchesByProfileId.get(b.getId()).minDistanceKm();
+                return isAsc ? Double.compare(d1, d2) : Double.compare(d2, d1);
+            });
+
+            int totalElements = matchingEntities.size();
+            int page = Math.max(0, request.getPage());
+            int size = Math.min(Math.max(1, request.getSize()), 50);
+            int fromIndex = Math.min(page * size, totalElements);
+            int toIndex = Math.min(fromIndex + size, totalElements);
+
+            List<PublicMarketplaceProfileDto> content = matchingEntities.subList(fromIndex, toIndex).stream()
+                    .map(entity -> {
+                        PublicMarketplaceProfileDto dto = enrichPublicProfile(entity);
+                        PracticeGeoMatch match = matchesByProfileId.get(entity.getId());
+                        if (match != null) {
+                            dto.setDistanceKm(GeoUtils.roundDistance(match.minDistanceKm()));
+                            dto.setNearestLocation(mapper.toPublicLocationDto(match.nearestLocation()));
+                        }
+                        return dto;
+                    })
+                    .toList();
+
+            int totalPages = totalElements > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+            boolean isFirst = page == 0;
+            boolean isLast = totalPages == 0 || page >= totalPages - 1;
+            boolean hasNext = page < totalPages - 1;
+            boolean hasPrevious = page > 0;
+
+            return PagedResponse.<PublicMarketplaceProfileDto>builder()
+                    .content(content)
+                    .pageNumber(page)
+                    .pageSize(size)
+                    .totalElements((long) totalElements)
+                    .totalPages(totalPages)
+                    .isFirst(isFirst)
+                    .isLast(isLast)
+                    .hasNext(hasNext)
+                    .hasPrevious(hasPrevious)
+                    .build();
+        } else {
+            Page<MarketplaceProfileEntity> page = profileRepository.findAll(spec, request.toPageable());
+            return PagedResponse.of(page, entity -> {
+                PublicMarketplaceProfileDto dto = enrichPublicProfile(entity);
+                PracticeGeoMatch match = matchesByProfileId.get(entity.getId());
+                if (match != null) {
+                    dto.setDistanceKm(GeoUtils.roundDistance(match.minDistanceKm()));
+                    dto.setNearestLocation(mapper.toPublicLocationDto(match.nearestLocation()));
+                }
+                return dto;
+            });
+        }
+    }
+
+    private PagedResponse<PublicMarketplaceProfileDto> searchProfilesAdministrative(MarketplaceSearchRequest request) {
         org.springframework.data.jpa.domain.Specification<MarketplaceProfileEntity> spec = (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("isPublished")));
             predicates.add(cb.equal(root.get("visibilityStatus"), VisibilityStatus.PUBLIC));
 
-            if (StringUtils.hasText(request.getCity())) {
-                String cityPattern = "%" + request.getCity().trim().toLowerCase() + "%";
-                jakarta.persistence.criteria.Predicate profileCityMatch = cb.like(cb.lower(root.get("city")), cityPattern);
-
-                jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
-                jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
-                locSubquery.select(locRoot.get("marketplaceProfileId"))
-                        .where(
-                                cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
-                                cb.isTrue(locRoot.get("isActive")),
-                                cb.like(cb.lower(locRoot.get("city")), cityPattern)
-                        );
-                predicates.add(cb.or(profileCityMatch, cb.exists(locSubquery)));
-            }
-            if (request.getProfessionalType() != null) {
-                predicates.add(cb.equal(root.get("professionalType"), request.getProfessionalType()));
-            }
-            if (StringUtils.hasText(request.getSpecialization())) {
-                predicates.add(cb.like(cb.lower(root.get("specializations")), "%" + request.getSpecialization().trim().toLowerCase() + "%"));
-            }
-            if (Boolean.TRUE.equals(request.getVerifiedOnly())) {
-                predicates.add(cb.equal(root.get("verificationStatus"), VerificationStatus.VERIFIED));
-            }
-            if (StringUtils.hasText(request.getSearch())) {
-                String s = "%" + request.getSearch().trim().toLowerCase() + "%";
-                jakarta.persistence.criteria.Predicate nameMatch = cb.like(cb.lower(root.get("displayName")), s);
-                jakarta.persistence.criteria.Predicate headlineMatch = cb.like(cb.lower(root.get("headline")), s);
-                jakarta.persistence.criteria.Predicate cityMatch = cb.like(cb.lower(root.get("city")), s);
-
-                jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
-                jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
-                locSubquery.select(locRoot.get("marketplaceProfileId"))
-                        .where(
-                                cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
-                                cb.isTrue(locRoot.get("isActive")),
-                                cb.or(
-                                        cb.like(cb.lower(locRoot.get("city")), s),
-                                        cb.like(cb.lower(locRoot.get("locationName")), s),
-                                        cb.like(cb.lower(locRoot.get("addressLine1")), s)
-                                )
-                        );
-                predicates.add(cb.or(nameMatch, headlineMatch, cityMatch, cb.exists(locSubquery)));
-            }
+            applyFilterPredicates(predicates, root, query, cb, request);
 
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
 
         Page<MarketplaceProfileEntity> page = profileRepository.findAll(spec, request.toPageable());
         return PagedResponse.of(page, this::enrichPublicProfile);
+    }
+
+    private void applyFilterPredicates(
+            List<jakarta.persistence.criteria.Predicate> predicates,
+            jakarta.persistence.criteria.Root<MarketplaceProfileEntity> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder cb,
+            MarketplaceSearchRequest request
+    ) {
+        if (StringUtils.hasText(request.getCity())) {
+            String cityPattern = "%" + request.getCity().trim().toLowerCase() + "%";
+            jakarta.persistence.criteria.Predicate profileCityMatch = cb.like(cb.lower(root.get("city")), cityPattern);
+
+            jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
+            jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
+            locSubquery.select(locRoot.get("marketplaceProfileId"))
+                    .where(
+                            cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
+                            cb.isTrue(locRoot.get("isActive")),
+                            cb.like(cb.lower(locRoot.get("city")), cityPattern)
+                    );
+            predicates.add(cb.or(profileCityMatch, cb.exists(locSubquery)));
+        }
+
+        if (StringUtils.hasText(request.getState())) {
+            String statePattern = "%" + request.getState().trim().toLowerCase() + "%";
+            jakarta.persistence.criteria.Predicate profileStateMatch = cb.like(cb.lower(root.get("state")), statePattern);
+
+            jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
+            jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
+            locSubquery.select(locRoot.get("marketplaceProfileId"))
+                    .where(
+                            cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
+                            cb.isTrue(locRoot.get("isActive")),
+                            cb.or(
+                                    cb.like(cb.lower(locRoot.get("state")), statePattern),
+                                    cb.like(cb.lower(locRoot.get("stateCode")), statePattern)
+                            )
+                    );
+            predicates.add(cb.or(profileStateMatch, cb.exists(locSubquery)));
+        }
+
+        if (StringUtils.hasText(request.getPincode())) {
+            String pinPattern = "%" + request.getPincode().trim() + "%";
+            jakarta.persistence.criteria.Predicate profilePinMatch = cb.like(root.get("pincode"), pinPattern);
+
+            jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
+            jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
+            locSubquery.select(locRoot.get("marketplaceProfileId"))
+                    .where(
+                            cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
+                            cb.isTrue(locRoot.get("isActive")),
+                            cb.like(locRoot.get("pincode"), pinPattern)
+                    );
+            predicates.add(cb.or(profilePinMatch, cb.exists(locSubquery)));
+        }
+
+        if (request.getProfessionalType() != null) {
+            predicates.add(cb.equal(root.get("professionalType"), request.getProfessionalType()));
+        }
+
+        String spec = request.getEffectiveSpecialization();
+        if (StringUtils.hasText(spec)) {
+            predicates.add(cb.like(cb.lower(root.get("specializations")), "%" + spec.toLowerCase() + "%"));
+        }
+
+        if (Boolean.TRUE.equals(request.getEffectiveVerified())) {
+            predicates.add(cb.equal(root.get("verificationStatus"), VerificationStatus.VERIFIED));
+        }
+
+        if (request.getMinRating() != null && request.getMinRating() > 0) {
+            predicates.add(cb.greaterThanOrEqualTo(root.get("averageRating"), BigDecimal.valueOf(request.getMinRating())));
+        }
+
+        String kw = request.getEffectiveSearch();
+        if (StringUtils.hasText(kw)) {
+            String s = "%" + kw.toLowerCase() + "%";
+            jakarta.persistence.criteria.Predicate nameMatch = cb.like(cb.lower(root.get("displayName")), s);
+            jakarta.persistence.criteria.Predicate headlineMatch = cb.like(cb.lower(root.get("headline")), s);
+            jakarta.persistence.criteria.Predicate bioMatch = cb.like(cb.lower(root.get("bio")), s);
+            jakarta.persistence.criteria.Predicate cityMatch = cb.like(cb.lower(root.get("city")), s);
+
+            jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
+            jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
+            locSubquery.select(locRoot.get("marketplaceProfileId"))
+                    .where(
+                            cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
+                            cb.isTrue(locRoot.get("isActive")),
+                            cb.or(
+                                    cb.like(cb.lower(locRoot.get("city")), s),
+                                    cb.like(cb.lower(locRoot.get("locationName")), s),
+                                    cb.like(cb.lower(locRoot.get("addressLine1")), s)
+                            )
+                    );
+            predicates.add(cb.or(nameMatch, headlineMatch, bioMatch, cityMatch, cb.exists(locSubquery)));
+        }
     }
 
     @Override

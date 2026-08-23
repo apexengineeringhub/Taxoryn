@@ -882,6 +882,8 @@ export interface MarketplaceProfile {
   recentReviews?: MarketplaceReview[];
   locations?: PublicPracticeLocation[];
   primaryLocation?: PublicPracticeLocation;
+  distanceKm?: number;
+  nearestLocation?: PublicPracticeLocation;
   completeness?: ProfileCompleteness;
   profileCompleteness?: ProfileCompleteness;
   completenessScore?: number;

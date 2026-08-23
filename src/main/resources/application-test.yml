@@ -17,6 +17,15 @@ taxoryn:
     expiration-ms: 3600000
     refresh-expiration-ms: 86400000
     issuer: taxoryn-test
+  marketplace:
+    search:
+      default-radius-km: 10.0
+      min-radius-km: 1.0
+      max-radius-km: 100.0
+      default-page-size: 12
+      max-page-size: 50
+  rate-limit:
+    enabled: false
 
 logging:
   level:

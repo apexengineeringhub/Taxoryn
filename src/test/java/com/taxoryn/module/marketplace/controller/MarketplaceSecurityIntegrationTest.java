@@ -89,6 +89,9 @@ class MarketplaceSecurityIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private com.taxoryn.core.security.RateLimitingService rateLimitingService;
+
     private OrganizationEntity orgA;
     private OrganizationEntity orgB;
     private String orgAdminTokenA;
@@ -97,6 +100,9 @@ class MarketplaceSecurityIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        if (rateLimitingService != null) {
+            rateLimitingService.reset();
+        }
         marketplaceProposalRepository.deleteAll();
         marketplaceOnboardingRepository.deleteAll();
         marketplaceLeadRepository.deleteAll();

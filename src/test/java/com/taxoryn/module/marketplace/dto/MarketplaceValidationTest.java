@@ -307,4 +307,71 @@ class MarketplaceValidationTest {
                 .build();
         assertFalse(validator.validate(outOfBoundsLng).isEmpty());
     }
+
+    @Test
+    @DisplayName("Validation: MarketplaceSearchRequest coordinate pair and radius validation")
+    void testMarketplaceSearchRequestValidation() {
+        // 1. Valid request without coordinates
+        MarketplaceSearchRequest adminSearch = MarketplaceSearchRequest.builder()
+                .city("Bengaluru")
+                .state("Karnataka")
+                .pincode("560001")
+                .build();
+        assertTrue(validator.validate(adminSearch).isEmpty());
+
+        // 2. Valid request with coordinates & radius
+        MarketplaceSearchRequest geoSearch = MarketplaceSearchRequest.builder()
+                .latitude(new java.math.BigDecimal("12.971600"))
+                .longitude(new java.math.BigDecimal("77.594600"))
+                .radiusKm(15.0)
+                .build();
+        assertTrue(validator.validate(geoSearch).isEmpty());
+
+        // 3. Only latitude supplied -> violation
+        MarketplaceSearchRequest onlyLat = MarketplaceSearchRequest.builder()
+                .latitude(new java.math.BigDecimal("12.971600"))
+                .build();
+        assertFalse(validator.validate(onlyLat).isEmpty());
+
+        // 4. Only longitude supplied -> violation
+        MarketplaceSearchRequest onlyLng = MarketplaceSearchRequest.builder()
+                .longitude(new java.math.BigDecimal("77.594600"))
+                .build();
+        assertFalse(validator.validate(onlyLng).isEmpty());
+
+        // 5. Radius out of bounds (< 1.0 or > 100.0)
+        MarketplaceSearchRequest negativeRadius = MarketplaceSearchRequest.builder()
+                .latitude(new java.math.BigDecimal("12.971600"))
+                .longitude(new java.math.BigDecimal("77.594600"))
+                .radiusKm(-5.0)
+                .build();
+        assertFalse(validator.validate(negativeRadius).isEmpty());
+
+        MarketplaceSearchRequest zeroRadius = MarketplaceSearchRequest.builder()
+                .latitude(new java.math.BigDecimal("12.971600"))
+                .longitude(new java.math.BigDecimal("77.594600"))
+                .radiusKm(0.0)
+                .build();
+        assertFalse(validator.validate(zeroRadius).isEmpty());
+
+        MarketplaceSearchRequest excessiveRadius = MarketplaceSearchRequest.builder()
+                .latitude(new java.math.BigDecimal("12.971600"))
+                .longitude(new java.math.BigDecimal("77.594600"))
+                .radiusKm(250.0)
+                .build();
+        assertFalse(validator.validate(excessiveRadius).isEmpty());
+
+        // 6. Coordinates out of bounds
+        MarketplaceSearchRequest invalidLat = MarketplaceSearchRequest.builder()
+                .latitude(new java.math.BigDecimal("95.000000"))
+                .longitude(new java.math.BigDecimal("77.594600"))
+                .build();
+        assertFalse(validator.validate(invalidLat).isEmpty());
+
+        MarketplaceSearchRequest invalidLng = MarketplaceSearchRequest.builder()
+                .latitude(new java.math.BigDecimal("12.971600"))
+                .longitude(new java.math.BigDecimal("190.000000"))
+                .build();
+        assertFalse(validator.validate(invalidLng).isEmpty());
+    }
 }

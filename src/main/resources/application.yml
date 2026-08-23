@@ -30,6 +30,13 @@ taxoryn:
     expiration-ms: 86400000 # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
     issuer: taxoryn-platform
+  marketplace:
+    search:
+      default-radius-km: 10.0
+      min-radius-km: 1.0
+      max-radius-km: 100.0
+      default-page-size: 12
+      max-page-size: 50
   cors:
     allowed-origins: "http://localhost:3000,http://localhost:5173,http://localhost:8080"
     allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
