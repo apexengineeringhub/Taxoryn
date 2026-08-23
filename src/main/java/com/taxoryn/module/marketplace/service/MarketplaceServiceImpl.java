@@ -49,6 +49,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final MarketplaceConsultationRepository consultationRepository;
     private final MarketplaceReviewRepository reviewRepository;
     private final MarketplaceVerificationRepository verificationRepository;
+    private final PracticeLocationRepository locationRepository;
     private final OrganizationRepository organizationRepository;
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
@@ -71,7 +72,18 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             predicates.add(cb.equal(root.get("visibilityStatus"), VisibilityStatus.PUBLIC));
 
             if (StringUtils.hasText(request.getCity())) {
-                predicates.add(cb.like(cb.lower(root.get("city")), "%" + request.getCity().trim().toLowerCase() + "%"));
+                String cityPattern = "%" + request.getCity().trim().toLowerCase() + "%";
+                jakarta.persistence.criteria.Predicate profileCityMatch = cb.like(cb.lower(root.get("city")), cityPattern);
+
+                jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
+                jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
+                locSubquery.select(locRoot.get("marketplaceProfileId"))
+                        .where(
+                                cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
+                                cb.isTrue(locRoot.get("isActive")),
+                                cb.like(cb.lower(locRoot.get("city")), cityPattern)
+                        );
+                predicates.add(cb.or(profileCityMatch, cb.exists(locSubquery)));
             }
             if (request.getProfessionalType() != null) {
                 predicates.add(cb.equal(root.get("professionalType"), request.getProfessionalType()));
@@ -87,7 +99,20 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 jakarta.persistence.criteria.Predicate nameMatch = cb.like(cb.lower(root.get("displayName")), s);
                 jakarta.persistence.criteria.Predicate headlineMatch = cb.like(cb.lower(root.get("headline")), s);
                 jakarta.persistence.criteria.Predicate cityMatch = cb.like(cb.lower(root.get("city")), s);
-                predicates.add(cb.or(nameMatch, headlineMatch, cityMatch));
+
+                jakarta.persistence.criteria.Subquery<UUID> locSubquery = query.subquery(UUID.class);
+                jakarta.persistence.criteria.Root<PracticeLocationEntity> locRoot = locSubquery.from(PracticeLocationEntity.class);
+                locSubquery.select(locRoot.get("marketplaceProfileId"))
+                        .where(
+                                cb.equal(locRoot.get("marketplaceProfileId"), root.get("id")),
+                                cb.isTrue(locRoot.get("isActive")),
+                                cb.or(
+                                        cb.like(cb.lower(locRoot.get("city")), s),
+                                        cb.like(cb.lower(locRoot.get("locationName")), s),
+                                        cb.like(cb.lower(locRoot.get("addressLine1")), s)
+                                )
+                        );
+                predicates.add(cb.or(nameMatch, headlineMatch, cityMatch, cb.exists(locSubquery)));
             }
 
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
@@ -455,7 +480,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId).orElse(null);
         OrganizationEntity org = organizationRepository.findById(organizationId).orElse(null);
-        return completenessCalculator.calculate(profile, org);
+        boolean hasActiveLocation = profile != null && locationRepository.countByMarketplaceProfileIdAndIsActiveTrue(profile.getId()) > 0;
+        return completenessCalculator.calculate(profile, org, hasActiveLocation);
     }
 
     @Override
@@ -715,6 +741,205 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .totalConsultationsBooked(consultations)
                 .estimatedMarketplacePipelineValue(pipelineValue)
                 .build();
+    }
+
+    // =========================================================================
+    // Practice Locations Management
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PracticeLocationDto> getMyPracticeLocations() {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId)
+                .orElseGet(() -> initializeDefaultProfile(organizationId));
+        List<PracticeLocationEntity> locations = locationRepository.findByMarketplaceProfileIdOrderByIsPrimaryDescCreatedAtAsc(profile.getId());
+        return mapper.toLocationDtoList(locations);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PracticeLocationDto getPracticeLocationById(UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeLocationEntity entity = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Practice Location", "id", locationId));
+        return mapper.toLocationDto(entity);
+    }
+
+    @Override
+    @Transactional
+    public PracticeLocationDto createPracticeLocation(CreatePracticeLocationRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId)
+                .orElseGet(() -> initializeDefaultProfile(organizationId));
+
+        if (locationRepository.existsByMarketplaceProfileIdAndCityIgnoreCaseAndAddressLine1IgnoreCase(
+                profile.getId(), request.getCity().trim(), request.getAddressLine1().trim())) {
+            throw new BusinessValidationException("A location with the same address and city already exists for your practice");
+        }
+
+        long existingCount = locationRepository.countByMarketplaceProfileId(profile.getId());
+        boolean isPrimary = Boolean.TRUE.equals(request.getIsPrimary()) || existingCount == 0;
+
+        if (isPrimary) {
+            locationRepository.clearAllPrimaryLocations(profile.getId());
+        }
+
+        PracticeLocationEntity location = PracticeLocationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(profile.getId())
+                .locationName(request.getLocationName().trim())
+                .addressLine1(request.getAddressLine1().trim())
+                .addressLine2(StringUtils.hasText(request.getAddressLine2()) ? request.getAddressLine2().trim() : null)
+                .landmark(StringUtils.hasText(request.getLandmark()) ? request.getLandmark().trim() : null)
+                .city(request.getCity().trim())
+                .district(StringUtils.hasText(request.getDistrict()) ? request.getDistrict().trim() : null)
+                .state(request.getState().trim())
+                .stateCode(StringUtils.hasText(request.getStateCode()) ? request.getStateCode().trim().toUpperCase() : null)
+                .country(StringUtils.hasText(request.getCountry()) ? request.getCountry().trim() : "India")
+                .countryCode(StringUtils.hasText(request.getCountryCode()) ? request.getCountryCode().trim().toUpperCase() : "IN")
+                .pincode(request.getPincode().trim())
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
+                .isPrimary(isPrimary)
+                .isActive(true)
+                .build();
+
+        PracticeLocationEntity saved = locationRepository.save(location);
+
+        if (isPrimary) {
+            profile.setCity(saved.getCity());
+            profile.setState(saved.getState());
+            profile.setPincode(saved.getPincode());
+            profile.setAddress(saved.getAddressLine1());
+            profileRepository.save(profile);
+        }
+
+        auditService.logEvent("MARKETPLACE_LOCATION_CREATED", "PRACTICE_LOCATION", saved.getId().toString(), null,
+                "Created branch location: " + saved.getLocationName() + " in " + saved.getCity());
+
+        return mapper.toLocationDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public PracticeLocationDto updatePracticeLocation(UUID locationId, UpdatePracticeLocationRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeLocationEntity location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Practice Location", "id", locationId));
+
+        location.setLocationName(request.getLocationName().trim());
+        location.setAddressLine1(request.getAddressLine1().trim());
+        location.setAddressLine2(StringUtils.hasText(request.getAddressLine2()) ? request.getAddressLine2().trim() : null);
+        location.setLandmark(StringUtils.hasText(request.getLandmark()) ? request.getLandmark().trim() : null);
+        location.setCity(request.getCity().trim());
+        location.setDistrict(StringUtils.hasText(request.getDistrict()) ? request.getDistrict().trim() : null);
+        location.setState(request.getState().trim());
+        location.setStateCode(StringUtils.hasText(request.getStateCode()) ? request.getStateCode().trim().toUpperCase() : null);
+        if (StringUtils.hasText(request.getCountry())) location.setCountry(request.getCountry().trim());
+        if (StringUtils.hasText(request.getCountryCode())) location.setCountryCode(request.getCountryCode().trim().toUpperCase());
+        location.setPincode(request.getPincode().trim());
+        location.setLatitude(request.getLatitude());
+        location.setLongitude(request.getLongitude());
+
+        if (request.getIsActive() != null) {
+            location.setIsActive(request.getIsActive());
+        }
+
+        if (Boolean.TRUE.equals(request.getIsPrimary())) {
+            locationRepository.clearOtherPrimaryLocations(location.getMarketplaceProfileId(), location.getId());
+            location.setIsPrimary(true);
+            location.setIsActive(true);
+
+            MarketplaceProfileEntity profile = profileRepository.findById(location.getMarketplaceProfileId()).orElse(null);
+            if (profile != null) {
+                profile.setCity(location.getCity());
+                profile.setState(location.getState());
+                profile.setPincode(location.getPincode());
+                profile.setAddress(location.getAddressLine1());
+                profileRepository.save(profile);
+            }
+        } else if (Boolean.FALSE.equals(request.getIsPrimary())) {
+            location.setIsPrimary(false);
+        }
+
+        PracticeLocationEntity saved = locationRepository.save(location);
+        auditService.logEvent("MARKETPLACE_LOCATION_UPDATED", "PRACTICE_LOCATION", saved.getId().toString(), null,
+                "Updated branch location: " + saved.getLocationName() + " in " + saved.getCity());
+
+        return mapper.toLocationDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public PracticeLocationDto setPrimaryPracticeLocation(UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeLocationEntity location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Practice Location", "id", locationId));
+
+        locationRepository.clearOtherPrimaryLocations(location.getMarketplaceProfileId(), location.getId());
+        location.setIsPrimary(true);
+        location.setIsActive(true);
+        PracticeLocationEntity saved = locationRepository.save(location);
+
+        MarketplaceProfileEntity profile = profileRepository.findById(location.getMarketplaceProfileId()).orElse(null);
+        if (profile != null) {
+            profile.setCity(saved.getCity());
+            profile.setState(saved.getState());
+            profile.setPincode(saved.getPincode());
+            profile.setAddress(saved.getAddressLine1());
+            profileRepository.save(profile);
+        }
+
+        auditService.logEvent("MARKETPLACE_LOCATION_PRIMARY_CHANGED", "PRACTICE_LOCATION", saved.getId().toString(), null,
+                "Designated as primary location: " + saved.getLocationName());
+
+        return mapper.toLocationDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public PracticeLocationDto deactivatePracticeLocation(UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeLocationEntity location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Practice Location", "id", locationId));
+
+        location.setIsActive(false);
+        location.setIsPrimary(false);
+        PracticeLocationEntity saved = locationRepository.save(location);
+
+        auditService.logEvent("MARKETPLACE_LOCATION_DEACTIVATED", "PRACTICE_LOCATION", saved.getId().toString(), null,
+                "Deactivated branch location: " + saved.getLocationName());
+
+        return mapper.toLocationDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public PracticeLocationDto activatePracticeLocation(UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeLocationEntity location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Practice Location", "id", locationId));
+
+        location.setIsActive(true);
+        PracticeLocationEntity saved = locationRepository.save(location);
+
+        auditService.logEvent("MARKETPLACE_LOCATION_ACTIVATED", "PRACTICE_LOCATION", saved.getId().toString(), null,
+                "Activated branch location: " + saved.getLocationName());
+
+        return mapper.toLocationDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public void deletePracticeLocation(UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeLocationEntity location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Practice Location", "id", locationId));
+
+        locationRepository.delete(location);
+        auditService.logEvent("MARKETPLACE_LOCATION_DELETED", "PRACTICE_LOCATION", locationId.toString(), null,
+                "Deleted location: " + location.getLocationName());
     }
 
     // =========================================================================
@@ -1014,10 +1239,20 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         dto.setRecentReviews(mapper.toReviewDtoList(reviews));
         dto.setVisibilityStatus(entity.getVisibilityStatus());
 
+        // Load Active Practice Locations
+        List<PracticeLocationEntity> locations = locationRepository != null && entity.getId() != null
+                ? locationRepository.findByMarketplaceProfileIdAndIsActiveTrueOrderByIsPrimaryDescCreatedAtAsc(entity.getId())
+                : Collections.emptyList();
+        dto.setLocations(mapper.toPublicLocationDtoList(locations));
+        if (!locations.isEmpty()) {
+            dto.setPrimaryLocation(mapper.toPublicLocationDto(locations.get(0)));
+        }
+
         // Calculate Profile Completeness (percentage, completedItems, missingItems) via modular calculator
         OrganizationEntity org = organizationRepository.findById(entity.getOrganizationId()).orElse(null);
+        boolean hasActiveLocation = !locations.isEmpty();
         ProfileCompletenessDto completeness = completenessCalculator != null
-                ? completenessCalculator.calculate(entity, org)
+                ? completenessCalculator.calculate(entity, org, hasActiveLocation)
                 : null;
         if (completeness != null) {
             dto.setCompleteness(completeness);
@@ -1098,12 +1333,14 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (!StringUtils.hasText(profile.getSlug())) {
             missingFields.add("Public Slug");
         }
-        if (!StringUtils.hasText(profile.getCity())) {
-            missingFields.add("City");
+
+        long activeLocCount = locationRepository != null && profile.getId() != null
+                ? locationRepository.countByMarketplaceProfileIdAndIsActiveTrue(profile.getId())
+                : 0;
+        if (activeLocCount == 0 && !StringUtils.hasText(profile.getCity()) && !StringUtils.hasText(profile.getState())) {
+            missingFields.add("At least one active practice location");
         }
-        if (!StringUtils.hasText(profile.getState())) {
-            missingFields.add("State");
-        }
+
         if (!StringUtils.hasText(profile.getEmail()) && !StringUtils.hasText(profile.getPhone())) {
             missingFields.add("Contact Phone or Email");
         }

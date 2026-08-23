@@ -63,6 +63,10 @@ import {
   CustomerProfile,
   UpdateCustomerProfileRequest,
   CustomerDashboard,
+  PracticeLocation,
+  PublicPracticeLocation,
+  CreatePracticeLocationRequest,
+  UpdatePracticeLocationRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -880,6 +884,35 @@ export const marketplacePracticeApi = {
   },
   getProfileCompleteness: async () => {
     const res = await apiClient.get<ApiResponse<ProfileCompleteness>>('/v1/practice/marketplace/profile/completeness');
+    return res.data.data;
+  },
+  // Locations Management
+  getLocations: async () => {
+    const res = await apiClient.get<ApiResponse<PracticeLocation[]>>('/v1/marketplace/practice-profile/locations');
+    return res.data.data;
+  },
+  getLocationById: async (locationId: string) => {
+    const res = await apiClient.get<ApiResponse<PracticeLocation>>(`/v1/marketplace/practice-profile/locations/${locationId}`);
+    return res.data.data;
+  },
+  createLocation: async (payload: CreatePracticeLocationRequest) => {
+    const res = await apiClient.post<ApiResponse<PracticeLocation>>('/v1/marketplace/practice-profile/locations', payload);
+    return res.data.data;
+  },
+  updateLocation: async (locationId: string, payload: UpdatePracticeLocationRequest) => {
+    const res = await apiClient.put<ApiResponse<PracticeLocation>>(`/v1/marketplace/practice-profile/locations/${locationId}`, payload);
+    return res.data.data;
+  },
+  setPrimaryLocation: async (locationId: string) => {
+    const res = await apiClient.patch<ApiResponse<PracticeLocation>>(`/v1/marketplace/practice-profile/locations/${locationId}/primary`);
+    return res.data.data;
+  },
+  activateLocation: async (locationId: string) => {
+    const res = await apiClient.patch<ApiResponse<PracticeLocation>>(`/v1/marketplace/practice-profile/locations/${locationId}/activate`);
+    return res.data.data;
+  },
+  deactivateLocation: async (locationId: string) => {
+    const res = await apiClient.delete<ApiResponse<PracticeLocation>>(`/v1/marketplace/practice-profile/locations/${locationId}`);
     return res.data.data;
   },
   getMyServices: async () => {

@@ -880,10 +880,88 @@ export interface MarketplaceProfile {
   consultationDurationMinutes: number;
   services?: MarketplaceService[];
   recentReviews?: MarketplaceReview[];
+  locations?: PublicPracticeLocation[];
+  primaryLocation?: PublicPracticeLocation;
   completeness?: ProfileCompleteness;
   profileCompleteness?: ProfileCompleteness;
   completenessScore?: number;
   missingCompletenessFields?: string[];
+}
+
+export interface PracticeLocation {
+  id: string;
+  marketplaceProfileId: string;
+  organizationId: string;
+  locationName: string;
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  city: string;
+  district?: string;
+  state: string;
+  stateCode?: string;
+  country: string;
+  countryCode: string;
+  pincode: string;
+  latitude?: number;
+  longitude?: number;
+  isPrimary: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicPracticeLocation {
+  id: string;
+  locationName: string;
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  city: string;
+  district?: string;
+  state: string;
+  stateCode?: string;
+  country: string;
+  countryCode: string;
+  pincode: string;
+  latitude?: number;
+  longitude?: number;
+  isPrimary: boolean;
+}
+
+export interface CreatePracticeLocationRequest {
+  locationName: string;
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  city: string;
+  district?: string;
+  state: string;
+  stateCode?: string;
+  country?: string;
+  countryCode?: string;
+  pincode: string;
+  latitude?: number;
+  longitude?: number;
+  isPrimary?: boolean;
+}
+
+export interface UpdatePracticeLocationRequest {
+  locationName: string;
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  city: string;
+  district?: string;
+  state: string;
+  stateCode?: string;
+  country?: string;
+  countryCode?: string;
+  pincode: string;
+  latitude?: number;
+  longitude?: number;
+  isPrimary?: boolean;
+  isActive?: boolean;
 }
 
 export interface ProfileCompleteness {

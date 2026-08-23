@@ -77,6 +77,14 @@ public interface MarketplaceMapper {
 
     List<CustomerProfileDto> toCustomerProfileDtoList(List<MarketplaceCustomerProfileEntity> entities);
 
+    PracticeLocationDto toLocationDto(PracticeLocationEntity entity);
+
+    List<PracticeLocationDto> toLocationDtoList(List<PracticeLocationEntity> entities);
+
+    PublicPracticeLocationDto toPublicLocationDto(PracticeLocationEntity entity);
+
+    List<PublicPracticeLocationDto> toPublicLocationDtoList(List<PracticeLocationEntity> entities);
+
     @Named("stringToList")
     default List<String> stringToList(String value) {
         if (value == null || value.trim().isEmpty()) {

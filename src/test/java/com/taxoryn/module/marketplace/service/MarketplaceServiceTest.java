@@ -63,6 +63,9 @@ class MarketplaceServiceTest {
     private MarketplaceVerificationRepository verificationRepository;
 
     @Mock
+    private PracticeLocationRepository locationRepository;
+
+    @Mock
     private OrganizationRepository organizationRepository;
 
     @Mock
@@ -342,7 +345,7 @@ class MarketplaceServiceTest {
         when(serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(sampleProfile.getId())).thenReturn(List.of());
         when(reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(eq(sampleProfile.getId()), any()))
                 .thenReturn(List.of());
-        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+        when(completenessCalculator.calculate(any(), any(), anyBoolean())).thenReturn(ProfileCompletenessDto.builder()
                 .percentage(85)
                 .completedItems(List.of("Practice name", "Phone", "Email"))
                 .missingItems(List.of("Website"))
@@ -369,7 +372,7 @@ class MarketplaceServiceTest {
     void testGetMyProfileCompleteness() {
         when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
         when(organizationRepository.findById(organizationId)).thenReturn(Optional.empty());
-        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+        when(completenessCalculator.calculate(any(), any(), anyBoolean())).thenReturn(ProfileCompletenessDto.builder()
                 .percentage(70)
                 .completedItems(List.of("Practice name", "Description", "Phone"))
                 .missingItems(List.of("Website"))
@@ -392,7 +395,7 @@ class MarketplaceServiceTest {
         when(slugGenerator.sanitize("custom-apex-mumbai")).thenReturn("custom-apex-mumbai");
         when(slugGenerator.isSlugTaken("custom-apex-mumbai", sampleProfile.getId())).thenReturn(false);
         when(profileRepository.save(any(MarketplaceProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+        when(completenessCalculator.calculate(any(), any(), anyBoolean())).thenReturn(ProfileCompletenessDto.builder()
                 .percentage(90)
                 .completedItems(List.of("Practice name"))
                 .missingItems(List.of())
@@ -542,7 +545,7 @@ class MarketplaceServiceTest {
         );
 
         assertTrue(ex.getMessage().contains("Cannot publish profile to Marketplace"));
-        assertTrue(ex.getMessage().contains("City"));
+        assertTrue(ex.getMessage().contains("location") || ex.getMessage().contains("City"));
     }
 
     @Test
@@ -846,7 +849,7 @@ class MarketplaceServiceTest {
                 .build();
         when(mapper.toProfileDto(any(MarketplaceProfileEntity.class))).thenReturn(mockDto);
 
-        when(completenessCalculator.calculate(any(), any())).thenReturn(ProfileCompletenessDto.builder()
+        when(completenessCalculator.calculate(any(), any(), anyBoolean())).thenReturn(ProfileCompletenessDto.builder()
                 .percentage(85)
                 .completedItems(List.of("Basic Information", "Contact Details", "Location"))
                 .missingItems(List.of("KYC Verification"))
@@ -897,5 +900,165 @@ class MarketplaceServiceTest {
                 isNull(),
                 contains("Updated marketplace profile")
         );
+    }
+
+    // =========================================================================
+    // Practice Locations Unit Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Location: creating first location automatically marks it as primary and syncs to profile")
+    void testCreatePracticeLocation_FirstLocation_SetsAsPrimary() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(locationRepository.existsByMarketplaceProfileIdAndCityIgnoreCaseAndAddressLine1IgnoreCase(any(), any(), any()))
+                .thenReturn(false);
+        when(locationRepository.countByMarketplaceProfileId(sampleProfile.getId())).thenReturn(0L);
+
+        when(locationRepository.save(any(PracticeLocationEntity.class))).thenAnswer(inv -> {
+            PracticeLocationEntity loc = inv.getArgument(0);
+            loc.setId(UUID.randomUUID());
+            return loc;
+        });
+
+        PracticeLocationDto mockDto = PracticeLocationDto.builder()
+                .locationName("Head Office")
+                .city("Bengaluru")
+                .isPrimary(true)
+                .build();
+        when(mapper.toLocationDto(any(PracticeLocationEntity.class))).thenReturn(mockDto);
+
+        CreatePracticeLocationRequest request = CreatePracticeLocationRequest.builder()
+                .locationName("Head Office")
+                .addressLine1("Prestige Meridian, MG Road")
+                .city("Bengaluru")
+                .state("Karnataka")
+                .pincode("560001")
+                .latitude(new BigDecimal("12.971600"))
+                .longitude(new BigDecimal("77.594600"))
+                .isPrimary(false) // First location will still default to primary
+                .build();
+
+        PracticeLocationDto result = marketplaceService.createPracticeLocation(request);
+
+        assertNotNull(result);
+        assertTrue(result.getIsPrimary());
+        verify(locationRepository).clearAllPrimaryLocations(sampleProfile.getId());
+        verify(profileRepository).save(sampleProfile);
+        verify(auditService).logEvent(
+                eq("MARKETPLACE_LOCATION_CREATED"),
+                eq("PRACTICE_LOCATION"),
+                any(),
+                isNull(),
+                contains("Created branch location")
+        );
+    }
+
+    @Test
+    @DisplayName("Location: duplicate address and city within same practice throws BusinessValidationException")
+    void testCreatePracticeLocation_DuplicateCityAndAddress_ThrowsException() {
+        when(profileRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(sampleProfile));
+        when(locationRepository.existsByMarketplaceProfileIdAndCityIgnoreCaseAndAddressLine1IgnoreCase(
+                eq(sampleProfile.getId()), eq("Bengaluru"), eq("MG Road")))
+                .thenReturn(true);
+
+        CreatePracticeLocationRequest request = CreatePracticeLocationRequest.builder()
+                .locationName("Duplicate Office")
+                .addressLine1("MG Road")
+                .city("Bengaluru")
+                .state("Karnataka")
+                .pincode("560001")
+                .build();
+
+        assertThrows(BusinessValidationException.class, () -> marketplaceService.createPracticeLocation(request));
+        verify(locationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Location: setPrimaryPracticeLocation clears other primary locations and marks designated one as primary")
+    void testSetPrimaryPracticeLocation_Success() {
+        UUID locationId = UUID.randomUUID();
+        PracticeLocationEntity existingLoc = PracticeLocationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(sampleProfile.getId())
+                .locationName("Whitefield Branch")
+                .addressLine1("ITPL Main Road")
+                .city("Bengaluru")
+                .state("Karnataka")
+                .pincode("560066")
+                .isPrimary(false)
+                .isActive(true)
+                .build();
+        existingLoc.setId(locationId);
+
+        when(locationRepository.findByIdAndOrganizationId(locationId, organizationId)).thenReturn(Optional.of(existingLoc));
+        when(locationRepository.save(any(PracticeLocationEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(profileRepository.findById(sampleProfile.getId())).thenReturn(Optional.of(sampleProfile));
+
+        PracticeLocationDto mockDto = PracticeLocationDto.builder()
+                .id(locationId)
+                .locationName("Whitefield Branch")
+                .isPrimary(true)
+                .build();
+        when(mapper.toLocationDto(any(PracticeLocationEntity.class))).thenReturn(mockDto);
+
+        PracticeLocationDto result = marketplaceService.setPrimaryPracticeLocation(locationId);
+
+        assertNotNull(result);
+        assertTrue(result.getIsPrimary());
+        verify(locationRepository).clearOtherPrimaryLocations(sampleProfile.getId(), locationId);
+        verify(auditService).logEvent(
+                eq("MARKETPLACE_LOCATION_PRIMARY_CHANGED"),
+                eq("PRACTICE_LOCATION"),
+                eq(locationId.toString()),
+                isNull(),
+                contains("Designated as primary location")
+        );
+    }
+
+    @Test
+    @DisplayName("Location: deactivatePracticeLocation sets isActive and isPrimary to false")
+    void testDeactivatePracticeLocation_Success() {
+        UUID locationId = UUID.randomUUID();
+        PracticeLocationEntity existingLoc = PracticeLocationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(sampleProfile.getId())
+                .locationName("Old Branch")
+                .isPrimary(true)
+                .isActive(true)
+                .build();
+        existingLoc.setId(locationId);
+
+        when(locationRepository.findByIdAndOrganizationId(locationId, organizationId)).thenReturn(Optional.of(existingLoc));
+        when(locationRepository.save(any(PracticeLocationEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PracticeLocationDto mockDto = PracticeLocationDto.builder()
+                .id(locationId)
+                .isActive(false)
+                .isPrimary(false)
+                .build();
+        when(mapper.toLocationDto(any(PracticeLocationEntity.class))).thenReturn(mockDto);
+
+        PracticeLocationDto result = marketplaceService.deactivatePracticeLocation(locationId);
+
+        assertNotNull(result);
+        assertFalse(result.getIsActive());
+        assertFalse(result.getIsPrimary());
+        verify(auditService).logEvent(
+                eq("MARKETPLACE_LOCATION_DEACTIVATED"),
+                eq("PRACTICE_LOCATION"),
+                eq(locationId.toString()),
+                isNull(),
+                contains("Deactivated branch location")
+        );
+    }
+
+    @Test
+    @DisplayName("Location: tenant isolation enforces that practice A cannot access practice B locations")
+    void testGetPracticeLocationById_TenantIsolation() {
+        UUID locationId = UUID.randomUUID();
+        when(locationRepository.findByIdAndOrganizationId(locationId, organizationId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> marketplaceService.getPracticeLocationById(locationId));
     }
 }

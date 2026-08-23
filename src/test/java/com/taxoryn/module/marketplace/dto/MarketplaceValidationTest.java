@@ -167,4 +167,144 @@ class MarketplaceValidationTest {
                 .build();
         assertTrue(validator.validate(valid100Exp).isEmpty());
     }
+
+    @Test
+    @DisplayName("Validation: valid CreatePracticeLocationRequest passes all constraints")
+    void testValidCreatePracticeLocationRequest() {
+        CreatePracticeLocationRequest request = CreatePracticeLocationRequest.builder()
+                .locationName("Bengaluru Head Office")
+                .addressLine1("Prestige Meridian II, MG Road")
+                .addressLine2("4th Floor")
+                .city("Bengaluru")
+                .district("Bengaluru Urban")
+                .state("Karnataka")
+                .stateCode("KA")
+                .country("India")
+                .countryCode("IN")
+                .pincode("560001")
+                .latitude(new java.math.BigDecimal("12.971600"))
+                .longitude(new java.math.BigDecimal("77.594600"))
+                .isPrimary(true)
+                .build();
+
+        Set<ConstraintViolation<CreatePracticeLocationRequest>> violations = validator.validate(request);
+        assertTrue(violations.isEmpty(), "Expected no violations: " + violations);
+    }
+
+    @Test
+    @DisplayName("Validation: location mandatory fields (locationName, addressLine1, city, state, pincode) cannot be blank")
+    void testLocationMandatoryFieldsValidation() {
+        CreatePracticeLocationRequest emptyRequest = CreatePracticeLocationRequest.builder()
+                .locationName("")
+                .addressLine1("")
+                .city("")
+                .state("")
+                .pincode("")
+                .build();
+
+        Set<ConstraintViolation<CreatePracticeLocationRequest>> violations = validator.validate(emptyRequest);
+        assertFalse(violations.isEmpty());
+        assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("locationName")));
+        assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("addressLine1")));
+        assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("city")));
+        assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("state")));
+        assertTrue(violations.stream().anyMatch(v -> v.getPropertyPath().toString().equals("pincode")));
+    }
+
+    @Test
+    @DisplayName("Validation: pincode must follow valid Indian 6-digit postal PIN code format")
+    void testLocationPincodeFormatValidation() {
+        CreatePracticeLocationRequest invalidPin = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("012345") // Starts with 0
+                .build();
+        assertFalse(validator.validate(invalidPin).isEmpty());
+
+        CreatePracticeLocationRequest shortPin = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("40001") // 5 digits
+                .build();
+        assertFalse(validator.validate(shortPin).isEmpty());
+
+        CreatePracticeLocationRequest validPin = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("400001") // 6 digits
+                .build();
+        assertTrue(validator.validate(validPin).isEmpty());
+    }
+
+    @Test
+    @DisplayName("Validation: geographic coordinates pair must be provided together")
+    void testLocationCoordinatesPairValidation() {
+        // Only latitude provided
+        CreatePracticeLocationRequest onlyLat = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("400001")
+                .latitude(new java.math.BigDecimal("19.076000"))
+                .longitude(null)
+                .build();
+        assertFalse(validator.validate(onlyLat).isEmpty());
+
+        // Only longitude provided
+        CreatePracticeLocationRequest onlyLng = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("400001")
+                .latitude(null)
+                .longitude(new java.math.BigDecimal("72.877700"))
+                .build();
+        assertFalse(validator.validate(onlyLng).isEmpty());
+
+        // Both provided
+        CreatePracticeLocationRequest bothCoords = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("400001")
+                .latitude(new java.math.BigDecimal("19.076000"))
+                .longitude(new java.math.BigDecimal("72.877700"))
+                .build();
+        assertTrue(validator.validate(bothCoords).isEmpty());
+    }
+
+    @Test
+    @DisplayName("Validation: geographic coordinates must remain within bounds (-90..90, -180..180)")
+    void testLocationCoordinatesBoundsValidation() {
+        CreatePracticeLocationRequest outOfBoundsLat = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("400001")
+                .latitude(new java.math.BigDecimal("95.000000"))
+                .longitude(new java.math.BigDecimal("72.877700"))
+                .build();
+        assertFalse(validator.validate(outOfBoundsLat).isEmpty());
+
+        CreatePracticeLocationRequest outOfBoundsLng = CreatePracticeLocationRequest.builder()
+                .locationName("Branch Office")
+                .addressLine1("Main Street")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("400001")
+                .latitude(new java.math.BigDecimal("19.076000"))
+                .longitude(new java.math.BigDecimal("185.000000"))
+                .build();
+        assertFalse(validator.validate(outOfBoundsLng).isEmpty());
+    }
 }

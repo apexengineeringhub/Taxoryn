@@ -14,8 +14,7 @@ import java.util.function.BiPredicate;
 
 /**
  * Extensible Profile Completeness Calculator for Taxoryn Practice Marketplace.
- * Evaluates profile completeness from available PracticeProfile & Organization attributes.
- * Designed with a pluggable rule pipeline to seamlessly support future modules (Location, Service Catalog, etc.).
+ * Evaluates profile completeness from available PracticeProfile, Organization, and Location attributes.
  */
 @Component
 public class ProfileCompletenessCalculator {
@@ -93,23 +92,17 @@ public class ProfileCompletenessCalculator {
                 .build());
     }
 
-    /**
-     * Dynamically registers a new completeness rule (e.g. for future Service Catalog or Location modules).
-     */
     public void registerRule(CompletenessRule rule) {
         if (rule != null) {
             this.rules.add(rule);
         }
     }
 
-    /**
-     * Calculates the overall profile completeness metrics.
-     *
-     * @param profile      the practice's public marketplace profile entity
-     * @param organization the practice's organization tenant entity
-     * @return ProfileCompletenessDto containing percentage, completedItems, and missingItems
-     */
     public ProfileCompletenessDto calculate(MarketplaceProfileEntity profile, OrganizationEntity organization) {
+        return calculate(profile, organization, false);
+    }
+
+    public ProfileCompletenessDto calculate(MarketplaceProfileEntity profile, OrganizationEntity organization, boolean hasActiveLocation) {
         int earnedScore = 0;
         int totalWeight = 0;
         List<String> completedItems = new ArrayList<>();
@@ -119,7 +112,11 @@ public class ProfileCompletenessCalculator {
             totalWeight += rule.getWeight();
             boolean satisfied = false;
             try {
-                satisfied = rule.getPredicate().test(profile, organization);
+                if ("Location".equalsIgnoreCase(rule.getName()) && hasActiveLocation) {
+                    satisfied = true;
+                } else {
+                    satisfied = rule.getPredicate().test(profile, organization);
+                }
             } catch (Exception ignored) {
                 satisfied = false;
             }

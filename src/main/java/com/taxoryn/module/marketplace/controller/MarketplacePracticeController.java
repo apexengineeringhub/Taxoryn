@@ -85,6 +85,67 @@ public class MarketplacePracticeController {
         return ResponseEntity.ok(ApiResponse.success("Profile completeness metrics retrieved", completeness));
     }
 
+    // --- Practice Locations ---
+
+    @GetMapping("/locations")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List Practice Locations", description = "Retrieves all physical office/branch locations created by the firm.")
+    public ResponseEntity<ApiResponse<List<PracticeLocationDto>>> getMyLocations() {
+        List<PracticeLocationDto> locations = marketplaceService.getMyPracticeLocations();
+        return ResponseEntity.ok(ApiResponse.success("Practice locations retrieved successfully", locations));
+    }
+
+    @GetMapping("/locations/{locationId}")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Practice Location by ID", description = "Retrieves details of a specific office location belonging to the firm.")
+    public ResponseEntity<ApiResponse<PracticeLocationDto>> getLocationById(@PathVariable UUID locationId) {
+        PracticeLocationDto location = marketplaceService.getPracticeLocationById(locationId);
+        return ResponseEntity.ok(ApiResponse.success("Practice location retrieved successfully", location));
+    }
+
+    @PostMapping("/locations")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Create Practice Location", description = "Adds a new physical branch or office location to the practice profile.")
+    public ResponseEntity<ApiResponse<PracticeLocationDto>> createLocation(@Valid @RequestBody CreatePracticeLocationRequest request) {
+        PracticeLocationDto location = marketplaceService.createPracticeLocation(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Practice location created successfully", location));
+    }
+
+    @PutMapping("/locations/{locationId}")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Update Practice Location", description = "Updates address, coordinates, or primary flag for a branch location.")
+    public ResponseEntity<ApiResponse<PracticeLocationDto>> updateLocation(
+            @PathVariable UUID locationId,
+            @Valid @RequestBody UpdatePracticeLocationRequest request) {
+        PracticeLocationDto location = marketplaceService.updatePracticeLocation(locationId, request);
+        return ResponseEntity.ok(ApiResponse.success("Practice location updated successfully", location));
+    }
+
+    @PatchMapping("/locations/{locationId}/primary")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Set Primary Location", description = "Designates this branch as the main headquarter/primary location of the practice.")
+    public ResponseEntity<ApiResponse<PracticeLocationDto>> setPrimaryLocation(@PathVariable UUID locationId) {
+        PracticeLocationDto location = marketplaceService.setPrimaryPracticeLocation(locationId);
+        return ResponseEntity.ok(ApiResponse.success("Primary practice location updated successfully", location));
+    }
+
+    @PatchMapping("/locations/{locationId}/activate")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Reactivate Location", description = "Restores an inactive branch location to public marketplace visibility.")
+    public ResponseEntity<ApiResponse<PracticeLocationDto>> activateLocation(@PathVariable UUID locationId) {
+        PracticeLocationDto location = marketplaceService.activatePracticeLocation(locationId);
+        return ResponseEntity.ok(ApiResponse.success("Practice location activated successfully", location));
+    }
+
+    @DeleteMapping("/locations/{locationId}")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_DELETE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Delete / Deactivate Practice Location", description = "Deactivates or removes a branch location from the practice profile.")
+    public ResponseEntity<ApiResponse<PracticeLocationDto>> deactivateLocation(@PathVariable UUID locationId) {
+        PracticeLocationDto location = marketplaceService.deactivatePracticeLocation(locationId);
+        return ResponseEntity.ok(ApiResponse.success("Practice location deactivated successfully", location));
+    }
+
     // --- Service Packages ---
 
     @GetMapping("/services")

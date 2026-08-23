@@ -17,6 +17,10 @@ import {
   Building2,
   ArrowRight,
   Info,
+  Plus,
+  Compass,
+  Trash2,
+  Navigation,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -24,7 +28,15 @@ import { Modal } from '../components/common/Modal';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { marketplacePracticeApi } from '../api/endpoints';
-import { MarketplaceProfile, ProfileCompleteness, VisibilityStatus, VerificationStatus } from '../types';
+import {
+  MarketplaceProfile,
+  ProfileCompleteness,
+  VisibilityStatus,
+  VerificationStatus,
+  PracticeLocation,
+  CreatePracticeLocationRequest,
+  UpdatePracticeLocationRequest,
+} from '../types';
 import clsx from 'clsx';
 
 export const PracticeMarketplaceProfilePage: React.FC = () => {
@@ -34,6 +46,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
 
   const [profile, setProfile] = useState<MarketplaceProfile | null>(null);
   const [completeness, setCompleteness] = useState<ProfileCompleteness | null>(null);
+  const [locations, setLocations] = useState<PracticeLocation[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTogglingVisibility, setIsTogglingVisibility] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -60,16 +73,40 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     experienceYears: 0,
   });
 
+  // Location Modal State
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+  const [isEditingLocation, setIsEditingLocation] = useState<boolean>(false);
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
+  const [isSavingLocation, setIsSavingLocation] = useState<boolean>(false);
+  const [locationForm, setLocationForm] = useState({
+    locationName: '',
+    addressLine1: '',
+    addressLine2: '',
+    landmark: '',
+    city: '',
+    district: '',
+    state: '',
+    stateCode: '',
+    country: 'India',
+    countryCode: 'IN',
+    pincode: '',
+    latitude: '' as string | number,
+    longitude: '' as string | number,
+    isPrimary: false,
+  });
+
   const loadData = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const [profileData, completenessData] = await Promise.all([
+      const [profileData, completenessData, locationsData] = await Promise.all([
         marketplacePracticeApi.getMyProfile(),
         marketplacePracticeApi.getProfileCompleteness().catch(() => null),
+        marketplacePracticeApi.getLocations().catch(() => []),
       ]);
 
       setProfile(profileData);
+      setLocations(locationsData || []);
       setCompleteness(
         completenessData ||
         profileData.profileCompleteness ||
@@ -182,21 +219,169 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
       if (updated.profileCompleteness || updated.completeness) {
         setCompleteness(updated.profileCompleteness || updated.completeness || null);
       }
-
       setIsEditModalOpen(false);
-      setSuccessBanner('Practice profile updated successfully.');
+      setSuccessBanner('Marketplace profile saved successfully!');
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Failed to save practice profile.';
+      const msg = err.response?.data?.message || err.message || 'Failed to save profile changes.';
       setErrorMessage(msg);
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Open Add Location Modal
+  const handleOpenAddLocation = () => {
+    setIsEditingLocation(false);
+    setEditingLocationId(null);
+    setLocationForm({
+      locationName: locations.length === 0 ? 'Main Office' : '',
+      addressLine1: '',
+      addressLine2: '',
+      landmark: '',
+      city: profile?.city || '',
+      district: '',
+      state: profile?.state || '',
+      stateCode: '',
+      country: 'India',
+      countryCode: 'IN',
+      pincode: '',
+      latitude: '',
+      longitude: '',
+      isPrimary: locations.length === 0,
+    });
+    setIsLocationModalOpen(true);
+  };
+
+  // Open Edit Location Modal
+  const handleOpenEditLocation = (loc: PracticeLocation) => {
+    setIsEditingLocation(true);
+    setEditingLocationId(loc.id);
+    setLocationForm({
+      locationName: loc.locationName,
+      addressLine1: loc.addressLine1,
+      addressLine2: loc.addressLine2 || '',
+      landmark: loc.landmark || '',
+      city: loc.city,
+      district: loc.district || '',
+      state: loc.state,
+      stateCode: loc.stateCode || '',
+      country: loc.country || 'India',
+      countryCode: loc.countryCode || 'IN',
+      pincode: loc.pincode,
+      latitude: loc.latitude !== undefined && loc.latitude !== null ? loc.latitude : '',
+      longitude: loc.longitude !== undefined && loc.longitude !== null ? loc.longitude : '',
+      isPrimary: loc.isPrimary,
+    });
+    setIsLocationModalOpen(true);
+  };
+
+  // Save Location (Create or Update)
+  const handleSaveLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingLocation(true);
+    setErrorMessage(null);
+    setSuccessBanner(null);
+
+    try {
+      const latNum = locationForm.latitude !== '' ? Number(locationForm.latitude) : undefined;
+      const lngNum = locationForm.longitude !== '' ? Number(locationForm.longitude) : undefined;
+
+      if (isEditingLocation && editingLocationId) {
+        const payload: UpdatePracticeLocationRequest = {
+          locationName: locationForm.locationName,
+          addressLine1: locationForm.addressLine1,
+          addressLine2: locationForm.addressLine2 || undefined,
+          landmark: locationForm.landmark || undefined,
+          city: locationForm.city,
+          district: locationForm.district || undefined,
+          state: locationForm.state,
+          stateCode: locationForm.stateCode || undefined,
+          country: locationForm.country,
+          countryCode: locationForm.countryCode,
+          pincode: locationForm.pincode,
+          latitude: latNum,
+          longitude: lngNum,
+          isPrimary: locationForm.isPrimary,
+        };
+        await marketplacePracticeApi.updateLocation(editingLocationId, payload);
+        setSuccessBanner(`Location "${locationForm.locationName}" updated successfully!`);
+      } else {
+        const payload: CreatePracticeLocationRequest = {
+          locationName: locationForm.locationName,
+          addressLine1: locationForm.addressLine1,
+          addressLine2: locationForm.addressLine2 || undefined,
+          landmark: locationForm.landmark || undefined,
+          city: locationForm.city,
+          district: locationForm.district || undefined,
+          state: locationForm.state,
+          stateCode: locationForm.stateCode || undefined,
+          country: locationForm.country,
+          countryCode: locationForm.countryCode,
+          pincode: locationForm.pincode,
+          latitude: latNum,
+          longitude: lngNum,
+          isPrimary: locationForm.isPrimary,
+        };
+        await marketplacePracticeApi.createLocation(payload);
+        setSuccessBanner(`New branch location "${locationForm.locationName}" added!`);
+      }
+
+      setIsLocationModalOpen(false);
+      // Reload locations and completeness
+      const [updatedLocations, comp] = await Promise.all([
+        marketplacePracticeApi.getLocations(),
+        marketplacePracticeApi.getProfileCompleteness().catch(() => null),
+      ]);
+      setLocations(updatedLocations);
+      if (comp) setCompleteness(comp);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Failed to save location.';
+      setErrorMessage(msg);
+    } finally {
+      setIsSavingLocation(false);
+    }
+  };
+
+  // Set Primary Location
+  const handleSetPrimary = async (locationId: string) => {
+    try {
+      setErrorMessage(null);
+      await marketplacePracticeApi.setPrimaryLocation(locationId);
+      const updatedLocations = await marketplacePracticeApi.getLocations();
+      setLocations(updatedLocations);
+      setSuccessBanner('Primary practice location updated successfully!');
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.message || 'Failed to set primary location.');
+    }
+  };
+
+  // Toggle Location Active / Deactive
+  const handleToggleLocationActive = async (loc: PracticeLocation) => {
+    try {
+      setErrorMessage(null);
+      if (loc.isActive) {
+        await marketplacePracticeApi.deactivateLocation(loc.id);
+        setSuccessBanner(`Branch location "${loc.locationName}" deactivated.`);
+      } else {
+        await marketplacePracticeApi.activateLocation(loc.id);
+        setSuccessBanner(`Branch location "${loc.locationName}" activated.`);
+      }
+      const [updatedLocations, comp] = await Promise.all([
+        marketplacePracticeApi.getLocations(),
+        marketplacePracticeApi.getProfileCompleteness().catch(() => null),
+      ]);
+      setLocations(updatedLocations);
+      if (comp) setCompleteness(comp);
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.message || 'Failed to update location status.');
+    }
+  };
+
+  // Copy public slug link
   const copyPublicUrl = () => {
-    const slug = profile?.publicSlug || profile?.slug || '';
-    if (!slug) return;
-    const url = `${window.location.origin}/marketplace/${slug}`;
+    const slugVal = profile?.publicSlug || profile?.slug;
+    if (!slugVal) return;
+    const url = `${window.location.origin}/marketplace/practice/${slugVal}`;
     navigator.clipboard.writeText(url);
     setCopiedSlug(true);
     setTimeout(() => setCopiedSlug(false), 2500);
@@ -235,7 +420,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 font-normal leading-relaxed">
-            Let customers discover your practice based on location and services.
+            Let customers discover your practice based on multi-branch locations and verified tax services.
           </p>
         </div>
 
@@ -298,8 +483,8 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               </div>
               <p className="text-xs text-slate-500 max-w-xl">
                 {isPublic
-                  ? 'Your practice is currently live and discoverable by clients on the Taxoryn Marketplace.'
-                  : 'Your practice is currently hidden. Turn visibility ON when your profile is complete to accept inquiries.'}
+                  ? 'Your practice is currently live and discoverable by clients across all configured branch locations.'
+                  : 'Your practice is currently hidden. Turn visibility ON when your profile has at least one active location.'}
               </p>
             </div>
 
@@ -362,7 +547,11 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-600">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  {profile?.city ? `${profile.city}${profile.state ? `, ${profile.state}` : ''}` : 'Bangalore'}
+                  {locations.length > 0 ? (
+                    <span>{locations.length} {locations.length === 1 ? 'Location' : 'Locations'}</span>
+                  ) : (
+                    <span>{profile?.city ? `${profile.city}${profile.state ? `, ${profile.state}` : ''}` : 'No location added'}</span>
+                  )}
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
@@ -435,7 +624,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. Profile Completeness Progress Widget */}
+          {/* Profile Completeness Progress Widget */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-800 flex items-center gap-1.5">
@@ -493,28 +682,152 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </Card>
 
-            {/* Action Button */}
-            <div className="pt-3">
-              <Button
-                variant="primary"
-                className="w-full sm:w-auto"
-                onClick={() => setIsEditModalOpen(true)}
-              >
-                Complete Profile
-                <ArrowRight className="w-4 h-4 ml-2" />
+        {/* 3. Practice Locations Management Card */}
+        <Card className="p-6 sm:p-7 border border-slate-200 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-bold text-slate-900">Practice Locations</h3>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  {locations.length} {locations.length === 1 ? 'Office' : 'Offices'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Manage all physical offices, branches, and consultation hubs where your practice serves clients.
+              </p>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenAddLocation}
+              disabled={isLoading}
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Location
+            </Button>
+          </div>
+
+          {/* Locations List */}
+          {locations.length === 0 ? (
+            <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 space-y-3">
+              <MapPin className="w-8 h-8 text-slate-400 mx-auto" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-slate-700">No practice locations added yet</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Add your primary office location to satisfy marketplace publishing requirements and make your practice discoverable.
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleOpenAddLocation}>
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Head Office Location
               </Button>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3.5">
+              {locations.map((loc) => (
+                <div
+                  key={loc.id}
+                  className={clsx(
+                    'p-4 rounded-xl border transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4',
+                    loc.isPrimary
+                      ? 'bg-indigo-50/30 border-indigo-200'
+                      : loc.isActive
+                      ? 'bg-white border-slate-200 hover:border-slate-300'
+                      : 'bg-slate-50/60 border-slate-200 opacity-60'
+                  )}
+                >
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm text-slate-900 truncate">
+                        {loc.locationName}
+                      </span>
+
+                      {loc.isPrimary && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          Primary Headquarter
+                        </span>
+                      )}
+
+                      <span
+                        className={clsx(
+                          'px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                          loc.isActive
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        )}
+                      >
+                        {loc.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-600 space-y-0.5">
+                      <p>
+                        {loc.addressLine1}
+                        {loc.addressLine2 && `, ${loc.addressLine2}`}
+                        {loc.landmark && ` (Near ${loc.landmark})`}
+                      </p>
+                      <p className="font-medium text-slate-700">
+                        {loc.city}, {loc.state} - {loc.pincode}, {loc.country}
+                      </p>
+                    </div>
+
+                    {loc.latitude && loc.longitude && (
+                      <div className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-mono">
+                        <Compass className="w-3 h-3 text-indigo-500" />
+                        <span>Lat: {loc.latitude}, Long: {loc.longitude}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                    {!loc.isPrimary && loc.isActive && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs font-semibold"
+                        onClick={() => handleSetPrimary(loc.id)}
+                      >
+                        Make Primary
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => handleOpenEditLocation(loc)}
+                    >
+                      Edit
+                    </Button>
+
+                    <Button
+                      variant={loc.isActive ? 'ghost' : 'outline'}
+                      size="sm"
+                      className={clsx('text-xs', loc.isActive ? 'text-rose-600 hover:text-rose-700' : 'text-slate-700')}
+                      onClick={() => handleToggleLocationActive(loc)}
+                    >
+                      {loc.isActive ? 'Deactivate' : 'Activate'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
 
-      {/* Edit / Complete Profile Modal */}
+      {/* Edit Profile Modal */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        title="Complete Practice Profile"
-        subtitle="Provide key practice details to maximize visibility on the customer marketplace."
+        title="Edit Practice Profile"
+        subtitle="Update fundamental practice metadata for the customer marketplace."
         maxWidth="2xl"
         footer={
           <div className="flex items-center justify-end gap-3 w-full">
@@ -652,8 +965,92 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               />
             </div>
           </div>
+        </form>
+      </Modal>
 
-          {/* Location */}
+      {/* Add / Edit Location Modal */}
+      <Modal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        title={isEditingLocation ? 'Edit Practice Location' : 'Add Practice Location'}
+        subtitle="Enter structured address details for your branch or consultation office."
+        maxWidth="2xl"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <Button
+              variant="outline"
+              onClick={() => setIsLocationModalOpen(false)}
+              disabled={isSavingLocation}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveLocation}
+              isLoading={isSavingLocation}
+            >
+              {isEditingLocation ? 'Save Changes' : 'Add Location'}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveLocation} className="space-y-4 text-xs">
+          {/* Location / Branch Name */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              Branch / Location Name <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={locationForm.locationName}
+              onChange={(e) => setLocationForm({ ...locationForm, locationName: e.target.value })}
+              placeholder="e.g. Head Office, Whitefield Branch, Connaught Place Office"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+            />
+          </div>
+
+          {/* Address Line 1 */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              Address Line 1 <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={locationForm.addressLine1}
+              onChange={(e) => setLocationForm({ ...locationForm, addressLine1: e.target.value })}
+              placeholder="e.g. Suite 402, Prestige Meridian II, MG Road"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+            />
+          </div>
+
+          {/* Address Line 2 & Landmark */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Address Line 2</label>
+              <input
+                type="text"
+                value={locationForm.addressLine2}
+                onChange={(e) => setLocationForm({ ...locationForm, addressLine2: e.target.value })}
+                placeholder="Floor, Building, Wing"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Landmark</label>
+              <input
+                type="text"
+                value={locationForm.landmark}
+                onChange={(e) => setLocationForm({ ...locationForm, landmark: e.target.value })}
+                placeholder="e.g. Near Trinity Metro Station"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+              />
+            </div>
+          </div>
+
+          {/* City, District, State, Pincode */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-slate-700 mb-1">
@@ -662,9 +1059,9 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               <input
                 type="text"
                 required
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                placeholder="Bangalore"
+                value={locationForm.city}
+                onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })}
+                placeholder="Bengaluru"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
               />
             </div>
@@ -676,23 +1073,103 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               <input
                 type="text"
                 required
-                value={formData.state}
-                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                value={locationForm.state}
+                onChange={(e) => setLocationForm({ ...locationForm, state: e.target.value })}
                 placeholder="Karnataka"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Pincode</label>
+              <label className="block font-bold text-slate-700 mb-1">
+                PIN Code <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
-                value={formData.pincode}
-                onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                required
+                maxLength={6}
+                value={locationForm.pincode}
+                onChange={(e) => setLocationForm({ ...locationForm, pincode: e.target.value.replace(/\D/g, '') })}
                 placeholder="560001"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs font-mono"
+              />
+            </div>
+          </div>
+
+          {/* District and Country */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">District</label>
+              <input
+                type="text"
+                value={locationForm.district}
+                onChange={(e) => setLocationForm({ ...locationForm, district: e.target.value })}
+                placeholder="e.g. Bengaluru Urban"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
               />
             </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Country</label>
+              <input
+                type="text"
+                value={locationForm.country}
+                onChange={(e) => setLocationForm({ ...locationForm, country: e.target.value })}
+                placeholder="India"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+              />
+            </div>
+          </div>
+
+          {/* Geographic Coordinates */}
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+              <Compass className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Geographic Coordinates (Optional for Map & Distance Search)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-medium text-slate-600 mb-0.5 text-[11px]">Latitude (-90 to 90)</label>
+                <input
+                  type="number"
+                  step="any"
+                  min={-90}
+                  max={90}
+                  value={locationForm.latitude}
+                  onChange={(e) => setLocationForm({ ...locationForm, latitude: e.target.value })}
+                  placeholder="e.g. 12.971600"
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white focus:outline-hidden text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-600 mb-0.5 text-[11px]">Longitude (-180 to 180)</label>
+                <input
+                  type="number"
+                  step="any"
+                  min={-180}
+                  max={180}
+                  value={locationForm.longitude}
+                  onChange={(e) => setLocationForm({ ...locationForm, longitude: e.target.value })}
+                  placeholder="e.g. 77.594600"
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white focus:outline-hidden text-xs font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Primary Location Checkbox */}
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="isPrimaryLoc"
+              checked={locationForm.isPrimary}
+              onChange={(e) => setLocationForm({ ...locationForm, isPrimary: e.target.checked })}
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+            />
+            <label htmlFor="isPrimaryLoc" className="text-xs font-bold text-slate-800 cursor-pointer">
+              Set as primary headquarter / main location
+            </label>
           </div>
         </form>
       </Modal>

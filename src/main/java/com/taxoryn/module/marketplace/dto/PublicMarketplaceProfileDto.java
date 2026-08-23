@@ -136,6 +136,12 @@ public class PublicMarketplaceProfileDto {
     @Schema(description = "Missing recommended items checklist")
     private List<String> missingCompletenessFields;
 
+    @Schema(description = "Active physical / service locations for the practice")
+    private List<PublicPracticeLocationDto> locations;
+
+    @Schema(description = "Primary headquarter / main location of the practice")
+    private PublicPracticeLocationDto primaryLocation;
+
     public String getPublicSlug() {
         return publicSlug != null ? publicSlug : slug;
     }

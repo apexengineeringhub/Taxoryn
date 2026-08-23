@@ -21,6 +21,7 @@ import {
   Send,
   X,
   CreditCard,
+  Building2,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { marketplacePublicApi } from '../api/endpoints';
@@ -465,17 +466,79 @@ export const MarketplaceProfileDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Office Info Card */}
+            {/* Office & Locations Info Card */}
             <div className="space-y-6">
+              {/* Practice Locations */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Contact & Office Details</h3>
-                <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
-                  {profile.address && (
-                    <div className="flex items-start gap-2.5">
-                      <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                      <span>{profile.address}, {profile.city}, {profile.state} - {profile.pincode}</span>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-indigo-600" />
+                    <span>Office & Branch Locations</span>
+                  </h3>
+                  {profile.locations && profile.locations.length > 0 && (
+                    <span className="text-[11px] font-extrabold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
+                      {profile.locations.length} {profile.locations.length === 1 ? 'Office' : 'Offices'}
+                    </span>
                   )}
+                </div>
+
+                {profile.locations && profile.locations.length > 0 ? (
+                  <div className="space-y-3">
+                    {profile.locations.map((loc) => (
+                      <div
+                        key={loc.id}
+                        className={clsx(
+                          'p-3.5 rounded-2xl border text-xs space-y-1',
+                          loc.isPrimary
+                            ? 'bg-indigo-50/40 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-900/50'
+                            : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {loc.locationName}
+                          </span>
+                          {loc.isPrimary && (
+                            <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">
+                              Head Office
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-slate-600 dark:text-slate-300">
+                          {loc.addressLine1}
+                          {loc.addressLine2 && `, ${loc.addressLine2}`}
+                          {loc.landmark && ` (Near ${loc.landmark})`}
+                        </p>
+
+                        <p className="font-medium text-slate-700 dark:text-slate-200">
+                          {loc.city}, {loc.state} - {loc.pincode}
+                        </p>
+
+                        {loc.latitude && loc.longitude && (
+                          <p className="text-[10px] font-mono text-slate-400">
+                            Coordinates: {loc.latitude}, {loc.longitude}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                    {profile.address && (
+                      <div className="flex items-start gap-2.5">
+                        <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                        <span>{profile.address}, {profile.city}, {profile.state} - {profile.pincode}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Direct Contacts Card */}
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Contact & Communication</h3>
+                <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
                   {profile.phone && (
                     <div className="flex items-center gap-2.5">
                       <Phone className="w-4 h-4 text-emerald-500 shrink-0" />

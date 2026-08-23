@@ -67,6 +67,23 @@ public interface MarketplaceService {
 
     ProfileCompletenessDto getMyProfileCompleteness();
 
+    // Practice Locations Management
+    List<PracticeLocationDto> getMyPracticeLocations();
+
+    PracticeLocationDto getPracticeLocationById(UUID locationId);
+
+    PracticeLocationDto createPracticeLocation(CreatePracticeLocationRequest request);
+
+    PracticeLocationDto updatePracticeLocation(UUID locationId, UpdatePracticeLocationRequest request);
+
+    PracticeLocationDto setPrimaryPracticeLocation(UUID locationId);
+
+    PracticeLocationDto deactivatePracticeLocation(UUID locationId);
+
+    PracticeLocationDto activatePracticeLocation(UUID locationId);
+
+    void deletePracticeLocation(UUID locationId);
+
     // 3. Platform Super Admin APIs
     PagedResponse<MarketplaceVerificationDto> getPendingVerifications(Pageable pageable);
 
