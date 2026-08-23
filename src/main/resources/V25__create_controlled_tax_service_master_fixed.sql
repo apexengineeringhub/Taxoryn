@@ -1,3 +1,4 @@
+```
 -- ==============================================================================
 -- Taxoryn Platform — Flyway Migration V25: Controlled Tax Service Master
 -- Centralized reference catalog for Indian tax and compliance services
@@ -208,3 +209,5 @@ FROM marketplace_profiles mp
 CROSS JOIN marketplace_tax_services ts
 WHERE ts.code IN ('INCOME_TAX_RETURN', 'GST_RETURN_FILING', 'GST_REGISTRATION', 'ANNUAL_COMPLIANCE')
 ON CONFLICT (marketplace_profile_id, tax_service_id) DO NOTHING;
+
+```
