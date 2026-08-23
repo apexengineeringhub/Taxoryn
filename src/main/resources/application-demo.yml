@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/taxoryn_demo_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}}
     username: ${SPRING_DATASOURCE_USERNAME:taxoryn_demo_user}
     password: ${SPRING_DATASOURCE_PASSWORD:taxoryn_demo_secret}
     driver-class-name: org.postgresql.Driver
