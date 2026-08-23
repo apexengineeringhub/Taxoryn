@@ -38,6 +38,8 @@ import { CustomerOnboardingPortalPage } from './pages/CustomerOnboardingPortalPa
 import { RegisterCustomerPage } from './pages/RegisterCustomerPage';
 import { MarketplaceCustomerDashboardPage } from './pages/MarketplaceCustomerDashboardPage';
 import { CustomerProfilePage } from './pages/CustomerProfilePage';
+import { CustomerTaxRequirementWizardPage } from './pages/CustomerTaxRequirementWizardPage';
+import { CustomerTaxRequirementsListPage } from './pages/CustomerTaxRequirementsListPage';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -98,8 +100,26 @@ export const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/marketplace/customer/requirements"
+              element={
+                <ProtectedRoute>
+                  <CustomerTaxRequirementsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/marketplace/customer/requirements/new"
+              element={
+                <ProtectedRoute>
+                  <CustomerTaxRequirementWizardPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/customer/dashboard" element={<Navigate to="/marketplace/customer/dashboard" replace />} />
             <Route path="/customer/profile" element={<Navigate to="/marketplace/customer/profile" replace />} />
+            <Route path="/customer/requirements" element={<Navigate to="/marketplace/customer/requirements" replace />} />
+            <Route path="/customer/requirements/new" element={<Navigate to="/marketplace/customer/requirements/new" replace />} />
 
             {/* Protected Application Routes */}
             <Route

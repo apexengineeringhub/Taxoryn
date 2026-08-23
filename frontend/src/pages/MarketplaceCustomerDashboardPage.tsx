@@ -15,15 +15,19 @@ import {
   ShieldCheck,
   ChevronRight,
   ExternalLink,
+  Plus,
+  Layers,
+  MapPin,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import clsx from 'clsx';
 
 export const MarketplaceCustomerDashboardPage: React.FC = () => {
   const [dashboard, setDashboard] = useState<CustomerDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'requests' | 'consultations' | 'proposals' | 'reviews'>('requests');
+  const [activeTab, setActiveTab] = useState<'requirements' | 'requests' | 'consultations' | 'proposals' | 'reviews'>('requirements');
 
   const fetchDashboard = async () => {
     try {
@@ -79,6 +83,12 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <Link to="/marketplace/customer/requirements/new">
+                <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 font-bold">
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Tell Us Your Tax Need
+                </Button>
+              </Link>
               <Link to="/marketplace/customer/profile">
                 <Button variant="secondary" size="sm" className="text-xs bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
                   <User className="w-3.5 h-3.5 mr-1.5" />
@@ -88,7 +98,7 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
               <Link to="/marketplace">
                 <Button size="sm" className="text-xs bg-brand-600 hover:bg-brand-700 text-white shadow-md shadow-brand-500/20">
                   <Compass className="w-3.5 h-3.5 mr-1.5" />
-                  Explore Tax Practitioners
+                  Explore Practitioners
                 </Button>
               </Link>
             </div>
@@ -119,7 +129,19 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
         )}
 
         {/* Metric Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <Link to="/marketplace/customer/requirements" className="block">
+            <Card className="p-4 bg-white border-indigo-200 hover:border-indigo-400 hover:shadow-md transition flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-black text-slate-900">{dashboard?.totalRequirements || 0}</div>
+                <div className="text-xs text-slate-500 font-medium">Tax Needs</div>
+              </div>
+            </Card>
+          </Link>
+
           <Card className="p-4 bg-white border-slate-200 flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
               <FileText className="w-5 h-5" />
@@ -163,12 +185,23 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
 
         {/* Tabbed Activity Section */}
         <Card className="p-6 bg-white border-slate-200 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 overflow-x-auto">
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setActiveTab('requirements')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
+                  activeTab === 'requirements'
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                Tax Needs ({dashboard?.recentTaxRequirements?.length || 0})
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab('requests')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
                   activeTab === 'requests'
                     ? 'bg-brand-50 text-brand-700 border border-brand-200'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -179,7 +212,7 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('consultations')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
                   activeTab === 'consultations'
                     ? 'bg-brand-50 text-brand-700 border border-brand-200'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -190,7 +223,7 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('proposals')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
                   activeTab === 'proposals'
                     ? 'bg-brand-50 text-brand-700 border border-brand-200'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -201,7 +234,7 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('reviews')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
                   activeTab === 'reviews'
                     ? 'bg-brand-50 text-brand-700 border border-brand-200'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -211,10 +244,100 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
               </button>
             </div>
 
-            <Link to="/marketplace" className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1">
+            <Link to="/marketplace" className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1 shrink-0 ml-4">
               Browse More <ExternalLink className="w-3.5 h-3.5" />
             </Link>
           </div>
+
+          {/* Tab 0: Tax Needs & Requirements */}
+          {activeTab === 'requirements' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Your Posted Tax Needs</h3>
+                  <p className="text-xs text-slate-500">Requirements you've created for return filings, advisory, and registrations.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link to="/marketplace/customer/requirements">
+                    <Button variant="outline" size="sm" className="text-xs">
+                      View All
+                    </Button>
+                  </Link>
+                  <Link to="/marketplace/customer/requirements/new">
+                    <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Post New Need
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              {dashboard?.recentTaxRequirements && dashboard.recentTaxRequirements.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {dashboard.recentTaxRequirements.map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between space-y-3"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-mono text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase">
+                              {req.categoryName || 'Tax Service'}
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-900 line-clamp-1 mt-0.5">{req.taxServiceName}</h4>
+                          </div>
+                          <span
+                            className={clsx(
+                              'px-2 py-0.5 rounded-full text-[9px] font-bold',
+                              req.status === 'SUBMITTED' && 'bg-emerald-100 text-emerald-800',
+                              req.status === 'DRAFT' && 'bg-amber-100 text-amber-800',
+                              req.status === 'CANCELLED' && 'bg-slate-100 text-slate-500',
+                              req.status === 'CLOSED' && 'bg-indigo-100 text-indigo-800'
+                            )}
+                          >
+                            {req.status}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                          <span>FY: <strong>{req.financialYearDisplay || 'N/A'}</strong></span>
+                          <span>•</span>
+                          <span>{req.customerTypeDisplayName || req.customerType?.replace(/_/g, ' ') || 'General'}</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(req.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        </span>
+                        <Link
+                          to="/marketplace/customer/requirements"
+                          className="text-xs text-indigo-600 font-bold hover:underline flex items-center gap-0.5"
+                        >
+                          Manage <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 bg-slate-50 rounded-2xl border border-slate-100 text-center space-y-2">
+                  <Layers className="w-8 h-8 text-indigo-400 mx-auto" />
+                  <div className="text-xs font-bold text-slate-700">No Tax Requirements Yet</div>
+                  <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                    Tell us what tax help you need (ITR, GST, Registrations) and we'll help prepare structured requirements for matching.
+                  </p>
+                  <Link to="/marketplace/customer/requirements/new">
+                    <Button size="sm" className="mt-2 text-xs bg-indigo-600 text-white font-bold">
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Tell Us Your Tax Need
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tab 1: Enquiries */}
           {activeTab === 'requests' && (

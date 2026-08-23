@@ -7,8 +7,10 @@ import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.entity.*;
 import com.taxoryn.module.marketplace.entity.MarketplaceCustomerProfileEntity.CustomerType;
+import com.taxoryn.module.marketplace.mapper.CustomerTaxRequirementMapper;
 import com.taxoryn.module.marketplace.mapper.MarketplaceMapper;
 import com.taxoryn.module.marketplace.repository.*;
+import com.taxoryn.module.marketplace.repository.CustomerTaxRequirementRepository;
 import com.taxoryn.module.role.entity.RoleEntity;
 import com.taxoryn.module.role.repository.RoleRepository;
 import com.taxoryn.module.user.entity.UserEntity;
@@ -62,6 +64,12 @@ class MarketplaceCustomerServiceTest {
     private MarketplaceProfileRepository practiceProfileRepository;
 
     @Mock
+    private CustomerTaxRequirementRepository requirementRepository;
+
+    @Mock
+    private CustomerTaxRequirementMapper requirementMapper;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -89,6 +97,8 @@ class MarketplaceCustomerServiceTest {
                 proposalRepository,
                 reviewRepository,
                 practiceProfileRepository,
+                requirementRepository,
+                requirementMapper,
                 mapper,
                 completenessCalculator,
                 passwordEncoder,

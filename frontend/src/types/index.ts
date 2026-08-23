@@ -1376,10 +1376,12 @@ export interface UpdateCustomerProfileRequest {
 
 export interface CustomerDashboard {
   profile: CustomerProfile;
+  totalRequirements?: number;
   totalRequests: number;
   totalConsultations: number;
   totalProposals: number;
   totalReviews: number;
+  recentTaxRequirements?: CustomerTaxRequirementSummary[];
   recentLeads: MarketplaceLead[];
   recentConsultations: MarketplaceConsultation[];
   recentProposals: MarketplaceProposal[];
@@ -1392,5 +1394,87 @@ export interface CustomerAuthResponse {
   tokenType: string;
   expiresIn: number;
   customer: CustomerProfile;
+}
+
+// 18. Customer Tax Requirement Interfaces (Feature #6)
+export type CustomerTaxpayerType =
+  | 'SALARIED'
+  | 'SELF_EMPLOYED'
+  | 'BUSINESS_OWNER'
+  | 'FREELANCER'
+  | 'INVESTOR'
+  | 'OTHER';
+
+export type TaxRequirementStatus = 'DRAFT' | 'SUBMITTED' | 'CANCELLED' | 'CLOSED';
+
+export interface CustomerTaxRequirement {
+  id: string;
+  customerId: string;
+  service: PublicTaxService;
+  status: TaxRequirementStatus;
+  statusDisplayName: string;
+  customerType?: CustomerTaxpayerType;
+  customerTypeDisplayName?: string;
+  financialYear?: string;
+  financialYearDisplay?: string;
+  description?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  searchRadiusKm?: number;
+  editable: boolean;
+  cancellable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerTaxRequirementSummary {
+  id: string;
+  taxServiceId: string;
+  taxServiceCode: string;
+  taxServiceName: string;
+  categoryName?: string;
+  status: TaxRequirementStatus;
+  statusDisplayName: string;
+  customerType?: CustomerTaxpayerType;
+  customerTypeDisplayName?: string;
+  financialYear?: string;
+  financialYearDisplay?: string;
+  city?: string;
+  state?: string;
+  editable: boolean;
+  cancellable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTaxRequirementRequest {
+  taxServiceId?: string;
+  taxServiceCode?: string;
+  customerType?: CustomerTaxpayerType;
+  financialYear?: string;
+  description?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  searchRadiusKm?: number;
+}
+
+export interface UpdateTaxRequirementRequest {
+  taxServiceId?: string;
+  taxServiceCode?: string;
+  customerType?: CustomerTaxpayerType;
+  financialYear?: string;
+  description?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  searchRadiusKm?: number;
+}
+
+export interface FinancialYearOption {
+  code: string;
+  label: string;
+  isCurrent: boolean;
 }
 

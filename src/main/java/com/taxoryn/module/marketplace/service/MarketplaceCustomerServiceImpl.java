@@ -11,6 +11,7 @@ import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.entity.*;
 import com.taxoryn.module.marketplace.entity.MarketplaceCustomerProfileEntity.CustomerProfileStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceCustomerProfileEntity.CustomerType;
+import com.taxoryn.module.marketplace.mapper.CustomerTaxRequirementMapper;
 import com.taxoryn.module.marketplace.mapper.MarketplaceMapper;
 import com.taxoryn.module.marketplace.repository.*;
 import com.taxoryn.module.role.entity.PermissionEntity;
@@ -22,6 +23,7 @@ import com.taxoryn.module.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +49,8 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
     private final MarketplaceProposalRepository proposalRepository;
     private final MarketplaceReviewRepository reviewRepository;
     private final MarketplaceProfileRepository practiceProfileRepository;
+    private final CustomerTaxRequirementRepository requirementRepository;
+    private final CustomerTaxRequirementMapper requirementMapper;
     private final MarketplaceMapper mapper;
     private final CustomerProfileCompletenessCalculator completenessCalculator;
     private final PasswordEncoder passwordEncoder;
@@ -247,16 +251,19 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
         CustomerProfileDto profileDto = mapper.toCustomerProfileDto(profile);
         profileDto.setProfileCompleteness(completenessCalculator.calculate(profile));
 
+        long totalRequirements = requirementRepository.countByCustomerId(profile.getId());
         long totalRequests = leadRepository.countByCustomerId(userId);
         long totalConsultations = consultationRepository.countByCustomerId(userId);
         long totalProposals = proposalRepository.countByCustomerId(userId);
         long totalReviews = reviewRepository.countByCustomerId(userId);
 
+        List<CustomerTaxRequirementEntity> requirements = requirementRepository.findRecentByCustomerId(profile.getId(), PageRequest.of(0, 5));
         List<MarketplaceLeadEntity> leads = leadRepository.findAllByCustomerIdOrderByCreatedAtDesc(userId);
         List<MarketplaceConsultationEntity> consultations = consultationRepository.findAllByCustomerIdOrderByBookingDateDesc(userId);
         List<MarketplaceProposalEntity> proposals = proposalRepository.findAllByCustomerIdOrderByCreatedAtDesc(userId);
         List<MarketplaceReviewEntity> reviews = reviewRepository.findAllByCustomerIdOrderByCreatedAtDesc(userId);
 
+        List<CustomerTaxRequirementSummaryDto> requirementDtos = requirementMapper.toSummaryDtoList(requirements);
         List<MarketplaceLeadDto> leadDtos = mapper.toLeadDtoList(leads.stream().limit(5).toList());
         List<MarketplaceConsultationDto> consultationDtos = mapper.toConsultationDtoList(consultations.stream().limit(5).toList());
         List<MarketplaceProposalDto> proposalDtos = mapper.toProposalDtoList(proposals.stream().limit(5).toList());
@@ -267,10 +274,12 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
 
         return CustomerDashboardDto.builder()
                 .profile(profileDto)
+                .totalRequirements(totalRequirements)
                 .totalRequests(totalRequests)
                 .totalConsultations(totalConsultations)
                 .totalProposals(totalProposals)
                 .totalReviews(totalReviews)
+                .recentTaxRequirements(requirementDtos)
                 .recentLeads(leadDtos)
                 .recentConsultations(consultationDtos)
                 .recentProposals(proposalDtos)

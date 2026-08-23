@@ -15,6 +15,8 @@ public class CustomerDashboardDto {
 
     private CustomerProfileDto profile;
 
+    private long totalRequirements;
+
     private long totalRequests;
 
     private long totalConsultations;
@@ -22,6 +24,8 @@ public class CustomerDashboardDto {
     private long totalProposals;
 
     private long totalReviews;
+
+    private List<CustomerTaxRequirementSummaryDto> recentTaxRequirements;
 
     private List<MarketplaceLeadDto> recentLeads;
 

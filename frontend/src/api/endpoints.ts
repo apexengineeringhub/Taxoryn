@@ -79,6 +79,13 @@ import {
   PublicTaxServiceCategory,
   PracticeService,
   UpdatePracticeServicesRequest,
+  CustomerTaxpayerType,
+  TaxRequirementStatus,
+  CustomerTaxRequirement,
+  CustomerTaxRequirementSummary,
+  CreateTaxRequirementRequest,
+  UpdateTaxRequirementRequest,
+  FinancialYearOption,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -905,6 +912,13 @@ export const marketplacePublicApi = {
   },
 };
 
+// --- Controlled Tax Services Public Catalog API ---
+export const taxServicePublicApi = {
+  getServices: marketplacePublicApi.getTaxServices,
+  getCategories: marketplacePublicApi.getTaxServiceCategories,
+  resolve: marketplacePublicApi.resolveTaxService,
+};
+
 // --- 14. Practice Marketplace Management ---
 export const marketplacePracticeApi = {
   getMyProfile: async () => {
@@ -1215,6 +1229,40 @@ export const marketplaceCustomerApi = {
   },
   getReviews: async () => {
     const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>('/v1/marketplace/customer/reviews');
+    return res.data.data;
+  },
+};
+
+// --- 19. Customer Tax Requirements API (Feature #6) ---
+export const customerTaxRequirementApi = {
+  create: async (payload: CreateTaxRequirementRequest) => {
+    const res = await apiClient.post<ApiResponse<CustomerTaxRequirement>>('/v1/customer/tax-requirements', payload);
+    return res.data.data;
+  },
+  list: async (params?: { status?: TaxRequirementStatus; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<CustomerTaxRequirementSummary>>>('/v1/customer/tax-requirements', {
+      params,
+    });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<CustomerTaxRequirement>>(`/v1/customer/tax-requirements/${id}`);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateTaxRequirementRequest) => {
+    const res = await apiClient.put<ApiResponse<CustomerTaxRequirement>>(`/v1/customer/tax-requirements/${id}`, payload);
+    return res.data.data;
+  },
+  submit: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<CustomerTaxRequirement>>(`/v1/customer/tax-requirements/${id}/submit`);
+    return res.data.data;
+  },
+  cancel: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<CustomerTaxRequirement>>(`/v1/customer/tax-requirements/${id}/cancel`);
+    return res.data.data;
+  },
+  getFinancialYears: async () => {
+    const res = await apiClient.get<ApiResponse<FinancialYearOption[]>>('/v1/customer/tax-requirements/financial-years');
     return res.data.data;
   },
 };
