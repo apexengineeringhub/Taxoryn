@@ -1,0 +1,70 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/taxoryn_demo_db}
+    username: ${SPRING_DATASOURCE_USERNAME:taxoryn_demo_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:taxoryn_demo_secret}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}
+      minimum-idle: ${HIKARI_MIN_IDLE:2}
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      pool-name: TaxorynDemoHikariPool
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        generate_statistics: false
+        jdbc:
+          batch_size: 50
+          order_inserts: true
+          order_updates: true
+
+# Demo-mode flags — surfaced to the frontend via /api/config or a dedicated
+# endpoint so the UI can render a persistent "DEMO ENVIRONMENT" banner.
+# Never point this profile at real customer or production data.
+taxoryn:
+  demo:
+    enabled: true
+    banner-text: "DEMO ENVIRONMENT — Synthetic data only. Not for real tax filings."
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    issuer: ${JWT_ISSUER:taxoryn-demo}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5174,http://localhost:8089}
+    allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    auth-limit: ${RATE_LIMIT_AUTH:30}
+    api-limit: ${RATE_LIMIT_API:600}
+  storage:
+    provider: ${STORAGE_PROVIDER:LOCAL}
+    local:
+      base-dir: ${STORAGE_LOCAL_BASE_DIR:./data/documents}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+
+# Verbose-enough logging to debug the demo without leaking sensitive fields
+# (PAN/Aadhaar/bank/JWT/documents are never logged — see LoggingMasker / MDC filters)
+logging:
+  level:
+    root: INFO
+    com.taxoryn: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

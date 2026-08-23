@@ -81,6 +81,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@org.springframework.context.annotation.Profile({"dev", "demo"})
+@org.springframework.core.annotation.Order(1)
 public class DemoDataSeeder implements CommandLineRunner {
 
     private final OrganizationRepository organizationRepository;

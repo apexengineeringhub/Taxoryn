@@ -1,0 +1,91 @@
+version: '3.8'
+
+# ==============================================================================
+# Taxoryn DEMO Environment Stack
+# Isolated from local dev (docker-compose.yml): different container names,
+# ports, network, and volumes so both stacks can run side-by-side if needed.
+# Never point this at production data. Seeded with synthetic demo data only.
+# ==============================================================================
+
+services:
+  app-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taxoryn_app_demo
+    restart: unless-stopped
+    ports:
+      - "${DEMO_SERVER_PORT:-8089}:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-demo:5432/${DEMO_POSTGRES_DB:-taxoryn_demo_db}
+      SPRING_DATASOURCE_USERNAME: ${DEMO_POSTGRES_USER:-taxoryn_demo_user}
+      SPRING_DATASOURCE_PASSWORD: ${DEMO_POSTGRES_PASSWORD:-taxoryn_demo_secret}
+      JWT_SECRET: ${DEMO_JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      JWT_ISSUER: taxoryn-demo
+      CORS_ALLOWED_ORIGINS: ${DEMO_CORS_ALLOWED_ORIGINS:-http://localhost:5174,http://localhost:8089}
+      STORAGE_PROVIDER: ${DEMO_STORAGE_PROVIDER:-LOCAL}
+      STORAGE_LOCAL_BASE_DIR: /app/data/documents
+    volumes:
+      - taxoryn_demo_documents:/app/data/documents
+      - taxoryn_demo_logs:/app/logs
+    depends_on:
+      postgres-demo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - taxoryn-demo-network
+
+  postgres-demo:
+    image: postgres:16-alpine
+    container_name: taxoryn_postgres_demo
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DEMO_POSTGRES_DB:-taxoryn_demo_db}
+      POSTGRES_USER: ${DEMO_POSTGRES_USER:-taxoryn_demo_user}
+      POSTGRES_PASSWORD: ${DEMO_POSTGRES_PASSWORD:-taxoryn_demo_secret}
+    ports:
+      - "${DEMO_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - taxoryn_demo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DEMO_POSTGRES_USER:-taxoryn_demo_user} -d ${DEMO_POSTGRES_DB:-taxoryn_demo_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taxoryn-demo-network
+
+  pgadmin-demo:
+    image: dpage/pgadmin4:latest
+    container_name: taxoryn_pgadmin_demo
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${DEMO_PGADMIN_EMAIL:-admin@taxoryn.com}
+      PGADMIN_DEFAULT_PASSWORD: ${DEMO_PGADMIN_PASSWORD:-admin123}
+    ports:
+      - "${DEMO_PGADMIN_PORT:-5051}:80"
+    depends_on:
+      postgres-demo:
+        condition: service_healthy
+    networks:
+      - taxoryn-demo-network
+    profiles:
+      - tools
+
+volumes:
+  taxoryn_demo_pgdata:
+    driver: local
+  taxoryn_demo_documents:
+    driver: local
+  taxoryn_demo_logs:
+    driver: local
+
+networks:
+  taxoryn-demo-network:
+    driver: bridge
