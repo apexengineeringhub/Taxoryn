@@ -1478,3 +1478,52 @@ export interface FinancialYearOption {
   isCurrent: boolean;
 }
 
+export type PrivacyDataLevel = 'LEVEL_1_PUBLIC' | 'LEVEL_2_EARLY_ENQUIRY' | 'LEVEL_3_PRIVATE_CUSTOMER' | 'LEVEL_4_SENSITIVE_DOCUMENTS';
+
+export interface EarlyEnquiryView {
+  id: string;
+  organizationId: string;
+  marketplaceProfileId: string;
+  service?: PublicTaxService;
+  serviceCategory?: string;
+  financialYear?: string;
+  financialYearDisplay?: string;
+  customerType?: CustomerTaxpayerType;
+  customerTypeDisplayName?: string;
+  requirementSummary: string;
+  clientName: string;
+  maskedEmail?: string;
+  maskedPhone?: string;
+  city?: string;
+  state?: string;
+  budgetRange?: string;
+  urgency: LeadUrgency;
+  leadStatus: LeadStatus;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  practitionerNotes?: string;
+  privacyLevel: PrivacyDataLevel;
+  createdAt: string;
+}
+
+export interface CreateMarketplaceLeadRequest {
+  marketplaceProfileId: string;
+  taxRequirementId?: string;
+  taxServiceId?: string;
+  taxServiceCode?: string;
+  financialYear?: string;
+  customerType?: CustomerTaxpayerType;
+  earlyEnquiryMessage?: string;
+  serviceId?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  city?: string;
+  pan?: string;
+  gstin?: string;
+  serviceCategory?: string;
+  requirementDescription?: string;
+  budgetRange?: string;
+  urgency?: LeadUrgency | string;
+}
+

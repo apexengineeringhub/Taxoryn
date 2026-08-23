@@ -200,6 +200,19 @@ export const MarketplaceLeadsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Privacy Protection Notice */}
+      <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-4 rounded-2xl flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <div className="text-xs">
+          <span className="font-bold text-emerald-900 dark:text-emerald-200">Minimum Necessary Disclosure (Level 2 Active): </span>
+          <span className="text-emerald-800/90 dark:text-emerald-300/80">
+            Early marketplace inquiries provide only broad customer classification, requested tax service, and sanitized requirement summaries. Private tax documents, PAN, and detailed computations remain protected until mutual engagement.
+          </span>
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
@@ -251,8 +264,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider">
                   <th className="p-4">Client / Prospect</th>
-                  <th className="p-4">Contact Info</th>
-                  <th className="p-4">Requirement / Category</th>
+                  <th className="p-4">Contact (Masked)</th>
+                  <th className="p-4">Tax Requirement Summary</th>
                   <th className="p-4">Status</th>
                   <th className="p-4">Assigned To</th>
                   <th className="p-4 text-right">Actions</th>
@@ -270,26 +283,20 @@ export const MarketplaceLeadsPage: React.FC = () => {
                             {lead.city}
                           </div>
                         )}
-                        {lead.pan && (
-                          <span className="inline-block mt-1 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-400">
-                            PAN: {lead.pan}
-                          </span>
-                        )}
+                        <span className="inline-block mt-1 text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-800">
+                          Level 2 Disclosure
+                        </span>
                       </div>
                     </td>
 
                     <td className="p-4 space-y-1">
                       <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                         <Mail className="w-3.5 h-3.5 text-indigo-500" />
-                        <a href={`mailto:${lead.clientEmail}`} className="hover:underline">
-                          {lead.clientEmail}
-                        </a>
+                        <span className="font-mono text-[11px]">{lead.clientEmail}</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                         <Phone className="w-3.5 h-3.5 text-emerald-500" />
-                        <a href={`tel:${lead.clientPhone}`} className="hover:underline">
-                          {lead.clientPhone}
-                        </a>
+                        <span className="font-mono text-[11px]">{lead.clientPhone}</span>
                       </div>
                     </td>
 

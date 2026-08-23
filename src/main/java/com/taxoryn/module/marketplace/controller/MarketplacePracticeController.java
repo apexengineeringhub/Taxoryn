@@ -236,6 +236,31 @@ public class MarketplacePracticeController {
         return ResponseEntity.ok(ApiResponse.success("Inbound leads retrieved", leads));
     }
 
+    @GetMapping("/enquiries")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List Early-Stage Enquiries (Level 2 Privacy Minimum Disclosure)", description = "Retrieves customer inquiries with strict privacy redaction of sensitive Level 3/4 data.")
+    public ResponseEntity<ApiResponse<PagedResponse<EarlyEnquiryViewDto>>> getMyEarlyEnquiries(
+            @RequestParam(required = false) LeadStatus status,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection
+    ) {
+        Sort sort = "desc".equalsIgnoreCase(sortDirection) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), sort);
+        PagedResponse<EarlyEnquiryViewDto> enquiries = marketplaceService.getMyEarlyEnquiries(status, search, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Early enquiries retrieved (Minimum Necessary Disclosure)", enquiries));
+    }
+
+    @GetMapping("/enquiries/{id}")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Early Enquiry Details (Level 2 Privacy View)", description = "Retrieves an individual enquiry with minimum necessary disclosure.")
+    public ResponseEntity<ApiResponse<EarlyEnquiryViewDto>> getEarlyEnquiryById(@PathVariable UUID id) {
+        EarlyEnquiryViewDto enquiry = marketplaceService.getEarlyEnquiryById(id);
+        return ResponseEntity.ok(ApiResponse.success("Early enquiry retrieved", enquiry));
+    }
+
     @PatchMapping("/leads/{id}/status")
     @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update Lead Status", description = "Transitions lead status (CONTACTED, PROPOSAL_SENT, ARCHIVED) with practitioner notes.")

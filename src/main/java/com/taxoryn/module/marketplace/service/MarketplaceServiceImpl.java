@@ -19,7 +19,9 @@ import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.Verificati
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus;
 import com.taxoryn.module.marketplace.mapper.MarketplaceMapper;
 import com.taxoryn.module.marketplace.repository.*;
+import com.taxoryn.module.marketplace.util.FinancialYearUtils;
 import com.taxoryn.module.marketplace.util.GeoUtils;
+import com.taxoryn.module.marketplace.util.PrivacySanitizationUtils;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.task.entity.TaskEntity;
@@ -53,6 +55,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final PracticeLocationRepository locationRepository;
     private final PracticeServiceRepository practiceServiceRepository;
     private final TaxServiceMasterService taxServiceMasterService;
+    private final TaxServiceRepository taxServiceRepository;
+    private final CustomerTaxRequirementRepository taxRequirementRepository;
     private final OrganizationRepository organizationRepository;
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
@@ -373,19 +377,66 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
         UUID currentCustomerId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
 
+        CustomerTaxRequirementEntity linkedReq = null;
+        if (request.getTaxRequirementId() != null && taxRequirementRepository != null) {
+            linkedReq = taxRequirementRepository.findById(request.getTaxRequirementId()).orElse(null);
+        }
+
+        UUID resolvedTaxServiceId = request.getTaxServiceId();
+        TaxServiceEntity resolvedTaxService = null;
+        if (resolvedTaxServiceId != null && taxServiceRepository != null) {
+            resolvedTaxService = taxServiceRepository.findById(resolvedTaxServiceId).orElse(null);
+        } else if (StringUtils.hasText(request.getTaxServiceCode()) && taxServiceRepository != null) {
+            resolvedTaxService = taxServiceRepository.findByCodeIgnoreCase(request.getTaxServiceCode().trim().toUpperCase()).orElse(null);
+            if (resolvedTaxService != null) {
+                resolvedTaxServiceId = resolvedTaxService.getId();
+            }
+        } else if (linkedReq != null) {
+            resolvedTaxServiceId = linkedReq.getTaxServiceId();
+            resolvedTaxService = linkedReq.getTaxService();
+        }
+
+        String resolvedFy = StringUtils.hasText(request.getFinancialYear())
+                ? FinancialYearUtils.normalize(request.getFinancialYear())
+                : (linkedReq != null ? linkedReq.getFinancialYear() : null);
+
+        CustomerTaxpayerType resolvedType = request.getCustomerType() != null
+                ? request.getCustomerType()
+                : (linkedReq != null ? linkedReq.getCustomerType() : null);
+
+        // Sanitize or generate Level 2 Early Enquiry Message
+        String rawMessage = StringUtils.hasText(request.getEarlyEnquiryMessage())
+                ? request.getEarlyEnquiryMessage()
+                : (StringUtils.hasText(request.getRequirementDescription()) ? request.getRequirementDescription() : null);
+
+        String sanitizedEarlyMessage = PrivacySanitizationUtils.sanitizeForEarlyEnquiry(rawMessage);
+        if (!StringUtils.hasText(sanitizedEarlyMessage)) {
+            sanitizedEarlyMessage = PrivacySanitizationUtils.generateSafeEarlyEnquirySummary(resolvedTaxService, resolvedType, resolvedFy);
+        }
+
+        String serviceCategoryName = StringUtils.hasText(request.getServiceCategory())
+                ? request.getServiceCategory()
+                : (resolvedTaxService != null && resolvedTaxService.getCategory() != null ? resolvedTaxService.getCategory().getName() : "Tax Advisory");
+
         MarketplaceLeadEntity entity = MarketplaceLeadEntity.builder()
                 .organizationId(profile.getOrganizationId())
                 .marketplaceProfileId(profile.getId())
                 .customerId(currentCustomerId)
                 .serviceId(request.getServiceId())
+                .taxRequirementId(linkedReq != null ? linkedReq.getId() : request.getTaxRequirementId())
+                .taxServiceId(resolvedTaxServiceId)
+                .financialYear(resolvedFy)
+                .customerType(resolvedType)
+                .earlyEnquiryMessage(sanitizedEarlyMessage)
+                .isContactMasked(true)
                 .clientName(request.getClientName().trim())
                 .clientEmail(request.getClientEmail().trim().toLowerCase())
                 .clientPhone(request.getClientPhone().trim())
-                .city(request.getCity())
-                .pan(request.getPan() != null ? request.getPan().toUpperCase().trim() : null)
-                .gstin(request.getGstin() != null ? request.getGstin().toUpperCase().trim() : null)
-                .serviceCategory(request.getServiceCategory())
-                .requirementDescription(request.getRequirementDescription())
+                .city(StringUtils.hasText(request.getCity()) ? request.getCity().trim() : (linkedReq != null ? linkedReq.getCity() : null))
+                .pan(null) // Privacy protection: Do not store raw PAN in early inquiry table
+                .gstin(null)
+                .serviceCategory(serviceCategoryName)
+                .requirementDescription(sanitizedEarlyMessage)
                 .budgetRange(request.getBudgetRange())
                 .urgency(request.getUrgency() != null ? request.getUrgency() : MarketplaceLeadEntity.Urgency.STANDARD)
                 .leadStatus(LeadStatus.NEW)
@@ -794,6 +845,42 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
         Page<MarketplaceLeadEntity> page = leadRepository.findAll(spec, pageable);
         return PagedResponse.of(page, this::enrichLeadDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<EarlyEnquiryViewDto> getMyEarlyEnquiries(LeadStatus status, String search, Pageable pageable) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        org.springframework.data.jpa.domain.Specification<MarketplaceLeadEntity> spec = (root, query, cb) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (status != null) {
+                predicates.add(cb.equal(root.get("leadStatus"), status));
+            }
+            if (StringUtils.hasText(search)) {
+                String s = "%" + search.trim().toLowerCase() + "%";
+                jakarta.persistence.criteria.Predicate nameMatch = cb.like(cb.lower(root.get("clientName")), s);
+                jakarta.persistence.criteria.Predicate catMatch = cb.like(cb.lower(root.get("serviceCategory")), s);
+                jakarta.persistence.criteria.Predicate cityMatch = cb.like(cb.lower(root.get("city")), s);
+                jakarta.persistence.criteria.Predicate msgMatch = cb.like(cb.lower(root.get("earlyEnquiryMessage")), s);
+                predicates.add(cb.or(nameMatch, catMatch, cityMatch, msgMatch));
+            }
+
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        Page<MarketplaceLeadEntity> page = leadRepository.findAll(spec, pageable);
+        return PagedResponse.of(page, this::enrichEarlyEnquiryDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EarlyEnquiryViewDto getEarlyEnquiryById(UUID enquiryId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceLeadEntity lead = leadRepository.findByIdAndOrganizationId(enquiryId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Enquiry / Lead", "id", enquiryId));
+        return enrichEarlyEnquiryDto(lead);
     }
 
     @Override
@@ -1508,6 +1595,44 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             employeeRepository.findById(entity.getAssignedEmployeeId())
                     .ifPresent(e -> dto.setAssignedEmployeeName(e.getFullName()));
         }
+
+        // Privacy Hardening: Redact sensitive Level 3/4 identifiers during early enquiry stage
+        dto.setRequirementDescription(PrivacySanitizationUtils.sanitizeForEarlyEnquiry(
+                entity.getEarlyEnquiryMessage() != null ? entity.getEarlyEnquiryMessage() : entity.getRequirementDescription()
+        ));
+        dto.setPan(null); // Never disclose PAN during early discovery/enquiry
+        dto.setGstin(null); // Never disclose GSTIN during early discovery/enquiry
+        if (Boolean.TRUE.equals(entity.getIsContactMasked()) && entity.getLeadStatus() != LeadStatus.CONVERTED) {
+            dto.setClientEmail(PrivacySanitizationUtils.maskEmail(entity.getClientEmail()));
+            dto.setClientPhone(PrivacySanitizationUtils.maskPhone(entity.getClientPhone()));
+        }
+
+        return dto;
+    }
+
+    private EarlyEnquiryViewDto enrichEarlyEnquiryDto(MarketplaceLeadEntity entity) {
+        EarlyEnquiryViewDto dto = mapper.toEarlyEnquiryDto(entity);
+
+        if (entity.getTaxServiceId() != null && taxServiceRepository != null) {
+            taxServiceRepository.findById(entity.getTaxServiceId()).ifPresent(svc -> {
+                PublicTaxServiceDto svcDto = PublicTaxServiceDto.builder()
+                        .id(svc.getId())
+                        .code(svc.getCode())
+                        .name(svc.getName())
+                        .description(svc.getDescription())
+                        .category(svc.getCategory() != null ? svc.getCategory().getCode() : null)
+                        .categoryName(svc.getCategory() != null ? svc.getCategory().getName() : null)
+                        .sortOrder(svc.getSortOrder())
+                        .build();
+                dto.setService(svcDto);
+            });
+        }
+
+        if (entity.getAssignedEmployeeId() != null && employeeRepository != null) {
+            employeeRepository.findById(entity.getAssignedEmployeeId())
+                    .ifPresent(e -> dto.setAssignedEmployeeName(e.getFullName()));
+        }
+
         return dto;
     }
 

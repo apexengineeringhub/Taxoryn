@@ -86,6 +86,8 @@ import {
   CreateTaxRequirementRequest,
   UpdateTaxRequirementRequest,
   FinancialYearOption,
+  EarlyEnquiryView,
+  CreateMarketplaceLeadRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -881,7 +883,7 @@ export const marketplacePublicApi = {
     const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>(`/v1/marketplace/profiles/${profileId}/reviews`);
     return res.data.data;
   },
-  submitLead: async (payload: { marketplaceProfileId: string; serviceId?: string; clientName: string; clientEmail: string; clientPhone: string; city?: string; pan?: string; gstin?: string; serviceCategory?: string; requirementDescription: string; budgetRange?: string; urgency?: string }) => {
+  submitLead: async (payload: CreateMarketplaceLeadRequest) => {
     const res = await apiClient.post<ApiResponse<MarketplaceLead>>('/v1/marketplace/leads', payload);
     return res.data.data;
   },
@@ -992,6 +994,14 @@ export const marketplacePracticeApi = {
   },
   getMyLeads: async (params?: { status?: string; search?: string; page?: number; size?: number }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceLead>>>('/v1/practice/marketplace/leads', { params });
+    return res.data.data;
+  },
+  getMyEarlyEnquiries: async (params?: { status?: string; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<EarlyEnquiryView>>>('/v1/practice/marketplace/enquiries', { params });
+    return res.data.data;
+  },
+  getEarlyEnquiryById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EarlyEnquiryView>>(`/v1/practice/marketplace/enquiries/${id}`);
     return res.data.data;
   },
   updateLeadStatus: async (id: string, params: { status?: string; notes?: string; assignedEmployeeId?: string }) => {

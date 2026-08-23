@@ -20,6 +20,24 @@ public class CreateMarketplaceLeadRequest {
     @Schema(description = "Target Firm / Practitioner Marketplace Profile ID")
     private UUID marketplaceProfileId;
 
+    @Schema(description = "Linked Customer Tax Requirement ID (if inquiring from a saved requirement)")
+    private UUID taxRequirementId;
+
+    @Schema(description = "Selected controlled tax service master ID")
+    private UUID taxServiceId;
+
+    @Schema(description = "Selected controlled tax service code", example = "INCOME_TAX_RETURN")
+    private String taxServiceCode;
+
+    @Schema(description = "Financial Year (e.g. FY 2025-26)", example = "2025-26")
+    private String financialYear;
+
+    @Schema(description = "Broad Customer Taxpayer Classification", example = "SALARIED")
+    private com.taxoryn.module.marketplace.entity.CustomerTaxpayerType customerType;
+
+    @Schema(description = "Sanitized Early Enquiry Message shared with Practice", example = "Need assistance filing ITR after job switch")
+    private String earlyEnquiryMessage;
+
     @Schema(description = "Selected service package ID (if inquiring from a package)")
     private UUID serviceId;
 
@@ -48,7 +66,6 @@ public class CreateMarketplaceLeadRequest {
     @Schema(description = "Service category", example = "ITR")
     private String serviceCategory;
 
-    @NotBlank(message = "Requirement description is required")
     @Schema(description = "Tax or compliance requirement description", example = "Need consultation on capital gains from real estate sale and foreign equity stock vesting.")
     private String requirementDescription;
 

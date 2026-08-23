@@ -66,6 +66,12 @@ class MarketplaceServiceTest {
     private PracticeLocationRepository locationRepository;
 
     @Mock
+    private TaxServiceRepository taxServiceRepository;
+
+    @Mock
+    private CustomerTaxRequirementRepository taxRequirementRepository;
+
+    @Mock
     private OrganizationRepository organizationRepository;
 
     @Mock

@@ -36,6 +36,17 @@ public interface MarketplaceMapper {
 
     List<MarketplaceLeadDto> toLeadDtoList(List<MarketplaceLeadEntity> entities);
 
+    @Mapping(target = "financialYearDisplay", expression = "java(com.taxoryn.module.marketplace.util.FinancialYearUtils.toDisplayString(entity.getFinancialYear()))")
+    @Mapping(target = "customerTypeDisplayName", expression = "java(entity.getCustomerType() != null ? entity.getCustomerType().getDisplayName() : \"Individual Taxpayer\")")
+    @Mapping(target = "requirementSummary", expression = "java(entity.getEarlyEnquiryMessage() != null ? entity.getEarlyEnquiryMessage() : (entity.getRequirementDescription() != null ? com.taxoryn.module.marketplace.util.PrivacySanitizationUtils.sanitizeForEarlyEnquiry(entity.getRequirementDescription()) : null))")
+    @Mapping(target = "maskedEmail", expression = "java(com.taxoryn.module.marketplace.util.PrivacySanitizationUtils.maskEmail(entity.getClientEmail()))")
+    @Mapping(target = "maskedPhone", expression = "java(com.taxoryn.module.marketplace.util.PrivacySanitizationUtils.maskPhone(entity.getClientPhone()))")
+    @Mapping(target = "service", ignore = true)
+    @Mapping(target = "assignedEmployeeName", ignore = true)
+    EarlyEnquiryViewDto toEarlyEnquiryDto(MarketplaceLeadEntity entity);
+
+    List<EarlyEnquiryViewDto> toEarlyEnquiryDtoList(List<MarketplaceLeadEntity> entities);
+
     @Mapping(target = "practiceDisplayName", ignore = true)
     @Mapping(target = "assignedEmployeeName", ignore = true)
     MarketplaceConsultationDto toConsultationDto(MarketplaceConsultationEntity entity);

@@ -667,6 +667,14 @@ export const MarketplaceProfileDetailPage: React.FC = () => {
               </button>
             </div>
 
+            {/* Privacy Assurance Notice */}
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                <strong className="text-emerald-950 dark:text-emerald-200">Privacy Guaranteed:</strong> Early-stage inquiries disclose only your service category and sanitized requirement summary. Your PAN, salary, and documents remain strictly confidential.
+              </span>
+            </div>
+
             <form onSubmit={handleInquirySubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>

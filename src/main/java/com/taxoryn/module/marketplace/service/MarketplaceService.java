@@ -49,6 +49,10 @@ public interface MarketplaceService {
 
     PagedResponse<MarketplaceLeadDto> getMyLeads(LeadStatus status, String search, Pageable pageable);
 
+    PagedResponse<EarlyEnquiryViewDto> getMyEarlyEnquiries(LeadStatus status, String search, Pageable pageable);
+
+    EarlyEnquiryViewDto getEarlyEnquiryById(UUID enquiryId);
+
     MarketplaceLeadDto updateLeadStatus(UUID leadId, LeadStatus status, String notes, UUID assignedEmployeeId);
 
     MarketplaceLeadDto convertLeadToClient(UUID leadId, ConvertLeadToClientRequest request);

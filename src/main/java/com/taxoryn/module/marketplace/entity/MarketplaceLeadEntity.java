@@ -27,6 +27,30 @@ public class MarketplaceLeadEntity extends AuditableEntity {
     @Column(name = "service_id")
     private UUID serviceId;
 
+    @Column(name = "tax_requirement_id")
+    private UUID taxRequirementId;
+
+    @Column(name = "tax_service_id")
+    private UUID taxServiceId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tax_service_id", insertable = false, updatable = false)
+    private TaxServiceEntity taxService;
+
+    @Column(name = "financial_year", length = 20)
+    private String financialYear;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "customer_type", length = 50)
+    private CustomerTaxpayerType customerType;
+
+    @Column(name = "early_enquiry_message", length = 2000)
+    private String earlyEnquiryMessage;
+
+    @Column(name = "is_contact_masked")
+    @Builder.Default
+    private Boolean isContactMasked = true;
+
     @Column(name = "client_name", nullable = false)
     private String clientName;
 

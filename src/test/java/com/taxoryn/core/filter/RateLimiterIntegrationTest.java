@@ -38,6 +38,7 @@ class RateLimiterIntegrationTest {
     @AfterEach
     void tearDown() {
         rateLimitingService.reset();
+        ReflectionTestUtils.setField(rateLimitingService, "enabled", false);
         ReflectionTestUtils.setField(rateLimitingService, "apiLimitPerMinute", 300);
     }
 
