@@ -4,6 +4,7 @@ import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.service.MarketplaceService;
+import com.taxoryn.module.marketplace.service.TaxServiceMasterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,6 +23,31 @@ import java.util.UUID;
 public class MarketplacePublicController {
 
     private final MarketplaceService marketplaceService;
+    private final TaxServiceMasterService taxServiceMasterService;
+
+    // --- Controlled Tax Service Master Catalog ---
+
+    @GetMapping("/tax-services")
+    @Operation(summary = "Get Active Tax Services Master Catalog", description = "Retrieves flat list of all active standardized Indian tax and compliance services.")
+    public ResponseEntity<ApiResponse<List<PublicTaxServiceDto>>> getPublicTaxServices() {
+        List<PublicTaxServiceDto> services = taxServiceMasterService.getPublicActiveServices();
+        return ResponseEntity.ok(ApiResponse.success("Tax services retrieved successfully", services));
+    }
+
+    @GetMapping("/tax-services/categories")
+    @Operation(summary = "Get Tax Service Categories with Nested Services", description = "Retrieves active tax service categories populated with their child services.")
+    public ResponseEntity<ApiResponse<List<PublicTaxServiceCategoryDto>>> getPublicTaxServiceCategories() {
+        List<PublicTaxServiceCategoryDto> categories = taxServiceMasterService.getPublicCategoriesWithServices();
+        return ResponseEntity.ok(ApiResponse.success("Tax service categories retrieved successfully", categories));
+    }
+
+    @GetMapping("/tax-services/resolve")
+    @Operation(summary = "Resolve Search Query to Controlled Tax Service", description = "Normalizes input query and matches against master service codes and search aliases.")
+    public ResponseEntity<ApiResponse<PublicTaxServiceDto>> resolveTaxService(@RequestParam String query) {
+        return taxServiceMasterService.resolveQueryToService(query)
+                .map(svc -> ResponseEntity.ok(ApiResponse.success("Service resolved successfully", svc)))
+                .orElseGet(() -> ResponseEntity.ok(ApiResponse.success("No exact service match found", null)));
+    }
 
     @GetMapping("/search")
     @Operation(summary = "Search & Filter Tax Professionals", description = "Public geo-search by city, designation (CA/CS/Advocate), specialization (GST/ITR/TDS), and verification status.")

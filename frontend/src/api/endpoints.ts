@@ -67,6 +67,18 @@ import {
   PublicPracticeLocation,
   CreatePracticeLocationRequest,
   UpdatePracticeLocationRequest,
+  TaxServiceCategory,
+  CreateTaxServiceCategoryRequest,
+  UpdateTaxServiceCategoryRequest,
+  TaxService,
+  CreateTaxServiceRequest,
+  UpdateTaxServiceRequest,
+  TaxServiceAlias,
+  CreateTaxServiceAliasRequest,
+  PublicTaxService,
+  PublicTaxServiceCategory,
+  PracticeService,
+  UpdatePracticeServicesRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -878,6 +890,19 @@ export const marketplacePublicApi = {
     const res = await apiClient.post<ApiResponse<MarketplaceProfile[]>>('/v1/marketplace/seed-demo');
     return res.data.data;
   },
+  // Controlled Tax Service Master Catalog
+  getTaxServices: async () => {
+    const res = await apiClient.get<ApiResponse<PublicTaxService[]>>('/v1/marketplace/tax-services');
+    return res.data.data;
+  },
+  getTaxServiceCategories: async () => {
+    const res = await apiClient.get<ApiResponse<PublicTaxServiceCategory[]>>('/v1/marketplace/tax-services/categories');
+    return res.data.data;
+  },
+  resolveTaxService: async (query: string) => {
+    const res = await apiClient.get<ApiResponse<PublicTaxService>>('/v1/marketplace/tax-services/resolve', { params: { query } });
+    return res.data.data;
+  },
 };
 
 // --- 14. Practice Marketplace Management ---
@@ -983,6 +1008,23 @@ export const marketplacePracticeApi = {
     const res = await apiClient.get<ApiResponse<MarketplaceStats>>('/v1/practice/marketplace/stats');
     return res.data.data;
   },
+  // Controlled Tax Services Selection
+  getControlledTaxServices: async () => {
+    const res = await apiClient.get<ApiResponse<PracticeService[]>>('/v1/marketplace/practice-profile/tax-services');
+    return res.data.data;
+  },
+  updateControlledTaxServices: async (taxServiceIds: string[]) => {
+    const res = await apiClient.put<ApiResponse<PracticeService[]>>('/v1/marketplace/practice-profile/tax-services', { taxServiceIds });
+    return res.data.data;
+  },
+  addControlledTaxService: async (taxServiceId: string) => {
+    const res = await apiClient.post<ApiResponse<PracticeService>>(`/v1/marketplace/practice-profile/tax-services/${taxServiceId}`);
+    return res.data.data;
+  },
+  removeControlledTaxService: async (taxServiceId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/marketplace/practice-profile/tax-services/${taxServiceId}`);
+    return res.data;
+  },
 };
 
 // --- 15. Platform Admin Marketplace Governance ---
@@ -1006,6 +1048,65 @@ export const marketplaceAdminApi = {
   getPlatformStats: async () => {
     const res = await apiClient.get<ApiResponse<MarketplaceStats>>('/v1/admin/marketplace/stats');
     return res.data.data;
+  },
+};
+
+// --- 16. Platform Admin Tax Service Master Governance ---
+export const taxServiceAdminApi = {
+  // Categories
+  getCategories: async () => {
+    const res = await apiClient.get<ApiResponse<TaxServiceCategory[]>>('/v1/admin/tax-services/categories');
+    return res.data.data;
+  },
+  getCategoryById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<TaxServiceCategory>>(`/v1/admin/tax-services/categories/${id}`);
+    return res.data.data;
+  },
+  createCategory: async (payload: CreateTaxServiceCategoryRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxServiceCategory>>('/v1/admin/tax-services/categories', payload);
+    return res.data.data;
+  },
+  updateCategory: async (id: string, payload: UpdateTaxServiceCategoryRequest) => {
+    const res = await apiClient.put<ApiResponse<TaxServiceCategory>>(`/v1/admin/tax-services/categories/${id}`, payload);
+    return res.data.data;
+  },
+  toggleCategoryStatus: async (id: string, isActive: boolean) => {
+    const res = await apiClient.patch<ApiResponse<TaxServiceCategory>>(`/v1/admin/tax-services/categories/${id}/status`, null, { params: { isActive } });
+    return res.data.data;
+  },
+  // Tax Services Master
+  getTaxServices: async (params?: { categoryId?: string; isActive?: boolean; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<TaxService>>>('/v1/admin/tax-services', { params });
+    return res.data.data;
+  },
+  getTaxServiceById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<TaxService>>(`/v1/admin/tax-services/${id}`);
+    return res.data.data;
+  },
+  createTaxService: async (payload: CreateTaxServiceRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxService>>('/v1/admin/tax-services', payload);
+    return res.data.data;
+  },
+  updateTaxService: async (id: string, payload: UpdateTaxServiceRequest) => {
+    const res = await apiClient.put<ApiResponse<TaxService>>(`/v1/admin/tax-services/${id}`, payload);
+    return res.data.data;
+  },
+  toggleTaxServiceStatus: async (id: string, isActive: boolean) => {
+    const res = await apiClient.patch<ApiResponse<TaxService>>(`/v1/admin/tax-services/${id}/status`, null, { params: { isActive } });
+    return res.data.data;
+  },
+  // Aliases
+  getAliases: async (taxServiceId: string) => {
+    const res = await apiClient.get<ApiResponse<TaxServiceAlias[]>>(`/v1/admin/tax-services/${taxServiceId}/aliases`);
+    return res.data.data;
+  },
+  addAlias: async (taxServiceId: string, payload: CreateTaxServiceAliasRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxServiceAlias>>(`/v1/admin/tax-services/${taxServiceId}/aliases`, payload);
+    return res.data.data;
+  },
+  deleteAlias: async (taxServiceId: string, aliasId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/admin/tax-services/${taxServiceId}/aliases/${aliasId}`);
+    return res.data;
   },
 };
 

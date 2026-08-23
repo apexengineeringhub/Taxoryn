@@ -879,6 +879,7 @@ export interface MarketplaceProfile {
   consultationFee: number;
   consultationDurationMinutes: number;
   services?: MarketplaceService[];
+  offeredServices?: PublicTaxService[];
   recentReviews?: MarketplaceReview[];
   locations?: PublicPracticeLocation[];
   primaryLocation?: PublicPracticeLocation;
@@ -888,6 +889,122 @@ export interface MarketplaceProfile {
   profileCompleteness?: ProfileCompleteness;
   completenessScore?: number;
   missingCompletenessFields?: string[];
+}
+
+// 6. Controlled Tax Service Master Interfaces
+export interface TaxServiceCategory {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TaxServiceAlias {
+  id: string;
+  taxServiceId: string;
+  alias: string;
+  normalizedAlias: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TaxService {
+  id: string;
+  categoryId: string;
+  categoryCode?: string;
+  categoryName?: string;
+  code: string;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  isActive: boolean;
+  aliases?: TaxServiceAlias[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PublicTaxService {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  category: string;
+  categoryName?: string;
+  sortOrder?: number;
+}
+
+export interface PublicTaxServiceCategory {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+  services: PublicTaxService[];
+}
+
+export interface PracticeService {
+  id: string;
+  marketplaceProfileId: string;
+  taxServiceId: string;
+  taxServiceCode: string;
+  taxServiceName: string;
+  categoryCode: string;
+  categoryName: string;
+  description?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateTaxServiceCategoryRequest {
+  code: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateTaxServiceCategoryRequest {
+  name?: string;
+  description?: string;
+  icon?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface CreateTaxServiceRequest {
+  categoryId: string;
+  code: string;
+  name: string;
+  description?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+  aliases?: string[];
+}
+
+export interface UpdateTaxServiceRequest {
+  categoryId?: string;
+  name?: string;
+  description?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface CreateTaxServiceAliasRequest {
+  alias: string;
+  isActive?: boolean;
+}
+
+export interface UpdatePracticeServicesRequest {
+  taxServiceIds: string[];
 }
 
 export interface PracticeLocation {

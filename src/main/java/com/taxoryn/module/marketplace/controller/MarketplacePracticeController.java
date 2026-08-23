@@ -6,6 +6,7 @@ import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.entity.MarketplaceConsultationEntity.ConsultationStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus;
 import com.taxoryn.module.marketplace.service.MarketplaceService;
+import com.taxoryn.module.marketplace.service.TaxServiceMasterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +31,41 @@ import java.util.UUID;
 public class MarketplacePracticeController {
 
     private final MarketplaceService marketplaceService;
+    private final TaxServiceMasterService taxServiceMasterService;
+
+    // --- Controlled Tax Service Master Selection ---
+
+    @GetMapping("/tax-services")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List Practice Selected Controlled Tax Services", description = "Retrieves the practice's selected services from the controlled master catalog.")
+    public ResponseEntity<ApiResponse<List<PracticeServiceDto>>> getMyTaxServices() {
+        List<PracticeServiceDto> services = taxServiceMasterService.getMyPracticeServices();
+        return ResponseEntity.ok(ApiResponse.success("Practice controlled services retrieved successfully", services));
+    }
+
+    @PutMapping("/tax-services")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Batch Update Practice Selected Tax Services", description = "Updates the practice's active services selection from the controlled master catalog.")
+    public ResponseEntity<ApiResponse<List<PracticeServiceDto>>> updateMyTaxServices(@Valid @RequestBody UpdatePracticeServicesRequest request) {
+        List<PracticeServiceDto> services = taxServiceMasterService.updateMyPracticeServices(request);
+        return ResponseEntity.ok(ApiResponse.success("Practice controlled services updated successfully", services));
+    }
+
+    @PostMapping("/tax-services/{taxServiceId}")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Add Controlled Tax Service to Practice", description = "Selects a single controlled tax service to offer on the marketplace.")
+    public ResponseEntity<ApiResponse<PracticeServiceDto>> addTaxServiceToPractice(@PathVariable UUID taxServiceId) {
+        PracticeServiceDto service = taxServiceMasterService.addServiceToPractice(taxServiceId);
+        return ResponseEntity.ok(ApiResponse.success("Service added to practice successfully", service));
+    }
+
+    @DeleteMapping("/tax-services/{taxServiceId}")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('MARKETPLACE_DELETE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Remove Controlled Tax Service from Practice", description = "Removes a controlled tax service from the practice's offerings.")
+    public ResponseEntity<ApiResponse<Void>> removeTaxServiceFromPractice(@PathVariable UUID taxServiceId) {
+        taxServiceMasterService.removeServiceFromPractice(taxServiceId);
+        return ResponseEntity.ok(ApiResponse.success("Service removed from practice successfully", null));
+    }
 
     // --- Profile & Listing ---
 

@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { marketplacePublicApi } from '../api/endpoints';
-import { MarketplaceProfile, ProfessionalType } from '../types';
+import { MarketplaceProfile, ProfessionalType, PublicTaxServiceCategory } from '../types';
 import clsx from 'clsx';
 
 export const MarketplaceExplorePage: React.FC = () => {
@@ -43,6 +43,7 @@ export const MarketplaceExplorePage: React.FC = () => {
   // State
   const [profiles, setProfiles] = useState<MarketplaceProfile[]>([]);
   const [featuredProfiles, setFeaturedProfiles] = useState<MarketplaceProfile[]>([]);
+  const [masterCategories, setMasterCategories] = useState<PublicTaxServiceCategory[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [totalElements, setTotalElements] = useState<number>(0);
   const [selectedForCompare, setSelectedForCompare] = useState<MarketplaceProfile[]>([]);
@@ -177,7 +178,7 @@ export const MarketplaceExplorePage: React.FC = () => {
   const fetchProfiles = async () => {
     setIsLoading(true);
     try {
-      const [searchRes, featuredRes] = await Promise.all([
+      const [searchRes, featuredRes, catRes] = await Promise.all([
         marketplacePublicApi.search({
           search: search || undefined,
           city: city || undefined,
@@ -194,9 +195,11 @@ export const MarketplaceExplorePage: React.FC = () => {
           size: 24,
         }),
         marketplacePublicApi.getFeatured().catch(() => []),
+        marketplacePublicApi.getTaxServiceCategories().catch(() => []),
       ]);
 
       let results = searchRes.content || [];
+      setMasterCategories(catRes || []);
 
       // Sort locally if starting fee / experience selected
       if (sortBy === 'startingFee') {
@@ -1034,8 +1037,24 @@ export const MarketplaceExplorePage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Specializations */}
-                        {profile.specializations && profile.specializations.length > 0 && (
+                        {/* Standardized Services Offered / Specializations */}
+                        {profile.offeredServices && profile.offeredServices.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {profile.offeredServices.slice(0, 3).map((svc) => (
+                              <span
+                                key={svc.id}
+                                className="text-[11px] font-medium bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 rounded-lg border border-indigo-100 dark:border-indigo-900/30"
+                              >
+                                {svc.name}
+                              </span>
+                            ))}
+                            {profile.offeredServices.length > 3 && (
+                              <span className="text-[11px] text-slate-400 font-medium px-1">
+                                +{profile.offeredServices.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        ) : profile.specializations && profile.specializations.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
                             {profile.specializations.slice(0, 3).map((spec, i) => (
                               <span
@@ -1051,7 +1070,7 @@ export const MarketplaceExplorePage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                        )}
+                        ) : null}
                       </div>
 
                       {/* Card Footer: Pricing & Action Buttons (Contact / Book) */}

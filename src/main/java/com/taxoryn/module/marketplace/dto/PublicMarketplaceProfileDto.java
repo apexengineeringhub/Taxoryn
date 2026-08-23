@@ -118,8 +118,11 @@ public class PublicMarketplaceProfileDto {
     @Schema(description = "Consultation duration in minutes")
     private Integer consultationDurationMinutes;
 
-    @Schema(description = "Active Service Offerings")
+    @Schema(description = "Active Service Offerings (Legacy custom packages)")
     private List<MarketplaceServiceDto> services;
+
+    @Schema(description = "Controlled Tax Services offered by the practice from master catalogue")
+    private List<PublicTaxServiceDto> offeredServices;
 
     @Schema(description = "Recent Approved Reviews")
     private List<MarketplaceReviewDto> recentReviews;

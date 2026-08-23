@@ -51,6 +51,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final MarketplaceReviewRepository reviewRepository;
     private final MarketplaceVerificationRepository verificationRepository;
     private final PracticeLocationRepository locationRepository;
+    private final PracticeServiceRepository practiceServiceRepository;
+    private final TaxServiceMasterService taxServiceMasterService;
     private final OrganizationRepository organizationRepository;
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
@@ -103,6 +105,16 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 if (current == null || dist < current.minDistanceKm()) {
                     matchesByProfileId.put(pid, new PracticeGeoMatch(pid, dist, loc));
                 }
+            }
+        }
+
+        // Filter candidate profiles by requested tax service if supplied
+        String requestedService = StringUtils.hasText(request.getService()) ? request.getService().trim() : request.getEffectiveSpecialization();
+        if (StringUtils.hasText(requestedService) && taxServiceMasterService != null) {
+            Optional<PublicTaxServiceDto> resolvedSvc = taxServiceMasterService.resolveQueryToService(requestedService);
+            if (resolvedSvc.isPresent()) {
+                List<UUID> offeringProfileIds = practiceServiceRepository.findProfileIdsOfferingTaxService(resolvedSvc.get().getId());
+                matchesByProfileId.keySet().retainAll(offeringProfileIds);
             }
         }
 
@@ -268,9 +280,28 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             predicates.add(cb.equal(root.get("professionalType"), request.getProfessionalType()));
         }
 
-        String spec = request.getEffectiveSpecialization();
-        if (StringUtils.hasText(spec)) {
-            predicates.add(cb.like(cb.lower(root.get("specializations")), "%" + spec.toLowerCase() + "%"));
+        String serviceQuery = StringUtils.hasText(request.getService()) ? request.getService().trim() : request.getEffectiveSpecialization();
+        if (StringUtils.hasText(serviceQuery)) {
+            Optional<PublicTaxServiceDto> resolvedSvc = taxServiceMasterService != null
+                    ? taxServiceMasterService.resolveQueryToService(serviceQuery)
+                    : Optional.empty();
+            if (resolvedSvc.isPresent()) {
+                UUID targetSvcId = resolvedSvc.get().getId();
+                jakarta.persistence.criteria.Subquery<UUID> svcSubquery = query.subquery(UUID.class);
+                jakarta.persistence.criteria.Root<PracticeServiceEntity> svcRoot = svcSubquery.from(PracticeServiceEntity.class);
+                svcSubquery.select(svcRoot.get("marketplaceProfileId"))
+                        .where(
+                                cb.equal(svcRoot.get("marketplaceProfileId"), root.get("id")),
+                                cb.equal(svcRoot.get("taxServiceId"), targetSvcId),
+                                cb.isTrue(svcRoot.get("isActive"))
+                        );
+                predicates.add(cb.or(
+                        cb.exists(svcSubquery),
+                        cb.like(cb.lower(root.get("specializations")), "%" + serviceQuery.toLowerCase() + "%")
+                ));
+            } else {
+                predicates.add(cb.like(cb.lower(root.get("specializations")), "%" + serviceQuery.toLowerCase() + "%"));
+            }
         }
 
         if (Boolean.TRUE.equals(request.getEffectiveVerified())) {
@@ -1415,6 +1446,11 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
         List<MarketplaceServiceEntity> services = serviceRepository.findByMarketplaceProfileIdAndIsActiveTrue(entity.getId());
         dto.setServices(mapper.toServiceDtoList(services));
+
+        List<PublicTaxServiceDto> offeredServices = taxServiceMasterService != null && entity.getId() != null
+                ? taxServiceMasterService.getPublicPracticeOfferedServices(entity.getId())
+                : Collections.emptyList();
+        dto.setOfferedServices(offeredServices);
 
         List<MarketplaceReviewEntity> reviews = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
                 entity.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED

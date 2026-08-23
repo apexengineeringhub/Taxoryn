@@ -318,8 +318,21 @@ export const MarketplaceProfileDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Specialization Tags */}
-          {profile.specializations && profile.specializations.length > 0 && (
+          {/* Controlled Services Offered / Specializations */}
+          {profile.offeredServices && profile.offeredServices.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Services Offered:</span>
+              {profile.offeredServices.map((s) => (
+                <span
+                  key={s.id}
+                  className="text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-xl border border-indigo-100 dark:border-indigo-900/40 flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>{s.name}</span>
+                </span>
+              ))}
+            </div>
+          ) : profile.specializations && profile.specializations.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Expertise:</span>
               {profile.specializations.map((s, i) => (
@@ -331,7 +344,7 @@ export const MarketplaceProfileDetailPage: React.FC = () => {
                 </span>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 

@@ -21,13 +21,17 @@ import {
   Compass,
   Trash2,
   Navigation,
+  CheckSquare,
+  Square,
+  BookmarkCheck,
+  Layers,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
-import { marketplacePracticeApi } from '../api/endpoints';
+import { marketplacePracticeApi, marketplacePublicApi } from '../api/endpoints';
 import {
   MarketplaceProfile,
   ProfileCompleteness,
@@ -36,6 +40,8 @@ import {
   PracticeLocation,
   CreatePracticeLocationRequest,
   UpdatePracticeLocationRequest,
+  PublicTaxServiceCategory,
+  PracticeService,
 } from '../types';
 import clsx from 'clsx';
 
@@ -95,18 +101,29 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     isPrimary: false,
   });
 
+  // Controlled Tax Services State
+  const [masterCategories, setMasterCategories] = useState<PublicTaxServiceCategory[]>([]);
+  const [selectedTaxServiceIds, setSelectedTaxServiceIds] = useState<Set<string>>(new Set());
+  const [isSavingServices, setIsSavingServices] = useState<boolean>(false);
+  const [servicesSuccessBanner, setServicesSuccessBanner] = useState<string | null>(null);
+  const [servicesErrorBanner, setServicesErrorBanner] = useState<string | null>(null);
+
   const loadData = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const [profileData, completenessData, locationsData] = await Promise.all([
+      const [profileData, completenessData, locationsData, categoriesData, myServicesData] = await Promise.all([
         marketplacePracticeApi.getMyProfile(),
         marketplacePracticeApi.getProfileCompleteness().catch(() => null),
         marketplacePracticeApi.getLocations().catch(() => []),
+        marketplacePublicApi.getTaxServiceCategories().catch(() => []),
+        marketplacePracticeApi.getControlledTaxServices().catch(() => []),
       ]);
 
       setProfile(profileData);
       setLocations(locationsData || []);
+      setMasterCategories(categoriesData || []);
+      setSelectedTaxServiceIds(new Set((myServicesData || []).map((s: PracticeService) => s.taxServiceId)));
       setCompleteness(
         completenessData ||
         profileData.profileCompleteness ||
@@ -385,6 +402,50 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     navigator.clipboard.writeText(url);
     setCopiedSlug(true);
     setTimeout(() => setCopiedSlug(false), 2500);
+  };
+
+  const handleToggleTaxService = (serviceId: string) => {
+    setSelectedTaxServiceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(serviceId)) {
+        next.delete(serviceId);
+      } else {
+        next.add(serviceId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllCategory = (cat: PublicTaxServiceCategory) => {
+    setSelectedTaxServiceIds((prev) => {
+      const next = new Set(prev);
+      cat.services.forEach((s) => next.add(s.id));
+      return next;
+    });
+  };
+
+  const handleDeselectAllCategory = (cat: PublicTaxServiceCategory) => {
+    setSelectedTaxServiceIds((prev) => {
+      const next = new Set(prev);
+      cat.services.forEach((s) => next.delete(s.id));
+      return next;
+    });
+  };
+
+  const handleSaveControlledServices = async () => {
+    setIsSavingServices(true);
+    setServicesSuccessBanner(null);
+    setServicesErrorBanner(null);
+    try {
+      const updated = await marketplacePracticeApi.updateControlledTaxServices(Array.from(selectedTaxServiceIds));
+      setSelectedTaxServiceIds(new Set(updated.map((s: PracticeService) => s.taxServiceId)));
+      setServicesSuccessBanner(`Successfully updated practice offerings to ${updated.length} active tax services!`);
+      setTimeout(() => setServicesSuccessBanner(null), 4000);
+    } catch (err: any) {
+      setServicesErrorBanner(err.response?.data?.message || 'Failed to save practice services.');
+    } finally {
+      setIsSavingServices(false);
+    }
   };
 
   const percentage = completeness?.percentage ?? 0;
@@ -819,6 +880,150 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               ))}
             </div>
           )}
+        </Card>
+
+        {/* 4. Controlled Tax Services Offered Management Card */}
+        <Card className="p-6 sm:p-7 border border-slate-200 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <BookmarkCheck className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-bold text-slate-900">Services Offered</h3>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  {selectedTaxServiceIds.size} Selected
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Select from standardized Indian tax & compliance services. These controlled services power marketplace discovery, alias resolution, and geo-search matching.
+              </p>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveControlledServices}
+              isLoading={isSavingServices}
+              disabled={isLoading}
+            >
+              Save Services
+            </Button>
+          </div>
+
+          {/* Feedback Messages */}
+          {servicesSuccessBanner && (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{servicesSuccessBanner}</span>
+            </div>
+          )}
+
+          {servicesErrorBanner && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2 font-medium">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{servicesErrorBanner}</span>
+            </div>
+          )}
+
+          {/* Categories & Services Grid */}
+          <div className="space-y-6">
+            {masterCategories.map((cat) => {
+              const categorySelectedCount = cat.services.filter((s) => selectedTaxServiceIds.has(s.id)).length;
+              const allSelected = cat.services.length > 0 && categorySelectedCount === cat.services.length;
+
+              return (
+                <div key={cat.id} className="border border-slate-200/80 rounded-xl p-4 sm:p-5 bg-white space-y-4 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-indigo-600" />
+                        <h4 className="text-sm font-bold text-slate-900">{cat.name}</h4>
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          ({categorySelectedCount}/{cat.services.length} offered)
+                        </span>
+                      </div>
+                      {cat.description && (
+                        <p className="text-[11px] text-slate-500">{cat.description}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllCategory(cat)}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeselectAllCategory(cat)}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 transition"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {cat.services.map((svc) => {
+                      const isChecked = selectedTaxServiceIds.has(svc.id);
+                      return (
+                        <div
+                          key={svc.id}
+                          onClick={() => handleToggleTaxService(svc.id)}
+                          className={clsx(
+                            'p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-start gap-3',
+                            isChecked
+                              ? 'bg-indigo-50/40 border-indigo-300 ring-1 ring-indigo-500/20'
+                              : 'bg-slate-50/60 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          )}
+                        >
+                          <div className="mt-0.5 text-indigo-600">
+                            {isChecked ? (
+                              <CheckSquare className="w-4 h-4 fill-indigo-600 text-white" />
+                            ) : (
+                              <Square className="w-4 h-4 text-slate-400" />
+                            )}
+                          </div>
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className={clsx('text-xs font-bold', isChecked ? 'text-indigo-950' : 'text-slate-800')}>
+                                {svc.name}
+                              </span>
+                              <span className="text-[9px] font-mono font-semibold text-slate-400 uppercase">
+                                {svc.code}
+                              </span>
+                            </div>
+                            {svc.description && (
+                              <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                                {svc.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <span className="text-xs text-slate-500">
+              Selected <strong>{selectedTaxServiceIds.size}</strong> services across {masterCategories.length} categories
+            </span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveControlledServices}
+              isLoading={isSavingServices}
+              disabled={isLoading}
+            >
+              Save Services
+            </Button>
+          </div>
         </Card>
       </div>
 
