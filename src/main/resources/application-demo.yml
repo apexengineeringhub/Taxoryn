@@ -35,7 +35,7 @@ taxoryn:
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
     issuer: ${JWT_ISSUER:taxoryn-demo}
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5174,http://localhost:8089}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5174,http://localhost:8089,https://taxoryn-7x7f.vercel.app,https://*.vercel.app}
     allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
     allowed-headers: "*"
     allow-credentials: true
