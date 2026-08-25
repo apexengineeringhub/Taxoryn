@@ -18,11 +18,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/v1/customer/feedback", "/api/v1/marketplace/customer/feedback", "/api/marketplace/customer/feedback"})
+@RequestMapping({"/api/v1/feedback", "/api/feedback", "/api/v1/customer/feedback", "/api/v1/marketplace/customer/feedback", "/api/marketplace/customer/feedback"})
 @RequiredArgsConstructor
-@Tag(name = "Application Feedback", description = "Customer feedback about using the Taxoryn platform")
+@Tag(name = "Application Feedback", description = "Authenticated user feedback about using the Taxoryn platform")
 @SecurityRequirement(name = "BearerAuth")
-@PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+@PreAuthorize("isAuthenticated()")
 public class ApplicationFeedbackController {
 
     private final ApplicationFeedbackService feedbackService;
@@ -40,7 +40,7 @@ public class ApplicationFeedbackController {
     }
 
     @GetMapping
-    @Operation(summary = "List my application feedback", description = "Returns only feedback submitted by the authenticated customer")
+    @Operation(summary = "List my application feedback", description = "Returns only feedback submitted by the authenticated user in their authorized context")
     public ResponseEntity<ApiResponse<PagedResponse<ApplicationFeedbackDto>>> getMyFeedback(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size

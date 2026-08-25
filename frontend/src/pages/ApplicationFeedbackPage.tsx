@@ -5,6 +5,7 @@ import { applicationFeedbackApi } from '../api/endpoints';
 import { ApplicationFeedbackCategory, ApplicationFeedbackType, CreateApplicationFeedbackRequest } from '../types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
+import { useAuth } from '../context/AuthContext';
 
 const feedbackOptions: Array<{ type: ApplicationFeedbackType; label: string; description: string; icon: React.ElementType }> = [
   { type: 'SUGGESTION', label: 'Suggest an improvement', description: 'Share an idea that could make Taxoryn better.', icon: Lightbulb },
@@ -13,7 +14,7 @@ const feedbackOptions: Array<{ type: ApplicationFeedbackType; label: string; des
   { type: 'EXPERIENCE', label: 'Share your experience', description: 'Tell us how your experience with Taxoryn has been.', icon: Star },
 ];
 
-const categories: Array<{ value: ApplicationFeedbackCategory; label: string }> = [
+const customerCategories: Array<{ value: ApplicationFeedbackCategory; label: string }> = [
   { value: 'APPLICATION_EXPERIENCE', label: 'Overall application experience' },
   { value: 'PRACTICE_SEARCH', label: 'Finding a tax practice' },
   { value: 'PRACTICE_PROFILE', label: 'Practice profile' },
@@ -28,6 +29,23 @@ const categories: Array<{ value: ApplicationFeedbackCategory; label: string }> =
   { value: 'OTHER', label: 'Other' },
 ];
 
+const practitionerCategories: Array<{ value: ApplicationFeedbackCategory; label: string }> = [
+  { value: 'PRACTICE_PROFILE', label: 'Practice profile' }, { value: 'PRACTICE_LOCATIONS', label: 'Practice locations' },
+  { value: 'EMPLOYEE_MANAGEMENT', label: 'Employee management' }, { value: 'CUSTOMER_MANAGEMENT', label: 'Customer management' },
+  { value: 'ENQUIRIES', label: 'Enquiries' }, { value: 'TAX_SERVICES', label: 'Tax services' }, { value: 'MARKETPLACE', label: 'Marketplace' },
+  { value: 'CUSTOMER_MATCHING', label: 'Customer matching' }, { value: 'NOTIFICATIONS', label: 'Notifications' },
+  { value: 'DOCUMENTS', label: 'Documents' }, { value: 'REPORTS', label: 'Reports' }, { value: 'BILLING', label: 'Billing' },
+  { value: 'PERFORMANCE', label: 'Speed or performance' }, { value: 'OTHER', label: 'Other' },
+];
+
+const employeeCategories: Array<{ value: ApplicationFeedbackCategory; label: string }> = [
+  { value: 'CUSTOMER_MANAGEMENT', label: 'Customer management' }, { value: 'ENQUIRIES', label: 'Enquiries' },
+  { value: 'CUSTOMER_REQUIREMENTS', label: 'Customer requirements' }, { value: 'TAX_SERVICES', label: 'Tax services' },
+  { value: 'DOCUMENTS', label: 'Documents' }, { value: 'TASKS', label: 'Tasks' }, { value: 'NOTIFICATIONS', label: 'Notifications' },
+  { value: 'PRACTICE_OPERATIONS', label: 'Practice operations' }, { value: 'SEARCH', label: 'Search' },
+  { value: 'PERFORMANCE', label: 'Speed or performance' }, { value: 'OTHER', label: 'Other' },
+];
+
 const prompts: Record<ApplicationFeedbackType, string> = {
   SUGGESTION: 'What would you like us to improve?',
   PROBLEM: 'What went wrong?',
@@ -36,6 +54,14 @@ const prompts: Record<ApplicationFeedbackType, string> = {
 };
 
 export const ApplicationFeedbackPage: React.FC = () => {
+  const { user } = useAuth();
+  const roles = (user?.roles || []).map((role: any) => typeof role === 'string' ? role : role.code);
+  const isCustomer = roles.includes('MARKETPLACE_CUSTOMER');
+  const isPractitioner = !isCustomer && roles.some((role: string) => ['ORG_ADMIN', 'PARTNER', 'CA_PARTNER', 'PRACTITIONER'].includes(role));
+  const categories = isCustomer ? customerCategories : isPractitioner ? practitionerCategories : employeeCategories;
+  const backTo = isCustomer ? '/marketplace/customer/dashboard' : '/dashboard';
+  const heading = isCustomer ? 'What would you like to tell us?' : isPractitioner ? 'Help us improve your practice experience' : 'Tell us about your Taxoryn work experience';
+  const supportingText = isCustomer ? 'This feedback is about using Taxoryn, not the tax practice or professional you worked with.' : 'Your feedback is shared with Taxoryn to help improve the practice portal.';
   const [selectedType, setSelectedType] = useState<ApplicationFeedbackType | null>(null);
   const [form, setForm] = useState<Partial<CreateApplicationFeedbackRequest>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +85,7 @@ export const ApplicationFeedbackPage: React.FC = () => {
     try {
       await applicationFeedbackApi.create(form as CreateApplicationFeedbackRequest, {
         page: window.location.pathname,
-        feature: 'MARKETPLACE_CUSTOMER_FEEDBACK',
+        feature: isCustomer ? 'MARKETPLACE_CUSTOMER_FEEDBACK' : 'PRACTICE_PORTAL_FEEDBACK',
       });
       setSubmitted(true);
     } catch (requestError: any) {
@@ -77,7 +103,7 @@ export const ApplicationFeedbackPage: React.FC = () => {
             <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
             <h1 className="text-xl font-bold text-slate-900">Thank you for your feedback</h1>
             <p className="mt-2 text-sm text-slate-600">Your input helps us improve Taxoryn.</p>
-            <Link to="/marketplace/customer/dashboard" className="inline-block mt-6">
+            <Link to={backTo} className="inline-block mt-6">
               <Button>Back to dashboard</Button>
             </Link>
           </Card>
@@ -89,13 +115,13 @@ export const ApplicationFeedbackPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12">
       <div className="max-w-3xl mx-auto space-y-5">
-        <Link to="/marketplace/customer/dashboard" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-brand-700">
+        <Link to={backTo} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-brand-700">
           <ArrowLeft className="w-4 h-4" /> Back to dashboard
         </Link>
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-brand-600">Taxoryn feedback</p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">What would you like to tell us?</h1>
-          <p className="mt-2 text-sm text-slate-600">This feedback is about using Taxoryn, not the tax practice or professional you worked with.</p>
+          <h1 className="mt-1 text-2xl font-bold text-slate-900">{heading}</h1>
+          <p className="mt-2 text-sm text-slate-600">{supportingText}</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

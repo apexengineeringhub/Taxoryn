@@ -23,6 +23,18 @@ public class ApplicationFeedbackEntity extends AuditableEntity {
     private UUID userId;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "actor_type", nullable = false, length = 30)
+    private ApplicationFeedbackActorType actorType;
+
+    /** Practice context is the authenticated user's organization, never client supplied. */
+    @Column(name = "practice_id")
+    private UUID practiceId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "context_type", nullable = false, length = 30)
+    private ApplicationFeedbackContextType contextType;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "feedback_type", nullable = false, length = 30)
     private ApplicationFeedbackType type;
 

@@ -165,6 +165,7 @@ export const App: React.FC = () => {
               <Route path="/settings/branding" element={<PracticeBrandingPage />} />
               <Route path="/settings/marketplace" element={<PracticeMarketplaceProfilePage />} />
               <Route path="/settings/subscription" element={<SubscriptionsPage />} />
+              <Route path="/feedback" element={<ApplicationFeedbackPage />} />
             </Route>
 
             {/* Catch all redirect */}

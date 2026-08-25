@@ -20,6 +20,7 @@ import {
   Store,
   Search,
   ShieldCheck,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -72,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
     { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
+    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];
 
   const navItems = (isClientUser ? clientNavItems : practiceNavItems).filter((item) => item.visible);

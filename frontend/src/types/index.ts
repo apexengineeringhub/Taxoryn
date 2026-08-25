@@ -1541,7 +1541,22 @@ export type ApplicationFeedbackCategory =
   | 'REVIEWS'
   | 'ACCOUNT'
   | 'PERFORMANCE'
-  | 'OTHER';
+  | 'OTHER'
+  | 'PRACTICE_LOCATIONS'
+  | 'EMPLOYEE_MANAGEMENT'
+  | 'CUSTOMER_MANAGEMENT'
+  | 'ENQUIRIES'
+  | 'TAX_SERVICES'
+  | 'MARKETPLACE'
+  | 'CUSTOMER_MATCHING'
+  | 'NOTIFICATIONS'
+  | 'DOCUMENTS'
+  | 'REPORTS'
+  | 'BILLING'
+  | 'CUSTOMER_REQUIREMENTS'
+  | 'TASKS'
+  | 'PRACTICE_OPERATIONS'
+  | 'SEARCH';
 
 export interface CreateApplicationFeedbackRequest {
   type: ApplicationFeedbackType;

@@ -11,4 +11,6 @@ import java.util.UUID;
 @Repository
 public interface ApplicationFeedbackRepository extends JpaRepository<ApplicationFeedbackEntity, UUID> {
     Page<ApplicationFeedbackEntity> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+
+    Page<ApplicationFeedbackEntity> findByUserIdAndPracticeIdOrderByCreatedAtDesc(UUID userId, UUID practiceId, Pageable pageable);
 }
