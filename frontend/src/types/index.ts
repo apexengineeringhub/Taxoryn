@@ -31,8 +31,11 @@ export interface Organization {
   phone?: string;
   pan?: string;
   gstin?: string;
-  subscriptionPlan?: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
+  city?: string;
+  state?: string;
+  subscriptionPlan?: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  createdAt?: string;
 }
 
 export interface User {
@@ -44,9 +47,10 @@ export interface User {
   lastName?: string;
   phone?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-  roles: string[] | { id?: string; code: string; name: string }[];
+  roles: (string | { id?: string; code: string; name: string })[];
   permissions: string[];
   isClientUser?: boolean;
+  createdAt?: string;
 }
 
 export interface AuthTokens {
@@ -1779,4 +1783,106 @@ export interface EscalateToEngineeringRequest {
   internalNotes?: string;
 }
 
+// 18. Platform SuperAdmin Operations & Dashboard
+export interface PlatformKpis {
+  activePractices: number;
+  totalPractices: number;
+  activeUsers: number;
+  totalUsers: number;
+  activeCustomers: number;
+  totalMarketplaceLeads: number;
+  activeSubscriptions: number;
+  openFeedback: number;
+  platformStatus: string;
+  monthlyRecurringRevenue: number;
+  annualRecurringRevenue: number;
+}
 
+export interface PracticeEcosystem {
+  totalPractices: number;
+  activePractices: number;
+  pendingVerification: number;
+  inactivePractices: number;
+  suspendedPractices: number;
+  newPracticesThisMonth: number;
+}
+
+export interface UserEcosystem {
+  totalUsers: number;
+  activeUsers: number;
+  customers: number;
+  practitioners: number;
+  practiceEmployees: number;
+  taxorynAdminUsers: number;
+}
+
+export interface MarketplaceFunnel {
+  totalRequirements: number;
+  activeRequirements: number;
+  matchedRequirements: number;
+  totalEnquiries: number;
+  acceptedEnquiries: number;
+  completedServices: number;
+  conversionRate: number;
+}
+
+export interface SubscriptionMetrics {
+  totalSubscriptions: number;
+  starterTiers: number;
+  professionalTiers: number;
+  businessTiers: number;
+  enterpriseTiers: number;
+  activeTiers: number;
+  trialOrFreeTiers: number;
+  estimatedMrr: number;
+  estimatedArr: number;
+}
+
+export interface FeedbackOperations {
+  totalFeedback: number;
+  newFeedback: number;
+  underReview: number;
+  assigned: number;
+  inProgress: number;
+  escalatedToEng: number;
+  resolved: number;
+  criticalOpen: number;
+  topCategories: Record<string, number>;
+}
+
+export interface PlatformHealth {
+  apiGatewayStatus: string;
+  databaseStatus: string;
+  authServiceStatus: string;
+  marketplaceStatus: string;
+  feedbackSubsystemStatus: string;
+  backgroundJobsStatus: string;
+  activeDbConnections: number;
+  maxDbConnections: number;
+  systemCpuLoad: number;
+  usedMemoryMb: number;
+  maxMemoryMb: number;
+  uptimeSeconds: number;
+}
+
+export interface RecentAdminActivity {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  userEmail: string;
+  description: string;
+  timestamp: string;
+  status: string;
+}
+
+export interface PlatformDashboardSummary {
+  kpis: PlatformKpis;
+  practiceEcosystem: PracticeEcosystem;
+  userEcosystem: UserEcosystem;
+  marketplaceFunnel: MarketplaceFunnel;
+  subscriptionMetrics: SubscriptionMetrics;
+  feedbackOperations: FeedbackOperations;
+  platformHealth: PlatformHealth;
+  recentActivities: RecentAdminActivity[];
+}

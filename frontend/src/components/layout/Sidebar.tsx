@@ -21,6 +21,7 @@ import {
   Search,
   ShieldCheck,
   MessageSquarePlus,
+  Server,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -38,13 +39,25 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const isLight = currentTheme.mode === 'light';
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
   const isSuperAdmin = userRoleCodes.includes('SUPER_ADMIN');
-  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'PARTNER'].includes(r)) && !isSuperAdmin;
+  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin && !isSuperAdmin;
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
+  // 1. Platform SuperAdmin Nav Items (Zero sensitive client tax data)
+  const superAdminNavItems = [
+    { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard, visible: true },
+    { label: 'Practice Tenants', path: '/admin/practices', icon: Building2, visible: true },
+    { label: 'Platform Users', path: '/admin/users', icon: Users, visible: true },
+    { label: 'Marketplace Ops', path: '/admin/marketplace', icon: Store, visible: true },
+    { label: 'Subscriptions & MRR', path: '/admin/subscriptions', icon: CreditCard, visible: true },
+    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: true },
+    { label: 'Security & Audit', path: '/audit-logs', icon: ShieldAlert, visible: true },
+  ];
+
+  // 2. Client / Taxpayer Customer Portal Nav Items
   const clientNavItems = [
     { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard, visible: true },
     { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2, visible: true },
@@ -53,8 +66,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
     { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
     { label: 'Find CA / CS / Advocates', path: '/marketplace', icon: Search, visible: true },
+    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];
 
+  // 3. Practice Operations Suite (Tenant Admin & Practice Staff)
   const practiceNavItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, visible: true },
     { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, visible: true },
@@ -65,19 +80,21 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
     { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
-    { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: true },
-    { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, visible: true },
-    { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: true },
+    { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: isFirmAdmin },
+    { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, visible: isFirmAdmin },
+    { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: isFirmAdmin },
     { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
     { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },
-    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isFirmAdmin || isSuperAdmin },
+    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isFirmAdmin },
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
     { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
     { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];
 
-  const navItems = (isClientUser ? clientNavItems : practiceNavItems).filter((item) => item.visible);
+  const navItems = (
+    isSuperAdmin ? superAdminNavItems : isClientUser ? clientNavItems : practiceNavItems
+  ).filter((item) => item.visible);
 
   return (
     <aside
@@ -90,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         borderColor: currentTheme.sidebarBorder,
       }}
     >
-      {/* Dynamic Practice Brand Header */}
+      {/* Brand Header */}
       <div
         className="h-16 px-4 flex items-center justify-between border-b transition-colors"
         style={{
@@ -99,7 +116,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         }}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          {practiceLogo ? (
+          {isSuperAdmin ? (
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
+              TX
+            </div>
+          ) : practiceLogo ? (
             <img
               src={practiceLogo}
               alt="Practice Logo"
@@ -119,14 +140,14 @@ export const Sidebar: React.FC<SidebarProps> = () => {
           <div className="min-w-0">
             <span
               className={clsx('font-black text-xs tracking-tight block truncate', isLight ? 'text-slate-900' : 'text-white')}
-              title={practiceName}
+              title={isSuperAdmin ? 'Taxoryn Platform Operations' : practiceName}
             >
-              {practiceName}
+              {isSuperAdmin ? 'Taxoryn Platform' : practiceName}
             </span>
             <span
               className={clsx('text-[9px] font-bold tracking-wider uppercase block truncate', isLight ? 'text-slate-400' : 'text-slate-400')}
             >
-              Tax Practice Platform
+              {isSuperAdmin ? 'Platform SuperAdmin' : 'Tax Practice Platform'}
             </span>
           </div>
         </div>
@@ -141,10 +162,18 @@ export const Sidebar: React.FC<SidebarProps> = () => {
           <span
             className={clsx(
               'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider',
-              isLight ? 'text-emerald-700' : 'text-emerald-400'
+              isSuperAdmin ? 'text-purple-700' : isLight ? 'text-emerald-700' : 'text-emerald-400'
             )}
           >
-            <Sparkles className="w-3 h-3" /> {subscriptionPlan} Plan
+            {isSuperAdmin ? (
+              <>
+                <Server className="w-3 h-3 text-purple-600" /> Platform Multi-Tenant
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3 h-3" /> {subscriptionPlan} Plan
+              </>
+            )}
           </span>
         </div>
       </div>
@@ -203,15 +232,19 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 <span>{user?.firstName} {user?.lastName || ''}</span>
                 <span className={clsx(
                   'text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider',
-                  isClientUser
-                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200/60'
+                  isSuperAdmin
+                    ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                    : isClientUser
+                    ? 'bg-sky-100 text-sky-700 border border-sky-200/60'
                     : isFirmAdmin
-                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200/60'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200/60'
                     : isStaff
-                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60'
+                    ? 'bg-amber-100 text-amber-700 border border-amber-200/60'
+                    : 'bg-emerald-100 text-emerald-700 border border-emerald-200/60'
                 )}>
-                  {isClientUser
+                  {isSuperAdmin
+                    ? 'SuperAdmin'
+                    : isClientUser
                     ? userRoleCodes.includes('CLIENT_ADMIN')
                       ? 'Client Admin'
                       : 'Client'

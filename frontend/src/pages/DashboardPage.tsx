@@ -19,6 +19,7 @@ import { dashboardApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { OrganizationDashboard } from '../types';
 import { ClientPortalManagementPage } from './ClientPortalManagementPage';
+import { PlatformOverviewPage } from './PlatformOverviewPage';
 
 export const DashboardPage: React.FC = () => {
   const [dashboard, setDashboard] = useState<OrganizationDashboard | null>(null);
@@ -26,17 +27,22 @@ export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isSuperAdmin = userRoleCodes.includes('SUPER_ADMIN');
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
-  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
-  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin && !isSuperAdmin;
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
   useEffect(() => {
-    if (!isClientUser) {
+    if (!isClientUser && !isSuperAdmin) {
       loadDashboard();
     }
-  }, [isClientUser]);
+  }, [isClientUser, isSuperAdmin]);
+
+  if (isSuperAdmin) {
+    return <PlatformOverviewPage />;
+  }
 
   if (isClientUser) {
     return <ClientPortalManagementPage />;

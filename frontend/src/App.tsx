@@ -42,6 +42,10 @@ import { CustomerTaxRequirementWizardPage } from './pages/CustomerTaxRequirement
 import { CustomerTaxRequirementsListPage } from './pages/CustomerTaxRequirementsListPage';
 import { ApplicationFeedbackPage } from './pages/ApplicationFeedbackPage';
 import { AdminFeedbackPage } from './pages/AdminFeedbackPage';
+import { PlatformOverviewPage } from './pages/PlatformOverviewPage';
+import { PlatformPracticesPage } from './pages/PlatformPracticesPage';
+import { PlatformUsersPage } from './pages/PlatformUsersPage';
+import { PlatformSubscriptionsPage } from './pages/PlatformSubscriptionsPage';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -158,8 +162,13 @@ export const App: React.FC = () => {
               <Route path="/marketplace/leads" element={<MarketplaceLeadsPage />} />
               <Route path="/marketplace/onboarding" element={<MarketplaceOnboardingHubPage />} />
               <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
+              <Route path="/admin/overview" element={<PlatformOverviewPage />} />
+              <Route path="/admin/practices" element={<PlatformPracticesPage />} />
+              <Route path="/admin/users" element={<PlatformUsersPage />} />
+              <Route path="/admin/subscriptions" element={<PlatformSubscriptionsPage />} />
               <Route path="/admin/marketplace" element={<PlatformAdminMarketplacePage />} />
               <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
+              <Route path="/admin/audit" element={<AuditLogsPage />} />
               <Route path="/portal" element={<ClientPortalManagementPage />} />
               <Route path="/team" element={<TeamManagementPage />} />
               <Route path="/team/bulk" element={<BulkEmployeeOnboardingPage />} />

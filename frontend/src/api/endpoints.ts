@@ -107,6 +107,9 @@ import {
   MarkDuplicateFeedbackRequest,
   EscalateToEngineeringRequest,
   FeedbackTeam,
+  Organization,
+  User,
+  PlatformDashboardSummary,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1383,6 +1386,42 @@ export const adminFeedbackApi = {
   },
   getTeams: async () => {
     const res = await apiClient.get<ApiResponse<FeedbackTeam[]>>('/v1/admin/feedback/teams');
+    return res.data.data;
+  },
+};
+
+// --- 21. Platform Overview Dashboard API (SuperAdmin Only) ---
+export const platformDashboardApi = {
+  getOverview: async () => {
+    const res = await apiClient.get<ApiResponse<PlatformDashboardSummary>>('/v1/admin/platform/dashboard');
+    return res.data.data;
+  },
+};
+
+// --- 22. Platform Admin Practice Governance API ---
+export const adminPracticeApi = {
+  getPractices: async (params?: { page?: number; size?: number; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<Organization>>>('/v1/organizations', { params });
+    return res.data.data;
+  },
+  updateStatus: async (organizationId: string, payload: { status: string; reason?: string }) => {
+    const res = await apiClient.patch<ApiResponse<Organization>>(`/v1/organizations/${organizationId}/status`, payload);
+    return res.data.data;
+  },
+  getPracticeById: async (organizationId: string) => {
+    const res = await apiClient.get<ApiResponse<Organization>>(`/v1/organizations/${organizationId}`);
+    return res.data.data;
+  },
+};
+
+// --- 23. Platform Admin User Governance API ---
+export const adminUserApi = {
+  getUsers: async (params?: { role?: string; status?: string; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<User>>>('/v1/admin/users', { params });
+    return res.data.data;
+  },
+  updateStatus: async (userId: string, status: string) => {
+    const res = await apiClient.patch<ApiResponse<User>>(`/v1/admin/users/${userId}/status`, null, { params: { status } });
     return res.data.data;
   },
 };
