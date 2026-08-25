@@ -60,6 +60,15 @@ management:
       probes:
         enabled: true
 
+# Render keep-alive / uptime monitoring for this profile:
+# This is the profile Render runs (SPRING_PROFILES_ACTIVE=demo, see Dockerfile / render.yaml).
+# GET /api/health (com.taxoryn.core.health.HealthController) is the endpoint Render's
+# healthCheckPath and any external uptime monitor should call — it is public, does not
+# query PostgreSQL, and does not depend on the management config above.
+# /actuator/health (configured above) stays available too, for local Docker health checks
+# and deeper diagnostics, but it aggregates indicators including a DB check.
+# See docs/RENDER_KEEPALIVE.md for the full setup.
+
 # Verbose-enough logging to debug the demo without leaking sensitive fields
 # (PAN/Aadhaar/bank/JWT/documents are never logged — see LoggingMasker / MDC filters)
 logging:

@@ -301,3 +301,9 @@ mvn spring-boot:run
 ### 3. Swagger UI & Documentation
 - **Interactive UI**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 - **JSON Schema**: [http://localhost:8080/api-docs](http://localhost:8080/api-docs)
+
+### 4. Deployment & Keep-Alive
+- Backend deploys to Render (`render.yaml`), frontend to Vercel.
+- `GET /api/health` is a public, dependency-free liveness endpoint used for Render's health
+  check and for an external uptime monitor while on the Free plan.
+  See [`docs/RENDER_KEEPALIVE.md`](docs/RENDER_KEEPALIVE.md) for the full setup.

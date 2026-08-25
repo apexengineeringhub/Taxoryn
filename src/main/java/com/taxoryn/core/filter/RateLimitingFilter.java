@@ -79,7 +79,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                uri.startsWith("/v3/api-docs") ||
                uri.startsWith("/api-docs") ||
                uri.startsWith("/actuator") ||
-               uri.startsWith("/webjars");
+               uri.startsWith("/webjars") ||
+               uri.equals("/api/health");
     }
 
     private String extractClientIp(HttpServletRequest request) {
