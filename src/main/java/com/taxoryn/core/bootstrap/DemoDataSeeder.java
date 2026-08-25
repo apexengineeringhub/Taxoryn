@@ -114,6 +114,11 @@ public class DemoDataSeeder implements CommandLineRunner {
             log.error("Failed seeding permissions and roles", ex);
         }
         try {
+            seedSuperAdminUser();
+        } catch (Exception ex) {
+            log.error("Failed seeding Super Admin User", ex);
+        }
+        try {
             seedDemoOrganizationAndStaff("contact@apextax.com", "Apex Tax Advisors LLP", "AABFA1234K", "admin@apextax.com", "Admin", "User");
         } catch (Exception ex) {
             log.error("Failed seeding Apex Tax Advisors LLP", ex);
@@ -139,7 +144,9 @@ public class DemoDataSeeder implements CommandLineRunner {
                 "ORGANIZATION_VIEW", "ROLE_READ", "USER_VIEW", "USER_WRITE",
                 "CLIENT_PORTAL_ACCESS", "CLIENT_PORTAL_PROFILE_VIEW", "CLIENT_PORTAL_STATUS_VIEW",
                 "CLIENT_PORTAL_DOCUMENT_VIEW", "CLIENT_PORTAL_DOCUMENT_UPLOAD", "CLIENT_PORTAL_INVOICE_VIEW",
-                "CLIENT_PORTAL_USER_MANAGE"
+                "CLIENT_PORTAL_USER_MANAGE",
+                "FEEDBACK_VIEW", "FEEDBACK_REVIEW", "FEEDBACK_ASSIGN",
+                "FEEDBACK_RESOLVE", "FEEDBACK_ESCALATE", "FEEDBACK_MANAGE"
         );
 
         for (String code : permissionCodes) {
@@ -155,6 +162,17 @@ public class DemoDataSeeder implements CommandLineRunner {
 
         List<PermissionEntity> allPermissions = permissionRepository.findAll();
         Set<PermissionEntity> allPermSet = new HashSet<>(allPermissions);
+
+        // 1b. SUPER_ADMIN Role (All Permissions)
+        RoleEntity superAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("SUPER_ADMIN")
+                        .name("Super Administrator")
+                        .description("Platform Super Administrator with global administrative control")
+                        .isSystemRole(true)
+                        .build()));
+        superAdminRole.setPermissions(allPermSet);
+        roleRepository.save(superAdminRole);
 
         // 2. ORG_ADMIN Role (All Permissions)
         RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN")
@@ -234,6 +252,59 @@ public class DemoDataSeeder implements CommandLineRunner {
                 .collect(Collectors.toSet());
         clientAdminRole.setPermissions(clientAdminPerms);
         roleRepository.save(clientAdminRole);
+    }
+
+    private void seedSuperAdminUser() {
+        OrganizationEntity org = organizationRepository.findByEmailIgnoreCase("admin@taxoryn.com")
+                .orElseGet(() -> organizationRepository.save(OrganizationEntity.builder()
+                        .name("Taxoryn Platform Operations")
+                        .email("admin@taxoryn.com")
+                        .pan("AABFA0000K")
+                        .status(OrganizationStatus.ACTIVE)
+                        .subscriptionPlan(SubscriptionPlan.ENTERPRISE)
+                        .build()));
+
+        RoleEntity superAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("SUPER_ADMIN")
+                        .name("Super Administrator")
+                        .description("Platform Super Administrator with global administrative control")
+                        .isSystemRole(true)
+                        .build()));
+        RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN").orElse(superAdminRole);
+
+        List<PermissionEntity> allPermissions = permissionRepository.findAll();
+        superAdminRole.setPermissions(new HashSet<>(allPermissions));
+        roleRepository.save(superAdminRole);
+
+        Optional<UserEntity> existingUser = userRepository.findByEmailIgnoreCase("superadmin@taxoryn.com");
+        UserEntity superAdmin;
+        if (existingUser.isEmpty()) {
+            superAdmin = UserEntity.builder()
+                    .email("superadmin@taxoryn.com")
+                    .passwordHash(passwordEncoder.encode("Password123!"))
+                    .firstName("Taxoryn")
+                    .lastName("SuperAdmin")
+                    .phone("+918000000001")
+                    .status(UserStatus.ACTIVE)
+                    .roles(new HashSet<>(Set.of(superAdminRole, orgAdminRole)))
+                    .build();
+            superAdmin.setOrganizationId(org.getId());
+            userRepository.save(superAdmin);
+            log.info("Super admin user seeded: superadmin@taxoryn.com with password Password123!");
+        } else {
+            superAdmin = existingUser.get();
+            superAdmin.setStatus(UserStatus.ACTIVE);
+            superAdmin.setOrganizationId(org.getId());
+            superAdmin.setPasswordHash(passwordEncoder.encode("Password123!"));
+            if (superAdmin.getRoles() == null) {
+                superAdmin.setRoles(new HashSet<>());
+            }
+            superAdmin.getRoles().add(superAdminRole);
+            superAdmin.getRoles().add(orgAdminRole);
+            userRepository.save(superAdmin);
+            log.info("Super admin user updated & verified: superadmin@taxoryn.com");
+        }
     }
 
     private void seedDemoOrganizationAndStaff(String orgEmail, String orgName, String pan, String adminEmail, String firstName, String lastName) {

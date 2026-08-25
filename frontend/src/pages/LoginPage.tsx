@@ -75,6 +75,26 @@ export const LoginPage: React.FC = () => {
             <span className="text-[10px] text-slate-400 font-mono">Pwd: Password123!</span>
           </div>
 
+          {/* Super Admin Direct Quick Fill */}
+          <div className="p-2 bg-gradient-to-r from-purple-900/90 to-indigo-900/90 rounded-lg text-white flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-md bg-purple-500/30 flex items-center justify-center text-purple-200 shrink-0 font-black text-xs">
+                ★
+              </div>
+              <div className="min-w-0">
+                <span className="text-[11px] font-black tracking-wide block truncate">Platform Super Admin</span>
+                <span className="text-[10px] text-purple-200/80 block truncate">superadmin@taxoryn.com</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('superadmin@taxoryn.com')}
+              className="px-2.5 py-1 bg-white text-purple-900 rounded-md text-[11px] font-bold shadow-xs hover:bg-purple-50 transition-all shrink-0"
+            >
+              Fill SuperAdmin
+            </button>
+          </div>
+
           {/* Firm Switcher Tabs */}
           <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/70 rounded-lg text-xs font-semibold">
             <button

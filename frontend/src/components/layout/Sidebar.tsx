@@ -70,6 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: true },
     { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
     { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },
+    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isFirmAdmin || isSuperAdmin },
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
     { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },

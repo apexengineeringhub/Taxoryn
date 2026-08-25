@@ -4,8 +4,11 @@ package com.taxoryn.module.feedback.entity;
 public enum ApplicationFeedbackStatus {
     NEW,
     UNDER_REVIEW,
+    ASSIGNED,
     IN_PROGRESS,
+    ESCALATED,
     RESOLVED,
     CLOSED,
-    REJECTED
+    REJECTED,
+    DUPLICATE
 }

@@ -90,6 +90,23 @@ import {
   CreateMarketplaceLeadRequest,
   ApplicationFeedback,
   CreateApplicationFeedbackRequest,
+  AdminApplicationFeedbackSummary,
+  AdminApplicationFeedbackDetail,
+  FeedbackAssignment,
+  FeedbackNote,
+  FeedbackStatusHistory,
+  EngineeringIssue,
+  AdminAssignee,
+  AdminFeedbackStats,
+  AssignFeedbackRequest,
+  CreateFeedbackNoteRequest,
+  UpdateFeedbackPriorityRequest,
+  ResolveFeedbackRequest,
+  CloseFeedbackRequest,
+  RejectFeedbackRequest,
+  MarkDuplicateFeedbackRequest,
+  EscalateToEngineeringRequest,
+  FeedbackTeam,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1290,6 +1307,82 @@ export const customerTaxRequirementApi = {
   },
   getFinancialYears: async () => {
     const res = await apiClient.get<ApiResponse<FinancialYearOption[]>>('/v1/customer/tax-requirements/financial-years');
+    return res.data.data;
+  },
+};
+
+// --- 20. Platform Admin Feedback Management API ---
+export const adminFeedbackApi = {
+  getFeedbackList: async (params?: {
+    search?: string;
+    actorType?: string;
+    type?: string;
+    category?: string;
+    status?: string;
+    priority?: string;
+    practiceId?: string;
+    assignedTeam?: string;
+    assignedUserId?: string;
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<AdminApplicationFeedbackSummary>>>('/v1/admin/feedback', { params });
+    return res.data.data;
+  },
+  getFeedbackDetail: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}`);
+    return res.data.data;
+  },
+  startReview: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/start-review`);
+    return res.data.data;
+  },
+  assignFeedback: async (id: string, payload: AssignFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/assign`, payload);
+    return res.data.data;
+  },
+  addNote: async (id: string, payload: CreateFeedbackNoteRequest) => {
+    const res = await apiClient.post<ApiResponse<FeedbackNote>>(`/v1/admin/feedback/${id}/notes`, payload);
+    return res.data.data;
+  },
+  updatePriority: async (id: string, payload: UpdateFeedbackPriorityRequest) => {
+    const res = await apiClient.patch<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/priority`, payload);
+    return res.data.data;
+  },
+  resolveFeedback: async (id: string, payload: ResolveFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/resolve`, payload);
+    return res.data.data;
+  },
+  closeFeedback: async (id: string, payload?: CloseFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/close`, payload || {});
+    return res.data.data;
+  },
+  rejectFeedback: async (id: string, payload: RejectFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/reject`, payload);
+    return res.data.data;
+  },
+  markDuplicate: async (id: string, payload: MarkDuplicateFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/duplicate`, payload);
+    return res.data.data;
+  },
+  escalateToEngineering: async (id: string, payload: EscalateToEngineeringRequest) => {
+    const res = await apiClient.post<ApiResponse<EngineeringIssue>>(`/v1/admin/feedback/${id}/escalate`, payload);
+    return res.data.data;
+  },
+  getStats: async () => {
+    const res = await apiClient.get<ApiResponse<AdminFeedbackStats>>('/v1/admin/feedback/stats');
+    return res.data.data;
+  },
+  getAssignees: async () => {
+    const res = await apiClient.get<ApiResponse<AdminAssignee[]>>('/v1/admin/feedback/assignees');
+    return res.data.data;
+  },
+  getTeams: async () => {
+    const res = await apiClient.get<ApiResponse<FeedbackTeam[]>>('/v1/admin/feedback/teams');
     return res.data.data;
   },
 };

@@ -41,6 +41,7 @@ import { CustomerProfilePage } from './pages/CustomerProfilePage';
 import { CustomerTaxRequirementWizardPage } from './pages/CustomerTaxRequirementWizardPage';
 import { CustomerTaxRequirementsListPage } from './pages/CustomerTaxRequirementsListPage';
 import { ApplicationFeedbackPage } from './pages/ApplicationFeedbackPage';
+import { AdminFeedbackPage } from './pages/AdminFeedbackPage';
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -158,6 +159,7 @@ export const App: React.FC = () => {
               <Route path="/marketplace/onboarding" element={<MarketplaceOnboardingHubPage />} />
               <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
               <Route path="/admin/marketplace" element={<PlatformAdminMarketplacePage />} />
+              <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
               <Route path="/portal" element={<ClientPortalManagementPage />} />
               <Route path="/team" element={<TeamManagementPage />} />
               <Route path="/team/bulk" element={<BulkEmployeeOnboardingPage />} />

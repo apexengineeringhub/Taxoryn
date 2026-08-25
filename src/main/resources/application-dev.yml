@@ -1,4 +1,6 @@
 spring:
+  flyway:
+    validate-on-migrate: false
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/taxoryn_db}
     username: ${SPRING_DATASOURCE_USERNAME:taxoryn_user}

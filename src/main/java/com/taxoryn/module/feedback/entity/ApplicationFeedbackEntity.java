@@ -4,6 +4,7 @@ import com.taxoryn.core.domain.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -70,4 +71,29 @@ public class ApplicationFeedbackEntity extends AuditableEntity {
     @Column(name = "priority", nullable = false, length = 20)
     @Builder.Default
     private ApplicationFeedbackPriority priority = ApplicationFeedbackPriority.MEDIUM;
+
+    @Column(name = "duplicate_of_id")
+    private UUID duplicateOfId;
+
+    @Column(name = "resolution_note", length = 4000)
+    private String resolutionNote;
+
+    @Column(name = "resolved_by")
+    private UUID resolvedBy;
+
+    @Column(name = "resolved_at")
+    private Instant resolvedAt;
+
+    @Column(name = "closed_by")
+    private UUID closedBy;
+
+    @Column(name = "closed_at")
+    private Instant closedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "assigned_team", length = 50)
+    private FeedbackTeam assignedTeam;
+
+    @Column(name = "assigned_user_id")
+    private UUID assignedUserId;
 }

@@ -1558,6 +1558,14 @@ export type ApplicationFeedbackCategory =
   | 'PRACTICE_OPERATIONS'
   | 'SEARCH';
 
+export type ApplicationFeedbackActorType = 'CUSTOMER' | 'PRACTITIONER' | 'PRACTICE_EMPLOYEE';
+export type ApplicationFeedbackContextType = 'CUSTOMER_PORTAL' | 'PRACTICE_PORTAL';
+export type ApplicationFeedbackStatus = 'NEW' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'ESCALATED' | 'RESOLVED' | 'CLOSED' | 'REJECTED' | 'DUPLICATE';
+export type ApplicationFeedbackPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type FeedbackTeam = 'CUSTOMER_SUPPORT' | 'OPERATIONS' | 'MARKETPLACE' | 'PRODUCT' | 'ENGINEERING' | 'MARKETING' | 'FINANCE';
+export type FeedbackNoteVisibility = 'INTERNAL' | 'CUSTOMER_VISIBLE';
+export type EngineeringIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'FIXED' | 'CLOSED';
+
 export interface CreateApplicationFeedbackRequest {
   type: ApplicationFeedbackType;
   category: ApplicationFeedbackCategory;
@@ -1568,6 +1576,207 @@ export interface CreateApplicationFeedbackRequest {
 
 export interface ApplicationFeedback extends CreateApplicationFeedbackRequest {
   id: string;
+  actorType?: ApplicationFeedbackActorType;
+  contextType?: ApplicationFeedbackContextType;
+  practiceId?: string;
+  page?: string;
+  feature?: string;
+  source?: string;
+  status?: ApplicationFeedbackStatus;
+  priority?: ApplicationFeedbackPriority;
   createdAt: string;
 }
+
+// Admin Feedback Management Interfaces
+export interface AdminApplicationFeedbackSummary {
+  id: string;
+  feedbackCode: string;
+  actorType: ApplicationFeedbackActorType;
+  contextType: ApplicationFeedbackContextType;
+  type: ApplicationFeedbackType;
+  category: ApplicationFeedbackCategory;
+  rating?: number;
+  title: string;
+  descriptionExcerpt: string;
+  page?: string;
+  feature?: string;
+  status: ApplicationFeedbackStatus;
+  priority: ApplicationFeedbackPriority;
+  assignedTeam?: FeedbackTeam;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  practiceId?: string;
+  practiceName?: string;
+  reporterName?: string;
+  reporterEmail?: string;
+  hasEngineeringIssue: boolean;
+  engineeringIssueCode?: string;
+  hasDuplicateOf: boolean;
+  duplicateOfId?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FeedbackAssignment {
+  id: string;
+  feedbackId: string;
+  team: FeedbackTeam;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  assignedUserEmail?: string;
+  assignedBy?: string;
+  assignedByName?: string;
+  reason?: string;
+  assignedAt: string;
+  unassignedAt?: string;
+  active: boolean;
+}
+
+export interface FeedbackNote {
+  id: string;
+  feedbackId: string;
+  authorId?: string;
+  authorName?: string;
+  note: string;
+  visibility: FeedbackNoteVisibility;
+  createdAt: string;
+}
+
+export interface FeedbackStatusHistory {
+  id: string;
+  feedbackId: string;
+  oldStatus?: ApplicationFeedbackStatus;
+  newStatus: ApplicationFeedbackStatus;
+  changedBy?: string;
+  changedByName?: string;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface EngineeringIssue {
+  id: string;
+  feedbackId: string;
+  issueCode: string;
+  title: string;
+  description: string;
+  priority: ApplicationFeedbackPriority;
+  status: EngineeringIssueStatus;
+  assignedTeam: string;
+  createdBy?: string;
+  createdByName?: string;
+  externalSystem?: string;
+  externalIssueId?: string;
+  externalIssueUrl?: string;
+  externalStatus?: string;
+  lastSyncedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminApplicationFeedbackDetail {
+  id: string;
+  feedbackCode: string;
+  userId: string;
+  reporterName: string;
+  reporterEmail?: string;
+  reporterPhone?: string;
+  actorType: ApplicationFeedbackActorType;
+  practiceId?: string;
+  practiceName?: string;
+  practiceEmail?: string;
+  practiceSubscriptionPlan?: string;
+  contextType: ApplicationFeedbackContextType;
+  type: ApplicationFeedbackType;
+  category: ApplicationFeedbackCategory;
+  rating?: number;
+  title: string;
+  description: string;
+  page?: string;
+  feature?: string;
+  source: string;
+  status: ApplicationFeedbackStatus;
+  priority: ApplicationFeedbackPriority;
+  assignedTeam?: FeedbackTeam;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  activeAssignment?: FeedbackAssignment;
+  assignmentHistory: FeedbackAssignment[];
+  duplicateOfId?: string;
+  duplicateOfTitle?: string;
+  resolutionNote?: string;
+  resolvedBy?: string;
+  resolvedByName?: string;
+  resolvedAt?: string;
+  closedBy?: string;
+  closedByName?: string;
+  closedAt?: string;
+  engineeringIssue?: EngineeringIssue;
+  notes: FeedbackNote[];
+  timeline: FeedbackStatusHistory[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminAssignee {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export interface AdminFeedbackStats {
+  totalCount: number;
+  newCount: number;
+  underReviewCount: number;
+  assignedCount: number;
+  inProgressCount: number;
+  escalatedCount: number;
+  resolvedCount: number;
+  closedCount: number;
+  rejectedCount: number;
+  duplicateCount: number;
+  criticalCount: number;
+  highCount: number;
+}
+
+export interface AssignFeedbackRequest {
+  team: FeedbackTeam;
+  assignedUserId?: string;
+  reason?: string;
+}
+
+export interface CreateFeedbackNoteRequest {
+  note: string;
+  visibility?: FeedbackNoteVisibility;
+}
+
+export interface UpdateFeedbackPriorityRequest {
+  priority: ApplicationFeedbackPriority;
+  reason?: string;
+}
+
+export interface ResolveFeedbackRequest {
+  resolutionNote: string;
+}
+
+export interface CloseFeedbackRequest {
+  reason?: string;
+}
+
+export interface RejectFeedbackRequest {
+  reason: string;
+}
+
+export interface MarkDuplicateFeedbackRequest {
+  duplicateOfId: string;
+  reason?: string;
+}
+
+export interface EscalateToEngineeringRequest {
+  title: string;
+  description: string;
+  priority: ApplicationFeedbackPriority;
+  internalNotes?: string;
+}
+
 
