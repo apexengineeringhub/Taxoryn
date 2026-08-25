@@ -1527,3 +1527,32 @@ export interface CreateMarketplaceLeadRequest {
   urgency?: LeadUrgency | string;
 }
 
+// Application Feedback is deliberately separate from a MarketplaceReview.
+export type ApplicationFeedbackType = 'SUGGESTION' | 'PROBLEM' | 'GENERAL' | 'EXPERIENCE';
+export type ApplicationFeedbackCategory =
+  | 'APPLICATION_EXPERIENCE'
+  | 'PRACTICE_SEARCH'
+  | 'PRACTICE_PROFILE'
+  | 'CUSTOMER_PROFILE'
+  | 'TAX_SERVICE'
+  | 'REQUIREMENT'
+  | 'MATCHING'
+  | 'ENQUIRY'
+  | 'REVIEWS'
+  | 'ACCOUNT'
+  | 'PERFORMANCE'
+  | 'OTHER';
+
+export interface CreateApplicationFeedbackRequest {
+  type: ApplicationFeedbackType;
+  category: ApplicationFeedbackCategory;
+  rating?: number;
+  title: string;
+  description: string;
+}
+
+export interface ApplicationFeedback extends CreateApplicationFeedbackRequest {
+  id: string;
+  createdAt: string;
+}
+

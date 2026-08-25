@@ -2,7 +2,7 @@ spring:
   application:
     name: taxoryn
   profiles:
-    active: demo
+    active: dev
   jpa:
     open-in-view: false
     hibernate:

@@ -18,6 +18,7 @@ import {
   Plus,
   Layers,
   MapPin,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -83,6 +84,12 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <Link to="/marketplace/customer/feedback">
+                <Button variant="secondary" size="sm" className="text-xs bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
+                  <MessageSquarePlus className="w-3.5 h-3.5 mr-1.5" />
+                  Give Feedback
+                </Button>
+              </Link>
               <Link to="/marketplace/customer/requirements/new">
                 <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 font-bold">
                   <Plus className="w-3.5 h-3.5 mr-1.5" />

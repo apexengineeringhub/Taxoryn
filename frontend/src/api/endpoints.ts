@@ -88,6 +88,8 @@ import {
   FinancialYearOption,
   EarlyEnquiryView,
   CreateMarketplaceLeadRequest,
+  ApplicationFeedback,
+  CreateApplicationFeedbackRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1239,6 +1241,21 @@ export const marketplaceCustomerApi = {
   },
   getReviews: async () => {
     const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>('/v1/marketplace/customer/reviews');
+    return res.data.data;
+  },
+};
+
+// --- 20. Application Feedback (kept separate from Marketplace Reviews) ---
+export const applicationFeedbackApi = {
+  create: async (payload: CreateApplicationFeedbackRequest, context?: { page?: string; feature?: string }) => {
+    const headers: Record<string, string> = {};
+    if (context?.page) headers['X-Feedback-Page'] = context.page;
+    if (context?.feature) headers['X-Feedback-Feature'] = context.feature;
+    const res = await apiClient.post<ApiResponse<ApplicationFeedback>>('/v1/customer/feedback', payload, { headers });
+    return res.data.data;
+  },
+  listMine: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ApplicationFeedback>>>('/v1/customer/feedback', { params });
     return res.data.data;
   },
 };
