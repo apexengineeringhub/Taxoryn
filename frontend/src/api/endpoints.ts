@@ -1430,6 +1430,22 @@ export const adminUserApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<User>>>('/v1/admin/users', { params });
     return res.data.data;
   },
+  createUser: async (payload: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    roleCode: string;
+    status?: string;
+    temporaryPassword?: string;
+  }) => {
+    const res = await apiClient.post<ApiResponse<User>>('/v1/admin/users', payload);
+    return res.data.data;
+  },
+  updateRole: async (userId: string, roleCode: string) => {
+    const res = await apiClient.put<ApiResponse<User>>(`/v1/admin/users/${userId}/role`, { roleCode });
+    return res.data.data;
+  },
   updateStatus: async (userId: string, status: string) => {
     const res = await apiClient.patch<ApiResponse<User>>(`/v1/admin/users/${userId}/status`, null, { params: { status } });
     return res.data.data;

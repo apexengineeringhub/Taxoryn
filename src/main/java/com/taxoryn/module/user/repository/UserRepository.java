@@ -24,6 +24,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     boolean existsByOrganizationIdAndEmailIgnoreCase(UUID organizationId, String email);
 
+    boolean existsByEmailIgnoreCase(String email);
+
     long countByOrganizationId(UUID organizationId);
 
     long countByOrganizationIdAndClientIdIsNull(UUID organizationId);

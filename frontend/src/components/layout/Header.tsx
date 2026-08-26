@@ -18,8 +18,10 @@ export const Header: React.FC = () => {
   const isTaxorynSupportAdmin = userRoleCodes.includes('TAXORYN_SUPPORT_ADMIN');
   const isTaxorynFinanceAdmin = userRoleCodes.includes('TAXORYN_FINANCE_ADMIN');
   const isTaxorynMarketplaceAdmin = userRoleCodes.includes('TAXORYN_MARKETPLACE_ADMIN');
+  const isTaxorynContentAdmin = userRoleCodes.includes('TAXORYN_CONTENT_ADMIN');
   const isTaxorynSecurityAdmin = userRoleCodes.includes('TAXORYN_SECURITY_ADMIN');
-  const isPlatformUser = isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynFinanceAdmin || isTaxorynMarketplaceAdmin || isTaxorynSecurityAdmin;
+  const isTaxorynEngineeringAdmin = userRoleCodes.includes('TAXORYN_ENGINEERING_ADMIN');
+  const isPlatformUser = isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynFinanceAdmin || isTaxorynMarketplaceAdmin || isTaxorynContentAdmin || isTaxorynSecurityAdmin || isTaxorynEngineeringAdmin;
 
   // 2. Practice / Organization Roles
   const isPracticeAdmin = !isPlatformUser && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
@@ -38,7 +40,9 @@ export const Header: React.FC = () => {
     if (isTaxorynSupportAdmin) return 'Platform Support';
     if (isTaxorynFinanceAdmin) return 'Platform Finance';
     if (isTaxorynMarketplaceAdmin) return 'Marketplace Admin';
+    if (isTaxorynContentAdmin) return 'Content Admin';
     if (isTaxorynSecurityAdmin) return 'Security Admin';
+    if (isTaxorynEngineeringAdmin) return 'Engineering Admin';
     if (isPracticeAdmin) return 'Practice Admin';
     if (isManager) return 'Practice Manager';
     if (isPractitioner) return 'Tax Consultant';

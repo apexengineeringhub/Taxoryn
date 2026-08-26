@@ -65,6 +65,7 @@ public final class SecurityUtils {
                 || hasRole("TAXORYN_SUPPORT_ADMIN")
                 || hasRole("TAXORYN_FINANCE_ADMIN")
                 || hasRole("TAXORYN_MARKETPLACE_ADMIN")
+                || hasRole("TAXORYN_CONTENT_ADMIN")
                 || hasRole("TAXORYN_SECURITY_ADMIN")
                 || hasRole("TAXORYN_ENGINEERING_ADMIN");
     }
@@ -83,6 +84,45 @@ public final class SecurityUtils {
 
     public static boolean isTaxorynFinanceAdmin() {
         return hasRole("TAXORYN_FINANCE_ADMIN");
+    }
+
+    public static boolean isTaxorynMarketplaceAdmin() {
+        return hasRole("TAXORYN_MARKETPLACE_ADMIN");
+    }
+
+    public static boolean isTaxorynContentAdmin() {
+        return hasRole("TAXORYN_CONTENT_ADMIN");
+    }
+
+    public static boolean isTaxorynSecurityAdmin() {
+        return hasRole("TAXORYN_SECURITY_ADMIN");
+    }
+
+    public static boolean isTaxorynEngineeringAdmin() {
+        return hasRole("TAXORYN_ENGINEERING_ADMIN");
+    }
+
+    /**
+     * Prevents privilege escalation by verifying if the caller is authorized to assign a target platform role.
+     */
+    public static boolean canAssignPlatformRole(String targetRoleCode) {
+        if (targetRoleCode == null) return false;
+        String cleanCode = targetRoleCode.trim().toUpperCase();
+
+        if (isTaxorynSuperAdmin()) {
+            return true; // SuperAdmin can assign all platform roles
+        }
+
+        if (isTaxorynOperationsAdmin()) {
+            // Operations Admin can assign standard operational platform roles, but NEVER SuperAdmin, Security Admin, or Engineering Admin
+            return switch (cleanCode) {
+                case "TAXORYN_OPERATIONS_ADMIN", "TAXORYN_SUPPORT_ADMIN", "TAXORYN_MARKETPLACE_ADMIN",
+                     "TAXORYN_FINANCE_ADMIN", "TAXORYN_CONTENT_ADMIN" -> true;
+                default -> false;
+            };
+        }
+
+        return false;
     }
 
     public static boolean hasAuthority(String authority) {
