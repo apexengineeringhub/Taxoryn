@@ -110,6 +110,7 @@ import {
   Organization,
   User,
   PlatformDashboardSummary,
+  SupportDashboardSummary,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1404,6 +1405,14 @@ export const adminFeedbackApi = {
 export const platformDashboardApi = {
   getOverview: async () => {
     const res = await apiClient.get<ApiResponse<PlatformDashboardSummary>>('/v1/admin/platform/dashboard');
+    return res.data.data;
+  },
+};
+
+// --- 21b. Platform Support Dashboard API (Support Admin) ---
+export const supportDashboardApi = {
+  getOverview: async () => {
+    const res = await apiClient.get<ApiResponse<SupportDashboardSummary>>('/v1/admin/support/overview');
     return res.data.data;
   },
 };

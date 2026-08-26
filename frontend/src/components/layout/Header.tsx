@@ -3,6 +3,7 @@ import { Search, Bell, Plus, ShieldCheck, Server } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
+import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 
 export const Header: React.FC = () => {
   const { user } = useAuth();
@@ -12,37 +13,22 @@ export const Header: React.FC = () => {
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
 
-  // 1. Taxoryn Internal Platform Roles
-  const isTaxorynSuperAdmin = userRoleCodes.includes('TAXORYN_SUPERADMIN') || userRoleCodes.includes('SUPER_ADMIN');
-  const isTaxorynOpsAdmin = userRoleCodes.includes('TAXORYN_OPERATIONS_ADMIN');
-  const isTaxorynSupportAdmin = userRoleCodes.includes('TAXORYN_SUPPORT_ADMIN');
-  const isTaxorynFinanceAdmin = userRoleCodes.includes('TAXORYN_FINANCE_ADMIN');
-  const isTaxorynMarketplaceAdmin = userRoleCodes.includes('TAXORYN_MARKETPLACE_ADMIN');
-  const isTaxorynContentAdmin = userRoleCodes.includes('TAXORYN_CONTENT_ADMIN');
-  const isTaxorynSecurityAdmin = userRoleCodes.includes('TAXORYN_SECURITY_ADMIN');
-  const isTaxorynEngineeringAdmin = userRoleCodes.includes('TAXORYN_ENGINEERING_ADMIN');
-  const isPlatformUser = isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynFinanceAdmin || isTaxorynMarketplaceAdmin || isTaxorynContentAdmin || isTaxorynSecurityAdmin || isTaxorynEngineeringAdmin;
+  const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
+  const isPlatformUser = !!platformWorkspace || userRoleCodes.some((r: string) => r.startsWith('TAXORYN_') || r === 'SUPER_ADMIN');
 
-  // 2. Practice / Organization Roles
+  // Practice / Organization Roles
   const isPracticeAdmin = !isPlatformUser && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
   const isManager = !isPlatformUser && userRoleCodes.includes('MANAGER');
   const isPractitioner = !isPlatformUser && (userRoleCodes.includes('PRACTITIONER') || userRoleCodes.includes('TAX_PROFESSIONAL'));
   const isStaff = !isPlatformUser && !isPracticeAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
 
-  // 3. Customer Roles
+  // Customer Roles
   const isMarketplaceCustomer = userRoleCodes.includes('MARKETPLACE_CUSTOMER');
   const isClientAdmin = userRoleCodes.includes('CLIENT_ADMIN');
   const isClientUser = userRoleCodes.includes('CLIENT_USER') || userRoleCodes.includes('PRACTICE_CLIENT') || isClientAdmin || isMarketplaceCustomer;
 
   const getHeaderRoleLabel = () => {
-    if (isTaxorynSuperAdmin) return 'Taxoryn SuperAdmin';
-    if (isTaxorynOpsAdmin) return 'Platform Operations';
-    if (isTaxorynSupportAdmin) return 'Platform Support';
-    if (isTaxorynFinanceAdmin) return 'Platform Finance';
-    if (isTaxorynMarketplaceAdmin) return 'Marketplace Admin';
-    if (isTaxorynContentAdmin) return 'Content Admin';
-    if (isTaxorynSecurityAdmin) return 'Security Admin';
-    if (isTaxorynEngineeringAdmin) return 'Engineering Admin';
+    if (platformWorkspace?.roleTitle) return platformWorkspace.roleTitle;
     if (isPracticeAdmin) return 'Practice Admin';
     if (isManager) return 'Practice Manager';
     if (isPractitioner) return 'Tax Consultant';

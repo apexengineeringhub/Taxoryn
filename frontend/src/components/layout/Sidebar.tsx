@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
+import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -55,15 +56,27 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
-  // 1. Platform SuperAdmin & Platform Role Nav Items (Zero sensitive client tax data)
-  const superAdminNavItems = [
-    { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard, visible: isSuperAdmin || userPermissions.includes('PLATFORM_VIEW') },
-    { label: 'Practice Tenants', path: '/admin/practices', icon: Building2, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || userPermissions.includes('PRACTICE_VIEW') },
-    { label: 'Platform Users', path: '/admin/users', icon: Users, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || userPermissions.includes('USER_VIEW') || userPermissions.includes('PLATFORM_USER_VIEW') },
-    { label: 'Marketplace Ops', path: '/admin/marketplace', icon: Store, visible: isTaxorynSuperAdmin || isTaxorynMarketplaceAdmin || userPermissions.includes('MARKETPLACE_VIEW') },
-    { label: 'Subscriptions & MRR', path: '/admin/subscriptions', icon: CreditCard, visible: isTaxorynSuperAdmin || isTaxorynFinanceAdmin || userPermissions.includes('SUBSCRIPTION_VIEW') },
-    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynEngineeringAdmin || userPermissions.includes('FEEDBACK_VIEW') },
-    { label: 'Security & Audit', path: '/audit-logs', icon: ShieldAlert, visible: isTaxorynSuperAdmin || isTaxorynSecurityAdmin || userPermissions.includes('AUDIT_VIEW') },
+  // Dynamic Workspace Definition
+  const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
+
+  const getPlatformSubtitle = () => {
+    if (platformWorkspace?.platformSubtitle) return platformWorkspace.platformSubtitle;
+    if (isTaxorynSupportAdmin) return 'PLATFORM SUPPORT';
+    if (isTaxorynFinanceAdmin) return 'PLATFORM FINANCE';
+    if (isTaxorynMarketplaceAdmin) return 'MARKETPLACE OPERATIONS';
+    if (isTaxorynSecurityAdmin) return 'PLATFORM SECURITY';
+    if (isTaxorynOpsAdmin) return 'PLATFORM OPERATIONS';
+    if (isTaxorynContentAdmin) return 'PLATFORM CONTENT';
+    if (isTaxorynEngineeringAdmin) return 'PLATFORM ENGINEERING';
+    return 'PLATFORM SUPERADMIN';
+  };
+
+  // 1. Platform SuperAdmin & Platform Role Nav Items (Strictly role-resolved)
+  const platformNavItems = platformWorkspace?.navigation?.map(item => ({
+    ...item,
+    visible: true,
+  })) || [
+    { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard, visible: true },
   ];
 
   // 2. Client / Taxpayer Customer Portal Nav Items
@@ -102,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   ];
 
   const navItems = (
-    isSuperAdmin ? superAdminNavItems : isClientUser ? clientNavItems : practiceNavItems
+    isSuperAdmin ? platformNavItems : isClientUser ? clientNavItems : practiceNavItems
   ).filter((item) => item.visible);
 
   return (
@@ -156,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
             <span
               className={clsx('text-[9px] font-bold tracking-wider uppercase block truncate', isLight ? 'text-slate-400' : 'text-slate-400')}
             >
-              {isSuperAdmin ? 'Platform SuperAdmin' : 'Tax Practice Platform'}
+              {isSuperAdmin ? getPlatformSubtitle() : 'Tax Practice Platform'}
             </span>
           </div>
         </div>

@@ -1946,3 +1946,40 @@ export interface PlatformDashboardSummary {
   platformHealth: PlatformHealth;
   recentActivities: RecentAdminActivity[];
 }
+
+export interface SupportKpis {
+  openCases: number;
+  waitingForCustomer: number;
+  highPriority: number;
+  unresolvedFeedback: number;
+  resolvedThisMonth: number;
+}
+
+export interface SupportAttentionItem {
+  id: string;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  actionTarget: string;
+  actionLabel: string;
+}
+
+export interface RecentSupportActivity {
+  id: string;
+  title: string;
+  description: string;
+  actor: string;
+  target: string;
+  timestamp: string;
+  status: string;
+  severity: string;
+  navigationTarget: string;
+}
+
+export interface SupportDashboardSummary {
+  kpis: SupportKpis;
+  supportAttention: SupportAttentionItem[];
+  recentActivity: RecentSupportActivity[];
+}
+

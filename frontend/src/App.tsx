@@ -47,6 +47,8 @@ import { PlatformPracticesPage } from './pages/PlatformPracticesPage';
 import { PlatformUsersPage } from './pages/PlatformUsersPage';
 import { PlatformSubscriptionsPage } from './pages/PlatformSubscriptionsPage';
 
+import { RoleRouteGuard } from './components/common/RoleRouteGuard';
+
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -163,16 +165,58 @@ export const App: React.FC = () => {
               <Route path="/marketplace/onboarding" element={<MarketplaceOnboardingHubPage />} />
               <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
               <Route path="/admin/overview" element={<PlatformOverviewPage />} />
-              <Route path="/admin/practices" element={<PlatformPracticesPage />} />
-              <Route path="/admin/users" element={<PlatformUsersPage />} />
-              <Route path="/admin/subscriptions" element={<PlatformSubscriptionsPage />} />
-              <Route path="/admin/marketplace" element={<PlatformAdminMarketplacePage />} />
+              <Route
+                path="/admin/practices"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN']} requiredPermissions={['PRACTICE_VIEW']}>
+                    <PlatformPracticesPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN']} requiredPermissions={['USER_VIEW', 'PLATFORM_USER_VIEW']}>
+                    <PlatformUsersPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/admin/subscriptions"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_FINANCE_ADMIN']} requiredPermissions={['SUBSCRIPTION_VIEW', 'MRR_VIEW']}>
+                    <PlatformSubscriptionsPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/admin/marketplace"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_OPERATIONS_ADMIN']} requiredPermissions={['MARKETPLACE_VIEW']}>
+                    <PlatformAdminMarketplacePage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
-              <Route path="/admin/audit" element={<AuditLogsPage />} />
+              <Route
+                path="/admin/audit"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['AUDIT_VIEW']}>
+                    <AuditLogsPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/portal" element={<ClientPortalManagementPage />} />
               <Route path="/team" element={<TeamManagementPage />} />
               <Route path="/team/bulk" element={<BulkEmployeeOnboardingPage />} />
-              <Route path="/audit-logs" element={<AuditLogsPage />} />
+              <Route
+                path="/audit-logs"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['AUDIT_VIEW']}>
+                    <AuditLogsPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/settings/branding" element={<PracticeBrandingPage />} />
               <Route path="/settings/marketplace" element={<PracticeMarketplaceProfilePage />} />
               <Route path="/settings/subscription" element={<SubscriptionsPage />} />

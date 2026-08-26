@@ -20,6 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import { OrganizationDashboard } from '../types';
 import { ClientPortalManagementPage } from './ClientPortalManagementPage';
 import { PlatformOverviewPage } from './PlatformOverviewPage';
+import { SupportOverviewPage } from './SupportOverviewPage';
 
 export const DashboardPage: React.FC = () => {
   const [dashboard, setDashboard] = useState<OrganizationDashboard | null>(null);
@@ -28,7 +29,8 @@ export const DashboardPage: React.FC = () => {
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
   const isTaxorynSuperAdmin = userRoleCodes.includes('TAXORYN_SUPERADMIN') || userRoleCodes.includes('SUPER_ADMIN');
-  const isPlatformUser = isTaxorynSuperAdmin || userRoleCodes.some((r: string) => r.startsWith('TAXORYN_'));
+  const isSupportAdmin = userRoleCodes.includes('TAXORYN_SUPPORT_ADMIN');
+  const isPlatformUser = isTaxorynSuperAdmin || isSupportAdmin || userRoleCodes.some((r: string) => r.startsWith('TAXORYN_'));
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
   const isFirmAdmin = !isPlatformUser && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
   const isStaff = !isPlatformUser && !isFirmAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
@@ -40,6 +42,10 @@ export const DashboardPage: React.FC = () => {
       loadDashboard();
     }
   }, [isClientUser, isPlatformUser]);
+
+  if (isSupportAdmin) {
+    return <SupportOverviewPage />;
+  }
 
   if (isPlatformUser) {
     return <PlatformOverviewPage />;
@@ -341,7 +347,7 @@ export const DashboardPage: React.FC = () => {
                     <td colSpan={5} className="text-center py-8 text-slate-400">No active team workload recorded</td>
                   </tr>
                 ) : (
-                  dashboard.employeeWorkload.map((emp) => (
+                  dashboard.employeeWorkload.map((emp: any) => (
                     <tr key={emp.employeeId} className="table-row-hover">
                       <td className="px-5 py-3 font-semibold text-slate-900">
                         {emp.employeeName}

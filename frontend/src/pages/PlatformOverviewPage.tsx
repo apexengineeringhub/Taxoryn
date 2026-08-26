@@ -22,9 +22,19 @@ import {
 } from 'lucide-react';
 import { platformDashboardApi } from '../api/endpoints';
 import { PlatformDashboardSummary, RecentPlatformActivity } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { SupportOverviewPage } from './SupportOverviewPage';
 import clsx from 'clsx';
 
 export const PlatformOverviewPage: React.FC = () => {
+  const { user } = useAuth();
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isSupportAdmin = userRoleCodes.includes('TAXORYN_SUPPORT_ADMIN');
+
+  if (isSupportAdmin) {
+    return <SupportOverviewPage />;
+  }
+
   const [data, setData] = useState<PlatformDashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
