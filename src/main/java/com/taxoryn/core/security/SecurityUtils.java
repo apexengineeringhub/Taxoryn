@@ -59,9 +59,42 @@ public final class SecurityUtils {
         return hasRole("MARKETPLACE_CUSTOMER");
     }
 
+    public static boolean isTaxorynPlatformUser() {
+        return isTaxorynSuperAdmin()
+                || hasRole("TAXORYN_OPERATIONS_ADMIN")
+                || hasRole("TAXORYN_SUPPORT_ADMIN")
+                || hasRole("TAXORYN_FINANCE_ADMIN")
+                || hasRole("TAXORYN_MARKETPLACE_ADMIN")
+                || hasRole("TAXORYN_SECURITY_ADMIN")
+                || hasRole("TAXORYN_ENGINEERING_ADMIN");
+    }
+
+    public static boolean isTaxorynSuperAdmin() {
+        return hasRole("TAXORYN_SUPERADMIN") || hasRole("SUPER_ADMIN");
+    }
+
+    public static boolean isTaxorynOperationsAdmin() {
+        return hasRole("TAXORYN_OPERATIONS_ADMIN");
+    }
+
+    public static boolean isTaxorynSupportAdmin() {
+        return hasRole("TAXORYN_SUPPORT_ADMIN");
+    }
+
+    public static boolean isTaxorynFinanceAdmin() {
+        return hasRole("TAXORYN_FINANCE_ADMIN");
+    }
+
+    public static boolean hasAuthority(String authority) {
+        return getCurrentUser()
+                .map(user -> (user.getPermissions() != null && user.getPermissions().contains(authority))
+                        || user.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals(authority)))
+                .orElse(false);
+    }
+
     public static boolean hasRole(String role) {
         return getCurrentUser()
-                .map(user -> user.getRoles().contains(role) || user.getRoles().contains("ROLE_" + role))
+                .map(user -> user.getRoles() != null && (user.getRoles().contains(role) || user.getRoles().contains("ROLE_" + role)))
                 .orElse(false);
     }
 

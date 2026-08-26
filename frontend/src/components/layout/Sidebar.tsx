@@ -39,22 +39,29 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const isLight = currentTheme.mode === 'light';
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-  const isSuperAdmin = userRoleCodes.includes('SUPER_ADMIN');
-  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'PARTNER'].includes(r)) && !isSuperAdmin;
-  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin && !isSuperAdmin;
-  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
+  const isTaxorynSuperAdmin = userRoleCodes.includes('TAXORYN_SUPERADMIN') || userRoleCodes.includes('SUPER_ADMIN');
+  const isTaxorynOpsAdmin = userRoleCodes.includes('TAXORYN_OPERATIONS_ADMIN');
+  const isTaxorynSupportAdmin = userRoleCodes.includes('TAXORYN_SUPPORT_ADMIN');
+  const isTaxorynFinanceAdmin = userRoleCodes.includes('TAXORYN_FINANCE_ADMIN');
+  const isTaxorynMarketplaceAdmin = userRoleCodes.includes('TAXORYN_MARKETPLACE_ADMIN');
+  const isTaxorynSecurityAdmin = userRoleCodes.includes('TAXORYN_SECURITY_ADMIN');
+  const isSuperAdmin = isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynFinanceAdmin || isTaxorynMarketplaceAdmin || isTaxorynSecurityAdmin;
+
+  const isFirmAdmin = !isSuperAdmin && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = !isSuperAdmin && !isFirmAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
+  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
   // 1. Platform SuperAdmin Nav Items (Zero sensitive client tax data)
   const superAdminNavItems = [
-    { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard, visible: true },
-    { label: 'Practice Tenants', path: '/admin/practices', icon: Building2, visible: true },
-    { label: 'Platform Users', path: '/admin/users', icon: Users, visible: true },
-    { label: 'Marketplace Ops', path: '/admin/marketplace', icon: Store, visible: true },
-    { label: 'Subscriptions & MRR', path: '/admin/subscriptions', icon: CreditCard, visible: true },
-    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: true },
-    { label: 'Security & Audit', path: '/audit-logs', icon: ShieldAlert, visible: true },
+    { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynFinanceAdmin || userPermissions.includes('PLATFORM_VIEW') },
+    { label: 'Practice Tenants', path: '/admin/practices', icon: Building2, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || userPermissions.includes('PRACTICE_VIEW') },
+    { label: 'Platform Users', path: '/admin/users', icon: Users, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || userPermissions.includes('USER_VIEW') },
+    { label: 'Marketplace Ops', path: '/admin/marketplace', icon: Store, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynMarketplaceAdmin || userPermissions.includes('MARKETPLACE_VIEW') },
+    { label: 'Subscriptions & MRR', path: '/admin/subscriptions', icon: CreditCard, visible: isTaxorynSuperAdmin || isTaxorynFinanceAdmin || isTaxorynSupportAdmin || userPermissions.includes('SUBSCRIPTION_VIEW') },
+    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || userPermissions.includes('FEEDBACK_VIEW') },
+    { label: 'Security & Audit', path: '/audit-logs', icon: ShieldAlert, visible: isTaxorynSuperAdmin || isTaxorynSecurityAdmin || isTaxorynOpsAdmin || isTaxorynFinanceAdmin || userPermissions.includes('AUDIT_VIEW') },
   ];
 
   // 2. Client / Taxpayer Customer Portal Nav Items
@@ -242,17 +249,29 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                     ? 'bg-amber-100 text-amber-700 border border-amber-200/60'
                     : 'bg-emerald-100 text-emerald-700 border border-emerald-200/60'
                 )}>
-                  {isSuperAdmin
+                  {isTaxorynSuperAdmin
                     ? 'SuperAdmin'
+                    : isTaxorynOpsAdmin
+                    ? 'Ops Admin'
+                    : isTaxorynSupportAdmin
+                    ? 'Support'
+                    : isTaxorynFinanceAdmin
+                    ? 'Finance'
+                    : isTaxorynMarketplaceAdmin
+                    ? 'Marketplace'
+                    : isTaxorynSecurityAdmin
+                    ? 'Security'
                     : isClientUser
                     ? userRoleCodes.includes('CLIENT_ADMIN')
                       ? 'Client Admin'
+                      : userRoleCodes.includes('MARKETPLACE_CUSTOMER')
+                      ? 'Customer'
                       : 'Client'
                     : isFirmAdmin
-                    ? 'Admin'
+                    ? 'Practice Admin'
                     : isStaff
-                    ? 'Staff'
-                    : 'Consultant'}
+                    ? 'Practice Staff'
+                    : 'Tax Consultant'}
                 </span>
               </p>
               <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>

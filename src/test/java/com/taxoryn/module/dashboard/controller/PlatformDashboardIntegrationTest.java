@@ -55,17 +55,27 @@ class PlatformDashboardIntegrationTest {
     private OrganizationEntity platformOrg;
     private OrganizationEntity practiceTenant;
     private UserEntity superAdminUser;
+    private UserEntity opsAdminUser;
+    private UserEntity financeAdminUser;
     private UserEntity practiceAdminUser;
     private UserEntity clientUser;
 
     private String superAdminToken;
+    private String opsAdminToken;
+    private String financeAdminToken;
     private String practiceAdminToken;
     private String clientToken;
 
     @BeforeEach
     void setUp() {
-        RoleEntity superAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN").orElseGet(() ->
-                roleRepository.save(RoleEntity.builder().code("SUPER_ADMIN").name("Super Administrator").isSystemRole(true).build()));
+        RoleEntity taxorynSuperAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_SUPERADMIN").orElseGet(() ->
+                roleRepository.save(RoleEntity.builder().code("TAXORYN_SUPERADMIN").name("Taxoryn Platform SuperAdmin").isSystemRole(true).build()));
+
+        RoleEntity opsAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_OPERATIONS_ADMIN").orElseGet(() ->
+                roleRepository.save(RoleEntity.builder().code("TAXORYN_OPERATIONS_ADMIN").name("Taxoryn Operations Admin").isSystemRole(true).build()));
+
+        RoleEntity financeAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_FINANCE_ADMIN").orElseGet(() ->
+                roleRepository.save(RoleEntity.builder().code("TAXORYN_FINANCE_ADMIN").name("Taxoryn Finance Admin").isSystemRole(true).build()));
 
         RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN").orElseGet(() ->
                 roleRepository.save(RoleEntity.builder().code("ORG_ADMIN").name("Organization Administrator").isSystemRole(true).build()));
@@ -87,13 +97,45 @@ class PlatformDashboardIntegrationTest {
                 .firstName("Platform")
                 .lastName("SuperAdmin")
                 .status(UserEntity.UserStatus.ACTIVE)
-                .roles(new HashSet<>(List.of(superAdminRole)))
+                .roles(new HashSet<>(List.of(taxorynSuperAdminRole)))
                 .build());
 
         superAdminToken = jwtTokenProvider.generateAccessToken(
                 superAdminUser.getId(), platformOrg.getId(), null, superAdminUser.getEmail(),
-                Set.of("SUPER_ADMIN", "ORG_ADMIN"),
-                Set.of("PLATFORM_DASHBOARD_VIEW", "USER_VIEW", "USER_WRITE", "ORGANIZATION_VIEW")
+                Set.of("TAXORYN_SUPERADMIN", "SUPER_ADMIN"),
+                Set.of("PLATFORM_VIEW", "PRACTICE_VIEW", "USER_VIEW", "USER_DISABLE", "ORGANIZATION_VIEW")
+        );
+
+        opsAdminUser = userRepository.save(UserEntity.builder()
+                .organizationId(platformOrg.getId())
+                .email("ops." + UUID.randomUUID() + "@taxoryn.com")
+                .passwordHash(passwordEncoder.encode("Password123!"))
+                .firstName("Ops")
+                .lastName("Admin")
+                .status(UserEntity.UserStatus.ACTIVE)
+                .roles(new HashSet<>(List.of(opsAdminRole)))
+                .build());
+
+        opsAdminToken = jwtTokenProvider.generateAccessToken(
+                opsAdminUser.getId(), platformOrg.getId(), null, opsAdminUser.getEmail(),
+                Set.of("TAXORYN_OPERATIONS_ADMIN"),
+                Set.of("PLATFORM_VIEW", "PRACTICE_VIEW", "USER_VIEW", "USER_DISABLE")
+        );
+
+        financeAdminUser = userRepository.save(UserEntity.builder()
+                .organizationId(platformOrg.getId())
+                .email("finance." + UUID.randomUUID() + "@taxoryn.com")
+                .passwordHash(passwordEncoder.encode("Password123!"))
+                .firstName("Finance")
+                .lastName("Admin")
+                .status(UserEntity.UserStatus.ACTIVE)
+                .roles(new HashSet<>(List.of(financeAdminRole)))
+                .build());
+
+        financeAdminToken = jwtTokenProvider.generateAccessToken(
+                financeAdminUser.getId(), platformOrg.getId(), null, financeAdminUser.getEmail(),
+                Set.of("TAXORYN_FINANCE_ADMIN"),
+                Set.of("PLATFORM_VIEW", "SUBSCRIPTION_VIEW", "PAYMENT_VIEW")
         );
 
         // 2. Practice Tenant
@@ -144,7 +186,7 @@ class PlatformDashboardIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/admin/platform/dashboard should succeed for SUPER_ADMIN with aggregated metrics")
+    @DisplayName("GET /api/v1/admin/platform/dashboard should succeed for TAXORYN_SUPERADMIN with aggregated metrics")
     void testGetPlatformDashboardSuccessForSuperAdmin() throws Exception {
         mockMvc.perform(get("/api/v1/admin/platform/dashboard")
                         .header("Authorization", "Bearer " + superAdminToken))
@@ -160,6 +202,24 @@ class PlatformDashboardIntegrationTest {
                 .andExpect(jsonPath("$.data.subscriptionMetrics").exists())
                 .andExpect(jsonPath("$.data.feedbackOperations").exists())
                 .andExpect(jsonPath("$.data.platformHealth").exists());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/admin/platform/dashboard should succeed for TAXORYN_OPERATIONS_ADMIN")
+    void testGetPlatformDashboardSuccessForOpsAdmin() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/platform/dashboard")
+                        .header("Authorization", "Bearer " + opsAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/admin/platform/dashboard should succeed for TAXORYN_FINANCE_ADMIN")
+    void testGetPlatformDashboardSuccessForFinanceAdmin() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/platform/dashboard")
+                        .header("Authorization", "Bearer " + financeAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -186,7 +246,7 @@ class PlatformDashboardIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/admin/users should return paginated platform users for SUPER_ADMIN")
+    @DisplayName("GET /api/v1/admin/users should return paginated platform users for TAXORYN_SUPERADMIN")
     void testGetPlatformUsersForSuperAdmin() throws Exception {
         mockMvc.perform(get("/api/v1/admin/users")
                         .header("Authorization", "Bearer " + superAdminToken))
@@ -196,11 +256,11 @@ class PlatformDashboardIntegrationTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/v1/admin/users/{userId}/status should update user status for SUPER_ADMIN")
-    void testUpdateUserStatusForSuperAdmin() throws Exception {
+    @DisplayName("PATCH /api/v1/admin/users/{userId}/status should update user status for TAXORYN_OPERATIONS_ADMIN")
+    void testUpdateUserStatusForOpsAdmin() throws Exception {
         mockMvc.perform(patch("/api/v1/admin/users/" + clientUser.getId() + "/status")
                         .param("status", "SUSPENDED")
-                        .header("Authorization", "Bearer " + superAdminToken))
+                        .header("Authorization", "Bearer " + opsAdminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("SUSPENDED"));

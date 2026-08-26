@@ -23,7 +23,7 @@ public class PlatformDashboardController {
     private final PlatformDashboardService platformDashboardService;
 
     @GetMapping
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasAuthority('PLATFORM_VIEW')")
     @Operation(
             summary = "Get Platform Overview Dashboard",
             description = "Retrieves executive platform-level metrics including growth, practice ecosystem, user breakdown, marketplace funnel, subscription MRR, feedback triage, and system health. Contains ZERO sensitive tax filings or client invoices."

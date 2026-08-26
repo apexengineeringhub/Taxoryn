@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Bell, Plus, ShieldCheck } from 'lucide-react';
+import { Search, Bell, Plus, ShieldCheck, Server } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -11,19 +11,41 @@ export const Header: React.FC = () => {
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+
+  // 1. Taxoryn Internal Platform Roles
+  const isTaxorynSuperAdmin = userRoleCodes.includes('TAXORYN_SUPERADMIN') || userRoleCodes.includes('SUPER_ADMIN');
+  const isTaxorynOpsAdmin = userRoleCodes.includes('TAXORYN_OPERATIONS_ADMIN');
+  const isTaxorynSupportAdmin = userRoleCodes.includes('TAXORYN_SUPPORT_ADMIN');
+  const isTaxorynFinanceAdmin = userRoleCodes.includes('TAXORYN_FINANCE_ADMIN');
+  const isTaxorynMarketplaceAdmin = userRoleCodes.includes('TAXORYN_MARKETPLACE_ADMIN');
+  const isTaxorynSecurityAdmin = userRoleCodes.includes('TAXORYN_SECURITY_ADMIN');
+  const isPlatformUser = isTaxorynSuperAdmin || isTaxorynOpsAdmin || isTaxorynSupportAdmin || isTaxorynFinanceAdmin || isTaxorynMarketplaceAdmin || isTaxorynSecurityAdmin;
+
+  // 2. Practice / Organization Roles
+  const isPracticeAdmin = !isPlatformUser && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
+  const isManager = !isPlatformUser && userRoleCodes.includes('MANAGER');
+  const isPractitioner = !isPlatformUser && (userRoleCodes.includes('PRACTITIONER') || userRoleCodes.includes('TAX_PROFESSIONAL'));
+  const isStaff = !isPlatformUser && !isPracticeAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
+
+  // 3. Customer Roles
   const isMarketplaceCustomer = userRoleCodes.includes('MARKETPLACE_CUSTOMER');
   const isClientAdmin = userRoleCodes.includes('CLIENT_ADMIN');
-  const isClientUser = userRoleCodes.includes('CLIENT_USER') || isClientAdmin;
-  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
-  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r));
+  const isClientUser = userRoleCodes.includes('CLIENT_USER') || userRoleCodes.includes('PRACTICE_CLIENT') || isClientAdmin || isMarketplaceCustomer;
 
   const getHeaderRoleLabel = () => {
-    if (isMarketplaceCustomer) return 'Customer';
+    if (isTaxorynSuperAdmin) return 'Taxoryn SuperAdmin';
+    if (isTaxorynOpsAdmin) return 'Platform Operations';
+    if (isTaxorynSupportAdmin) return 'Platform Support';
+    if (isTaxorynFinanceAdmin) return 'Platform Finance';
+    if (isTaxorynMarketplaceAdmin) return 'Marketplace Admin';
+    if (isTaxorynSecurityAdmin) return 'Security Admin';
+    if (isPracticeAdmin) return 'Practice Admin';
+    if (isManager) return 'Practice Manager';
+    if (isPractitioner) return 'Tax Consultant';
+    if (isStaff) return 'Practice Staff';
+    if (isMarketplaceCustomer) return 'Marketplace Customer';
     if (isClientAdmin) return 'Client Admin';
     if (isClientUser) return 'Client';
-    if (isFirmAdmin) return 'Practice Admin';
-    if (isStaff) return 'Staff';
-    if (userRoleCodes.includes('PRACTITIONER')) return 'Tax Consultant';
     return 'User';
   };
 
@@ -35,7 +57,13 @@ export const Header: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder={isClientUser ? "Search filings, invoices, documents..." : "Quick search clients, GSTIN, PAN... (Ctrl+K)"}
+            placeholder={
+              isPlatformUser
+                ? "Search practices, platform users, leads, subscriptions... (Ctrl+K)"
+                : isClientUser
+                ? "Search filings, invoices, documents..."
+                : "Quick search clients, GSTIN, PAN... (Ctrl+K)"
+            }
             className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-100/70 border border-slate-200/80 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400"
           />
           <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 rounded shadow-2xs">
@@ -47,7 +75,7 @@ export const Header: React.FC = () => {
       {/* Actions & Alerts */}
       <div className="flex items-center gap-3">
         {/* Quick Action Button (Practice Staff Only) */}
-        {!isClientUser && (
+        {!isClientUser && !isPlatformUser && (
           <button
             style={{ backgroundColor: currentTheme.primaryColor }}
             className="hidden sm:inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-90 transition-opacity"
@@ -80,7 +108,7 @@ export const Header: React.FC = () => {
           ) : (
             <div
               className="w-8 h-8 rounded-full text-white font-bold text-xs flex items-center justify-center shadow-2xs"
-              style={{ backgroundColor: currentTheme.primaryColor }}
+              style={{ backgroundColor: isPlatformUser ? '#7C3AED' : currentTheme.primaryColor }}
             >
               {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
             </div>
@@ -88,18 +116,34 @@ export const Header: React.FC = () => {
 
           <div className={clsx(
             'hidden md:flex items-center gap-1.5 border rounded-full px-3 py-1 text-xs font-semibold',
-            isClientUser
+            isPlatformUser
+              ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-2xs'
+              : isClientUser
               ? 'bg-sky-50 text-sky-700 border-sky-200'
-              : isFirmAdmin
-              ? 'bg-purple-50 text-purple-700 border-purple-200'
+              : isPracticeAdmin
+              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+              : isPractitioner
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
               : isStaff
               ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-slate-100 text-slate-700 border-slate-200'
           )}>
-            <ShieldCheck className={clsx(
-              'w-3.5 h-3.5',
-              isClientUser ? 'text-sky-600' : isFirmAdmin ? 'text-purple-600' : isStaff ? 'text-amber-600' : 'text-emerald-600'
-            )} />
+            {isPlatformUser ? (
+              <Server className="w-3.5 h-3.5 text-purple-600" />
+            ) : (
+              <ShieldCheck className={clsx(
+                'w-3.5 h-3.5',
+                isClientUser
+                  ? 'text-sky-600'
+                  : isPracticeAdmin
+                  ? 'text-indigo-600'
+                  : isPractitioner
+                  ? 'text-emerald-600'
+                  : isStaff
+                  ? 'text-amber-600'
+                  : 'text-slate-600'
+              )} />
+            )}
             <span>{getHeaderRoleLabel()}</span>
           </div>
         </div>

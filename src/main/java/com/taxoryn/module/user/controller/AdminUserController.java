@@ -35,7 +35,7 @@ public class AdminUserController {
     private final UserMapper userMapper;
 
     @GetMapping
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasAuthority('USER_VIEW')")
     @Transactional(readOnly = true)
     @Operation(summary = "List all platform users", description = "Retrieves paginated list of all users across the platform with filtering by role, status, and search query.")
     public ResponseEntity<ApiResponse<PagedResponse<UserDto>>> getPlatformUsers(
@@ -88,7 +88,7 @@ public class AdminUserController {
     }
 
     @PatchMapping("/{userId}/status")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('USER_DISABLE') or hasAuthority('USER_UPDATE')")
     @Transactional
     @Operation(summary = "Update user status", description = "Allows SuperAdmin to activate, suspend, or deactivate any platform user.")
     public ResponseEntity<ApiResponse<UserDto>> updateUserStatus(

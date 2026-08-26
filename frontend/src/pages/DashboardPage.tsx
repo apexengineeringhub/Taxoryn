@@ -27,20 +27,21 @@ export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-  const isSuperAdmin = userRoleCodes.includes('SUPER_ADMIN');
-  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
-  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'PARTNER'].includes(r));
-  const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin && !isSuperAdmin;
+  const isTaxorynSuperAdmin = userRoleCodes.includes('TAXORYN_SUPERADMIN') || userRoleCodes.includes('SUPER_ADMIN');
+  const isPlatformUser = isTaxorynSuperAdmin || userRoleCodes.some((r: string) => r.startsWith('TAXORYN_'));
+  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
+  const isFirmAdmin = !isPlatformUser && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
+  const isStaff = !isPlatformUser && !isFirmAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
   useEffect(() => {
-    if (!isClientUser && !isSuperAdmin) {
+    if (!isClientUser && !isPlatformUser) {
       loadDashboard();
     }
-  }, [isClientUser, isSuperAdmin]);
+  }, [isClientUser, isPlatformUser]);
 
-  if (isSuperAdmin) {
+  if (isPlatformUser) {
     return <PlatformOverviewPage />;
   }
 
