@@ -46,6 +46,9 @@ import { PlatformOverviewPage } from './pages/PlatformOverviewPage';
 import { PlatformPracticesPage } from './pages/PlatformPracticesPage';
 import { PlatformUsersPage } from './pages/PlatformUsersPage';
 import { PlatformSubscriptionsPage } from './pages/PlatformSubscriptionsPage';
+import { LearnLandingPage } from './pages/learn/LearnLandingPage';
+import { LearnContentBrowsePage } from './pages/learn/LearnContentBrowsePage';
+import { LearnContentDetailPage } from './pages/learn/LearnContentDetailPage';
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 
@@ -90,6 +93,12 @@ export const App: React.FC = () => {
             <Route path="/marketplace/compare" element={<MarketplaceComparePage />} />
             <Route path="/marketplace/onboarding/:token" element={<CustomerOnboardingPortalPage />} />
             <Route path="/marketplace/proposal/:token" element={<CustomerOnboardingPortalPage />} />
+
+            {/* Taxoryn Learn Public Knowledge Hub */}
+            <Route path="/learn" element={<LearnLandingPage />} />
+            <Route path="/learn/content" element={<LearnContentBrowsePage />} />
+            <Route path="/learn/content/:slug" element={<LearnContentDetailPage />} />
+            <Route path="/learn/:slug" element={<LearnContentDetailPage />} />
 
             {/* Customer Self-Service Routes */}
             <Route

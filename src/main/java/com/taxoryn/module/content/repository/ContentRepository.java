@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,6 +25,9 @@ public interface ContentRepository extends JpaRepository<ContentEntity, UUID>, J
     @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.slug = :slug")
     Optional<ContentEntity> findBySlugWithDetails(@Param("slug") String slug);
 
+    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.slug = :slug AND c.status = :status")
+    Optional<ContentEntity> findBySlugAndStatusWithDetails(@Param("slug") String slug, @Param("status") ContentStatus status);
+
     Optional<ContentEntity> findBySlug(String slug);
 
     boolean existsBySlug(String slug);
@@ -33,4 +37,9 @@ public interface ContentRepository extends JpaRepository<ContentEntity, UUID>, J
     long countByStatus(ContentStatus status);
 
     long countByContentType(ContentType contentType);
+
+    long countByStatusAndCategoryId(ContentStatus status, UUID categoryId);
+
+    @Query("SELECT c FROM ContentEntity c WHERE c.status = :status AND c.id <> :id AND (:categoryId IS NULL OR c.categoryId = :categoryId) ORDER BY c.publishedAt DESC NULLS LAST")
+    List<ContentEntity> findRelatedContent(@Param("status") ContentStatus status, @Param("categoryId") UUID categoryId, @Param("id") UUID id, Pageable pageable);
 }

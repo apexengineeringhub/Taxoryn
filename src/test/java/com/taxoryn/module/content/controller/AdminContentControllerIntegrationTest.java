@@ -180,6 +180,13 @@ class AdminContentControllerIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        contentRepository.deleteAll();
+        tagRepository.deleteAll();
+        taxServiceRepository.deleteAll();
+        categoryRepository.deleteAll();
+        auditLogRepository.deleteAll();
+        userRepository.deleteAll();
+        organizationRepository.deleteAll();
         TenantContext.clear();
     }
 

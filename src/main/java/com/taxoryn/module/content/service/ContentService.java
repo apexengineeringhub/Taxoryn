@@ -3,6 +3,7 @@ package com.taxoryn.module.content.service;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.content.dto.*;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface ContentService {
@@ -24,4 +25,16 @@ public interface ContentService {
     ContentResponse publishContent(UUID id);
 
     ContentResponse archiveContent(UUID id);
+
+    // =========================================================================
+    // Public / Customer Experience APIs (Strictly PUBLISHED content only)
+    // =========================================================================
+
+    PagedResponse<ContentSummaryResponse> listPublicContent(ContentFilterRequest filterRequest);
+
+    ContentResponse getPublicContentBySlug(String slug);
+
+    List<ContentSummaryResponse> getRelatedPublicContent(String slug, int limit);
+
+    List<PublicContentCategoryDto> getPublicCategories();
 }

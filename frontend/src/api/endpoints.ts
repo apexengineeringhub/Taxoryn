@@ -111,6 +111,9 @@ import {
   User,
   PlatformDashboardSummary,
   SupportDashboardSummary,
+  LearnContentSummary,
+  LearnContentDetail,
+  LearnPublicCategory,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1460,3 +1463,34 @@ export const adminUserApi = {
     return res.data.data;
   },
 };
+
+// --- 24. Taxoryn Learn Public Knowledge API ---
+export const publicLearnApi = {
+  getContentList: async (params?: {
+    contentType?: string;
+    categoryId?: string;
+    taxServiceId?: string;
+    tag?: string;
+    search?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<LearnContentSummary>>>('/v1/public/content', { params });
+    return res.data.data;
+  },
+  getContentBySlug: async (slug: string) => {
+    const res = await apiClient.get<ApiResponse<LearnContentDetail>>(`/v1/public/content/${slug}`);
+    return res.data.data;
+  },
+  getRelatedContent: async (slug: string, limit: number = 4) => {
+    const res = await apiClient.get<ApiResponse<LearnContentSummary[]>>(`/v1/public/content/${slug}/related`, { params: { limit } });
+    return res.data.data;
+  },
+  getCategories: async () => {
+    const res = await apiClient.get<ApiResponse<LearnPublicCategory[]>>('/v1/public/content/categories');
+    return res.data.data;
+  },
+};
+

@@ -30,6 +30,7 @@ import {
   Building2,
   Navigation,
   Filter,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { marketplacePublicApi } from '../api/endpoints';
@@ -349,6 +350,16 @@ export const MarketplaceExplorePage: React.FC = () => {
             <p className="text-sm sm:text-base text-slate-300">
               Match with ICAI / ICSI verified Chartered Accountants & Tax Advocates by Location, Requirement, and Transparent Fees.
             </p>
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => navigate('/learn')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white text-xs font-semibold transition-colors"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                <span>New to taxes? Read simple guides on Taxoryn Learn →</span>
+              </button>
+            </div>
           </div>
 
           {/* Mode Switcher */}

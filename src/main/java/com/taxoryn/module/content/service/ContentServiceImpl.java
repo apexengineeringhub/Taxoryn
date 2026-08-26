@@ -18,6 +18,7 @@ import com.taxoryn.module.marketplace.repository.TaxServiceRepository;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import java.util.Collections;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -267,6 +268,93 @@ public class ContentServiceImpl implements ContentService {
         auditService.logEvent("CONTENT_ARCHIVED", "CONTENT", saved.getId().toString(), null, "Status: ARCHIVED");
 
         return getContentById(saved.getId());
+    }
+
+    // =========================================================================
+    // Public / Customer Experience APIs (Strictly PUBLISHED content only)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<ContentSummaryResponse> listPublicContent(ContentFilterRequest filterRequest) {
+        // Enforce strictly PUBLISHED status for all public queries
+        filterRequest.setStatus(ContentStatus.PUBLISHED);
+
+        Pageable pageable = filterRequest.toPageable();
+        Specification<ContentEntity> spec = createSpecification(filterRequest);
+
+        Page<ContentEntity> page = contentRepository.findAll(spec, pageable);
+        return PagedResponse.of(page, mapper::toSummaryResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ContentResponse getPublicContentBySlug(String slug) {
+        ContentEntity entity = contentRepository.findBySlugAndStatusWithDetails(slug.toLowerCase().trim(), ContentStatus.PUBLISHED)
+                .orElseThrow(() -> new ResourceNotFoundException("Content", "slug", slug));
+
+        return mapper.toResponse(entity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentSummaryResponse> getRelatedPublicContent(String slug, int limit) {
+        ContentEntity current = contentRepository.findBySlugAndStatusWithDetails(slug.toLowerCase().trim(), ContentStatus.PUBLISHED)
+                .orElseThrow(() -> new ResourceNotFoundException("Content", "slug", slug));
+
+        int effectiveLimit = limit > 0 ? Math.min(limit, 12) : 4;
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, effectiveLimit);
+
+        List<ContentEntity> sameCategory = current.getCategoryId() != null
+                ? contentRepository.findRelatedContent(ContentStatus.PUBLISHED, current.getCategoryId(), current.getId(), pageable)
+                : Collections.emptyList();
+
+        if (sameCategory.size() >= effectiveLimit) {
+            return sameCategory.stream().map(mapper::toSummaryResponse).collect(Collectors.toList());
+        }
+
+        java.util.Set<UUID> seenIds = sameCategory.stream().map(ContentEntity::getId).collect(Collectors.toSet());
+        seenIds.add(current.getId());
+
+        List<ContentEntity> fallback = contentRepository.findRelatedContent(
+                ContentStatus.PUBLISHED,
+                null,
+                current.getId(),
+                pageable
+        );
+
+        java.util.List<ContentEntity> combined = new java.util.ArrayList<>(sameCategory);
+        for (ContentEntity entity : fallback) {
+            if (combined.size() >= effectiveLimit) break;
+            if (!seenIds.contains(entity.getId())) {
+                combined.add(entity);
+                seenIds.add(entity.getId());
+            }
+        }
+
+        return combined.stream()
+                .map(mapper::toSummaryResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PublicContentCategoryDto> getPublicCategories() {
+        List<TaxServiceCategoryEntity> categories = categoryRepository.findAllByOrderBySortOrderAsc();
+        return categories.stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                .map(cat -> {
+                    long count = contentRepository.countByStatusAndCategoryId(ContentStatus.PUBLISHED, cat.getId());
+                    return PublicContentCategoryDto.builder()
+                            .id(cat.getId())
+                            .code(cat.getCode())
+                            .name(cat.getName())
+                            .description(cat.getDescription())
+                            .icon(cat.getIcon())
+                            .publishedContentCount(count)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     // =========================================================================

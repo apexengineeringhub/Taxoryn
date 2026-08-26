@@ -1983,3 +1983,57 @@ export interface SupportDashboardSummary {
   recentActivity: RecentSupportActivity[];
 }
 
+// 21. Taxoryn Learn Content Foundation & Public Knowledge Base
+export type LearnContentType = 'ARTICLE' | 'VIDEO' | 'GUIDE' | 'FAQ' | 'TAX_UPDATE';
+export type LearnContentStatus = 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED' | 'PUBLISHED' | 'ARCHIVED';
+
+export interface LearnContentTag {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface LearnContentSummary {
+  id: string;
+  contentType: LearnContentType;
+  title: string;
+  slug: string;
+  summary?: string;
+  thumbnailUrl?: string;
+  status: LearnContentStatus;
+  categoryId?: string;
+  categoryName?: string;
+  categoryCode?: string;
+  taxServiceId?: string;
+  taxServiceName?: string;
+  taxServiceCode?: string;
+  scope: string;
+  authorId?: string;
+  authorName?: string;
+  reviewerId?: string;
+  reviewerName?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: LearnContentTag[];
+  publicReady: boolean;
+}
+
+export interface LearnContentDetail extends LearnContentSummary {
+  body: string;
+  authorEmail?: string;
+  reviewerEmail?: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface LearnPublicCategory {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  icon?: string;
+  publishedContentCount: number;
+}
+
+
