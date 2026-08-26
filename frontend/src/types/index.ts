@@ -474,15 +474,31 @@ export interface Role {
 // 12. Audit Logs
 export interface AuditLog {
   id: string;
+  organizationId?: string;
+  organizationName?: string;
+  practiceName?: string;
   userId?: string;
+  actor?: string;
+  actorName?: string;
+  actorEmail?: string;
+  actorRole?: string;
   userName?: string;
   userEmail?: string;
   action: string;
+  displayAction?: string;
   entityType: string;
+  displayEntityType?: string;
+  entityName?: string;
   entityId?: string;
+  targetDisplayName?: string;
+  status?: string;
+  severity?: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
+  description?: string;
   timestamp: string;
+  createdAt?: string;
   ipAddress?: string;
   requestId?: string;
+  userAgent?: string;
   oldValue?: string;
   newValue?: string;
 }
@@ -1850,7 +1866,46 @@ export interface FeedbackOperations {
   topCategories: Record<string, number>;
 }
 
+export interface PlatformSummary {
+  activePractices: number;
+  totalPractices: number;
+  platformUsers: number;
+  marketplaceCustomers: number;
+  activeSubscriptions: number;
+}
+
+export interface PlatformMarketplace {
+  newRequirements: number;
+  activeEnquiries: number;
+  matchesCompleted: number;
+  consultationsBooked: number;
+}
+
+export interface PlatformAttention {
+  pendingPracticeVerification: number;
+  openFeedback: number;
+  securityAlerts: number;
+  paymentIssues: number;
+  marketplaceIssues: number;
+}
+
+export interface RecentPlatformActivity {
+  id: string;
+  displayTitle: string;
+  description: string;
+  targetDisplayName: string;
+  timestamp: string;
+  severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
+  status: 'SUCCESS' | 'PENDING' | 'ALERT';
+  navigationTarget: string;
+}
+
 export interface PlatformHealth {
+  api?: string;
+  database?: string;
+  backgroundJobs?: string;
+  marketplace?: string;
+  notifications?: string;
   apiGatewayStatus: string;
   databaseStatus: string;
   authServiceStatus: string;
@@ -1877,6 +1932,11 @@ export interface RecentAdminActivity {
 }
 
 export interface PlatformDashboardSummary {
+  summary?: PlatformSummary;
+  marketplace?: PlatformMarketplace;
+  attention?: PlatformAttention;
+  health?: PlatformHealth;
+  recentActivity?: RecentPlatformActivity[];
   kpis: PlatformKpis;
   practiceEcosystem: PracticeEcosystem;
   userEcosystem: UserEcosystem;

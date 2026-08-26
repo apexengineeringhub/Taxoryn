@@ -39,8 +39,6 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -80,10 +78,13 @@ class AuditLogIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    private OrganizationEntity platformOrg;
     private OrganizationEntity tenantA;
     private OrganizationEntity tenantB;
+    private UserEntity superAdminUser;
     private UserEntity userA;
     private UserEntity userB;
+    private String superAdminToken;
     private String tokenA;
     private String tokenB;
 
@@ -94,6 +95,15 @@ class AuditLogIntegrationTest {
         clientRepository.deleteAll();
         organizationRepository.deleteAll();
 
+        RoleEntity superAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_SUPERADMIN").orElseGet(() -> {
+            RoleEntity r = RoleEntity.builder()
+                    .code("TAXORYN_SUPERADMIN")
+                    .name("Taxoryn Platform SuperAdmin")
+                    .isSystemRole(true)
+                    .build();
+            return roleRepository.save(r);
+        });
+
         RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN").orElseGet(() -> {
             RoleEntity r = RoleEntity.builder()
                     .code("ORG_ADMIN")
@@ -102,6 +112,30 @@ class AuditLogIntegrationTest {
                     .build();
             return roleRepository.save(r);
         });
+
+        // 0. Setup Platform Root Org & SuperAdmin
+        platformOrg = organizationRepository.save(OrganizationEntity.builder()
+                .name("Taxoryn Platform Global")
+                .legalName("Taxoryn Global Inc")
+                .email("platform." + UUID.randomUUID() + "@taxoryn.com")
+                .status(OrganizationStatus.ACTIVE)
+                .build());
+
+        superAdminUser = userRepository.save(UserEntity.builder()
+                .organizationId(platformOrg.getId())
+                .email("superadmin." + UUID.randomUUID() + "@taxoryn.com")
+                .passwordHash(passwordEncoder.encode("SecretPassword123!"))
+                .firstName("Platform")
+                .lastName("SuperAdmin")
+                .status(UserStatus.ACTIVE)
+                .roles(new HashSet<>(List.of(superAdminRole)))
+                .build());
+
+        superAdminToken = jwtTokenProvider.generateAccessToken(
+                superAdminUser.getId(), platformOrg.getId(), null, superAdminUser.getEmail(),
+                Set.of("TAXORYN_SUPERADMIN", "SUPER_ADMIN"),
+                Set.of("AUDIT_READ", "AUDIT_VIEW", "SECURITY_VIEW", "PLATFORM_VIEW")
+        );
 
         // 1. Setup Tenant A
         tenantA = OrganizationEntity.builder()
@@ -164,9 +198,45 @@ class AuditLogIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /api/audit-logs and /api/v1/audit-logs should return paginated audit records")
+    @DisplayName("GET /api/v1/audit-logs should return platform-wide audit logs across multiple organizations for SuperAdmin")
+    void testSuperAdminCanViewPlatformWideAuditLogs() throws Exception {
+        // Record audit logs across different tenants
+        AuditLogEntity logA = auditLogRepository.save(AuditLogEntity.builder()
+                .organizationId(tenantA.getId())
+                .userId(userA.getId())
+                .action("PRACTICE_VERIFIED")
+                .entityType("PRACTICE")
+                .entityName("PRACTICE")
+                .entityId(tenantA.getId().toString())
+                .ipAddress("10.0.0.1")
+                .requestId("trace-superadmin-a")
+                .createdAt(Instant.now())
+                .build());
+
+        AuditLogEntity logB = auditLogRepository.save(AuditLogEntity.builder()
+                .organizationId(tenantB.getId())
+                .userId(userB.getId())
+                .action("APPLICATION_FEEDBACK_CREATED")
+                .entityType("APPLICATION_FEEDBACK")
+                .entityName("APPLICATION_FEEDBACK")
+                .entityId(UUID.randomUUID().toString())
+                .ipAddress("10.0.0.2")
+                .requestId("trace-superadmin-b")
+                .createdAt(Instant.now())
+                .build());
+
+        mockMvc.perform(get("/api/v1/audit-logs")
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content", hasSize(greaterThanOrEqualTo(2))))
+                .andExpect(jsonPath("$.data.content[0].displayAction").exists())
+                .andExpect(jsonPath("$.data.content[0].displayEntityType").exists());
+    }
+
+    @Test
+    @DisplayName("GET /api/audit-logs and /api/v1/audit-logs should return paginated audit records for Practice Admin")
     void testGetAuditLogsDualRouting() throws Exception {
-        // Manually record an audit entry for Tenant A
         AuditLogEntity logEntity = AuditLogEntity.builder()
                 .organizationId(tenantA.getId())
                 .userId(userA.getId())
@@ -180,7 +250,6 @@ class AuditLogIntegrationTest {
                 .build();
         auditLogRepository.save(logEntity);
 
-        // Test GET /api/audit-logs
         mockMvc.perform(get("/api/audit-logs")
                         .header("Authorization", "Bearer " + tokenA)
                         .param("page", "0")
@@ -190,7 +259,6 @@ class AuditLogIntegrationTest {
                 .andExpect(jsonPath("$.data.content", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$.data.content[0].organizationId").value(tenantA.getId().toString()));
 
-        // Test GET /api/v1/audit-logs
         mockMvc.perform(get("/api/v1/audit-logs")
                         .header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isOk())
@@ -198,9 +266,8 @@ class AuditLogIntegrationTest {
     }
 
     @Test
-    @DisplayName("Audit logs must strictly enforce tenant isolation")
+    @DisplayName("Audit logs must strictly enforce tenant isolation for Practice Admins")
     void testStrictTenantIsolation() throws Exception {
-        // Record audit logs for Tenant A and Tenant B
         AuditLogEntity logA = AuditLogEntity.builder()
                 .organizationId(tenantA.getId())
                 .userId(userA.getId())
@@ -225,13 +292,13 @@ class AuditLogIntegrationTest {
                 .build();
         auditLogRepository.save(logB);
 
-        // Tenant A queries audit logs
+        // Tenant A queries audit logs -> only sees Tenant A records
         mockMvc.perform(get("/api/audit-logs")
                         .header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[*].organizationId").value(tenantA.getId().toString()));
 
-        // Tenant B queries audit logs
+        // Tenant B queries audit logs -> only sees Tenant B records
         mockMvc.perform(get("/api/audit-logs")
                         .header("Authorization", "Bearer " + tokenB))
                 .andExpect(status().isOk())
@@ -241,7 +308,6 @@ class AuditLogIntegrationTest {
     @Test
     @DisplayName("Audit operations must automatically track client creation, update, and status change")
     void testClientOperationsAuditTrail() throws Exception {
-        // 1. Create client via API
         CreateClientRequest createReq = CreateClientRequest.builder()
                 .displayName("Audit Test Corp")
                 .clientType(ClientType.PRIVATE_LIMITED)
@@ -261,7 +327,6 @@ class AuditLogIntegrationTest {
                 .path("data").path("id").asText();
         UUID clientId = UUID.fromString(clientIdStr);
 
-        // 2. Update client status
         UpdateClientStatusRequest statusReq = new UpdateClientStatusRequest();
         statusReq.setStatus(ClientStatus.INACTIVE);
 
@@ -271,7 +336,6 @@ class AuditLogIntegrationTest {
                         .content(objectMapper.writeValueAsString(statusReq)))
                 .andExpect(status().isOk());
 
-        // 3. Inspect audit trail for this client
         mockMvc.perform(get("/api/audit-logs")
                         .header("Authorization", "Bearer " + tokenA)
                         .param("entityId", clientId.toString()))
@@ -284,21 +348,18 @@ class AuditLogIntegrationTest {
     @Test
     @DisplayName("Audit trail API must be immutable: rejecting POST, PUT, DELETE operations")
     void testAuditLogApiImmutability() throws Exception {
-        // Attempt POST to /api/audit-logs
         mockMvc.perform(post("/api/audit-logs")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"HACK\"}"))
                 .andExpect(status().isMethodNotAllowed());
 
-        // Attempt PUT to /api/audit-logs/{id} -> unmapped mutate endpoint rejected with 4xx
         mockMvc.perform(put("/api/audit-logs/" + UUID.randomUUID())
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"HACK\"}"))
                 .andExpect(status().is4xxClientError());
 
-        // Attempt DELETE to /api/audit-logs/{id} -> unmapped mutate endpoint rejected with 4xx
         mockMvc.perform(delete("/api/audit-logs/" + UUID.randomUUID())
                         .header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().is4xxClientError());

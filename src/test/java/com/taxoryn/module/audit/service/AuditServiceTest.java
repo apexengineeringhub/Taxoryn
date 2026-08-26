@@ -8,6 +8,8 @@ import com.taxoryn.module.audit.dto.AuditLogFilterRequest;
 import com.taxoryn.module.audit.dto.AuditRecordRequest;
 import com.taxoryn.module.audit.entity.AuditLogEntity;
 import com.taxoryn.module.audit.repository.AuditLogRepository;
+import com.taxoryn.module.organization.repository.OrganizationRepository;
+import com.taxoryn.module.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -41,6 +44,12 @@ class AuditServiceTest {
 
     @Mock
     private AuditLogRepository auditLogRepository;
+
+    @Mock
+    private OrganizationRepository organizationRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -162,6 +171,8 @@ class AuditServiceTest {
 
         when(auditLogRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(log1)));
+        when(organizationRepository.findAllById(any())).thenReturn(Collections.emptyList());
+        when(userRepository.findAllById(any())).thenReturn(Collections.emptyList());
 
         AuditLogFilterRequest filter = AuditLogFilterRequest.builder()
                 .entityType("GST_PROFILE")

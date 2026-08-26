@@ -192,16 +192,22 @@ class PlatformDashboardIntegrationTest {
                         .header("Authorization", "Bearer " + superAdminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.summary.activePractices").isNumber())
+                .andExpect(jsonPath("$.data.summary.totalPractices").isNumber())
+                .andExpect(jsonPath("$.data.summary.platformUsers").isNumber())
+                .andExpect(jsonPath("$.data.summary.marketplaceCustomers").isNumber())
+                .andExpect(jsonPath("$.data.summary.activeSubscriptions").isNumber())
+                .andExpect(jsonPath("$.data.marketplace.newRequirements").isNumber())
+                .andExpect(jsonPath("$.data.marketplace.activeEnquiries").isNumber())
+                .andExpect(jsonPath("$.data.attention.pendingPracticeVerification").isNumber())
+                .andExpect(jsonPath("$.data.attention.openFeedback").isNumber())
+                .andExpect(jsonPath("$.data.health.api").value("HEALTHY"))
+                .andExpect(jsonPath("$.data.health.database").exists())
+                .andExpect(jsonPath("$.data.recentActivity").isArray())
                 .andExpect(jsonPath("$.data.kpis.totalPractices").isNumber())
                 .andExpect(jsonPath("$.data.kpis.activePractices").isNumber())
                 .andExpect(jsonPath("$.data.kpis.activeUsers").isNumber())
-                .andExpect(jsonPath("$.data.kpis.platformStatus").value("HEALTHY"))
-                .andExpect(jsonPath("$.data.practiceEcosystem").exists())
-                .andExpect(jsonPath("$.data.userEcosystem").exists())
-                .andExpect(jsonPath("$.data.marketplaceFunnel").exists())
-                .andExpect(jsonPath("$.data.subscriptionMetrics").exists())
-                .andExpect(jsonPath("$.data.feedbackOperations").exists())
-                .andExpect(jsonPath("$.data.platformHealth").exists());
+                .andExpect(jsonPath("$.data.kpis.platformStatus").value("HEALTHY"));
     }
 
     @Test

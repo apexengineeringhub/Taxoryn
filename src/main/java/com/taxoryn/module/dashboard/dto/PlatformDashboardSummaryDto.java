@@ -15,6 +15,14 @@ import java.util.Map;
 @Schema(description = "Platform-wide aggregated metrics summary for Taxoryn SuperAdmin")
 public class PlatformDashboardSummaryDto {
 
+    // Clean Business-Oriented Overview Model
+    private PlatformSummaryDto summary;
+    private PlatformMarketplaceDto marketplace;
+    private PlatformAttentionDto attention;
+    private PlatformHealthDto health;
+    private List<RecentPlatformActivityDto> recentActivity;
+
+    // Detailed Ecosystem Models
     private PlatformKpisDto kpis;
     private PracticeEcosystemDto practiceEcosystem;
     private UserEcosystemDto userEcosystem;
@@ -23,6 +31,60 @@ public class PlatformDashboardSummaryDto {
     private FeedbackOperationsDto feedbackOperations;
     private PlatformHealthDto platformHealth;
     private List<RecentAdminActivityDto> recentActivities;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "Executive 4-Card KPI Summary")
+    public static class PlatformSummaryDto {
+        private long activePractices;
+        private long totalPractices;
+        private long platformUsers;
+        private long marketplaceCustomers;
+        private long activeSubscriptions;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "Business Marketplace Performance Metrics")
+    public static class PlatformMarketplaceDto {
+        private long newRequirements;
+        private long activeEnquiries;
+        private long matchesCompleted;
+        private long consultationsBooked;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "Actionable Attention Required Items for SuperAdmin")
+    public static class PlatformAttentionDto {
+        private long pendingPracticeVerification;
+        private long openFeedback;
+        private long securityAlerts;
+        private long paymentIssues;
+        private long marketplaceIssues;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "Human-Readable Recent Platform Activity Event")
+    public static class RecentPlatformActivityDto {
+        private String id;
+        private String displayTitle;
+        private String description;
+        private String targetDisplayName;
+        private Instant timestamp;
+        private String severity; // "INFO", "WARNING", "CRITICAL", "SUCCESS"
+        private String status; // "SUCCESS", "PENDING", "ALERT"
+        private String navigationTarget;
+    }
 
     @Data
     @Builder
@@ -126,6 +188,12 @@ public class PlatformDashboardSummaryDto {
     @AllArgsConstructor
     @Schema(description = "Platform subsystem live health & infrastructure metrics")
     public static class PlatformHealthDto {
+        private String api;
+        private String database;
+        private String backgroundJobs;
+        private String marketplace;
+        private String notifications;
+
         private String apiGatewayStatus;
         private String databaseStatus;
         private String authServiceStatus;

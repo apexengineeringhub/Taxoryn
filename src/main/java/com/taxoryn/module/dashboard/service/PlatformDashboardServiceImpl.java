@@ -1,7 +1,6 @@
 package com.taxoryn.module.dashboard.service;
 
-import com.taxoryn.module.audit.entity.AuditLogEntity;
-import com.taxoryn.module.audit.repository.AuditLogRepository;
+import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.dashboard.dto.PlatformDashboardSummaryDto;
 import com.taxoryn.module.dashboard.dto.PlatformDashboardSummaryDto.*;
 import com.taxoryn.module.feedback.entity.ApplicationFeedbackEntity;
@@ -23,8 +22,6 @@ import com.taxoryn.module.user.repository.UserRepository;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,7 +49,7 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
     private final CustomerTaxRequirementRepository taxRequirementRepository;
     private final ApplicationFeedbackRepository feedbackRepository;
     private final FeedbackEngineeringIssueRepository engineeringIssueRepository;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditService auditService;
     private final DataSource dataSource;
 
     @Override
@@ -107,13 +104,13 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
                     ? user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet())
                     : Collections.emptySet();
 
-            if (roleCodes.contains("SUPER_ADMIN")) {
+            if (roleCodes.contains("SUPER_ADMIN") || roleCodes.contains("TAXORYN_SUPERADMIN")) {
                 superAdminCount++;
-            } else if (roleCodes.contains("CLIENT_USER") || roleCodes.contains("CLIENT_ADMIN") || user.getClientId() != null) {
+            } else if (roleCodes.contains("CLIENT_USER") || roleCodes.contains("CLIENT_ADMIN") || roleCodes.contains("MARKETPLACE_CUSTOMER") || user.getClientId() != null) {
                 customerCount++;
-            } else if (roleCodes.contains("STAFF") || roleCodes.contains("ARTICLE_ASSISTANT") || roleCodes.contains("TRAINEE")) {
+            } else if (roleCodes.contains("STAFF") || roleCodes.contains("ARTICLE_ASSISTANT") || roleCodes.contains("TRAINEE") || roleCodes.contains("PRACTICE_EMPLOYEE")) {
                 employeeCount++;
-            } else if (roleCodes.contains("ORG_ADMIN") || roleCodes.contains("PRACTITIONER") || roleCodes.contains("PARTNER")) {
+            } else if (roleCodes.contains("ORG_ADMIN") || roleCodes.contains("PRACTITIONER") || roleCodes.contains("PARTNER") || roleCodes.contains("PRACTICE_ADMIN") || roleCodes.contains("PRACTICE_OWNER")) {
                 practitionerCount++;
             } else {
                 customerCount++;
@@ -182,7 +179,6 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
             }
         }
 
-        // Tiers: Starter: ₹999/mo, Pro: ₹2,999/mo, Business: ₹5,999/mo, Enterprise: ₹14,999/mo
         BigDecimal mrr = BigDecimal.valueOf(starterCount * 999L
                 + proCount * 2999L
                 + businessCount * 5999L
@@ -266,6 +262,11 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
         long uptimeSec = runtimeMXBean.getUptime() / 1000;
 
         PlatformHealthDto platformHealth = PlatformHealthDto.builder()
+                .api("HEALTHY")
+                .database(dbStatus)
+                .backgroundJobs("HEALTHY")
+                .marketplace("HEALTHY")
+                .notifications("HEALTHY")
                 .apiGatewayStatus("HEALTHY")
                 .databaseStatus(dbStatus)
                 .authServiceStatus("HEALTHY")
@@ -280,30 +281,45 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
                 .uptimeSeconds(uptimeSec)
                 .build();
 
-        // 7. Recent Admin Activities & Security Events
-        List<RecentAdminActivityDto> recentActivities = new ArrayList<>();
-        try {
-            List<AuditLogEntity> recentLogs = auditLogRepository.findAll(
-                    PageRequest.of(0, 6, Sort.by(Sort.Direction.DESC, "createdAt"))
-            ).getContent();
+        // 7. Recent Important Activity & Events (Retrieved from authoritative AuditService)
+        List<RecentPlatformActivityDto> recentActivities = auditService.getRecentImportantActivity(6);
+        List<RecentAdminActivityDto> legacyActivities = recentActivities.stream()
+                .map(r -> RecentAdminActivityDto.builder()
+                        .id(r.getId())
+                        .action(r.getDisplayTitle())
+                        .entityType("PLATFORM")
+                        .entityId(r.getDescription())
+                        .userEmail("audit@taxoryn.com")
+                        .description(r.getDescription())
+                        .timestamp(r.getTimestamp())
+                        .status(r.getStatus())
+                        .build())
+                .collect(Collectors.toList());
 
-            for (AuditLogEntity logItem : recentLogs) {
-                recentActivities.add(RecentAdminActivityDto.builder()
-                        .id(logItem.getId() != null ? logItem.getId().toString() : UUID.randomUUID().toString())
-                        .action(logItem.getAction() != null ? logItem.getAction() : "SYSTEM_EVENT")
-                        .entityType(logItem.getEntityType())
-                        .entityId(logItem.getEntityId())
-                        .userEmail(logItem.getUserId() != null ? logItem.getUserId().toString() : "system@taxoryn.com")
-                        .description("Action " + logItem.getAction() + " on " + logItem.getEntityType())
-                        .timestamp(logItem.getCreatedAt())
-                        .status("SUCCESS")
-                        .build());
-            }
-        } catch (Exception ex) {
-            log.warn("Failed fetching recent audit logs for dashboard: {}", ex.getMessage());
-        }
+        // 8. Clean Business-Oriented Overview Model
+        PlatformSummaryDto summary = PlatformSummaryDto.builder()
+                .activePractices(activePractices)
+                .totalPractices(totalPractices)
+                .platformUsers(activeUsers)
+                .marketplaceCustomers(customerCount)
+                .activeSubscriptions(activePractices)
+                .build();
 
-        // 8. Top Executive KPIs
+        PlatformMarketplaceDto marketplace = PlatformMarketplaceDto.builder()
+                .newRequirements(activeRequirements)
+                .activeEnquiries(totalEnquiries)
+                .matchesCompleted(matchedRequirements)
+                .consultationsBooked(acceptedEnquiries)
+                .build();
+
+        PlatformAttentionDto attention = PlatformAttentionDto.builder()
+                .pendingPracticeVerification(pendingVerificationPractices)
+                .openFeedback(newFeedback + underReview + inProgress)
+                .securityAlerts(0)
+                .paymentIssues(suspendedPractices)
+                .marketplaceIssues(0)
+                .build();
+
         PlatformKpisDto kpis = PlatformKpisDto.builder()
                 .activePractices(activePractices)
                 .totalPractices(totalPractices)
@@ -319,6 +335,11 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
                 .build();
 
         return PlatformDashboardSummaryDto.builder()
+                .summary(summary)
+                .marketplace(marketplace)
+                .attention(attention)
+                .health(platformHealth)
+                .recentActivity(recentActivities)
                 .kpis(kpis)
                 .practiceEcosystem(practiceEcosystem)
                 .userEcosystem(userEcosystem)
@@ -326,7 +347,7 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
                 .subscriptionMetrics(subscriptionMetrics)
                 .feedbackOperations(feedbackOperations)
                 .platformHealth(platformHealth)
-                .recentActivities(recentActivities)
+                .recentActivities(legacyActivities)
                 .build();
     }
 }

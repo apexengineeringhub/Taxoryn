@@ -772,7 +772,17 @@ export const employeeApi = {
 
 // --- 12. Audit Logs ---
 export const auditApi = {
-  getLogs: async (params?: { page?: number; size?: number; entityType?: string; action?: string; fromDate?: string; toDate?: string }) => {
+  getLogs: async (params?: {
+    page?: number;
+    size?: number;
+    entityType?: string;
+    action?: string;
+    search?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    organizationId?: string;
+  }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<AuditLog>>>('/v1/audit-logs', { params });
     return res.data.data;
   },
