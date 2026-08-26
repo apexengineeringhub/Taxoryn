@@ -203,11 +203,30 @@ export const ROLE_WORKSPACE_CONFIGS: Record<string, RoleWorkspaceDefinition> = {
 };
 
 export const resolveRoleWorkspace = (userRoles: string[] = []): RoleWorkspaceDefinition | null => {
+  // Normalize roles to string array
+  const roleStrings = userRoles.map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+
   // Check exact matches in priority order
-  for (const role of userRoles) {
+  for (const role of roleStrings) {
     if (ROLE_WORKSPACE_CONFIGS[role]) {
       return ROLE_WORKSPACE_CONFIGS[role];
     }
   }
   return null;
 };
+
+export const getWorkspaceDisplayName = (userRoles: string[] = []): string => {
+  const ws = resolveRoleWorkspace(userRoles);
+  return ws?.roleTitle || 'Taxoryn Platform';
+};
+
+export const getWorkspaceShortName = (userRoles: string[] = []): string => {
+  const ws = resolveRoleWorkspace(userRoles);
+  return ws?.platformSubtitle || 'PLATFORM SUPERADMIN';
+};
+
+export const getWorkspaceBadgeStyle = (userRoles: string[] = []): string => {
+  const ws = resolveRoleWorkspace(userRoles);
+  return ws?.badgeStyle || 'bg-purple-100 text-purple-800 border-purple-200';
+};
+

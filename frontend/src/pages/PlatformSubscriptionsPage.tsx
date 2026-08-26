@@ -15,6 +15,7 @@ import {
 import { platformDashboardApi, adminPracticeApi } from '../api/endpoints';
 import { PlatformDashboardSummary, Organization } from '../types';
 import { Button } from '../components/common/Button';
+import { WorkspacePageHeader } from '../components/layout/WorkspacePageHeader';
 import clsx from 'clsx';
 
 export const PlatformSubscriptionsPage: React.FC = () => {
@@ -29,14 +30,14 @@ export const PlatformSubscriptionsPage: React.FC = () => {
   const loadSubscriptions = async () => {
     try {
       setIsLoading(true);
-      const [summary, practiceList] = await Promise.all([
+      const [summary, practiceRes] = await Promise.all([
         platformDashboardApi.getOverview(),
         adminPracticeApi.getPractices({ size: 100 }),
       ]);
       setData(summary);
-      setPractices(practiceList?.content || []);
+      setPractices(practiceRes?.content || []);
     } catch (err) {
-      console.error('Failed to load subscription metrics', err);
+      console.error('Failed to load platform subscriptions', err);
     } finally {
       setIsLoading(false);
     }
@@ -53,28 +54,18 @@ export const PlatformSubscriptionsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-indigo-100 text-indigo-800 border border-indigo-200">
-              SaaS Billing Operations
-            </span>
-            <span className="text-xs text-slate-500">• Platform SuperAdmin</span>
-          </div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5">
-            <CreditCard className="w-7 h-7 text-indigo-600" />
-            Platform Subscriptions & SaaS Revenue
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Manage practice subscription tiers, monitor MRR/ARR, and track platform recurring revenue.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={loadSubscriptions} disabled={isLoading} className="text-xs gap-1.5">
-            <RefreshCw className={clsx('w-3.5 h-3.5', isLoading && 'animate-spin')} /> Refresh
-          </Button>
-        </div>
-      </div>
+      <WorkspacePageHeader
+        sectionBadge="SaaS Billing Operations"
+        sectionBadgeStyle="bg-emerald-100 text-emerald-800 border-emerald-200"
+        title="Platform Subscriptions & SaaS Revenue"
+        titleIcon={CreditCard}
+        titleIconColor="text-emerald-600"
+        description="Manage practice subscription tiers, monitor MRR/ARR, and track platform recurring revenue."
+      >
+        <Button variant="secondary" onClick={loadSubscriptions} disabled={isLoading} className="text-xs gap-1.5 font-bold shadow-2xs">
+          <RefreshCw className={clsx('w-3.5 h-3.5', isLoading && 'animate-spin')} /> Refresh
+        </Button>
+      </WorkspacePageHeader>
 
       {/* Revenue Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

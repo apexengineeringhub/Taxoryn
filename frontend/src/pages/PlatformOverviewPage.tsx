@@ -24,6 +24,7 @@ import { platformDashboardApi } from '../api/endpoints';
 import { PlatformDashboardSummary, RecentPlatformActivity } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { SupportOverviewPage } from './SupportOverviewPage';
+import { getWorkspaceShortName } from '../config/roleWorkspaceConfig';
 import clsx from 'clsx';
 
 export const PlatformOverviewPage: React.FC = () => {
@@ -192,7 +193,7 @@ export const PlatformOverviewPage: React.FC = () => {
             </span>
             <span className="text-slate-300 text-xs">•</span>
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              PLATFORM SUPERADMIN
+              {getWorkspaceShortName(userRoleCodes)}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">

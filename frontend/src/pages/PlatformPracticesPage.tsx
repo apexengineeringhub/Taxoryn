@@ -18,6 +18,7 @@ import {
 import { adminPracticeApi } from '../api/endpoints';
 import { Organization } from '../types';
 import { Button } from '../components/common/Button';
+import { WorkspacePageHeader } from '../components/layout/WorkspacePageHeader';
 import clsx from 'clsx';
 
 export const PlatformPracticesPage: React.FC = () => {
@@ -81,28 +82,18 @@ export const PlatformPracticesPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-purple-100 text-purple-800 border border-purple-200">
-              Tenant Management
-            </span>
-            <span className="text-xs text-slate-500">• Platform SuperAdmin</span>
-          </div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5">
-            <Building2 className="w-7 h-7 text-purple-600" />
-            Practice Tenant Governance
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Manage tax practice organizations, lifecycle statuses, and subscription tiers across Taxoryn.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={loadPractices} disabled={isLoading} className="text-xs gap-1.5">
-            <RefreshCw className={clsx('w-3.5 h-3.5', isLoading && 'animate-spin')} /> Refresh
-          </Button>
-        </div>
-      </div>
+      <WorkspacePageHeader
+        sectionBadge="Tenant Management"
+        sectionBadgeStyle="bg-purple-100 text-purple-800 border-purple-200"
+        title="Practice Tenant Governance"
+        titleIcon={Building2}
+        titleIconColor="text-purple-600"
+        description="Manage tax practice organizations, lifecycle statuses, and subscription tiers across Taxoryn."
+      >
+        <Button variant="secondary" onClick={loadPractices} disabled={isLoading} className="text-xs gap-1.5 font-bold shadow-2xs">
+          <RefreshCw className={clsx('w-3.5 h-3.5', isLoading && 'animate-spin')} /> Refresh
+        </Button>
+      </WorkspacePageHeader>
 
       {/* Privacy Notice Banner */}
       <div className="bg-purple-50/70 border border-purple-200/80 rounded-xl p-4 flex items-start gap-3 text-xs text-purple-950">
@@ -110,7 +101,7 @@ export const PlatformPracticesPage: React.FC = () => {
         <div>
           <p className="font-bold">Tenant Isolation & Privacy Policy Guardrails</p>
           <p className="text-purple-800 mt-0.5 leading-relaxed">
-            As a Platform SuperAdmin, you manage practice registration, verification, and tenant status. Sensitive tax calculations, PAN/Aadhaar documents, and individual client billing records remain isolated to the respective practice.
+            As an authorized platform administrator, you manage practice registration, verification, and tenant status. Sensitive tax calculations, PAN/Aadhaar documents, and individual client billing records remain isolated to the respective practice.
           </p>
         </div>
       </div>

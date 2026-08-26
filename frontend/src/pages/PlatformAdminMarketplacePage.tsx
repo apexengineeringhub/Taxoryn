@@ -35,9 +35,13 @@ import {
   CreateTaxServiceRequest,
   UpdateTaxServiceRequest,
 } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { getWorkspaceDisplayName } from '../config/roleWorkspaceConfig';
 import clsx from 'clsx';
 
 export const PlatformAdminMarketplacePage: React.FC = () => {
+  const { user } = useAuth();
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
   const [activeTab, setActiveTab] = useState<'VERIFICATIONS' | 'LISTINGS' | 'PLATFORM_KPIS' | 'TAX_SERVICES_MASTER'>('VERIFICATIONS');
   const [verifications, setVerifications] = useState<MarketplaceVerification[]>([]);
   const [profiles, setProfiles] = useState<MarketplaceProfile[]>([]);
@@ -305,7 +309,7 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold">
             <ShieldCheck className="w-3.5 h-3.5" />
-            Taxoryn Super Admin Platform Governance
+            {getWorkspaceDisplayName(userRoleCodes)} Platform Governance
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold">Marketplace Directory & KYC Moderation</h1>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
