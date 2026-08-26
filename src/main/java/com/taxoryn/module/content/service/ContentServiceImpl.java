@@ -11,6 +11,7 @@ import com.taxoryn.module.content.entity.*;
 import com.taxoryn.module.content.mapper.ContentMapper;
 import com.taxoryn.module.content.repository.ContentRepository;
 import com.taxoryn.module.content.repository.ContentTagRepository;
+import com.taxoryn.module.content.util.YouTubeUtils;
 import com.taxoryn.module.marketplace.entity.TaxServiceCategoryEntity;
 import com.taxoryn.module.marketplace.entity.TaxServiceEntity;
 import com.taxoryn.module.marketplace.repository.TaxServiceCategoryRepository;
@@ -77,6 +78,21 @@ public class ContentServiceImpl implements ContentService {
                     .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", request.getTaxServiceId()));
         }
 
+        String youtubeVideoId = null;
+        if (StringUtils.hasText(request.getYoutubeUrl())) {
+            youtubeVideoId = YouTubeUtils.extractVideoId(request.getYoutubeUrl());
+            if (youtubeVideoId == null) {
+                throw new BusinessValidationException("Please enter a valid YouTube video link.");
+            }
+        } else if (request.getContentType() == ContentType.VIDEO) {
+            throw new BusinessValidationException("Please enter a valid YouTube video link.");
+        }
+
+        String thumbnailUrl = request.getThumbnailUrl();
+        if (!StringUtils.hasText(thumbnailUrl) && youtubeVideoId != null) {
+            thumbnailUrl = YouTubeUtils.buildThumbnailUrl(youtubeVideoId);
+        }
+
         UUID currentUserId = SecurityUtils.getCurrentUser().map(u -> u.getUserId()).orElse(null);
 
         Set<ContentTagEntity> resolvedTags = resolveOrCreateTags(request.getTags());
@@ -87,7 +103,9 @@ public class ContentServiceImpl implements ContentService {
                 .slug(slug)
                 .summary(request.getSummary() != null ? request.getSummary().trim() : null)
                 .body(request.getBody())
-                .thumbnailUrl(request.getThumbnailUrl())
+                .thumbnailUrl(thumbnailUrl)
+                .youtubeVideoId(youtubeVideoId)
+                .videoDurationSeconds(request.getVideoDurationSeconds())
                 .status(ContentStatus.DRAFT)
                 .categoryId(request.getCategoryId())
                 .category(category)
@@ -154,6 +172,22 @@ public class ContentServiceImpl implements ContentService {
 
         if (request.getThumbnailUrl() != null) {
             entity.setThumbnailUrl(request.getThumbnailUrl().trim());
+        }
+
+        if (request.getYoutubeUrl() != null) {
+            if (StringUtils.hasText(request.getYoutubeUrl())) {
+                String vid = YouTubeUtils.extractVideoId(request.getYoutubeUrl());
+                if (vid == null) {
+                    throw new BusinessValidationException("Please enter a valid YouTube video link.");
+                }
+                entity.setYoutubeVideoId(vid);
+            } else {
+                entity.setYoutubeVideoId(null);
+            }
+        }
+
+        if (request.getVideoDurationSeconds() != null) {
+            entity.setVideoDurationSeconds(request.getVideoDurationSeconds());
         }
 
         if (request.getCategoryId() != null) {
@@ -241,6 +275,10 @@ public class ContentServiceImpl implements ContentService {
 
         validateTransition(entity, ContentStatus.PUBLISHED);
 
+        if (entity.getContentType() == ContentType.VIDEO && !StringUtils.hasText(entity.getYoutubeVideoId())) {
+            throw new BusinessValidationException("Add a valid YouTube video before publishing.");
+        }
+
         entity.setStatus(ContentStatus.PUBLISHED);
         entity.setPublishedAt(Instant.now());
 
@@ -268,6 +306,14 @@ public class ContentServiceImpl implements ContentService {
         auditService.logEvent("CONTENT_ARCHIVED", "CONTENT", saved.getId().toString(), null, "Status: ARCHIVED");
 
         return getContentById(saved.getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ContentResponse previewContent(UUID id) {
+        ContentEntity entity = contentRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
+        return mapper.toResponse(entity);
     }
 
     // =========================================================================

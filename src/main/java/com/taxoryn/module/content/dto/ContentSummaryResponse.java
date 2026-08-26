@@ -25,6 +25,9 @@ public class ContentSummaryResponse {
     private String slug;
     private String summary;
     private String thumbnailUrl;
+    private String youtubeVideoId;
+    private Integer videoDurationSeconds;
+    private String videoDurationFormatted;
     private ContentStatus status;
 
     private UUID categoryId;

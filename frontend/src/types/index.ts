@@ -2000,6 +2000,11 @@ export interface LearnContentSummary {
   slug: string;
   summary?: string;
   thumbnailUrl?: string;
+  youtubeVideoId?: string;
+  youtubeEmbedUrl?: string;
+  youtubeWatchUrl?: string;
+  videoDurationSeconds?: number;
+  videoDurationFormatted?: string;
   status: LearnContentStatus;
   categoryId?: string;
   categoryName?: string;

@@ -1494,3 +1494,77 @@ export const publicLearnApi = {
   },
 };
 
+// --- 25. Taxoryn Learn Admin Content Governance API ---
+export const adminLearnApi = {
+  getContentList: async (params?: {
+    contentType?: string;
+    status?: string;
+    categoryId?: string;
+    taxServiceId?: string;
+    tag?: string;
+    search?: string;
+    page?: number;
+    size?: number;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<LearnContentSummary>>>('/v1/admin/content', { params });
+    return res.data.data;
+  },
+  getContentById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}`);
+    return res.data.data;
+  },
+  previewContent: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/preview`);
+    return res.data.data;
+  },
+  createContent: async (payload: {
+    contentType: string;
+    title: string;
+    slug?: string;
+    summary?: string;
+    body: string;
+    thumbnailUrl?: string;
+    youtubeUrl?: string;
+    videoDurationSeconds?: number;
+    categoryId?: string;
+    taxServiceId?: string;
+    tags?: string[];
+  }) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>('/v1/admin/content', payload);
+    return res.data.data;
+  },
+  updateContent: async (id: string, payload: {
+    contentType?: string;
+    title?: string;
+    slug?: string;
+    summary?: string;
+    body?: string;
+    thumbnailUrl?: string;
+    youtubeUrl?: string;
+    videoDurationSeconds?: number;
+    categoryId?: string;
+    taxServiceId?: string;
+    tags?: string[];
+  }) => {
+    const res = await apiClient.put<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}`, payload);
+    return res.data.data;
+  },
+  submitForReview: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/submit-review`);
+    return res.data.data;
+  },
+  approveContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/approve`);
+    return res.data.data;
+  },
+  publishContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/publish`);
+    return res.data.data;
+  },
+  archiveContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/archive`);
+    return res.data.data;
+  },
+};
+
+

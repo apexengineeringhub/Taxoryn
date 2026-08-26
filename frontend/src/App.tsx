@@ -49,6 +49,7 @@ import { PlatformSubscriptionsPage } from './pages/PlatformSubscriptionsPage';
 import { LearnLandingPage } from './pages/learn/LearnLandingPage';
 import { LearnContentBrowsePage } from './pages/learn/LearnContentBrowsePage';
 import { LearnContentDetailPage } from './pages/learn/LearnContentDetailPage';
+import { PlatformContentManagementPage } from './pages/PlatformContentManagementPage';
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 
@@ -203,6 +204,14 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_OPERATIONS_ADMIN']} requiredPermissions={['MARKETPLACE_VIEW']}>
                     <PlatformAdminMarketplacePage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/admin/content"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_OPERATIONS_ADMIN']} requiredPermissions={['CONTENT_VIEW']}>
+                    <PlatformContentManagementPage />
                   </RoleRouteGuard>
                 }
               />

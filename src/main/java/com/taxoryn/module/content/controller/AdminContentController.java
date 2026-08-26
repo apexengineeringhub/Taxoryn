@@ -97,4 +97,12 @@ public class AdminContentController {
         ContentResponse response = contentService.archiveContent(id);
         return ResponseEntity.ok(ApiResponse.success("Content archived successfully", response));
     }
+
+    @GetMapping("/{id}/preview")
+    @PreAuthorize("hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('CONTENT_VIEW')")
+    @Operation(summary = "Admin Preview Content", description = "Allows administrators to preview drafts and unpublished content.")
+    public ResponseEntity<ApiResponse<ContentResponse>> previewContent(@PathVariable UUID id) {
+        ContentResponse response = contentService.previewContent(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

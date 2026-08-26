@@ -136,6 +136,16 @@ export const LearnContentCard: React.FC<LearnContentCardProps> = ({ content, cla
               <span>{badge.label}</span>
             </span>
           </div>
+
+          {/* Duration Badge for Videos */}
+          {content.contentType === 'VIDEO' && content.videoDurationFormatted && (
+            <div className="absolute bottom-3 right-3">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-900/80 text-white backdrop-blur-md border border-white/10 shadow-xs">
+                <Clock className="w-3 h-3" />
+                <span>{content.videoDurationFormatted}</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Card Body */}

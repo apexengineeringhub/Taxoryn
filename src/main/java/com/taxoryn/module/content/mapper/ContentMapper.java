@@ -5,7 +5,9 @@ import com.taxoryn.module.content.dto.ContentSummaryResponse;
 import com.taxoryn.module.content.dto.ContentTagDto;
 import com.taxoryn.module.content.entity.ContentEntity;
 import com.taxoryn.module.content.entity.ContentTagEntity;
+import com.taxoryn.module.content.util.YouTubeUtils;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +22,11 @@ public class ContentMapper {
             return null;
         }
 
+        String effectiveThumbnail = resolveThumbnail(entity.getThumbnailUrl(), entity.getYoutubeVideoId());
+        String embedUrl = YouTubeUtils.buildEmbedUrl(entity.getYoutubeVideoId());
+        String watchUrl = YouTubeUtils.buildWatchUrl(entity.getYoutubeVideoId());
+        String durationFormatted = YouTubeUtils.formatDuration(entity.getVideoDurationSeconds());
+
         return ContentResponse.builder()
                 .id(entity.getId())
                 .contentType(entity.getContentType())
@@ -27,7 +34,12 @@ public class ContentMapper {
                 .slug(entity.getSlug())
                 .summary(entity.getSummary())
                 .body(entity.getBody())
-                .thumbnailUrl(entity.getThumbnailUrl())
+                .thumbnailUrl(effectiveThumbnail)
+                .youtubeVideoId(entity.getYoutubeVideoId())
+                .youtubeEmbedUrl(embedUrl)
+                .youtubeWatchUrl(watchUrl)
+                .videoDurationSeconds(entity.getVideoDurationSeconds())
+                .videoDurationFormatted(durationFormatted)
                 .status(entity.getStatus())
                 .categoryId(entity.getCategoryId())
                 .categoryName(entity.getCategory() != null ? entity.getCategory().getName() : null)
@@ -57,13 +69,19 @@ public class ContentMapper {
             return null;
         }
 
+        String effectiveThumbnail = resolveThumbnail(entity.getThumbnailUrl(), entity.getYoutubeVideoId());
+        String durationFormatted = YouTubeUtils.formatDuration(entity.getVideoDurationSeconds());
+
         return ContentSummaryResponse.builder()
                 .id(entity.getId())
                 .contentType(entity.getContentType())
                 .title(entity.getTitle())
                 .slug(entity.getSlug())
                 .summary(entity.getSummary())
-                .thumbnailUrl(entity.getThumbnailUrl())
+                .thumbnailUrl(effectiveThumbnail)
+                .youtubeVideoId(entity.getYoutubeVideoId())
+                .videoDurationSeconds(entity.getVideoDurationSeconds())
+                .videoDurationFormatted(durationFormatted)
                 .status(entity.getStatus())
                 .categoryId(entity.getCategoryId())
                 .categoryName(entity.getCategory() != null ? entity.getCategory().getName() : null)
@@ -82,6 +100,16 @@ public class ContentMapper {
                 .tags(toTagDtoList(entity.getTags()))
                 .publicReady(entity.isPublicReady())
                 .build();
+    }
+
+    private String resolveThumbnail(String customThumbnail, String youtubeVideoId) {
+        if (StringUtils.hasText(customThumbnail)) {
+            return customThumbnail.trim();
+        }
+        if (StringUtils.hasText(youtubeVideoId)) {
+            return YouTubeUtils.buildThumbnailUrl(youtubeVideoId);
+        }
+        return null;
     }
 
     public ContentTagDto toTagDto(ContentTagEntity entity) {

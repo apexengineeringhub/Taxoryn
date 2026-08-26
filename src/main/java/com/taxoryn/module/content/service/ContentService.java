@@ -26,6 +26,8 @@ public interface ContentService {
 
     ContentResponse archiveContent(UUID id);
 
+    ContentResponse previewContent(UUID id);
+
     // =========================================================================
     // Public / Customer Experience APIs (Strictly PUBLISHED content only)
     // =========================================================================

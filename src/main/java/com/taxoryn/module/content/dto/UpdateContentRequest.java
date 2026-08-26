@@ -32,6 +32,10 @@ public class UpdateContentRequest {
     @Size(max = 500, message = "Thumbnail URL cannot exceed 500 characters")
     private String thumbnailUrl;
 
+    private String youtubeUrl;
+
+    private Integer videoDurationSeconds;
+
     private UUID categoryId;
 
     private UUID taxServiceId;

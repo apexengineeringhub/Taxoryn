@@ -225,6 +225,7 @@ class AdminContentControllerIntegrationTest {
                 .title("How to Reconcile GSTR-2B with Purchase Register")
                 .slug("how-to-reconcile-gstr-2b")
                 .body("Video walkthrough of ITC matching algorithms.")
+                .youtubeUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                 .thumbnailUrl("https://assets.taxoryn.com/thumbnails/gstr2b-guide.jpg")
                 .tags(Set.of("GSTR-2B", "ITC"))
                 .build();
@@ -483,6 +484,7 @@ class AdminContentControllerIntegrationTest {
                     .title("Income Tax Tutorial " + i)
                     .slug("it-tutorial-" + i)
                     .body("Video tutorial " + i + " content.")
+                    .youtubeUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                     .build();
 
             mockMvc.perform(post("/api/v1/admin/content")

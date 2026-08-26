@@ -40,6 +40,12 @@ public class ContentEntity extends AuditableEntity {
     @Column(name = "thumbnail_url", length = 500)
     private String thumbnailUrl;
 
+    @Column(name = "youtube_video_id", length = 64)
+    private String youtubeVideoId;
+
+    @Column(name = "video_duration_seconds")
+    private Integer videoDurationSeconds;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     @Builder.Default

@@ -20,10 +20,13 @@ import {
   ChevronRight,
   MessageSquare,
   AlertCircle,
+  Play,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { LearnHeader } from '../../components/learn/LearnHeader';
 import { LearnContentCard } from '../../components/learn/LearnContentCard';
+import { YouTubePlayer } from '../../components/learn/YouTubePlayer';
 import { publicLearnApi } from '../../api/endpoints';
 import { LearnContentDetail, LearnContentSummary, LearnContentType } from '../../types';
 import clsx from 'clsx';
@@ -252,6 +255,22 @@ export const LearnContentDetailPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              {content.contentType === 'VIDEO' && content.youtubeVideoId && (
+                <a
+                  href={`https://www.youtube.com/watch?v=${content.youtubeVideoId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="text-xs font-bold gap-1.5 rounded-xl border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Watch on YouTube</span>
+                  </Button>
+                </a>
+              )}
               <Button
                 variant="secondary"
                 size="sm"
@@ -265,8 +284,12 @@ export const LearnContentDetailPage: React.FC = () => {
           </div>
         </header>
 
-        {/* Thumbnail or Video Banner if provided */}
-        {content.thumbnailUrl && (
+        {/* Video Player or Thumbnail Banner */}
+        {content.contentType === 'VIDEO' ? (
+          <div className="space-y-3">
+            <YouTubePlayer videoId={content.youtubeVideoId} title={content.title} />
+          </div>
+        ) : content.thumbnailUrl ? (
           <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-md">
             <img
               src={content.thumbnailUrl}
@@ -274,7 +297,7 @@ export const LearnContentDetailPage: React.FC = () => {
               className="w-full h-auto max-h-[420px] object-cover"
             />
           </div>
-        )}
+        ) : null}
 
         {/* Article Body Content */}
         <article className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-card">
