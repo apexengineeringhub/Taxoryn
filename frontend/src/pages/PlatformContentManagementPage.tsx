@@ -25,13 +25,14 @@ import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { WorkspacePageHeader } from '../components/layout/WorkspacePageHeader';
 import { YouTubePlayer } from '../components/learn/YouTubePlayer';
-import { adminLearnApi, publicLearnApi } from '../api/endpoints';
+import { adminLearnApi, publicLearnApi, marketplacePublicApi } from '../api/endpoints';
 import {
   LearnContentDetail,
   LearnContentStatus,
   LearnContentSummary,
   LearnContentType,
   LearnPublicCategory,
+  PublicTaxService,
   PagedResponse,
 } from '../types';
 import clsx from 'clsx';
@@ -50,6 +51,7 @@ export const PlatformContentManagementPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('');
 
   const [categories, setCategories] = useState<LearnPublicCategory[]>([]);
+  const [masterTaxServices, setMasterTaxServices] = useState<PublicTaxService[]>([]);
 
   // Modal states
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
@@ -69,11 +71,22 @@ export const PlatformContentManagementPage: React.FC = () => {
   const [formYoutubeUrl, setFormYoutubeUrl] = useState<string>('');
   const [formDurationSeconds, setFormDurationSeconds] = useState<string>('300');
   const [formCategoryId, setFormCategoryId] = useState<string>('');
+  const [formTaxServiceIds, setFormTaxServiceIds] = useState<string[]>([]);
   const [formTags, setFormTags] = useState<string>('');
 
   useEffect(() => {
     loadCategories();
+    loadTaxServices();
   }, []);
+
+  const loadTaxServices = async () => {
+    try {
+      const services = await marketplacePublicApi.getTaxServices();
+      setMasterTaxServices(services || []);
+    } catch {
+      setMasterTaxServices([]);
+    }
+  };
 
   useEffect(() => {
     loadContent();
@@ -126,6 +139,7 @@ export const PlatformContentManagementPage: React.FC = () => {
     setFormYoutubeUrl('');
     setFormDurationSeconds('300');
     setFormCategoryId(categories.length > 0 ? categories[0].id : '');
+    setFormTaxServiceIds([]);
     setFormTags('');
     setActionError(null);
     setIsEditorOpen(true);
@@ -144,6 +158,13 @@ export const PlatformContentManagementPage: React.FC = () => {
       setFormYoutubeUrl(detail.youtubeWatchUrl || detail.youtubeVideoId || '');
       setFormDurationSeconds(detail.videoDurationSeconds ? detail.videoDurationSeconds.toString() : '');
       setFormCategoryId(detail.categoryId || '');
+      setFormTaxServiceIds(
+        detail.taxServices && detail.taxServices.length > 0
+          ? detail.taxServices.map((ts) => ts.id)
+          : detail.taxServiceId
+          ? [detail.taxServiceId]
+          : []
+      );
       setFormTags(detail.tags ? detail.tags.map((t) => t.name).join(', ') : '');
       setActionError(null);
       setIsEditorOpen(true);
@@ -176,6 +197,8 @@ export const PlatformContentManagementPage: React.FC = () => {
           youtubeUrl: formYoutubeUrl || undefined,
           videoDurationSeconds: durationInt,
           categoryId: formCategoryId || undefined,
+          taxServiceId: formTaxServiceIds.length > 0 ? formTaxServiceIds[0] : undefined,
+          taxServiceIds: formTaxServiceIds,
           tags: tagsArray,
         });
       } else {
@@ -189,6 +212,8 @@ export const PlatformContentManagementPage: React.FC = () => {
           youtubeUrl: formYoutubeUrl || undefined,
           videoDurationSeconds: durationInt,
           categoryId: formCategoryId || undefined,
+          taxServiceId: formTaxServiceIds.length > 0 ? formTaxServiceIds[0] : undefined,
+          taxServiceIds: formTaxServiceIds,
           tags: tagsArray,
         });
       }
@@ -653,6 +678,74 @@ export const PlatformContentManagementPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Related Controlled Tax Services Master */}
+          <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span>Related Controlled Tax Services (Marketplace Master)</span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Links this educational content directly to verified practitioner services in the marketplace.
+                </p>
+              </div>
+            </div>
+
+            {/* Selected Tax Service Chips */}
+            {formTaxServiceIds.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {formTaxServiceIds.map((id) => {
+                  const svc = masterTaxServices.find((s) => s.id === id);
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-100/80 border border-amber-300/80 text-amber-900 text-xs font-bold shadow-xs"
+                    >
+                      <span>{svc ? svc.name : id}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormTaxServiceIds(formTaxServiceIds.filter((tid) => tid !== id))
+                        }
+                        className="w-4 h-4 rounded-full bg-amber-200 hover:bg-amber-300 text-amber-900 flex items-center justify-center text-[10px]"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-[11px] text-amber-700 italic">
+                No Tax Services linked. (Educational-only content, no marketplace CTA will be displayed).
+              </div>
+            )}
+
+            {/* Add Service Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700">Add Tax Service from Master</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value && !formTaxServiceIds.includes(e.target.value)) {
+                    setFormTaxServiceIds([...formTaxServiceIds, e.target.value]);
+                  }
+                }}
+                className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs text-slate-900 focus:outline-none"
+              >
+                <option value="">-- Select a Tax Service to Link --</option>
+                {masterTaxServices
+                  .filter((s) => !formTaxServiceIds.includes(s.id))
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.categoryName ? `(${s.categoryName})` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
           {/* Summary */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-700">Summary (Short plain-language description)</label>
@@ -737,6 +830,46 @@ export const PlatformContentManagementPage: React.FC = () => {
             <div className="text-xs sm:text-sm text-slate-800 whitespace-pre-line leading-relaxed">
               {previewContent.body}
             </div>
+
+            {/* Tax Services Marketplace Preview */}
+            {previewContent.taxServices && previewContent.taxServices.length > 0 ? (
+              <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Marketplace CTA Preview</span>
+                </div>
+                <div className="text-xs text-slate-300">
+                  {previewContent.taxServices.length === 1 ? (
+                    <div>
+                      <div className="font-bold text-white mb-0.5">
+                        Need help with {previewContent.taxServices[0].name}?
+                      </div>
+                      <div>Connect with verified Chartered Accountants and Tax Professionals.</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="font-bold text-white mb-1.5">
+                        {previewContent.taxServices.length} Related Tax Services Linked:
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {previewContent.taxServices.map((svc) => (
+                          <span
+                            key={svc.id}
+                            className="px-2 py-0.5 rounded-lg bg-white/10 text-emerald-300 text-[11px] font-semibold"
+                          >
+                            {svc.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-100 text-slate-500 text-xs italic">
+                No Tax Services linked. Marketplace CTA will be omitted for customers.
+              </div>
+            )}
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
               <Button

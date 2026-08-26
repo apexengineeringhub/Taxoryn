@@ -425,6 +425,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .serviceId(request.getServiceId())
                 .taxRequirementId(linkedReq != null ? linkedReq.getId() : request.getTaxRequirementId())
                 .taxServiceId(resolvedTaxServiceId)
+                .sourceType(request.getSourceType())
+                .sourceContentId(request.getSourceContentId())
                 .financialYear(resolvedFy)
                 .customerType(resolvedType)
                 .earlyEnquiryMessage(sanitizedEarlyMessage)
@@ -1594,6 +1596,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (entity.getAssignedEmployeeId() != null) {
             employeeRepository.findById(entity.getAssignedEmployeeId())
                     .ifPresent(e -> dto.setAssignedEmployeeName(e.getFullName()));
+        }
+        if (entity.getTaxServiceId() != null) {
+            taxServiceRepository.findById(entity.getTaxServiceId())
+                    .ifPresent(ts -> dto.setTaxServiceName(ts.getName()));
         }
 
         // Privacy Hardening: Redact sensitive Level 3/4 identifiers during early enquiry stage

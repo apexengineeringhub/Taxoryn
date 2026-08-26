@@ -356,49 +356,104 @@ export const LearnContentDetailPage: React.FC = () => {
           )}
         </article>
 
-        {/* 3. "Need Help With This?" Tax Professional Marketplace CTA */}
-        <section className="bg-gradient-to-br from-indigo-900 via-slate-900 to-brand-950 rounded-3xl p-6 sm:p-10 text-white shadow-xl space-y-4 relative overflow-hidden">
-          <div className="relative z-10 max-w-2xl space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Verified Tax Practitioners</span>
-            </div>
+        {/* 3. "Need Help With This?" Related Tax Services Marketplace Integration */}
+        {content.marketplaceCtaEnabled && content.taxServices && content.taxServices.length > 0 ? (
+          content.taxServices.length === 1 ? (
+            <section className="bg-gradient-to-br from-indigo-950 via-slate-900 to-brand-950 rounded-3xl p-6 sm:p-10 text-white shadow-xl space-y-4 relative overflow-hidden">
+              <div className="relative z-10 max-w-2xl space-y-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Verified Tax Practitioners</span>
+                </div>
 
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Need help with {content.taxServiceName || content.categoryName || 'this tax topic'}?
-            </h2>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                  Need help with {content.taxServices[0].name}?
+                </h2>
 
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              If you want professional assistance with filing, documentation, or compliance, you can connect with a verified Chartered Accountant or Tax Professional who provides this service.
-            </p>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  {content.taxServices[0].description ||
+                    `Connect with verified Chartered Accountants and Tax Experts specializing in ${content.taxServices[0].name} for filing, documentation, and compliance.`}
+                </p>
 
-            <div className="pt-3 flex flex-wrap items-center gap-3">
-              <Link
-                to={
-                  content.categoryCode
-                    ? `/marketplace?specialization=${content.categoryCode}`
-                    : '/marketplace'
-                }
-              >
-                <Button
-                  variant="primary"
-                  className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs sm:text-sm px-6 rounded-xl gap-2 shadow-lg shadow-emerald-950/40"
-                >
-                  <span>Find a Tax Professional</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link to="/learn/content">
-                <Button
-                  variant="secondary"
-                  className="bg-white/10 hover:bg-white/20 text-white border-white/20 font-bold text-xs sm:text-sm rounded-xl"
-                >
-                  <span>Read More Guides</span>
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
+                <div className="pt-3 flex flex-wrap items-center gap-3">
+                  <Link
+                    to={`/marketplace?taxServiceId=${content.taxServices[0].id}&sourceType=CONTENT&sourceContentId=${content.id}`}
+                  >
+                    <Button
+                      variant="primary"
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs sm:text-sm px-6 rounded-xl gap-2 shadow-lg shadow-emerald-950/40"
+                    >
+                      <span>Find a Tax Professional</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Link to="/learn/content">
+                    <Button
+                      variant="secondary"
+                      className="bg-white/10 hover:bg-white/20 text-white border-white/20 font-bold text-xs sm:text-sm rounded-xl"
+                    >
+                      <span>Read More Guides</span>
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 mb-1">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Verified Tax Practitioners</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    How can we help with this?
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Connect with specialized tax professionals for the services mentioned in this guide:
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {content.taxServices.map((svc) => (
+                  <div
+                    key={svc.id}
+                    className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                  >
+                    <div className="space-y-1.5">
+                      {svc.categoryName && (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-100">
+                          {svc.categoryName}
+                        </span>
+                      )}
+                      <h3 className="text-base font-bold text-slate-900 leading-snug">
+                        {svc.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 line-clamp-2">
+                        {svc.description || `Get professional assistance and compliance support for ${svc.name}.`}
+                      </p>
+                    </div>
+
+                    <Link
+                      to={`/marketplace?taxServiceId=${svc.id}&sourceType=CONTENT&sourceContentId=${content.id}`}
+                      className="block"
+                    >
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl justify-between"
+                      >
+                        <span>Find Professional</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        ) : null}
 
         {/* 4. Related Tax Topics Section */}
         {relatedContent.length > 0 && (

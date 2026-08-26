@@ -65,6 +65,15 @@ public class ContentEntity extends AuditableEntity {
     @JoinColumn(name = "tax_service_id", insertable = false, updatable = false)
     private TaxServiceEntity taxService;
 
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "content_tax_service_mappings",
+            joinColumns = @JoinColumn(name = "content_id"),
+            inverseJoinColumns = @JoinColumn(name = "tax_service_id")
+    )
+    @Builder.Default
+    private Set<TaxServiceEntity> taxServices = new HashSet<>();
+
     @Enumerated(EnumType.STRING)
     @Column(name = "scope", nullable = false, length = 50)
     @Builder.Default

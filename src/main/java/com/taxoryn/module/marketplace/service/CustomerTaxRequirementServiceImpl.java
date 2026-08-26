@@ -72,6 +72,8 @@ public class CustomerTaxRequirementServiceImpl implements CustomerTaxRequirement
                 .state(StringUtils.hasText(request.getState()) ? request.getState().trim() : customer.getState())
                 .pincode(StringUtils.hasText(request.getPincode()) ? request.getPincode().trim() : customer.getPincode())
                 .searchRadiusKm(request.getSearchRadiusKm())
+                .sourceType(request.getSourceType())
+                .sourceContentId(request.getSourceContentId())
                 .build();
 
         CustomerTaxRequirementEntity saved = requirementRepository.save(entity);

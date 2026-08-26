@@ -6,12 +6,12 @@ import com.taxoryn.module.content.dto.ContentTagDto;
 import com.taxoryn.module.content.entity.ContentEntity;
 import com.taxoryn.module.content.entity.ContentTagEntity;
 import com.taxoryn.module.content.util.YouTubeUtils;
+import com.taxoryn.module.marketplace.dto.PublicTaxServiceDto;
+import com.taxoryn.module.marketplace.entity.TaxServiceEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -26,6 +26,7 @@ public class ContentMapper {
         String embedUrl = YouTubeUtils.buildEmbedUrl(entity.getYoutubeVideoId());
         String watchUrl = YouTubeUtils.buildWatchUrl(entity.getYoutubeVideoId());
         String durationFormatted = YouTubeUtils.formatDuration(entity.getVideoDurationSeconds());
+        List<PublicTaxServiceDto> activeTaxServices = resolveActiveTaxServices(entity);
 
         return ContentResponse.builder()
                 .id(entity.getId())
@@ -47,6 +48,8 @@ public class ContentMapper {
                 .taxServiceId(entity.getTaxServiceId())
                 .taxServiceName(entity.getTaxService() != null ? entity.getTaxService().getName() : null)
                 .taxServiceCode(entity.getTaxService() != null ? entity.getTaxService().getCode() : null)
+                .taxServices(activeTaxServices)
+                .marketplaceCtaEnabled(entity.isPublicReady() && !activeTaxServices.isEmpty())
                 .scope(entity.getScope())
                 .authorId(entity.getAuthorId())
                 .authorName(entity.getAuthor() != null ? entity.getAuthor().getFirstName() + " " + (entity.getAuthor().getLastName() != null ? entity.getAuthor().getLastName() : "") : null)
@@ -71,6 +74,7 @@ public class ContentMapper {
 
         String effectiveThumbnail = resolveThumbnail(entity.getThumbnailUrl(), entity.getYoutubeVideoId());
         String durationFormatted = YouTubeUtils.formatDuration(entity.getVideoDurationSeconds());
+        List<PublicTaxServiceDto> activeTaxServices = resolveActiveTaxServices(entity);
 
         return ContentSummaryResponse.builder()
                 .id(entity.getId())
@@ -89,6 +93,8 @@ public class ContentMapper {
                 .taxServiceId(entity.getTaxServiceId())
                 .taxServiceName(entity.getTaxService() != null ? entity.getTaxService().getName() : null)
                 .taxServiceCode(entity.getTaxService() != null ? entity.getTaxService().getCode() : null)
+                .taxServices(activeTaxServices)
+                .marketplaceCtaEnabled(entity.isPublicReady() && !activeTaxServices.isEmpty())
                 .scope(entity.getScope())
                 .authorId(entity.getAuthorId())
                 .authorName(entity.getAuthor() != null ? entity.getAuthor().getFirstName() + " " + (entity.getAuthor().getLastName() != null ? entity.getAuthor().getLastName() : "") : null)
@@ -99,6 +105,39 @@ public class ContentMapper {
                 .updatedAt(entity.getUpdatedAt())
                 .tags(toTagDtoList(entity.getTags()))
                 .publicReady(entity.isPublicReady())
+                .build();
+    }
+
+    private List<PublicTaxServiceDto> resolveActiveTaxServices(ContentEntity entity) {
+        Map<UUID, PublicTaxServiceDto> servicesMap = new LinkedHashMap<>();
+
+        // 1. Check primary tax service
+        if (entity.getTaxService() != null && Boolean.TRUE.equals(entity.getTaxService().getIsActive())) {
+            TaxServiceEntity ts = entity.getTaxService();
+            servicesMap.put(ts.getId(), toPublicTaxServiceDto(ts));
+        }
+
+        // 2. Check many-to-many tax services
+        if (entity.getTaxServices() != null) {
+            for (TaxServiceEntity ts : entity.getTaxServices()) {
+                if (ts != null && Boolean.TRUE.equals(ts.getIsActive()) && !servicesMap.containsKey(ts.getId())) {
+                    servicesMap.put(ts.getId(), toPublicTaxServiceDto(ts));
+                }
+            }
+        }
+
+        return new ArrayList<>(servicesMap.values());
+    }
+
+    private PublicTaxServiceDto toPublicTaxServiceDto(TaxServiceEntity ts) {
+        return PublicTaxServiceDto.builder()
+                .id(ts.getId())
+                .code(ts.getCode())
+                .name(ts.getName())
+                .description(ts.getDescription())
+                .category(ts.getCategory() != null ? ts.getCategory().getCode() : null)
+                .categoryName(ts.getCategory() != null ? ts.getCategory().getName() : null)
+                .sortOrder(ts.getSortOrder())
                 .build();
     }
 
@@ -130,3 +169,4 @@ public class ContentMapper {
                 .collect(Collectors.toList());
     }
 }
+

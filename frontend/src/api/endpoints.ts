@@ -1528,6 +1528,7 @@ export const adminLearnApi = {
     videoDurationSeconds?: number;
     categoryId?: string;
     taxServiceId?: string;
+    taxServiceIds?: string[];
     tags?: string[];
   }) => {
     const res = await apiClient.post<ApiResponse<LearnContentDetail>>('/v1/admin/content', payload);
@@ -1544,6 +1545,7 @@ export const adminLearnApi = {
     videoDurationSeconds?: number;
     categoryId?: string;
     taxServiceId?: string;
+    taxServiceIds?: string[];
     tags?: string[];
   }) => {
     const res = await apiClient.put<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}`, payload);

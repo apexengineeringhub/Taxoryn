@@ -88,11 +88,16 @@ export const CustomerTaxRequirementWizardPage: React.FC = () => {
         setFinancialYear(currentFy.code);
       }
 
-      // Check preselected service from query param (e.g. ?service=INCOME_TAX_RETURN)
-      const preselectedServiceCode = searchParams.get('service');
-      if (preselectedServiceCode && cats) {
+      // Check preselected service from query param (e.g. ?taxServiceId=... or ?service=INCOME_TAX_RETURN)
+      const preselectedServiceId = searchParams.get('taxServiceId') || searchParams.get('serviceId');
+      const preselectedServiceCode = searchParams.get('service') || searchParams.get('taxServiceCode');
+      if ((preselectedServiceId || preselectedServiceCode) && cats) {
         for (const cat of cats) {
-          const match = cat.services?.find((s: PublicTaxService) => s.code.toUpperCase() === preselectedServiceCode.toUpperCase());
+          const match = cat.services?.find(
+            (s: PublicTaxService) =>
+              (preselectedServiceId && s.id === preselectedServiceId) ||
+              (preselectedServiceCode && s.code.toUpperCase() === preselectedServiceCode.toUpperCase())
+          );
           if (match) {
             setSelectedService(match);
             break;
@@ -139,6 +144,8 @@ export const CustomerTaxRequirementWizardPage: React.FC = () => {
         description: description.trim() || undefined,
         city: city.trim() || undefined,
         state: state.trim() || undefined,
+        sourceType: searchParams.get('sourceType') || (searchParams.get('taxServiceId') ? 'CONTENT' : undefined),
+        sourceContentId: searchParams.get('sourceContentId') || undefined,
       });
 
       // 2. Submit the requirement to transition DRAFT -> SUBMITTED

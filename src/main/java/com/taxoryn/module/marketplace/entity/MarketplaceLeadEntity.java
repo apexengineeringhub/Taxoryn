@@ -37,6 +37,12 @@ public class MarketplaceLeadEntity extends AuditableEntity {
     @JoinColumn(name = "tax_service_id", insertable = false, updatable = false)
     private TaxServiceEntity taxService;
 
+    @Column(name = "source_type", length = 50)
+    private String sourceType;
+
+    @Column(name = "source_content_id")
+    private UUID sourceContentId;
+
     @Column(name = "financial_year", length = 20)
     private String financialYear;
 

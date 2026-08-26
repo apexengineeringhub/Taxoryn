@@ -19,13 +19,13 @@ import java.util.UUID;
 @Repository
 public interface ContentRepository extends JpaRepository<ContentEntity, UUID>, JpaSpecificationExecutor<ContentEntity> {
 
-    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.id = :id")
+    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.taxServices LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.id = :id")
     Optional<ContentEntity> findByIdWithDetails(@Param("id") UUID id);
 
-    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.slug = :slug")
+    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.taxServices LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.slug = :slug")
     Optional<ContentEntity> findBySlugWithDetails(@Param("slug") String slug);
 
-    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.slug = :slug AND c.status = :status")
+    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.tags LEFT JOIN FETCH c.taxServices LEFT JOIN FETCH c.category LEFT JOIN FETCH c.taxService LEFT JOIN FETCH c.author LEFT JOIN FETCH c.reviewer WHERE c.slug = :slug AND c.status = :status")
     Optional<ContentEntity> findBySlugAndStatusWithDetails(@Param("slug") String slug, @Param("status") ContentStatus status);
 
     Optional<ContentEntity> findBySlug(String slug);

@@ -72,10 +72,32 @@ public class ContentServiceImpl implements ContentService {
                     .orElseThrow(() -> new ResourceNotFoundException("TaxServiceCategory", "id", request.getCategoryId()));
         }
 
-        TaxServiceEntity taxService = null;
+        TaxServiceEntity primaryTaxService = null;
+        Set<TaxServiceEntity> resolvedTaxServices = new LinkedHashSet<>();
+
         if (request.getTaxServiceId() != null) {
-            taxService = taxServiceRepository.findById(request.getTaxServiceId())
+            primaryTaxService = taxServiceRepository.findById(request.getTaxServiceId())
                     .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", request.getTaxServiceId()));
+            if (!Boolean.TRUE.equals(primaryTaxService.getIsActive())) {
+                throw new BusinessValidationException("Cannot attach inactive Tax Service: " + primaryTaxService.getName());
+            }
+            resolvedTaxServices.add(primaryTaxService);
+        }
+
+        if (request.getTaxServiceIds() != null && !request.getTaxServiceIds().isEmpty()) {
+            for (UUID tsId : request.getTaxServiceIds()) {
+                if (tsId != null) {
+                    TaxServiceEntity svc = taxServiceRepository.findById(tsId)
+                            .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", tsId));
+                    if (!Boolean.TRUE.equals(svc.getIsActive())) {
+                        throw new BusinessValidationException("Cannot attach inactive Tax Service: " + svc.getName());
+                    }
+                    resolvedTaxServices.add(svc);
+                    if (primaryTaxService == null) {
+                        primaryTaxService = svc;
+                    }
+                }
+            }
         }
 
         String youtubeVideoId = null;
@@ -109,8 +131,9 @@ public class ContentServiceImpl implements ContentService {
                 .status(ContentStatus.DRAFT)
                 .categoryId(request.getCategoryId())
                 .category(category)
-                .taxServiceId(request.getTaxServiceId())
-                .taxService(taxService)
+                .taxServiceId(primaryTaxService != null ? primaryTaxService.getId() : null)
+                .taxService(primaryTaxService)
+                .taxServices(resolvedTaxServices)
                 .scope(request.getScope() != null ? request.getScope() : ContentOwnershipScope.PLATFORM)
                 .authorId(currentUserId)
                 .tags(resolvedTags)
@@ -197,11 +220,38 @@ public class ContentServiceImpl implements ContentService {
             entity.setCategory(cat);
         }
 
-        if (request.getTaxServiceId() != null) {
-            TaxServiceEntity svc = taxServiceRepository.findById(request.getTaxServiceId())
-                    .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", request.getTaxServiceId()));
-            entity.setTaxServiceId(request.getTaxServiceId());
-            entity.setTaxService(svc);
+        if (request.getTaxServiceId() != null || request.getTaxServiceIds() != null) {
+            Set<TaxServiceEntity> updatedTaxServices = new LinkedHashSet<>();
+            TaxServiceEntity newPrimary = null;
+
+            if (request.getTaxServiceId() != null) {
+                newPrimary = taxServiceRepository.findById(request.getTaxServiceId())
+                        .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", request.getTaxServiceId()));
+                if (!Boolean.TRUE.equals(newPrimary.getIsActive())) {
+                    throw new BusinessValidationException("Cannot attach inactive Tax Service: " + newPrimary.getName());
+                }
+                updatedTaxServices.add(newPrimary);
+            }
+
+            if (request.getTaxServiceIds() != null) {
+                for (UUID tsId : request.getTaxServiceIds()) {
+                    if (tsId != null) {
+                        TaxServiceEntity svc = taxServiceRepository.findById(tsId)
+                                .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", tsId));
+                        if (!Boolean.TRUE.equals(svc.getIsActive())) {
+                            throw new BusinessValidationException("Cannot attach inactive Tax Service: " + svc.getName());
+                        }
+                        updatedTaxServices.add(svc);
+                        if (newPrimary == null) {
+                            newPrimary = svc;
+                        }
+                    }
+                }
+            }
+
+            entity.setTaxServiceId(newPrimary != null ? newPrimary.getId() : null);
+            entity.setTaxService(newPrimary);
+            entity.setTaxServices(updatedTaxServices);
         }
 
         if (request.getScope() != null) {

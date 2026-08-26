@@ -20,6 +20,10 @@ public class MarketplaceLeadDto {
     private UUID marketplaceProfileId;
     private UUID serviceId;
     private String serviceTitle;
+    private UUID taxServiceId;
+    private String taxServiceName;
+    private String sourceType;
+    private UUID sourceContentId;
     private String clientName;
     private String clientEmail;
     private String clientPhone;

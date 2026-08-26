@@ -1403,6 +1403,201 @@ export interface CustomerDashboard {
   totalReviews: number;
   recentTaxRequirements?: CustomerTaxRequirementSummary[];
   recentLeads: MarketplaceLead[];
+  clientPhone?: string;
+  serviceId?: string;
+  serviceTitle?: string;
+  proposalTitle: string;
+  scopeOfWork: string;
+  deliverables?: string;
+  feeAmount: number;
+  pricingType: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
+  estimatedTimelineDays: number;
+  proposalStatus: ProposalStatus;
+  accessToken: string;
+  validUntil?: string;
+  rejectionReason?: string;
+  acceptedAt?: string;
+  createdAt: string;
+}
+
+export interface OnboardingDocument {
+  id: string;
+  onboardingId: string;
+  documentType: OnboardingDocType;
+  documentName: string;
+  filePath: string;
+  fileSizeBytes: number;
+  contentType?: string;
+  isRequired: boolean;
+  verificationStatus: DocVerificationStatus;
+  rejectionReason?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  createdAt: string;
+}
+
+export interface MarketplaceOnboarding {
+  id: string;
+  organizationId: string;
+  practiceDisplayName?: string;
+  marketplaceProfileId: string;
+  leadId: string;
+  proposalId?: string;
+  proposalTitle?: string;
+  accessToken: string;
+  clientName: string;
+  legalName?: string;
+  clientEmail: string;
+  clientPhone: string;
+  entityType: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  pan?: string;
+  gstin?: string;
+  tan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  onboardingStatus: OnboardingStatus;
+  engagementLetterSigned: boolean;
+  engagementSignedAt?: string;
+  engagementLetterUrl?: string;
+  feeAgreementAgreed: boolean;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  promotedClientId?: string;
+  portalUserId?: string;
+  reviewerNotes?: string;
+  rejectionReason?: string;
+  completedAt?: string;
+  createdAt: string;
+  documents?: OnboardingDocument[];
+}
+
+export interface CreateProposalRequest {
+  leadId: string;
+  serviceId?: string;
+  proposalTitle: string;
+  scopeOfWork: string;
+  deliverables?: string;
+  feeAmount: number;
+  pricingType?: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
+  estimatedTimelineDays?: number;
+  validUntil?: string;
+}
+
+export interface AcceptProposalRequest {
+  isAccepted: boolean;
+  rejectionReason?: string;
+  clientNotes?: string;
+}
+
+export interface InitiateOnboardingRequest {
+  leadId: string;
+  proposalId?: string;
+  entityType?: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  assignedEmployeeId?: string;
+}
+
+export interface UpdateOnboardingDetailsRequest {
+  clientName: string;
+  legalName?: string;
+  entityType?: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  pan?: string;
+  gstin?: string;
+  tan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
+
+export interface SignEngagementLetterRequest {
+  signedConsent: boolean;
+  agreedToFees: boolean;
+  signatureName?: string;
+  signatureIpAddress?: string;
+}
+
+export interface VerifyOnboardingDocumentRequest {
+  verificationStatus: DocVerificationStatus;
+  rejectionReason?: string;
+}
+
+export interface ApproveAndPromoteClientRequest {
+  assignedEmployeeId?: string;
+  createOnboardingTask?: boolean;
+  provisionClientPortalUser?: boolean;
+  initialPortalPassword?: string;
+  reviewerNotes?: string;
+}
+
+// 8. Marketplace Customer Account & Profile
+export interface CustomerProfileCompleteness {
+  percentage: number;
+  completedItems: string[];
+  missingItems: string[];
+}
+
+export interface CustomerProfile {
+  id: string;
+  userId: string;
+  customerType: 'INDIVIDUAL' | 'BUSINESS';
+  firstName: string;
+  lastName?: string;
+  displayName: string;
+  email: string;
+  phone?: string;
+  profilePhotoUrl?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+  businessName?: string;
+  status: 'ACTIVE' | 'BLOCKED' | 'DEACTIVATED';
+  profileCompleteness?: CustomerProfileCompleteness;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RegisterCustomerRequest {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  password: string;
+  customerType?: 'INDIVIDUAL' | 'BUSINESS';
+  businessName?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+}
+
+export interface UpdateCustomerProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  phone?: string;
+  profilePhotoUrl?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+  customerType?: 'INDIVIDUAL' | 'BUSINESS';
+  businessName?: string;
+}
+
+export interface CustomerDashboard {
+  profile: CustomerProfile;
+  totalRequirements?: number;
+  totalRequests: number;
+  totalConsultations: number;
+  totalProposals: number;
+  totalReviews: number;
+  recentTaxRequirements?: CustomerTaxRequirementSummary[];
+  recentLeads: MarketplaceLead[];
   recentConsultations: MarketplaceConsultation[];
   recentProposals: MarketplaceProposal[];
   recentReviews: MarketplaceReview[];
@@ -1442,6 +1637,8 @@ export interface CustomerTaxRequirement {
   state?: string;
   pincode?: string;
   searchRadiusKm?: number;
+  sourceType?: string;
+  sourceContentId?: string;
   editable: boolean;
   cancellable: boolean;
   createdAt: string;
@@ -1462,6 +1659,8 @@ export interface CustomerTaxRequirementSummary {
   financialYearDisplay?: string;
   city?: string;
   state?: string;
+  sourceType?: string;
+  sourceContentId?: string;
   editable: boolean;
   cancellable: boolean;
   createdAt: string;
@@ -1478,6 +1677,8 @@ export interface CreateTaxRequirementRequest {
   state?: string;
   pincode?: string;
   searchRadiusKm?: number;
+  sourceType?: string;
+  sourceContentId?: string;
 }
 
 export interface UpdateTaxRequirementRequest {
@@ -1531,6 +1732,8 @@ export interface CreateMarketplaceLeadRequest {
   taxRequirementId?: string;
   taxServiceId?: string;
   taxServiceCode?: string;
+  sourceType?: string;
+  sourceContentId?: string;
   financialYear?: string;
   customerType?: CustomerTaxpayerType;
   earlyEnquiryMessage?: string;
@@ -2012,6 +2215,8 @@ export interface LearnContentSummary {
   taxServiceId?: string;
   taxServiceName?: string;
   taxServiceCode?: string;
+  taxServices?: PublicTaxService[];
+  marketplaceCtaEnabled?: boolean;
   scope: string;
   authorId?: string;
   authorName?: string;

@@ -38,6 +38,11 @@ public class ContentSummaryResponse {
     private String taxServiceName;
     private String taxServiceCode;
 
+    @Builder.Default
+    private List<com.taxoryn.module.marketplace.dto.PublicTaxServiceDto> taxServices = new ArrayList<>();
+
+    private boolean marketplaceCtaEnabled;
+
     private ContentOwnershipScope scope;
 
     private UUID authorId;

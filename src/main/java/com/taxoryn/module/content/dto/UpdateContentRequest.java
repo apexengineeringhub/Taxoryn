@@ -40,6 +40,8 @@ public class UpdateContentRequest {
 
     private UUID taxServiceId;
 
+    private Set<UUID> taxServiceIds;
+
     private ContentOwnershipScope scope;
 
     private Set<String> tags;

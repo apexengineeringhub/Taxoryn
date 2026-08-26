@@ -29,6 +29,12 @@ public class CreateMarketplaceLeadRequest {
     @Schema(description = "Selected controlled tax service code", example = "INCOME_TAX_RETURN")
     private String taxServiceCode;
 
+    @Schema(description = "Source channel where user originated (e.g., CONTENT, DIRECT, MARKETPLACE)")
+    private String sourceType;
+
+    @Schema(description = "Originating Content ID if sourced from Taxoryn Learn")
+    private UUID sourceContentId;
+
     @Schema(description = "Financial Year (e.g. FY 2025-26)", example = "2025-26")
     private String financialYear;
 

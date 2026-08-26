@@ -47,6 +47,9 @@ public class CreateContentRequest {
     private UUID taxServiceId;
 
     @Builder.Default
+    private Set<UUID> taxServiceIds = new HashSet<>();
+
+    @Builder.Default
     private ContentOwnershipScope scope = ContentOwnershipScope.PLATFORM;
 
     @Builder.Default

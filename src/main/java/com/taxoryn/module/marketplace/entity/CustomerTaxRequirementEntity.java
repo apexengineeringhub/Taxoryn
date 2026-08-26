@@ -55,4 +55,10 @@ public class CustomerTaxRequirementEntity extends AuditableEntity {
 
     @Column(name = "search_radius_km")
     private Integer searchRadiusKm;
+
+    @Column(name = "source_type", length = 50)
+    private String sourceType;
+
+    @Column(name = "source_content_id")
+    private UUID sourceContentId;
 }
