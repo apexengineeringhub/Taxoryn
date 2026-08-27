@@ -287,7 +287,7 @@ export const LearnLandingPage: React.FC = () => {
                         <div className="px-5 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100 bg-slate-50/50">
                           <p>{faq.summary || 'Click below to view the detailed explanation and rules for this question.'}</p>
                           <Link
-                            to={`/learn/content/${faq.slug}`}
+                            to={`/learn/${faq.slug}`}
                             className="inline-flex items-center gap-1 font-bold text-xs text-brand-600 mt-3 hover:text-brand-700"
                           >
                             <span>Read Full Explanation</span>
@@ -323,7 +323,7 @@ export const LearnLandingPage: React.FC = () => {
                 {taxUpdates.map((update) => (
                   <Link
                     key={update.id}
-                    to={`/learn/content/${update.slug}`}
+                    to={`/learn/${update.slug}`}
                     className="block group bg-white rounded-2xl p-5 border border-slate-200/90 shadow-card hover:border-emerald-400 hover:shadow-hover transition-all"
                   >
                     <div className="flex items-start justify-between gap-3 mb-2">
