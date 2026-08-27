@@ -121,6 +121,14 @@ public class MarketplacePracticeController {
         return ResponseEntity.ok(ApiResponse.success("Profile completeness metrics retrieved", completeness));
     }
 
+    @GetMapping({"/preview", "/profile/preview"})
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('MARKETPLACE_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Preview Public Practice Profile", description = "Retrieves the public profile as it would render to customers, without requiring public status.")
+    public ResponseEntity<ApiResponse<PublicMarketplaceProfileDto>> previewMyProfile() {
+        PublicMarketplaceProfileDto preview = marketplaceService.previewPracticeProfile();
+        return ResponseEntity.ok(ApiResponse.success("Public profile preview retrieved successfully", preview));
+    }
+
     // --- Practice Locations ---
 
     @GetMapping("/locations")

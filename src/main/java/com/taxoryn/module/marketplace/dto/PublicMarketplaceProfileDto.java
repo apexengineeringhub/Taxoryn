@@ -88,6 +88,21 @@ public class PublicMarketplaceProfileDto {
     @Schema(description = "Languages spoken by practitioners")
     private String languagesSpoken;
 
+    @Schema(description = "Operating / Working Hours", example = "Mon - Fri: 9:30 AM - 6:30 PM, Sat: 10:00 AM - 2:00 PM")
+    private String workingHours;
+
+    @Schema(description = "Custom SEO title tag for search engines")
+    private String seoTitle;
+
+    @Schema(description = "Custom meta description for search engine discovery")
+    private String metaDescription;
+
+    @Schema(description = "Canonical URL override")
+    private String canonicalUrl;
+
+    @Schema(description = "Permanent 301 target redirect slug if URL alias changed")
+    private String redirectSlug;
+
     @Schema(description = "Minimum starting service fee")
     private BigDecimal startingFee;
 
@@ -126,6 +141,9 @@ public class PublicMarketplaceProfileDto {
 
     @Schema(description = "Recent Approved Reviews")
     private List<MarketplaceReviewDto> recentReviews;
+
+    @Schema(description = "Relevant educational guides from Taxoryn Learn matching offered tax services")
+    private List<com.taxoryn.module.content.dto.ContentSummaryResponse> relatedLearnContent;
 
     @Schema(description = "Profile Completeness breakdown (percentage, completedItems, missingItems)")
     private ProfileCompletenessDto profileCompleteness;

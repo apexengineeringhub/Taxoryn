@@ -67,6 +67,10 @@ public interface MarketplaceService {
 
     MarketplaceStatsDto getMyPracticeMarketplaceStats();
 
+    PublicMarketplaceProfileDto previewPracticeProfile();
+
+    List<PublicMarketplaceProfileDto> getEligibleSitemapProfiles();
+
     String generateUniqueSlug(String baseName, String city);
 
     ProfileCompletenessDto getMyProfileCompleteness();

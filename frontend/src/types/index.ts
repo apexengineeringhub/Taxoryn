@@ -909,6 +909,12 @@ export interface MarketplaceProfile {
   profileCompleteness?: ProfileCompleteness;
   completenessScore?: number;
   missingCompletenessFields?: string[];
+  workingHours?: string;
+  seoTitle?: string;
+  metaDescription?: string;
+  canonicalUrl?: string;
+  redirectSlug?: string;
+  relatedLearnContent?: LearnContentSummary[];
 }
 
 // 6. Controlled Tax Service Master Interfaces

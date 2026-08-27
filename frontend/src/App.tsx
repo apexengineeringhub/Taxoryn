@@ -29,6 +29,7 @@ import { PracticeBrandingPage } from './pages/PracticeBrandingPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { MarketplaceExplorePage } from './pages/MarketplaceExplorePage';
 import { MarketplaceProfileDetailPage } from './pages/MarketplaceProfileDetailPage';
+import { PracticePublicProfilePage } from './pages/PracticePublicProfilePage';
 import { MarketplaceComparePage } from './pages/MarketplaceComparePage';
 import { PracticeMarketplaceProfilePage } from './pages/PracticeMarketplaceProfilePage';
 import { MarketplaceLeadsPage } from './pages/MarketplaceLeadsPage';
@@ -89,8 +90,10 @@ export const App: React.FC = () => {
             <Route path="/register" element={<RegisterOrgPage />} />
             <Route path="/marketplace/register" element={<RegisterCustomerPage />} />
             <Route path="/marketplace" element={<MarketplaceExplorePage />} />
-            <Route path="/marketplace/profile/:id" element={<MarketplaceProfileDetailPage />} />
-            <Route path="/marketplace/:slug" element={<MarketplaceProfileDetailPage />} />
+            <Route path="/practice/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/professional/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/marketplace/profile/:id" element={<PracticePublicProfilePage />} />
+            <Route path="/marketplace/:slug" element={<PracticePublicProfilePage />} />
             <Route path="/marketplace/compare" element={<MarketplaceComparePage />} />
             <Route path="/marketplace/onboarding/:token" element={<CustomerOnboardingPortalPage />} />
             <Route path="/marketplace/proposal/:token" element={<CustomerOnboardingPortalPage />} />

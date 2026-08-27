@@ -61,6 +61,9 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
     private final TaskRepository taskRepository;
+    private final MarketplaceProfileSlugRedirectRepository redirectRepository;
+    private final com.taxoryn.module.content.repository.ContentRepository contentRepository;
+    private final com.taxoryn.module.content.mapper.ContentMapper contentMapper;
     private final MarketplaceMapper mapper;
     private final AuditService auditService;
     private final ProfileCompletenessCalculator completenessCalculator;
@@ -346,9 +349,28 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (!StringUtils.hasText(slug)) {
             throw new ResourceNotFoundException("Marketplace Profile", "slug", slug);
         }
-        MarketplaceProfileEntity entity = profileRepository.findBySlugAndIsPublishedTrueAndVisibilityStatus(slug.trim(), VisibilityStatus.PUBLIC)
-                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "slug", slug));
-        return enrichPublicProfile(entity);
+        String cleanSlug = slug.trim().toLowerCase();
+
+        // 1. Direct active public match
+        Optional<MarketplaceProfileEntity> directMatch = profileRepository.findBySlugAndIsPublishedTrueAndVisibilityStatus(cleanSlug, VisibilityStatus.PUBLIC);
+        if (directMatch.isPresent()) {
+            return enrichPublicProfile(directMatch.get());
+        }
+
+        // 2. Check 301 alias redirect mapping
+        if (redirectRepository != null) {
+            Optional<MarketplaceProfileSlugRedirectEntity> redirectOpt = redirectRepository.findByOldSlug(cleanSlug);
+            if (redirectOpt.isPresent()) {
+                String targetSlug = redirectOpt.get().getNewSlug();
+                MarketplaceProfileEntity targetEntity = profileRepository.findBySlugAndIsPublishedTrueAndVisibilityStatus(targetSlug, VisibilityStatus.PUBLIC)
+                        .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "slug", slug));
+                PublicMarketplaceProfileDto dto = enrichPublicProfile(targetEntity);
+                dto.setRedirectSlug(targetSlug);
+                return dto;
+            }
+        }
+
+        throw new ResourceNotFoundException("Marketplace Profile", "slug", slug);
     }
 
     @Override
@@ -622,6 +644,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .bannerUrl(request.getBannerUrl())
                 .specializations(request.getSpecializations() != null ? String.join(", ", request.getSpecializations()) : "GST_FILING, ITR_FILING, TDS_COMPLIANCE")
                 .languagesSpoken(request.getLanguagesSpoken() != null ? request.getLanguagesSpoken() : "English, Hindi")
+                .workingHours(request.getWorkingHours() != null ? request.getWorkingHours() : "Mon - Fri: 9:30 AM - 6:30 PM, Sat: 10:00 AM - 2:00 PM")
+                .seoTitle(request.getSeoTitle())
+                .metaDescription(request.getMetaDescription())
+                .canonicalUrl(request.getCanonicalUrl())
                 .startingFee(request.getStartingFee() != null ? request.getStartingFee() : new BigDecimal("999.00"))
                 .hourlyRate(request.getHourlyRate() != null ? request.getHourlyRate() : new BigDecimal("1500.00"))
                 .visibilityStatus(request.getVisibility() != null ? request.getVisibility() : VisibilityStatus.PRIVATE)
@@ -656,6 +682,18 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 if (slugGenerator.isSlugTaken(cleanSlug, profile.getId())) {
                     throw new IllegalArgumentException("The public slug '" + cleanSlug + "' is already taken. Please choose another unique slug.");
                 }
+                String oldSlug = profile.getSlug();
+                if (Boolean.TRUE.equals(profile.getIsPublished()) && profile.getVisibilityStatus() == VisibilityStatus.PUBLIC && redirectRepository != null) {
+                    MarketplaceProfileSlugRedirectEntity redirect = MarketplaceProfileSlugRedirectEntity.builder()
+                            .oldSlug(oldSlug)
+                            .newSlug(cleanSlug)
+                            .profileId(profile.getId())
+                            .build();
+                    redirectRepository.save(redirect);
+                    redirectRepository.flattenRedirectChains(oldSlug, cleanSlug);
+                    log.info("Registered practice profile slug redirect from '{}' -> '{}' for profile id={}", oldSlug, cleanSlug, profile.getId());
+                    auditService.logEvent("PROFILE_SLUG_CHANGED", "MARKETPLACE_PROFILE", profile.getId().toString(), null, "Slug changed from " + oldSlug + " to " + cleanSlug);
+                }
                 profile.setSlug(cleanSlug);
             }
         }
@@ -676,6 +714,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             profile.setSpecializations(String.join(", ", request.getSpecializations()));
         }
         if (request.getLanguagesSpoken() != null) profile.setLanguagesSpoken(request.getLanguagesSpoken());
+        if (request.getWorkingHours() != null) profile.setWorkingHours(request.getWorkingHours());
+        if (request.getSeoTitle() != null) profile.setSeoTitle(StringUtils.hasText(request.getSeoTitle()) ? request.getSeoTitle().trim() : null);
+        if (request.getMetaDescription() != null) profile.setMetaDescription(StringUtils.hasText(request.getMetaDescription()) ? request.getMetaDescription().trim() : null);
+        if (request.getCanonicalUrl() != null) profile.setCanonicalUrl(StringUtils.hasText(request.getCanonicalUrl()) ? request.getCanonicalUrl().trim() : null);
         if (request.getStartingFee() != null) profile.setStartingFee(request.getStartingFee());
         if (request.getHourlyRate() != null) profile.setHourlyRate(request.getHourlyRate());
         
@@ -1579,7 +1621,54 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             dto.setMissingCompletenessFields(Collections.emptyList());
         }
 
+        dto.setWorkingHours(entity.getWorkingHours());
+        dto.setSeoTitle(entity.getSeoTitle());
+        dto.setMetaDescription(entity.getMetaDescription());
+        dto.setCanonicalUrl(entity.getCanonicalUrl());
+
+        // Attach related Taxoryn Learn Guides linked to practice services
+        if (contentRepository != null && contentMapper != null && !offeredServices.isEmpty()) {
+            List<UUID> taxServiceIds = offeredServices.stream()
+                    .map(PublicTaxServiceDto::getId)
+                    .filter(Objects::nonNull)
+                    .toList();
+            try {
+                List<com.taxoryn.module.content.entity.ContentEntity> learnItems = contentRepository.findByStatusAndScope(
+                        com.taxoryn.module.content.entity.ContentStatus.PUBLISHED,
+                        com.taxoryn.module.content.entity.ContentOwnershipScope.PLATFORM
+                );
+                List<com.taxoryn.module.content.dto.ContentSummaryResponse> relatedArticles = learnItems.stream()
+                        .filter(c -> (c.getTaxServiceId() != null && taxServiceIds.contains(c.getTaxServiceId()))
+                                || (c.getTaxServices() != null && c.getTaxServices().stream().anyMatch(ts -> taxServiceIds.contains(ts.getId()))))
+                        .limit(4)
+                        .map(contentMapper::toSummaryResponse)
+                        .collect(Collectors.toList());
+                dto.setRelatedLearnContent(relatedArticles);
+            } catch (Exception e) {
+                log.debug("Could not attach related learn content: {}", e.getMessage());
+            }
+        }
+
         return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PublicMarketplaceProfileDto previewPracticeProfile() {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceProfileEntity profile = profileRepository.findByOrganizationId(organizationId)
+                .orElseGet(() -> initializeDefaultProfile(organizationId));
+        return enrichPublicProfile(profile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PublicMarketplaceProfileDto> getEligibleSitemapProfiles() {
+        List<MarketplaceProfileEntity> verifiedPublic = profileRepository.findByIsPublishedTrueAndVisibilityStatusAndVerificationStatus(
+                VisibilityStatus.PUBLIC,
+                VerificationStatus.VERIFIED
+        );
+        return verifiedPublic.stream().map(this::enrichPublicProfile).collect(Collectors.toList());
     }
 
     private MarketplaceLeadDto enrichLeadDto(MarketplaceLeadEntity entity) {

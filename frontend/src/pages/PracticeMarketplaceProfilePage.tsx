@@ -77,6 +77,10 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     pincode: '',
     address: '',
     experienceYears: 0,
+    workingHours: '',
+    seoTitle: '',
+    metaDescription: '',
+    canonicalUrl: '',
   });
 
   // Location Modal State
@@ -147,6 +151,10 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
         pincode: profileData.pincode || '',
         address: profileData.address || '',
         experienceYears: profileData.experienceYears || 0,
+        workingHours: profileData.workingHours || '',
+        seoTitle: profileData.seoTitle || '',
+        metaDescription: profileData.metaDescription || '',
+        canonicalUrl: profileData.canonicalUrl || '',
       });
     } catch (err: any) {
       console.error('Failed to load marketplace profile:', err);
@@ -200,7 +208,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
       });
       setFormData((prev) => ({ ...prev, slug: suggested }));
     } catch (err: any) {
-      console.error('Failed to auto-generate slug:', err);
+      console.error('Failed to generate slug:', err);
     } finally {
       setIsGeneratingSlug(false);
     }
@@ -228,6 +236,10 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
         pincode: formData.pincode,
         address: formData.address,
         experienceYears: Number(formData.experienceYears) || 0,
+        workingHours: formData.workingHours,
+        seoTitle: formData.seoTitle,
+        metaDescription: formData.metaDescription,
+        canonicalUrl: formData.canonicalUrl,
         visibilityStatus: andPublish ? 'PUBLIC' : profile?.visibilityStatus || 'PRIVATE',
       };
 
@@ -483,6 +495,19 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
           <p className="text-sm sm:text-base text-slate-300 font-normal leading-relaxed">
             Let customers discover your practice based on multi-branch locations and verified tax services.
           </p>
+
+          <div className="pt-2">
+            <a
+              href={`/practice/${profile?.publicSlug || profile?.slug || 'my-practice'}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs shadow-md transition-all"
+            >
+              <Eye className="w-3.5 h-3.5 text-indigo-600" />
+              Preview Public Profile
+              <ArrowRight className="w-3 h-3 text-slate-400" />
+            </a>
+          </div>
         </div>
 
         {/* Decorative background glow */}
@@ -1166,6 +1191,66 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 value={formData.experienceYears}
                 onChange={(e) => setFormData({ ...formData, experienceYears: parseInt(e.target.value, 10) || 0 })}
                 placeholder="10"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+              />
+            </div>
+          </div>
+          {/* Working Hours */}
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              Operating / Working Hours
+            </label>
+            <input
+              type="text"
+              value={formData.workingHours}
+              onChange={(e) => setFormData({ ...formData, workingHours: e.target.value })}
+              placeholder="e.g. Mon - Fri: 9:30 AM - 6:30 PM, Sat: 10:00 AM - 2:00 PM"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+            />
+          </div>
+
+          {/* Search Engine Optimization (SEO) Settings */}
+          <div className="pt-3 border-t border-slate-200 space-y-3">
+            <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5 text-indigo-600" />
+              Google Discovery & SEO Settings
+            </h4>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-medium text-slate-700">Custom SEO Title Tag</label>
+                <span className="text-[10px] text-slate-400 font-mono">{formData.seoTitle?.length || 0} / 60</span>
+              </div>
+              <input
+                type="text"
+                value={formData.seoTitle}
+                onChange={(e) => setFormData({ ...formData, seoTitle: e.target.value })}
+                placeholder="e.g. ABC Tax Consultants - CA Firm in Bangalore"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-medium text-slate-700">Custom Meta Description</label>
+                <span className="text-[10px] text-slate-400 font-mono">{formData.metaDescription?.length || 0} / 160</span>
+              </div>
+              <textarea
+                rows={2}
+                value={formData.metaDescription}
+                onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
+                placeholder="e.g. Leading Chartered Accountants providing verified GST returns, ITR filings, and corporate tax compliance in Bangalore."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">Canonical URL Override (Optional)</label>
+              <input
+                type="url"
+                value={formData.canonicalUrl}
+                onChange={(e) => setFormData({ ...formData, canonicalUrl: e.target.value })}
+                placeholder="https://taxoryn.com/practice/abc-tax-consultants"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
               />
             </div>

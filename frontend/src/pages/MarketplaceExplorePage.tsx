@@ -982,7 +982,7 @@ export const MarketplaceExplorePage: React.FC = () => {
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <h3
-                                  onClick={() => navigate(`/marketplace/profile/${profile.id}`)}
+                                  onClick={() => navigate(`/practice/${profile.publicSlug || profile.slug || profile.id}`)}
                                   className="font-bold text-slate-900 dark:text-white text-base hover:text-indigo-600 transition-colors cursor-pointer"
                                 >
                                   {profile.displayName}
@@ -1133,7 +1133,7 @@ export const MarketplaceExplorePage: React.FC = () => {
                           </Button>
 
                           <button
-                            onClick={() => navigate(`/marketplace/profile/${profile.id}`)}
+                            onClick={() => navigate(`/practice/${profile.publicSlug || profile.slug || profile.id}`)}
                             title="View Full Profile"
                             className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
                           >

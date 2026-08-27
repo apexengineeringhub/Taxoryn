@@ -45,6 +45,11 @@ public interface MarketplaceProfileRepository extends JpaRepository<MarketplaceP
 
     List<MarketplaceProfileEntity> findTop6ByIsPublishedTrueAndIsFeaturedTrueAndVisibilityStatusOrderByAverageRatingDesc(MarketplaceProfileEntity.VisibilityStatus visibilityStatus);
 
+    List<MarketplaceProfileEntity> findByIsPublishedTrueAndVisibilityStatusAndVerificationStatus(
+            MarketplaceProfileEntity.VisibilityStatus visibilityStatus,
+            MarketplaceProfileEntity.VerificationStatus verificationStatus
+    );
+
     long countByIsPublishedTrue();
 
     long countByVerificationStatus(MarketplaceProfileEntity.VerificationStatus status);

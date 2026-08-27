@@ -50,6 +50,7 @@ public class ContentServiceImpl implements ContentService {
     private final ContentTagRepository tagRepository;
     private final TaxServiceCategoryRepository categoryRepository;
     private final TaxServiceRepository taxServiceRepository;
+    private final com.taxoryn.module.marketplace.repository.MarketplaceProfileRepository marketplaceProfileRepository;
     private final ContentMapper mapper;
     private final AuditService auditService;
 
@@ -731,23 +732,49 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicSitemapItemDto> getPublicSitemapItems() {
+        List<PublicSitemapItemDto> items = new ArrayList<>();
+
         List<ContentEntity> published = contentRepository.findByStatusAndScope(
                 ContentStatus.PUBLISHED,
                 ContentOwnershipScope.PLATFORM
         );
 
-        return published.stream()
-                .map(c -> {
-                    Instant lastmod = c.getUpdatedAt() != null ? c.getUpdatedAt() : c.getPublishedAt();
-                    return PublicSitemapItemDto.builder()
-                            .loc("https://taxoryn.com/learn/" + c.getSlug())
-                            .lastmod(lastmod != null ? lastmod : Instant.now())
-                            .changefreq("weekly")
-                            .priority(0.8)
-                            .contentType(c.getContentType())
-                            .build();
-                })
-                .collect(Collectors.toList());
+        for (ContentEntity c : published) {
+            Instant lastmod = c.getUpdatedAt() != null ? c.getUpdatedAt() : c.getPublishedAt();
+            items.add(PublicSitemapItemDto.builder()
+                    .loc("https://taxoryn.com/learn/" + c.getSlug())
+                    .lastmod(lastmod != null ? lastmod : Instant.now())
+                    .changefreq("weekly")
+                    .priority(0.8)
+                    .contentType(c.getContentType())
+                    .build());
+        }
+
+        // Add Eligible Public Verified Practice Profiles
+        if (marketplaceProfileRepository != null) {
+            try {
+                List<com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity> verifiedProfiles =
+                        marketplaceProfileRepository.findByIsPublishedTrueAndVisibilityStatusAndVerificationStatus(
+                                com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus.PUBLIC,
+                                com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VerificationStatus.VERIFIED
+                        );
+                for (com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity p : verifiedProfiles) {
+                    if (StringUtils.hasText(p.getSlug())) {
+                        Instant lastmod = p.getUpdatedAt() != null ? p.getUpdatedAt() : p.getCreatedAt();
+                        items.add(PublicSitemapItemDto.builder()
+                                .loc("https://taxoryn.com/practice/" + p.getSlug())
+                                .lastmod(lastmod != null ? lastmod : Instant.now())
+                                .changefreq("weekly")
+                                .priority(0.8)
+                                .build());
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Could not append practice profiles to sitemap: {}", e.getMessage());
+            }
+        }
+
+        return items;
     }
 
     @Override
@@ -766,7 +793,7 @@ public class ContentServiceImpl implements ContentService {
         appendSitemapUrl(sb, "https://taxoryn.com/learn/faqs", "daily", "0.8", null);
         appendSitemapUrl(sb, "https://taxoryn.com/marketplace", "daily", "0.9", null);
 
-        // Dynamic published articles, videos, guides, and FAQs
+        // Dynamic published articles, videos, guides, FAQs, and verified practice profiles
         for (PublicSitemapItemDto item : dynamicItems) {
             appendSitemapUrl(sb, item.getLoc(), item.getChangefreq(), String.valueOf(item.getPriority()), item.getLastmod());
         }
@@ -795,6 +822,10 @@ public class ContentServiceImpl implements ContentService {
         return "User-agent: *\n" +
                 "Allow: /learn\n" +
                 "Allow: /learn/*\n" +
+                "Allow: /practice\n" +
+                "Allow: /practice/*\n" +
+                "Allow: /professional\n" +
+                "Allow: /professional/*\n" +
                 "Allow: /marketplace\n" +
                 "Allow: /marketplace/*\n" +
                 "Allow: /api/v1/public/content\n" +

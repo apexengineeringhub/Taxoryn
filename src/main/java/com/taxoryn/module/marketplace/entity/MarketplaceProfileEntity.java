@@ -74,6 +74,18 @@ public class MarketplaceProfileEntity extends AuditableEntity {
     @Builder.Default
     private String languagesSpoken = "English, Hindi";
 
+    @Column(name = "working_hours")
+    private String workingHours;
+
+    @Column(name = "seo_title")
+    private String seoTitle;
+
+    @Column(name = "meta_description", columnDefinition = "TEXT")
+    private String metaDescription;
+
+    @Column(name = "canonical_url")
+    private String canonicalUrl;
+
     @Column(name = "starting_fee", precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal startingFee = new BigDecimal("999.00");
