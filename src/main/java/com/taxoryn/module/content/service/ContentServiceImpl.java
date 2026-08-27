@@ -11,6 +11,7 @@ import com.taxoryn.module.content.entity.*;
 import com.taxoryn.module.content.mapper.ContentMapper;
 import com.taxoryn.module.content.repository.ContentRepository;
 import com.taxoryn.module.content.repository.ContentTagRepository;
+import com.taxoryn.module.content.repository.ContentVersionRepository;
 import com.taxoryn.module.content.util.YouTubeUtils;
 import com.taxoryn.module.marketplace.entity.TaxServiceCategoryEntity;
 import com.taxoryn.module.marketplace.entity.TaxServiceEntity;
@@ -19,11 +20,12 @@ import com.taxoryn.module.marketplace.repository.TaxServiceRepository;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
-import java.util.Collections;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,7 @@ public class ContentServiceImpl implements ContentService {
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9]+(?:-[a-z0-9]+)*$");
 
     private final ContentRepository contentRepository;
+    private final ContentVersionRepository contentVersionRepository;
     private final ContentTagRepository tagRepository;
     private final TaxServiceCategoryRepository categoryRepository;
     private final TaxServiceRepository taxServiceRepository;
@@ -116,20 +119,22 @@ public class ContentServiceImpl implements ContentService {
         }
 
         UUID currentUserId = SecurityUtils.getCurrentUser().map(u -> u.getUserId()).orElse(null);
-
         Set<ContentTagEntity> resolvedTags = resolveOrCreateTags(request.getTags());
 
         ContentEntity entity = ContentEntity.builder()
                 .contentType(request.getContentType())
                 .title(request.getTitle().trim())
                 .slug(slug)
-                .summary(request.getSummary() != null ? request.getSummary().trim() : null)
-                .body(request.getBody())
+                .summary(StringUtils.hasText(request.getSummary()) ? request.getSummary().trim() : null)
+                .body(request.getBody().trim())
                 .thumbnailUrl(thumbnailUrl)
+                .featuredImageUrl(request.getFeaturedImageUrl())
+                .altText(request.getAltText())
                 .youtubeVideoId(youtubeVideoId)
                 .videoDurationSeconds(request.getVideoDurationSeconds())
                 .status(ContentStatus.DRAFT)
-                .categoryId(request.getCategoryId())
+                .versionNumber(1)
+                .categoryId(category != null ? category.getId() : null)
                 .category(category)
                 .taxServiceId(primaryTaxService != null ? primaryTaxService.getId() : null)
                 .taxService(primaryTaxService)
@@ -142,9 +147,9 @@ public class ContentServiceImpl implements ContentService {
         ContentEntity saved = contentRepository.save(entity);
         log.info("Created platform content: id={}, title='{}', type={}, slug='{}'", saved.getId(), saved.getTitle(), saved.getContentType(), saved.getSlug());
 
-        auditService.logEvent("CONTENT_CREATED", "CONTENT", saved.getId().toString(), null, saved.getTitle() + " (" + saved.getContentType() + ")");
+        auditService.logEvent("CONTENT_CREATED", "CONTENT", saved.getId().toString(), null, "Type: " + saved.getContentType() + ", Title: " + saved.getTitle());
 
-        return mapper.toResponse(saved);
+        return getContentById(saved.getId());
     }
 
     @Override
@@ -158,7 +163,7 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional(readOnly = true)
     public ContentResponse getContentBySlug(String slug) {
-        ContentEntity entity = contentRepository.findBySlugWithDetails(slug.toLowerCase().trim())
+        ContentEntity entity = contentRepository.findBySlugWithDetails(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Content", "slug", slug));
         return mapper.toResponse(entity);
     }
@@ -169,12 +174,18 @@ public class ContentServiceImpl implements ContentService {
         ContentEntity entity = contentRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
 
-        if (StringUtils.hasText(request.getTitle())) {
-            entity.setTitle(request.getTitle().trim());
+        // If published content is being edited, preserve a version snapshot
+        if (entity.getStatus() == ContentStatus.PUBLISHED) {
+            saveVersionSnapshot(entity, "Snapshot before modification of published content");
+            entity.setVersionNumber((entity.getVersionNumber() != null ? entity.getVersionNumber() : 1) + 1);
         }
 
         if (request.getContentType() != null) {
             entity.setContentType(request.getContentType());
+        }
+
+        if (StringUtils.hasText(request.getTitle())) {
+            entity.setTitle(request.getTitle().trim());
         }
 
         if (StringUtils.hasText(request.getSlug())) {
@@ -186,15 +197,23 @@ public class ContentServiceImpl implements ContentService {
         }
 
         if (request.getSummary() != null) {
-            entity.setSummary(request.getSummary().trim());
+            entity.setSummary(StringUtils.hasText(request.getSummary()) ? request.getSummary().trim() : null);
         }
 
         if (StringUtils.hasText(request.getBody())) {
-            entity.setBody(request.getBody());
+            entity.setBody(request.getBody().trim());
         }
 
         if (request.getThumbnailUrl() != null) {
-            entity.setThumbnailUrl(request.getThumbnailUrl().trim());
+            entity.setThumbnailUrl(StringUtils.hasText(request.getThumbnailUrl()) ? request.getThumbnailUrl().trim() : null);
+        }
+
+        if (request.getFeaturedImageUrl() != null) {
+            entity.setFeaturedImageUrl(StringUtils.hasText(request.getFeaturedImageUrl()) ? request.getFeaturedImageUrl().trim() : null);
+        }
+
+        if (request.getAltText() != null) {
+            entity.setAltText(StringUtils.hasText(request.getAltText()) ? request.getAltText().trim() : null);
         }
 
         if (request.getYoutubeUrl() != null) {
@@ -226,7 +245,7 @@ public class ContentServiceImpl implements ContentService {
 
             if (request.getTaxServiceId() != null) {
                 newPrimary = taxServiceRepository.findById(request.getTaxServiceId())
-                        .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", request.getTaxServiceId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("TaxService", "id", request.getTaxServiceId()));
                 if (!Boolean.TRUE.equals(newPrimary.getIsActive())) {
                     throw new BusinessValidationException("Cannot attach inactive Tax Service: " + newPrimary.getName());
                 }
@@ -286,13 +305,34 @@ public class ContentServiceImpl implements ContentService {
         ContentEntity entity = contentRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
 
-        validateTransition(entity, ContentStatus.UNDER_REVIEW);
+        validateTransition(entity, ContentStatus.SUBMITTED);
 
-        entity.setStatus(ContentStatus.UNDER_REVIEW);
+        entity.setStatus(ContentStatus.SUBMITTED);
+        entity.setRejectionReason(null);
         ContentEntity saved = contentRepository.save(entity);
         log.info("Submitted content for review: id={}, title='{}'", saved.getId(), saved.getTitle());
 
-        auditService.logEvent("CONTENT_SUBMITTED_FOR_REVIEW", "CONTENT", saved.getId().toString(), null, "Status: UNDER_REVIEW");
+        auditService.logEvent("CONTENT_SUBMITTED", "CONTENT", saved.getId().toString(), null, "Status: SUBMITTED");
+
+        return getContentById(saved.getId());
+    }
+
+    @Override
+    @Transactional
+    public ContentResponse startReview(UUID id) {
+        ContentEntity entity = contentRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
+
+        validateTransition(entity, ContentStatus.IN_REVIEW);
+
+        UUID currentUserId = SecurityUtils.getCurrentUser().map(u -> u.getUserId()).orElse(null);
+        entity.setStatus(ContentStatus.IN_REVIEW);
+        entity.setReviewerId(currentUserId);
+
+        ContentEntity saved = contentRepository.save(entity);
+        log.info("Started review for content: id={}, reviewer={}", saved.getId(), currentUserId);
+
+        auditService.logEvent("CONTENT_REVIEW_STARTED", "CONTENT", saved.getId().toString(), null, "Status: IN_REVIEW");
 
         return getContentById(saved.getId());
     }
@@ -308,6 +348,7 @@ public class ContentServiceImpl implements ContentService {
         UUID currentUserId = SecurityUtils.getCurrentUser().map(u -> u.getUserId()).orElse(null);
         entity.setStatus(ContentStatus.APPROVED);
         entity.setReviewerId(currentUserId);
+        entity.setRejectionReason(null);
 
         ContentEntity saved = contentRepository.save(entity);
         log.info("Approved platform content: id={}, title='{}', reviewer={}", saved.getId(), saved.getTitle(), currentUserId);
@@ -315,6 +356,79 @@ public class ContentServiceImpl implements ContentService {
         auditService.logEvent("CONTENT_APPROVED", "CONTENT", saved.getId().toString(), null, "Status: APPROVED");
 
         return getContentById(saved.getId());
+    }
+
+    @Override
+    @Transactional
+    public ContentResponse rejectContent(UUID id, String reason) {
+        if (!StringUtils.hasText(reason)) {
+            throw new BusinessValidationException("Rejection reason is required when rejecting content.");
+        }
+
+        ContentEntity entity = contentRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
+
+        validateTransition(entity, ContentStatus.REJECTED);
+
+        UUID currentUserId = SecurityUtils.getCurrentUser().map(u -> u.getUserId()).orElse(null);
+        entity.setStatus(ContentStatus.REJECTED);
+        entity.setReviewerId(currentUserId);
+        entity.setRejectionReason(reason.trim());
+
+        ContentEntity saved = contentRepository.save(entity);
+        log.info("Rejected platform content: id={}, reason='{}'", saved.getId(), saved.getRejectionReason());
+
+        auditService.logEvent("CONTENT_REJECTED", "CONTENT", saved.getId().toString(), null, "Reason: " + saved.getRejectionReason());
+
+        return getContentById(saved.getId());
+    }
+
+    @Override
+    @Transactional
+    public ContentResponse scheduleContent(UUID id, Instant scheduledPublishAt) {
+        if (scheduledPublishAt == null || !scheduledPublishAt.isAfter(Instant.now())) {
+            throw new BusinessValidationException("Scheduled publication time must be in the future.");
+        }
+
+        ContentEntity entity = contentRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
+
+        validateTransition(entity, ContentStatus.SCHEDULED);
+
+        entity.setStatus(ContentStatus.SCHEDULED);
+        entity.setScheduledPublishAt(scheduledPublishAt);
+
+        ContentEntity saved = contentRepository.save(entity);
+        log.info("Scheduled content for publication: id={}, scheduledPublishAt={}", saved.getId(), saved.getScheduledPublishAt());
+
+        auditService.logEvent("CONTENT_SCHEDULED", "CONTENT", saved.getId().toString(), null, "Scheduled for: " + saved.getScheduledPublishAt());
+
+        return getContentById(saved.getId());
+    }
+
+    @Override
+    @Transactional
+    public int publishScheduledContent() {
+        Instant now = Instant.now();
+        List<ContentEntity> readyItems = contentRepository.findReadyScheduledContent(now);
+        if (readyItems.isEmpty()) {
+            return 0;
+        }
+
+        int publishedCount = 0;
+        for (ContentEntity item : readyItems) {
+            item.setStatus(ContentStatus.PUBLISHED);
+            item.setPublishedAt(now);
+            item.setScheduledPublishAt(null);
+            contentRepository.save(item);
+
+            saveVersionSnapshot(item, "Automatic scheduled publication");
+            auditService.logEvent("CONTENT_PUBLISHED", "CONTENT", item.getId().toString(), null, "Auto-published from schedule");
+            publishedCount++;
+            log.info("Auto-published scheduled content: id={}, title='{}'", item.getId(), item.getTitle());
+        }
+
+        return publishedCount;
     }
 
     @Override
@@ -331,8 +445,11 @@ public class ContentServiceImpl implements ContentService {
 
         entity.setStatus(ContentStatus.PUBLISHED);
         entity.setPublishedAt(Instant.now());
+        entity.setScheduledPublishAt(null);
 
         ContentEntity saved = contentRepository.save(entity);
+        saveVersionSnapshot(saved, "Published version " + (saved.getVersionNumber() != null ? saved.getVersionNumber() : 1));
+
         log.info("Published platform content: id={}, title='{}', publishedAt={}", saved.getId(), saved.getTitle(), saved.getPublishedAt());
 
         auditService.logEvent("CONTENT_PUBLISHED", "CONTENT", saved.getId().toString(), null, "Status: PUBLISHED");
@@ -359,11 +476,142 @@ public class ContentServiceImpl implements ContentService {
     }
 
     @Override
+    @Transactional
+    public ContentResponse restoreContent(UUID id) {
+        ContentEntity entity = contentRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
+
+        if (entity.getStatus() != ContentStatus.ARCHIVED) {
+            throw new BusinessValidationException("Only ARCHIVED content can be restored. Current status: " + entity.getStatus());
+        }
+
+        // Validate that attached tax services are still active
+        if (entity.getTaxServices() != null) {
+            for (TaxServiceEntity ts : entity.getTaxServices()) {
+                if (ts != null && !Boolean.TRUE.equals(ts.getIsActive())) {
+                    throw new BusinessValidationException("Cannot restore content with inactive Tax Service: " + ts.getName());
+                }
+            }
+        }
+
+        entity.setStatus(ContentStatus.DRAFT);
+        ContentEntity saved = contentRepository.save(entity);
+        log.info("Restored archived content to DRAFT: id={}, title='{}'", saved.getId(), saved.getTitle());
+
+        auditService.logEvent("CONTENT_RESTORED", "CONTENT", saved.getId().toString(), null, "Restored to DRAFT");
+
+        return getContentById(saved.getId());
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ContentResponse previewContent(UUID id) {
         ContentEntity entity = contentRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Content", "id", id));
         return mapper.toResponse(entity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ContentDashboardStatsDto getDashboardStats() {
+        long total = contentRepository.count();
+        long published = contentRepository.countByStatus(ContentStatus.PUBLISHED);
+        long draft = contentRepository.countByStatus(ContentStatus.DRAFT);
+        long inReview = contentRepository.countByStatusIn(List.of(ContentStatus.SUBMITTED, ContentStatus.IN_REVIEW, ContentStatus.UNDER_REVIEW));
+        long scheduled = contentRepository.countByStatus(ContentStatus.SCHEDULED);
+        long archived = contentRepository.countByStatus(ContentStatus.ARCHIVED);
+        long rejected = contentRepository.countByStatus(ContentStatus.REJECTED);
+
+        // Build Needs Attention list
+        List<ContentDashboardStatsDto.ContentAttentionItemDto> attentionList = new ArrayList<>();
+        List<ContentEntity> reviewQueueItems = contentRepository.findReviewQueue(PageRequest.of(0, 5)).getContent();
+        for (ContentEntity item : reviewQueueItems) {
+            attentionList.add(ContentDashboardStatsDto.ContentAttentionItemDto.builder()
+                    .id(item.getId().toString())
+                    .title(item.getTitle())
+                    .contentType(item.getContentType().name())
+                    .status(item.getStatus().name())
+                    .message("Waiting for peer / compliance review")
+                    .updatedAt(item.getUpdatedAt())
+                    .build());
+        }
+
+        // Build Recent Activity list
+        List<ContentDashboardStatsDto.ContentActivityItemDto> recentActivity = new ArrayList<>();
+        List<ContentEntity> recentlyUpdated = contentRepository.findRecentUpdated(PageRequest.of(0, 8));
+        for (ContentEntity item : recentlyUpdated) {
+            recentActivity.add(ContentDashboardStatsDto.ContentActivityItemDto.builder()
+                    .id(item.getId().toString())
+                    .action(item.getStatus().name())
+                    .contentTitle(item.getTitle())
+                    .contentType(item.getContentType().name())
+                    .userName(item.getAuthor() != null ? item.getAuthor().getFirstName() : "Admin")
+                    .timestamp(item.getUpdatedAt())
+                    .build());
+        }
+
+        return ContentDashboardStatsDto.builder()
+                .totalContent(total)
+                .publishedCount(published)
+                .draftCount(draft)
+                .inReviewCount(inReview)
+                .scheduledCount(scheduled)
+                .archivedCount(archived)
+                .rejectedCount(rejected)
+                .needsAttention(attentionList)
+                .recentActivity(recentActivity)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<ContentSummaryResponse> getReviewQueue(int page, int size) {
+        Page<ContentEntity> queuePage = contentRepository.findReviewQueue(PageRequest.of(page, size));
+        return PagedResponse.of(queuePage, mapper::toSummaryResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentVersionDto> getVersionHistory(UUID contentId) {
+        return contentVersionRepository.findByContentId(contentId, Sort.by(Sort.Direction.DESC, "versionNumber"))
+                .stream()
+                .map(this::toVersionDto)
+                .collect(Collectors.toList());
+    }
+
+    private void saveVersionSnapshot(ContentEntity content, String changeSummary) {
+        ContentVersionEntity version = ContentVersionEntity.builder()
+                .contentId(content.getId())
+                .versionNumber(content.getVersionNumber() != null ? content.getVersionNumber() : 1)
+                .title(content.getTitle())
+                .summary(content.getSummary())
+                .body(content.getBody())
+                .thumbnailUrl(content.getThumbnailUrl())
+                .featuredImageUrl(content.getFeaturedImageUrl())
+                .altText(content.getAltText())
+                .status(content.getStatus())
+                .changeSummary(changeSummary)
+                .build();
+        version.setCreatedBy(SecurityUtils.getCurrentUserEmail());
+        contentVersionRepository.save(version);
+    }
+
+    private ContentVersionDto toVersionDto(ContentVersionEntity v) {
+        return ContentVersionDto.builder()
+                .id(v.getId())
+                .contentId(v.getContentId())
+                .versionNumber(v.getVersionNumber())
+                .title(v.getTitle())
+                .summary(v.getSummary())
+                .body(v.getBody())
+                .thumbnailUrl(v.getThumbnailUrl())
+                .featuredImageUrl(v.getFeaturedImageUrl())
+                .altText(v.getAltText())
+                .status(v.getStatus())
+                .changeSummary(v.getChangeSummary())
+                .createdBy(v.getCreatedBy())
+                .createdAt(v.getCreatedAt())
+                .build();
     }
 
     // =========================================================================
@@ -386,49 +634,26 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional(readOnly = true)
     public ContentResponse getPublicContentBySlug(String slug) {
-        ContentEntity entity = contentRepository.findBySlugAndStatusWithDetails(slug.toLowerCase().trim(), ContentStatus.PUBLISHED)
+        ContentEntity entity = contentRepository.findBySlugAndStatusWithDetails(slug, ContentStatus.PUBLISHED)
                 .orElseThrow(() -> new ResourceNotFoundException("Content", "slug", slug));
-
         return mapper.toResponse(entity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ContentSummaryResponse> getRelatedPublicContent(String slug, int limit) {
-        ContentEntity current = contentRepository.findBySlugAndStatusWithDetails(slug.toLowerCase().trim(), ContentStatus.PUBLISHED)
+        ContentEntity current = contentRepository.findBySlugAndStatusWithDetails(slug, ContentStatus.PUBLISHED)
                 .orElseThrow(() -> new ResourceNotFoundException("Content", "slug", slug));
 
-        int effectiveLimit = limit > 0 ? Math.min(limit, 12) : 4;
-        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, effectiveLimit);
-
-        List<ContentEntity> sameCategory = current.getCategoryId() != null
-                ? contentRepository.findRelatedContent(ContentStatus.PUBLISHED, current.getCategoryId(), current.getId(), pageable)
-                : Collections.emptyList();
-
-        if (sameCategory.size() >= effectiveLimit) {
-            return sameCategory.stream().map(mapper::toSummaryResponse).collect(Collectors.toList());
-        }
-
-        java.util.Set<UUID> seenIds = sameCategory.stream().map(ContentEntity::getId).collect(Collectors.toSet());
-        seenIds.add(current.getId());
-
-        List<ContentEntity> fallback = contentRepository.findRelatedContent(
+        Pageable pageable = PageRequest.of(0, Math.min(limit, 10));
+        List<ContentEntity> related = contentRepository.findRelatedContent(
                 ContentStatus.PUBLISHED,
-                null,
+                current.getCategoryId(),
                 current.getId(),
                 pageable
         );
 
-        java.util.List<ContentEntity> combined = new java.util.ArrayList<>(sameCategory);
-        for (ContentEntity entity : fallback) {
-            if (combined.size() >= effectiveLimit) break;
-            if (!seenIds.contains(entity.getId())) {
-                combined.add(entity);
-                seenIds.add(entity.getId());
-            }
-        }
-
-        return combined.stream()
+        return related.stream()
                 .map(mapper::toSummaryResponse)
                 .collect(Collectors.toList());
     }
@@ -436,130 +661,111 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional(readOnly = true)
     public List<PublicContentCategoryDto> getPublicCategories() {
-        List<TaxServiceCategoryEntity> categories = categoryRepository.findAllByOrderBySortOrderAsc();
-        return categories.stream()
-                .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
-                .map(cat -> {
-                    long count = contentRepository.countByStatusAndCategoryId(ContentStatus.PUBLISHED, cat.getId());
-                    return PublicContentCategoryDto.builder()
-                            .id(cat.getId())
-                            .code(cat.getCode())
-                            .name(cat.getName())
-                            .description(cat.getDescription())
-                            .icon(cat.getIcon())
-                            .publishedContentCount(count)
-                            .build();
-                })
+        return categoryRepository.findByIsActiveTrueOrderBySortOrderAsc().stream()
+                .map(cat -> PublicContentCategoryDto.builder()
+                        .id(cat.getId())
+                        .code(cat.getCode())
+                        .name(cat.getName())
+                        .description(cat.getDescription())
+                        .publishedContentCount(contentRepository.countByStatusAndCategoryId(ContentStatus.PUBLISHED, cat.getId()))
+                        .build())
                 .collect(Collectors.toList());
     }
 
-    // =========================================================================
-    // Helper Methods
-    // =========================================================================
-
     private void validateTransition(ContentEntity entity, ContentStatus targetStatus) {
         if (!entity.getStatus().canTransitionTo(targetStatus)) {
-            throw new BusinessValidationException(
-                    String.format("Invalid content lifecycle transition: cannot change status from '%s' to '%s'",
-                            entity.getStatus(), targetStatus));
+            throw new BusinessValidationException("Cannot transition content from " + entity.getStatus() + " to " + targetStatus);
         }
     }
 
-    private String normalizeSlug(String customSlug, String title) {
-        String base = StringUtils.hasText(customSlug) ? customSlug : title;
-        if (!StringUtils.hasText(base)) {
-            throw new BusinessValidationException("Slug or title is required to derive slug");
+    private String normalizeSlug(String userSlug, String title) {
+        if (StringUtils.hasText(userSlug)) {
+            String clean = userSlug.trim().toLowerCase()
+                    .replaceAll("[^a-z0-9-]+", "-")
+                    .replaceAll("-+", "-")
+                    .replaceAll("^-|-$", "");
+            if (SLUG_PATTERN.matcher(clean).matches()) {
+                return clean;
+            }
         }
 
-        String cleaned = base.toLowerCase().trim()
+        String autoSlug = title.trim().toLowerCase()
                 .replaceAll("[^a-z0-9\\s-]", "")
                 .replaceAll("\\s+", "-")
-                .replaceAll("-+", "-");
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
 
-        if (cleaned.startsWith("-")) {
-            cleaned = cleaned.substring(1);
-        }
-        if (cleaned.endsWith("-")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        if (!StringUtils.hasText(autoSlug)) {
+            autoSlug = "content-" + UUID.randomUUID().toString().substring(0, 8);
         }
 
-        if (!StringUtils.hasText(cleaned)) {
-            throw new BusinessValidationException("Derived slug is empty or invalid: " + base);
-        }
-
-        if (!SLUG_PATTERN.matcher(cleaned).matches()) {
-            throw new BusinessValidationException("Slug contains invalid format. Only alphanumeric characters and hyphens are allowed: " + cleaned);
-        }
-
-        return cleaned;
+        return autoSlug;
     }
 
-    private Set<ContentTagEntity> resolveOrCreateTags(Set<String> tagInputs) {
-        if (tagInputs == null || tagInputs.isEmpty()) {
-            return new HashSet<>();
+    private Set<ContentTagEntity> resolveOrCreateTags(Set<String> tagNames) {
+        if (tagNames == null || tagNames.isEmpty()) {
+            return Collections.emptySet();
         }
 
-        Set<ContentTagEntity> resolved = new HashSet<>();
-        for (String input : tagInputs) {
-            if (!StringUtils.hasText(input)) continue;
-            String trimmed = input.trim();
-            String slug = trimmed.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
-            if (!StringUtils.hasText(slug)) continue;
+        Set<ContentTagEntity> result = new HashSet<>();
+        for (String raw : tagNames) {
+            if (StringUtils.hasText(raw)) {
+                String cleanName = raw.trim();
+                String cleanSlug = cleanName.toLowerCase().replaceAll("[^a-z0-9-]+", "-");
 
-            ContentTagEntity tag = tagRepository.findBySlug(slug)
-                    .orElseGet(() -> tagRepository.save(ContentTagEntity.builder()
-                            .name(trimmed)
-                            .slug(slug)
-                            .build()));
-            resolved.add(tag);
+                ContentTagEntity tag = tagRepository.findBySlug(cleanSlug)
+                        .orElseGet(() -> tagRepository.save(
+                                ContentTagEntity.builder()
+                                        .name(cleanName)
+                                        .slug(cleanSlug)
+                                        .build()
+                        ));
+                result.add(tag);
+            }
         }
-        return resolved;
+        return result;
     }
 
-    private Specification<ContentEntity> createSpecification(ContentFilterRequest filter) {
+    private Specification<ContentEntity> createSpecification(ContentFilterRequest request) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (filter.getContentType() != null) {
-                predicates.add(cb.equal(root.get("contentType"), filter.getContentType()));
+            if (StringUtils.hasText(request.getSearch())) {
+                String term = "%" + request.getSearch().trim().toLowerCase() + "%";
+                Predicate titleMatch = cb.like(cb.lower(root.get("title")), term);
+                Predicate summaryMatch = cb.like(cb.lower(root.get("summary")), term);
+                Predicate slugMatch = cb.like(cb.lower(root.get("slug")), term);
+                predicates.add(cb.or(titleMatch, summaryMatch, slugMatch));
             }
 
-            if (filter.getStatus() != null) {
-                predicates.add(cb.equal(root.get("status"), filter.getStatus()));
+            if (request.getContentType() != null) {
+                predicates.add(cb.equal(root.get("contentType"), request.getContentType()));
             }
 
-            if (filter.getCategoryId() != null) {
-                predicates.add(cb.equal(root.get("categoryId"), filter.getCategoryId()));
+            if (request.getStatus() != null) {
+                predicates.add(cb.equal(root.get("status"), request.getStatus()));
             }
 
-            if (filter.getTaxServiceId() != null) {
-                predicates.add(cb.equal(root.get("taxServiceId"), filter.getTaxServiceId()));
+            if (request.getCategoryId() != null) {
+                predicates.add(cb.equal(root.get("categoryId"), request.getCategoryId()));
             }
 
-            if (filter.getAuthorId() != null) {
-                predicates.add(cb.equal(root.get("authorId"), filter.getAuthorId()));
+            if (request.getTaxServiceId() != null) {
+                Join<ContentEntity, TaxServiceEntity> taxServicesJoin = root.join("taxServices", JoinType.LEFT);
+                Predicate primaryMatch = cb.equal(root.get("taxServiceId"), request.getTaxServiceId());
+                Predicate mappedMatch = cb.equal(taxServicesJoin.get("id"), request.getTaxServiceId());
+                predicates.add(cb.or(primaryMatch, mappedMatch));
+                query.distinct(true);
             }
 
-            if (filter.getReviewerId() != null) {
-                predicates.add(cb.equal(root.get("reviewerId"), filter.getReviewerId()));
+            if (request.getScope() != null) {
+                predicates.add(cb.equal(root.get("scope"), request.getScope()));
             }
 
-            if (StringUtils.hasText(filter.getTag())) {
-                Join<ContentEntity, ContentTagEntity> tagJoin = root.join("tags", JoinType.INNER);
-                String tagLower = filter.getTag().trim().toLowerCase();
-                predicates.add(cb.or(
-                        cb.equal(cb.lower(tagJoin.get("slug")), tagLower),
-                        cb.equal(cb.lower(tagJoin.get("name")), tagLower)
-                ));
-            }
-
-            if (StringUtils.hasText(filter.getSearch())) {
-                String searchPattern = "%" + filter.getSearch().trim().toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("title")), searchPattern),
-                        cb.like(cb.lower(root.get("slug")), searchPattern),
-                        cb.like(cb.lower(root.get("summary")), searchPattern)
-                ));
+            if (StringUtils.hasText(request.getTag())) {
+                Join<ContentEntity, ContentTagEntity> tagsJoin = root.join("tags", JoinType.INNER);
+                predicates.add(cb.equal(cb.lower(tagsJoin.get("slug")), request.getTag().trim().toLowerCase()));
+                query.distinct(true);
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

@@ -215,6 +215,14 @@ export const App: React.FC = () => {
                   </RoleRouteGuard>
                 }
               />
+              <Route
+                path="/content-studio"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_OPERATIONS_ADMIN']} requiredPermissions={['CONTENT_VIEW']}>
+                    <PlatformContentManagementPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
               <Route
                 path="/admin/audit"

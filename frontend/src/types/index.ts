@@ -2188,7 +2188,16 @@ export interface SupportDashboardSummary {
 
 // 21. Taxoryn Learn Content Foundation & Public Knowledge Base
 export type LearnContentType = 'ARTICLE' | 'VIDEO' | 'GUIDE' | 'FAQ' | 'TAX_UPDATE';
-export type LearnContentStatus = 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED' | 'PUBLISHED' | 'ARCHIVED';
+export type LearnContentStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'IN_REVIEW'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'SCHEDULED'
+  | 'REJECTED'
+  | 'PUBLISHED'
+  | 'ARCHIVED';
 
 export interface LearnContentTag {
   id: string;
@@ -2203,12 +2212,17 @@ export interface LearnContentSummary {
   slug: string;
   summary?: string;
   thumbnailUrl?: string;
+  featuredImageUrl?: string;
+  altText?: string;
   youtubeVideoId?: string;
   youtubeEmbedUrl?: string;
   youtubeWatchUrl?: string;
   videoDurationSeconds?: number;
   videoDurationFormatted?: string;
   status: LearnContentStatus;
+  rejectionReason?: string;
+  scheduledPublishAt?: string;
+  versionNumber?: number;
   categoryId?: string;
   categoryName?: string;
   categoryCode?: string;
@@ -2245,5 +2259,64 @@ export interface LearnPublicCategory {
   icon?: string;
   publishedContentCount: number;
 }
+
+// 22. Content & Marketing Studio
+export interface MediaAsset {
+  id: string;
+  filename: string;
+  contentType: string;
+  fileSize: number;
+  publicUrl: string;
+  altText?: string;
+  uploadedByName?: string;
+  createdAt: string;
+}
+
+export interface ContentVersion {
+  id: string;
+  contentId: string;
+  versionNumber: number;
+  title: string;
+  summary?: string;
+  body: string;
+  thumbnailUrl?: string;
+  featuredImageUrl?: string;
+  altText?: string;
+  status: LearnContentStatus;
+  changeSummary?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface ContentAttentionItem {
+  id: string;
+  title: string;
+  contentType: string;
+  status: string;
+  message: string;
+  updatedAt: string;
+}
+
+export interface ContentActivityItem {
+  id: string;
+  action: string;
+  contentTitle: string;
+  contentType: string;
+  userName: string;
+  timestamp: string;
+}
+
+export interface ContentDashboardStats {
+  totalContent: number;
+  publishedCount: number;
+  draftCount: number;
+  inReviewCount: number;
+  scheduledCount: number;
+  archivedCount: number;
+  rejectedCount: number;
+  needsAttention: ContentAttentionItem[];
+  recentActivity: ContentActivityItem[];
+}
+
 
 

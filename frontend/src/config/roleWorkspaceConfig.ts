@@ -153,7 +153,7 @@ export const ROLE_WORKSPACE_CONFIGS: Record<string, RoleWorkspaceDefinition> = {
     ],
   },
 
-  // 6. Taxoryn Content Admin (Knowledge Base & Articles)
+  // 6. Taxoryn Content Admin (Knowledge Base & Content Studio)
   TAXORYN_CONTENT_ADMIN: {
     roleCode: 'TAXORYN_CONTENT_ADMIN',
     roleTitle: 'Platform Content',
@@ -162,9 +162,12 @@ export const ROLE_WORKSPACE_CONFIGS: Record<string, RoleWorkspaceDefinition> = {
     defaultRoute: '/admin/content',
     badgeStyle: 'bg-teal-100 text-teal-800 border-teal-200',
     navigation: [
-      { label: 'Content Management', path: '/admin/content', icon: BookOpen },
-      { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
-      { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck },
+      { label: 'Studio Dashboard', path: '/admin/content?tab=dashboard', icon: LayoutDashboard },
+      { label: 'All Content', path: '/admin/content?tab=content', icon: BookOpen },
+      { label: 'Review Queue', path: '/admin/content?tab=review-queue', icon: CheckSquare },
+      { label: 'Media Library', path: '/admin/content?tab=media', icon: Palette },
+      { label: 'Categories', path: '/admin/content?tab=categories', icon: Layers },
+      { label: 'Tax Services (Master)', path: '/admin/content?tab=tax-services', icon: Store },
     ],
   },
 

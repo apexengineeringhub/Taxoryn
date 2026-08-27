@@ -1,14 +1,21 @@
 package com.taxoryn.module.content.entity;
 
 /**
- * Controlled Lifecycle Statuses for Taxoryn Learn content.
- * Enforces strictly valid state transitions:
- * DRAFT -> UNDER_REVIEW -> APPROVED -> PUBLISHED -> ARCHIVED
+ * Controlled Lifecycle Statuses for Taxoryn Content & Marketing Studio.
+ * Workflow:
+ * DRAFT -> SUBMITTED -> IN_REVIEW -> APPROVED -> PUBLISHED
+ *                                  \-> REJECTED -> DRAFT
+ *                                  \-> SCHEDULED -> PUBLISHED
+ * PUBLISHED -> ARCHIVED -> DRAFT (restore)
  */
 public enum ContentStatus {
     DRAFT,
-    UNDER_REVIEW,
+    SUBMITTED,
+    IN_REVIEW,
+    UNDER_REVIEW, // Backward-compatible alias for SUBMITTED/IN_REVIEW
     APPROVED,
+    SCHEDULED,
+    REJECTED,
     PUBLISHED,
     ARCHIVED;
 
@@ -24,9 +31,12 @@ public enum ContentStatus {
         }
 
         return switch (this) {
-            case DRAFT -> targetStatus == UNDER_REVIEW || targetStatus == ARCHIVED;
-            case UNDER_REVIEW -> targetStatus == APPROVED || targetStatus == DRAFT || targetStatus == ARCHIVED;
-            case APPROVED -> targetStatus == PUBLISHED || targetStatus == DRAFT || targetStatus == UNDER_REVIEW || targetStatus == ARCHIVED;
+            case DRAFT -> targetStatus == SUBMITTED || targetStatus == IN_REVIEW || targetStatus == UNDER_REVIEW || targetStatus == ARCHIVED;
+            case SUBMITTED, UNDER_REVIEW -> targetStatus == IN_REVIEW || targetStatus == APPROVED || targetStatus == REJECTED || targetStatus == DRAFT || targetStatus == ARCHIVED;
+            case IN_REVIEW -> targetStatus == APPROVED || targetStatus == REJECTED || targetStatus == DRAFT || targetStatus == ARCHIVED;
+            case REJECTED -> targetStatus == DRAFT || targetStatus == SUBMITTED || targetStatus == ARCHIVED;
+            case APPROVED -> targetStatus == PUBLISHED || targetStatus == SCHEDULED || targetStatus == DRAFT || targetStatus == IN_REVIEW || targetStatus == ARCHIVED;
+            case SCHEDULED -> targetStatus == PUBLISHED || targetStatus == APPROVED || targetStatus == DRAFT || targetStatus == ARCHIVED;
             case PUBLISHED -> targetStatus == ARCHIVED || targetStatus == DRAFT;
             case ARCHIVED -> targetStatus == DRAFT;
         };

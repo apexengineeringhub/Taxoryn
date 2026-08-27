@@ -40,6 +40,12 @@ public class ContentEntity extends AuditableEntity {
     @Column(name = "thumbnail_url", length = 500)
     private String thumbnailUrl;
 
+    @Column(name = "featured_image_url", length = 500)
+    private String featuredImageUrl;
+
+    @Column(name = "alt_text")
+    private String altText;
+
     @Column(name = "youtube_video_id", length = 64)
     private String youtubeVideoId;
 
@@ -50,6 +56,16 @@ public class ContentEntity extends AuditableEntity {
     @Column(name = "status", nullable = false, length = 50)
     @Builder.Default
     private ContentStatus status = ContentStatus.DRAFT;
+
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+
+    @Column(name = "scheduled_publish_at")
+    private Instant scheduledPublishAt;
+
+    @Column(name = "version_number", nullable = false)
+    @Builder.Default
+    private Integer versionNumber = 1;
 
     @Column(name = "category_id")
     private UUID categoryId;
@@ -95,6 +111,10 @@ public class ContentEntity extends AuditableEntity {
 
     @Column(name = "published_at")
     private Instant publishedAt;
+
+    @OneToMany(mappedBy = "content", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private java.util.List<ContentVersionEntity> versions = new java.util.ArrayList<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

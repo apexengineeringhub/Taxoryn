@@ -31,7 +31,14 @@ public final class SecurityUtils {
     }
 
     public static String getCurrentUserEmail() {
-        return requireCurrentUser().getEmail();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            if (authentication.getPrincipal() instanceof SecurityUser securityUser) {
+                return securityUser.getEmail();
+            }
+            return authentication.getName();
+        }
+        return "system";
     }
 
     public static UUID getCurrentOrganizationId() {

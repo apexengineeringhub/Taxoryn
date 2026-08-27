@@ -22,6 +22,7 @@ public class ContentFilterRequest extends PageRequestDto {
     private ContentStatus status;
     private UUID categoryId;
     private UUID taxServiceId;
+    private com.taxoryn.module.content.entity.ContentOwnershipScope scope;
     private UUID authorId;
     private UUID reviewerId;
     private String tag;

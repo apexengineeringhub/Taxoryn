@@ -26,12 +26,17 @@ public class ContentResponse {
     private String summary;
     private String body;
     private String thumbnailUrl;
+    private String featuredImageUrl;
+    private String altText;
     private String youtubeVideoId;
     private String youtubeEmbedUrl;
     private String youtubeWatchUrl;
     private Integer videoDurationSeconds;
     private String videoDurationFormatted;
     private ContentStatus status;
+    private String rejectionReason;
+    private Instant scheduledPublishAt;
+    private Integer versionNumber;
 
     private UUID categoryId;
     private String categoryName;

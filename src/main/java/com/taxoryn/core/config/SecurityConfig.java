@@ -104,7 +104,9 @@ public class SecurityConfig {
                                 "/api/marketplace/customer/register",
                                 "/api/v1/marketplace/customer/register",
                                 "/api/public/content/**",
-                                "/api/v1/public/content/**"
+                                "/api/v1/public/content/**",
+                                "/api/public/media/**",
+                                "/api/v1/public/media/**"
                         ).permitAll()
                         // Swagger & OpenAPI
                         .requestMatchers(

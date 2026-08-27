@@ -36,12 +36,17 @@ public class ContentMapper {
                 .summary(entity.getSummary())
                 .body(entity.getBody())
                 .thumbnailUrl(effectiveThumbnail)
+                .featuredImageUrl(entity.getFeaturedImageUrl())
+                .altText(entity.getAltText())
                 .youtubeVideoId(entity.getYoutubeVideoId())
                 .youtubeEmbedUrl(embedUrl)
                 .youtubeWatchUrl(watchUrl)
                 .videoDurationSeconds(entity.getVideoDurationSeconds())
                 .videoDurationFormatted(durationFormatted)
                 .status(entity.getStatus())
+                .rejectionReason(entity.getRejectionReason())
+                .scheduledPublishAt(entity.getScheduledPublishAt())
+                .versionNumber(entity.getVersionNumber())
                 .categoryId(entity.getCategoryId())
                 .categoryName(entity.getCategory() != null ? entity.getCategory().getName() : null)
                 .categoryCode(entity.getCategory() != null ? entity.getCategory().getCode() : null)
@@ -83,10 +88,15 @@ public class ContentMapper {
                 .slug(entity.getSlug())
                 .summary(entity.getSummary())
                 .thumbnailUrl(effectiveThumbnail)
+                .featuredImageUrl(entity.getFeaturedImageUrl())
+                .altText(entity.getAltText())
                 .youtubeVideoId(entity.getYoutubeVideoId())
                 .videoDurationSeconds(entity.getVideoDurationSeconds())
                 .videoDurationFormatted(durationFormatted)
                 .status(entity.getStatus())
+                .rejectionReason(entity.getRejectionReason())
+                .scheduledPublishAt(entity.getScheduledPublishAt())
+                .versionNumber(entity.getVersionNumber())
                 .categoryId(entity.getCategoryId())
                 .categoryName(entity.getCategory() != null ? entity.getCategory().getName() : null)
                 .categoryCode(entity.getCategory() != null ? entity.getCategory().getCode() : null)
@@ -169,4 +179,3 @@ public class ContentMapper {
                 .collect(Collectors.toList());
     }
 }
-

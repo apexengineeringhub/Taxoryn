@@ -5,13 +5,14 @@ import com.taxoryn.module.content.entity.ContentStatus;
 import com.taxoryn.module.content.entity.ContentType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,10 +37,21 @@ public interface ContentRepository extends JpaRepository<ContentEntity, UUID>, J
 
     long countByStatus(ContentStatus status);
 
+    long countByStatusIn(Collection<ContentStatus> statuses);
+
     long countByContentType(ContentType contentType);
 
     long countByStatusAndCategoryId(ContentStatus status, UUID categoryId);
 
     @Query("SELECT c FROM ContentEntity c WHERE c.status = :status AND c.id <> :id AND (:categoryId IS NULL OR c.categoryId = :categoryId) ORDER BY c.publishedAt DESC NULLS LAST")
     List<ContentEntity> findRelatedContent(@Param("status") ContentStatus status, @Param("categoryId") UUID categoryId, @Param("id") UUID id, Pageable pageable);
+
+    @Query("SELECT c FROM ContentEntity c WHERE c.status = 'SCHEDULED' AND c.scheduledPublishAt <= :now")
+    List<ContentEntity> findReadyScheduledContent(@Param("now") Instant now);
+
+    @Query("SELECT c FROM ContentEntity c LEFT JOIN FETCH c.category LEFT JOIN FETCH c.author WHERE c.status IN ('SUBMITTED', 'IN_REVIEW', 'UNDER_REVIEW') ORDER BY c.updatedAt ASC")
+    Page<ContentEntity> findReviewQueue(Pageable pageable);
+
+    @Query("SELECT c FROM ContentEntity c ORDER BY c.updatedAt DESC")
+    List<ContentEntity> findRecentUpdated(Pageable pageable);
 }

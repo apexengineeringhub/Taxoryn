@@ -114,6 +114,9 @@ import {
   LearnContentSummary,
   LearnContentDetail,
   LearnPublicCategory,
+  ContentDashboardStats,
+  ContentVersion,
+  MediaAsset,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1494,8 +1497,16 @@ export const publicLearnApi = {
   },
 };
 
-// --- 25. Taxoryn Learn Admin Content Governance API ---
+// --- 25. Taxoryn Learn Admin Content Studio & Governance API ---
 export const adminLearnApi = {
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<ContentDashboardStats>>('/v1/admin/content/dashboard-stats');
+    return res.data.data;
+  },
+  getReviewQueue: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<LearnContentSummary>>>('/v1/admin/content/review-queue', { params });
+    return res.data.data;
+  },
   getContentList: async (params?: {
     contentType?: string;
     status?: string;
@@ -1524,6 +1535,8 @@ export const adminLearnApi = {
     summary?: string;
     body: string;
     thumbnailUrl?: string;
+    featuredImageUrl?: string;
+    altText?: string;
     youtubeUrl?: string;
     videoDurationSeconds?: number;
     categoryId?: string;
@@ -1541,6 +1554,8 @@ export const adminLearnApi = {
     summary?: string;
     body?: string;
     thumbnailUrl?: string;
+    featuredImageUrl?: string;
+    altText?: string;
     youtubeUrl?: string;
     videoDurationSeconds?: number;
     categoryId?: string;
@@ -1555,8 +1570,20 @@ export const adminLearnApi = {
     const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/submit-review`);
     return res.data.data;
   },
+  startReview: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/start-review`);
+    return res.data.data;
+  },
   approveContent: async (id: string) => {
     const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/approve`);
+    return res.data.data;
+  },
+  rejectContent: async (id: string, reason: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/reject`, { reason });
+    return res.data.data;
+  },
+  scheduleContent: async (id: string, scheduledPublishAt: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/schedule`, { scheduledPublishAt });
     return res.data.data;
   },
   publishContent: async (id: string) => {
@@ -1567,6 +1594,48 @@ export const adminLearnApi = {
     const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/archive`);
     return res.data.data;
   },
+  restoreContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/restore`);
+    return res.data.data;
+  },
+  getVersionHistory: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ContentVersion[]>>(`/v1/admin/content/${id}/versions`);
+    return res.data.data;
+  },
+  getControlledTaxServices: async () => {
+    const res = await apiClient.get<ApiResponse<PublicTaxService[]>>('/v1/admin/content/tax-services');
+    return res.data.data;
+  },
 };
+
+// --- 26. Content Studio Media Library API ---
+export const adminMediaApi = {
+  getMediaAssets: async (params?: { search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MediaAsset>>>('/v1/admin/content/media', { params });
+    return res.data.data;
+  },
+  uploadMedia: async (file: File, altText?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (altText) {
+      formData.append('altText', altText);
+    }
+    const res = await apiClient.post<ApiResponse<MediaAsset>>('/v1/admin/content/media/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data.data;
+  },
+  updateMedia: async (id: string, payload: { altText?: string }) => {
+    const res = await apiClient.put<ApiResponse<MediaAsset>>(`/v1/admin/content/media/${id}`, payload);
+    return res.data.data;
+  },
+  deleteMedia: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/admin/content/media/${id}`);
+    return res.data.data;
+  },
+};
+
 
 
