@@ -41,6 +41,7 @@ export const LearnContentBrowsePage: React.FC = () => {
     if (location.pathname.includes('/learn/videos')) return 'VIDEO';
     if (location.pathname.includes('/learn/guides')) return 'GUIDE';
     if (location.pathname.includes('/learn/faqs')) return 'FAQ';
+    if (location.pathname.includes('/learn/tax-updates')) return 'TAX_UPDATE';
     return '';
   }, [location.pathname]);
 
@@ -159,6 +160,8 @@ export const LearnContentBrowsePage: React.FC = () => {
     ? 'Step-by-Step Filing Guides'
     : routeType === 'FAQ'
     ? 'Tax FAQs & Expert Answers'
+    : routeType === 'TAX_UPDATE'
+    ? 'Official Tax Updates & Circulars'
     : 'Browse All Tax Topics & Guides';
 
   const canonicalPath = routeType === 'ARTICLE'
@@ -169,6 +172,8 @@ export const LearnContentBrowsePage: React.FC = () => {
     ? 'https://taxoryn.com/learn/guides'
     : routeType === 'FAQ'
     ? 'https://taxoryn.com/learn/faqs'
+    : routeType === 'TAX_UPDATE'
+    ? 'https://taxoryn.com/learn/tax-updates'
     : 'https://taxoryn.com/learn/content';
 
   return (

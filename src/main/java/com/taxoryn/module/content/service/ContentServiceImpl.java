@@ -781,30 +781,35 @@ public class ContentServiceImpl implements ContentService {
     @Transactional(readOnly = true)
     public String generateSitemapXml() {
         List<PublicSitemapItemDto> dynamicItems = getPublicSitemapItems();
+        Set<String> seenUrls = new LinkedHashSet<>();
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
         // Static high-priority public routes
-        appendSitemapUrl(sb, "https://taxoryn.com/learn", "daily", "1.0", null);
-        appendSitemapUrl(sb, "https://taxoryn.com/learn/articles", "daily", "0.9", null);
-        appendSitemapUrl(sb, "https://taxoryn.com/learn/videos", "daily", "0.9", null);
-        appendSitemapUrl(sb, "https://taxoryn.com/learn/guides", "daily", "0.9", null);
-        appendSitemapUrl(sb, "https://taxoryn.com/learn/faqs", "daily", "0.8", null);
-        appendSitemapUrl(sb, "https://taxoryn.com/marketplace", "daily", "0.9", null);
+        appendSitemapUrl(sb, seenUrls, "https://taxoryn.com/learn", "daily", "1.0", null);
+        appendSitemapUrl(sb, seenUrls, "https://taxoryn.com/learn/articles", "daily", "0.9", null);
+        appendSitemapUrl(sb, seenUrls, "https://taxoryn.com/learn/videos", "daily", "0.9", null);
+        appendSitemapUrl(sb, seenUrls, "https://taxoryn.com/learn/guides", "daily", "0.9", null);
+        appendSitemapUrl(sb, seenUrls, "https://taxoryn.com/learn/faqs", "daily", "0.8", null);
+        appendSitemapUrl(sb, seenUrls, "https://taxoryn.com/learn/tax-updates", "daily", "0.9", null);
+        appendSitemapUrl(sb, seenUrls, "https://taxoryn.com/marketplace", "daily", "0.9", null);
 
         // Dynamic published articles, videos, guides, FAQs, and verified practice profiles
         for (PublicSitemapItemDto item : dynamicItems) {
-            appendSitemapUrl(sb, item.getLoc(), item.getChangefreq(), String.valueOf(item.getPriority()), item.getLastmod());
+            appendSitemapUrl(sb, seenUrls, item.getLoc(), item.getChangefreq(), String.valueOf(item.getPriority()), item.getLastmod());
         }
 
         sb.append("</urlset>\n");
         return sb.toString();
     }
 
-    private void appendSitemapUrl(StringBuilder sb, String loc, String changefreq, String priority, Instant lastmod) {
+    private void appendSitemapUrl(StringBuilder sb, Set<String> seenUrls, String loc, String changefreq, String priority, Instant lastmod) {
+        if (loc == null || !seenUrls.add(loc.trim())) {
+            return;
+        }
         sb.append("  <url>\n");
-        sb.append("    <loc>").append(loc).append("</loc>\n");
+        sb.append("    <loc>").append(loc.trim()).append("</loc>\n");
         if (lastmod != null) {
             sb.append("    <lastmod>").append(lastmod.toString()).append("</lastmod>\n");
         }

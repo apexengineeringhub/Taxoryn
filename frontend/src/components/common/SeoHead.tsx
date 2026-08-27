@@ -20,9 +20,13 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
   structuredData,
 }) => {
   useEffect(() => {
-    // 1. Page Title
+    // 1. Page Title (Clean, human-readable, safe fallback without null/undefined)
     const originalTitle = document.title;
-    document.title = title.includes('Taxoryn') ? title : `${title} | Taxoryn`;
+    const safeTitle = (title && typeof title === 'string' && title.trim().length > 0 && title !== 'undefined' && title !== 'null')
+      ? title.trim()
+      : 'Tax Practice Management & Verified Marketplace';
+    const finalTitle = safeTitle.toLowerCase().includes('taxoryn') ? safeTitle : `${safeTitle} | Taxoryn`;
+    document.title = finalTitle;
 
     // Helper to get or create a tag
     const setMetaTag = (attrName: string, attrValue: string, content: string) => {
@@ -35,12 +39,20 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
       element.setAttribute('content', content);
     };
 
-    // 2. Standard Metadata
-    setMetaTag('name', 'description', description);
+    // 2. Standard Metadata (Accurate, human-readable, safe fallback)
+    const safeDescription = (description && typeof description === 'string' && description.trim().length > 0 && description !== 'undefined' && description !== 'null')
+      ? description.trim()
+      : 'Taxoryn — Modern Multi-Tenant Tax Practice Management & Verified Professional Marketplace.';
+    setMetaTag('name', 'description', safeDescription);
     setMetaTag('name', 'robots', robots);
 
-    // 3. Canonical Link
-    const cleanCanonical = canonicalUrl || (typeof window !== 'undefined' ? window.location.origin + window.location.pathname : 'https://taxoryn.com');
+    // 3. Canonical Link (Clean preferred public URL without query parameters or hash)
+    let rawCanonical = canonicalUrl;
+    if (!rawCanonical && typeof window !== 'undefined') {
+      rawCanonical = window.location.origin + window.location.pathname;
+    }
+    const cleanCanonical = (rawCanonical || 'https://taxoryn.com').split('?')[0].split('#')[0];
+
     let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (!canonicalLink) {
       canonicalLink = document.createElement('link');
@@ -50,8 +62,8 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
     canonicalLink.setAttribute('href', cleanCanonical);
 
     // 4. Open Graph Tags
-    setMetaTag('property', 'og:title', title);
-    setMetaTag('property', 'og:description', description);
+    setMetaTag('property', 'og:title', finalTitle);
+    setMetaTag('property', 'og:description', safeDescription);
     setMetaTag('property', 'og:url', cleanCanonical);
     setMetaTag('property', 'og:type', ogType);
     setMetaTag('property', 'og:site_name', 'Taxoryn');
@@ -61,8 +73,8 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
 
     // 5. Twitter Card Tags
     setMetaTag('name', 'twitter:card', 'summary_large_image');
-    setMetaTag('name', 'twitter:title', title);
-    setMetaTag('name', 'twitter:description', description);
+    setMetaTag('name', 'twitter:title', finalTitle);
+    setMetaTag('name', 'twitter:description', safeDescription);
     if (ogImage) {
       setMetaTag('name', 'twitter:image', ogImage);
     }

@@ -180,9 +180,17 @@ export const LearnContentDetailPage: React.FC = () => {
   const meta = getTypeMetadata(content.contentType);
   const MetaIcon = meta.icon;
 
-  const canonicalUrl = content.canonicalUrl || `https://taxoryn.com/learn/${content.slug}`;
-  const seoTitle = content.seoTitle || `${content.title} | Taxoryn Learn`;
-  const seoDescription = content.metaDescription || content.summary || `Read expert advice and compliance steps for ${content.title} on Taxoryn Learn.`;
+  const canonicalUrl = (content.canonicalUrl && content.canonicalUrl.trim())
+    ? content.canonicalUrl.trim().split('?')[0].split('#')[0]
+    : `https://taxoryn.com/learn/${content.slug}`;
+  const seoTitle = (content.seoTitle && content.seoTitle.trim())
+    ? content.seoTitle.trim()
+    : (content.title && content.title.trim())
+    ? content.title.trim()
+    : 'Tax Guide';
+  const seoDescription = (content.metaDescription && content.metaDescription.trim())
+    || (content.summary && content.summary.trim())
+    || (content.title ? `Read expert advice and compliance steps for ${content.title} on Taxoryn Learn.` : 'Read verified tax guidelines and statutory compliance steps on Taxoryn Learn.');
   const seoImage = content.featuredImageUrl || content.thumbnailUrl || 'https://taxoryn.com/taxoryn-og-banner.png';
 
   const breadcrumbs = [

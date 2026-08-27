@@ -23,6 +23,7 @@ import {
 import { Button } from '../../components/common/Button';
 import { LearnHeader } from '../../components/learn/LearnHeader';
 import { LearnContentCard } from '../../components/learn/LearnContentCard';
+import { SeoHead } from '../../components/common/SeoHead';
 import { publicLearnApi } from '../../api/endpoints';
 import { LearnContentSummary, LearnPublicCategory } from '../../types';
 import clsx from 'clsx';
@@ -88,6 +89,11 @@ export const LearnLandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-brand-500 selection:text-white">
+      <SeoHead
+        title="Taxoryn Learn — Tax Guides, Articles & Compliance Knowledge"
+        description="Search and explore verified GST, Income Tax, TDS, and business compliance guides written by tax domain professionals on Taxoryn Learn."
+        canonicalUrl="https://taxoryn.com/learn"
+      />
       {/* 1. Header */}
       <LearnHeader />
 

@@ -105,8 +105,13 @@ export const App: React.FC = () => {
             <Route path="/learn/videos" element={<LearnContentBrowsePage />} />
             <Route path="/learn/guides" element={<LearnContentBrowsePage />} />
             <Route path="/learn/faqs" element={<LearnContentBrowsePage />} />
+            <Route path="/learn/tax-updates" element={<LearnContentBrowsePage />} />
             <Route path="/learn/content/:slug" element={<LearnContentDetailPage />} />
             <Route path="/learn/articles/:slug" element={<LearnContentDetailPage />} />
+            <Route path="/learn/videos/:slug" element={<LearnContentDetailPage />} />
+            <Route path="/learn/guides/:slug" element={<LearnContentDetailPage />} />
+            <Route path="/learn/faqs/:slug" element={<LearnContentDetailPage />} />
+            <Route path="/learn/tax-updates/:slug" element={<LearnContentDetailPage />} />
             <Route path="/learn/:slug" element={<LearnContentDetailPage />} />
 
             {/* Customer Self-Service Routes */}

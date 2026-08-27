@@ -167,7 +167,7 @@ export const LearnContentCard: React.FC<LearnContentCardProps> = ({ content, cla
 
           {/* Title */}
           <h3 className="text-base sm:text-lg font-black text-slate-900 leading-snug group-hover:text-brand-600 transition-colors line-clamp-2">
-            <Link to={`/learn/content/${content.slug}`}>
+            <Link to={`/learn/${content.slug}`}>
               {content.title}
             </Link>
           </h3>
@@ -192,7 +192,7 @@ export const LearnContentCard: React.FC<LearnContentCardProps> = ({ content, cla
       {/* Card Footer Action */}
       <div className="px-5 sm:px-6 pb-5 pt-2 border-t border-slate-100 flex items-center justify-between">
         <Link
-          to={`/learn/content/${content.slug}`}
+          to={`/learn/${content.slug}`}
           className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 group-hover:text-brand-700 transition-colors"
         >
           <span>{badge.actionText}</span>
