@@ -10,6 +10,7 @@ import com.taxoryn.module.content.dto.*;
 import com.taxoryn.module.content.entity.*;
 import com.taxoryn.module.content.mapper.ContentMapper;
 import com.taxoryn.module.content.repository.ContentRepository;
+import com.taxoryn.module.content.repository.ContentSlugRedirectRepository;
 import com.taxoryn.module.content.repository.ContentTagRepository;
 import com.taxoryn.module.content.repository.ContentVersionRepository;
 import com.taxoryn.module.content.util.YouTubeUtils;
@@ -45,6 +46,7 @@ public class ContentServiceImpl implements ContentService {
 
     private final ContentRepository contentRepository;
     private final ContentVersionRepository contentVersionRepository;
+    private final ContentSlugRedirectRepository contentSlugRedirectRepository;
     private final ContentTagRepository tagRepository;
     private final TaxServiceCategoryRepository categoryRepository;
     private final TaxServiceRepository taxServiceRepository;
@@ -130,6 +132,9 @@ public class ContentServiceImpl implements ContentService {
                 .thumbnailUrl(thumbnailUrl)
                 .featuredImageUrl(request.getFeaturedImageUrl())
                 .altText(request.getAltText())
+                .seoTitle(StringUtils.hasText(request.getSeoTitle()) ? request.getSeoTitle().trim() : null)
+                .metaDescription(StringUtils.hasText(request.getMetaDescription()) ? request.getMetaDescription().trim() : null)
+                .canonicalUrl(StringUtils.hasText(request.getCanonicalUrl()) ? request.getCanonicalUrl().trim() : null)
                 .youtubeVideoId(youtubeVideoId)
                 .videoDurationSeconds(request.getVideoDurationSeconds())
                 .status(ContentStatus.DRAFT)
@@ -190,10 +195,37 @@ public class ContentServiceImpl implements ContentService {
 
         if (StringUtils.hasText(request.getSlug())) {
             String newSlug = normalizeSlug(request.getSlug(), entity.getTitle());
-            if (contentRepository.existsBySlugAndIdNot(newSlug, id)) {
-                throw new DuplicateResourceException("Content with slug '" + newSlug + "' already exists");
+            if (!newSlug.equals(entity.getSlug())) {
+                if (contentRepository.existsBySlugAndIdNot(newSlug, id)) {
+                    throw new DuplicateResourceException("Content with slug '" + newSlug + "' already exists");
+                }
+                String oldSlug = entity.getSlug();
+                if (entity.getStatus() == ContentStatus.PUBLISHED) {
+                    // Record old slug -> new slug permanent redirect mapping
+                    ContentSlugRedirectEntity redirect = ContentSlugRedirectEntity.builder()
+                            .oldSlug(oldSlug)
+                            .newSlug(newSlug)
+                            .contentId(entity.getId())
+                            .build();
+                    contentSlugRedirectRepository.save(redirect);
+                    // Prevent redirect chains by flattening any prior pointers to oldSlug directly to newSlug
+                    contentSlugRedirectRepository.flattenRedirectChains(oldSlug, newSlug);
+                    log.info("Registered slug redirect from '{}' -> '{}' for published content id={}", oldSlug, newSlug, entity.getId());
+                }
+                entity.setSlug(newSlug);
             }
-            entity.setSlug(newSlug);
+        }
+
+        if (request.getSeoTitle() != null) {
+            entity.setSeoTitle(StringUtils.hasText(request.getSeoTitle()) ? request.getSeoTitle().trim() : null);
+        }
+
+        if (request.getMetaDescription() != null) {
+            entity.setMetaDescription(StringUtils.hasText(request.getMetaDescription()) ? request.getMetaDescription().trim() : null);
+        }
+
+        if (request.getCanonicalUrl() != null) {
+            entity.setCanonicalUrl(StringUtils.hasText(request.getCanonicalUrl()) ? request.getCanonicalUrl().trim() : null);
         }
 
         if (request.getSummary() != null) {
@@ -634,9 +666,29 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional(readOnly = true)
     public ContentResponse getPublicContentBySlug(String slug) {
-        ContentEntity entity = contentRepository.findBySlugAndStatusWithDetails(slug, ContentStatus.PUBLISHED)
-                .orElseThrow(() -> new ResourceNotFoundException("Content", "slug", slug));
-        return mapper.toResponse(entity);
+        if (!StringUtils.hasText(slug)) {
+            throw new ResourceNotFoundException("Content", "slug", slug);
+        }
+        String cleanSlug = slug.trim().toLowerCase();
+
+        // 1. Direct active match
+        Optional<ContentEntity> directMatch = contentRepository.findBySlugAndStatusWithDetails(cleanSlug, ContentStatus.PUBLISHED);
+        if (directMatch.isPresent()) {
+            return mapper.toResponse(directMatch.get());
+        }
+
+        // 2. Check 301 alias redirect
+        Optional<ContentSlugRedirectEntity> redirectOpt = contentSlugRedirectRepository.findByOldSlug(cleanSlug);
+        if (redirectOpt.isPresent()) {
+            String targetSlug = redirectOpt.get().getNewSlug();
+            ContentEntity targetEntity = contentRepository.findBySlugAndStatusWithDetails(targetSlug, ContentStatus.PUBLISHED)
+                    .orElseThrow(() -> new ResourceNotFoundException("Content", "slug", slug));
+            ContentResponse resp = mapper.toResponse(targetEntity);
+            resp.setRedirectSlug(targetSlug);
+            return resp;
+        }
+
+        throw new ResourceNotFoundException("Content", "slug", slug);
     }
 
     @Override
@@ -670,6 +722,91 @@ public class ContentServiceImpl implements ContentService {
                         .publishedContentCount(contentRepository.countByStatusAndCategoryId(ContentStatus.PUBLISHED, cat.getId()))
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    // =========================================================================
+    // SEO, robots.txt, & XML Sitemap
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PublicSitemapItemDto> getPublicSitemapItems() {
+        List<ContentEntity> published = contentRepository.findByStatusAndScope(
+                ContentStatus.PUBLISHED,
+                ContentOwnershipScope.PLATFORM
+        );
+
+        return published.stream()
+                .map(c -> {
+                    Instant lastmod = c.getUpdatedAt() != null ? c.getUpdatedAt() : c.getPublishedAt();
+                    return PublicSitemapItemDto.builder()
+                            .loc("https://taxoryn.com/learn/" + c.getSlug())
+                            .lastmod(lastmod != null ? lastmod : Instant.now())
+                            .changefreq("weekly")
+                            .priority(0.8)
+                            .contentType(c.getContentType())
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String generateSitemapXml() {
+        List<PublicSitemapItemDto> dynamicItems = getPublicSitemapItems();
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+
+        // Static high-priority public routes
+        appendSitemapUrl(sb, "https://taxoryn.com/learn", "daily", "1.0", null);
+        appendSitemapUrl(sb, "https://taxoryn.com/learn/articles", "daily", "0.9", null);
+        appendSitemapUrl(sb, "https://taxoryn.com/learn/videos", "daily", "0.9", null);
+        appendSitemapUrl(sb, "https://taxoryn.com/learn/guides", "daily", "0.9", null);
+        appendSitemapUrl(sb, "https://taxoryn.com/learn/faqs", "daily", "0.8", null);
+        appendSitemapUrl(sb, "https://taxoryn.com/marketplace", "daily", "0.9", null);
+
+        // Dynamic published articles, videos, guides, and FAQs
+        for (PublicSitemapItemDto item : dynamicItems) {
+            appendSitemapUrl(sb, item.getLoc(), item.getChangefreq(), String.valueOf(item.getPriority()), item.getLastmod());
+        }
+
+        sb.append("</urlset>\n");
+        return sb.toString();
+    }
+
+    private void appendSitemapUrl(StringBuilder sb, String loc, String changefreq, String priority, Instant lastmod) {
+        sb.append("  <url>\n");
+        sb.append("    <loc>").append(loc).append("</loc>\n");
+        if (lastmod != null) {
+            sb.append("    <lastmod>").append(lastmod.toString()).append("</lastmod>\n");
+        }
+        if (changefreq != null) {
+            sb.append("    <changefreq>").append(changefreq).append("</changefreq>\n");
+        }
+        if (priority != null) {
+            sb.append("    <priority>").append(priority).append("</priority>\n");
+        }
+        sb.append("  </url>\n");
+    }
+
+    @Override
+    public String getRobotsTxtContent() {
+        return "User-agent: *\n" +
+                "Allow: /learn\n" +
+                "Allow: /learn/*\n" +
+                "Allow: /marketplace\n" +
+                "Allow: /marketplace/*\n" +
+                "Allow: /api/v1/public/content\n" +
+                "Allow: /api/v1/public/content/*\n" +
+                "Allow: /api/v1/public/media/*\n" +
+                "Disallow: /api/v1/admin/\n" +
+                "Disallow: /api/v1/practice/\n" +
+                "Disallow: /api/v1/portal/\n" +
+                "Disallow: /api/v1/internal/\n" +
+                "Disallow: /admin/\n" +
+                "Disallow: /portal/\n\n" +
+                "Sitemap: https://taxoryn.com/sitemap.xml\n";
     }
 
     private void validateTransition(ContentEntity entity, ContentStatus targetStatus) {

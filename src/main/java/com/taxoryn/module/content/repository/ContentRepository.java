@@ -54,4 +54,7 @@ public interface ContentRepository extends JpaRepository<ContentEntity, UUID>, J
 
     @Query("SELECT c FROM ContentEntity c ORDER BY c.updatedAt DESC")
     List<ContentEntity> findRecentUpdated(Pageable pageable);
+
+    @Query("SELECT c FROM ContentEntity c WHERE c.status = :status AND c.scope = :scope ORDER BY c.publishedAt DESC NULLS LAST")
+    List<ContentEntity> findByStatusAndScope(@Param("status") ContentStatus status, @Param("scope") com.taxoryn.module.content.entity.ContentOwnershipScope scope);
 }

@@ -132,6 +132,9 @@ export const PlatformContentManagementPage: React.FC = () => {
   const [formThumbnailUrl, setFormThumbnailUrl] = useState<string>('');
   const [formFeaturedImageUrl, setFormFeaturedImageUrl] = useState<string>('');
   const [formAltText, setFormAltText] = useState<string>('');
+  const [formSeoTitle, setFormSeoTitle] = useState<string>('');
+  const [formMetaDescription, setFormMetaDescription] = useState<string>('');
+  const [formCanonicalUrl, setFormCanonicalUrl] = useState<string>('');
   const [formYoutubeUrl, setFormYoutubeUrl] = useState<string>('');
   const [formDurationSeconds, setFormDurationSeconds] = useState<string>('300');
   const [formCategoryId, setFormCategoryId] = useState<string>('');
@@ -245,6 +248,9 @@ export const PlatformContentManagementPage: React.FC = () => {
     setFormThumbnailUrl('');
     setFormFeaturedImageUrl('');
     setFormAltText('');
+    setFormSeoTitle('');
+    setFormMetaDescription('');
+    setFormCanonicalUrl('');
     setFormYoutubeUrl('');
     setFormDurationSeconds('300');
     setFormCategoryId(categories[0]?.id || '');
@@ -275,6 +281,9 @@ export const PlatformContentManagementPage: React.FC = () => {
       setFormThumbnailUrl(detail.thumbnailUrl || '');
       setFormFeaturedImageUrl(detail.featuredImageUrl || '');
       setFormAltText(detail.altText || '');
+      setFormSeoTitle(detail.seoTitle || '');
+      setFormMetaDescription(detail.metaDescription || '');
+      setFormCanonicalUrl(detail.canonicalUrl || '');
       setFormYoutubeUrl(detail.youtubeWatchUrl || '');
       setFormDurationSeconds(detail.videoDurationSeconds ? String(detail.videoDurationSeconds) : '300');
       setFormCategoryId(detail.categoryId || '');
@@ -340,6 +349,9 @@ export const PlatformContentManagementPage: React.FC = () => {
         thumbnailUrl: formThumbnailUrl.trim() || undefined,
         featuredImageUrl: formFeaturedImageUrl.trim() || undefined,
         altText: formAltText.trim() || undefined,
+        seoTitle: formSeoTitle.trim() || undefined,
+        metaDescription: formMetaDescription.trim() || undefined,
+        canonicalUrl: formCanonicalUrl.trim() || undefined,
         youtubeUrl: formType === 'VIDEO' ? formYoutubeUrl.trim() : undefined,
         videoDurationSeconds: formType === 'VIDEO' && formDurationSeconds ? parseInt(formDurationSeconds, 10) : undefined,
         categoryId: formCategoryId || undefined,
@@ -1617,6 +1629,131 @@ export const PlatformContentManagementPage: React.FC = () => {
                     </label>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* SEO Settings & Google Search Preview */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                    <span>SEO Settings & Google Search Discovery</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Customize how this article appears on Google and social media search results.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      SEO Title
+                    </label>
+                    <span className={clsx(
+                      'text-[10px] font-semibold',
+                      formSeoTitle.length > 60 ? 'text-amber-600' : 'text-slate-400'
+                    )}>
+                      {formSeoTitle.length}/60 chars
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={formSeoTitle}
+                    onChange={(e) => setFormSeoTitle(e.target.value)}
+                    placeholder="Leave empty to use main title"
+                    className="w-full py-2 px-3 border border-slate-300 rounded-lg text-sm bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Canonical URL Override
+                  </label>
+                  <input
+                    type="text"
+                    value={formCanonicalUrl}
+                    onChange={(e) => setFormCanonicalUrl(e.target.value)}
+                    placeholder="https://taxoryn.com/learn/your-slug"
+                    className="w-full py-2 px-3 border border-slate-300 rounded-lg text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase">
+                    Meta Description
+                  </label>
+                  <span className={clsx(
+                    'text-[10px] font-semibold',
+                    formMetaDescription.length > 160 ? 'text-amber-600' : 'text-slate-400'
+                  )}>
+                    {formMetaDescription.length}/160 chars
+                  </span>
+                </div>
+                <textarea
+                  value={formMetaDescription}
+                  onChange={(e) => setFormMetaDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Accurate, concise 1-2 sentence description for search engines..."
+                  className="w-full py-2 px-3 border border-slate-300 rounded-lg text-sm bg-white"
+                />
+              </div>
+
+              {/* Google Search Result Simulation Snippet */}
+              <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-sm space-y-1">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Google Search Snippet Preview:
+                </div>
+                <div className="text-xs text-emerald-800 font-medium truncate">
+                  taxoryn.com &rsaquo; learn &rsaquo; {formSlug || 'sample-tax-guide'}
+                </div>
+                <div className="text-sm font-semibold text-blue-700 hover:underline cursor-pointer truncate">
+                  {formSeoTitle || formTitle || 'Tax Guide Title'} | Taxoryn Learn
+                </div>
+                <div className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  {formMetaDescription || formSummary || (formBody ? formBody.substring(0, 140) + '...' : 'Explore practical tax guidelines, return filing deadlines, and expert advice on Taxoryn Learn.')}
+                </div>
+              </div>
+
+              {/* SEO Readiness Checklist */}
+              <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="font-bold text-slate-500">SEO Readiness:</span>
+                <span className={clsx(
+                  'px-2 py-0.5 rounded font-semibold flex items-center gap-1',
+                  formTitle.trim().length > 5 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                )}>
+                  {formTitle.trim().length > 5 ? '✓' : '⚠'} Title
+                </span>
+                <span className={clsx(
+                  'px-2 py-0.5 rounded font-semibold flex items-center gap-1',
+                  formMetaDescription.trim().length > 0 || formSummary.trim().length > 0
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-amber-100 text-amber-800'
+                )}>
+                  {formMetaDescription.trim().length > 0 || formSummary.trim().length > 0 ? '✓' : '⚠'} Description
+                </span>
+                <span className={clsx(
+                  'px-2 py-0.5 rounded font-semibold flex items-center gap-1',
+                  formCategoryId ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                )}>
+                  {formCategoryId ? '✓' : '⚠'} Category
+                </span>
+                <span className={clsx(
+                  'px-2 py-0.5 rounded font-semibold flex items-center gap-1',
+                  formTaxServiceIds.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                )}>
+                  {formTaxServiceIds.length > 0 ? '✓' : '○'} Tax Service Link
+                </span>
+                <span className={clsx(
+                  'px-2 py-0.5 rounded font-semibold flex items-center gap-1',
+                  formThumbnailUrl || formFeaturedImageUrl ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                )}>
+                  {formThumbnailUrl || formFeaturedImageUrl ? '✓' : '○'} Media Asset
+                </span>
               </div>
             </div>
 

@@ -46,6 +46,15 @@ public class ContentEntity extends AuditableEntity {
     @Column(name = "alt_text")
     private String altText;
 
+    @Column(name = "seo_title", length = 255)
+    private String seoTitle;
+
+    @Column(name = "meta_description", length = 500)
+    private String metaDescription;
+
+    @Column(name = "canonical_url", length = 500)
+    private String canonicalUrl;
+
     @Column(name = "youtube_video_id", length = 64)
     private String youtubeVideoId;
 

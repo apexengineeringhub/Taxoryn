@@ -106,7 +106,10 @@ public class SecurityConfig {
                                 "/api/public/content/**",
                                 "/api/v1/public/content/**",
                                 "/api/public/media/**",
-                                "/api/v1/public/media/**"
+                                "/api/v1/public/media/**",
+                                "/api/v1/public/seo/**",
+                                "/robots.txt",
+                                "/sitemap.xml"
                         ).permitAll()
                         // Swagger & OpenAPI
                         .requestMatchers(

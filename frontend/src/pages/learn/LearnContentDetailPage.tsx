@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -27,6 +27,13 @@ import { Button } from '../../components/common/Button';
 import { LearnHeader } from '../../components/learn/LearnHeader';
 import { LearnContentCard } from '../../components/learn/LearnContentCard';
 import { YouTubePlayer } from '../../components/learn/YouTubePlayer';
+import { SeoHead } from '../../components/common/SeoHead';
+import {
+  generateArticleSchema,
+  generateVideoSchema,
+  generateFaqSchema,
+  generateBreadcrumbSchema,
+} from '../../utils/schemaGenerators';
 import { publicLearnApi } from '../../api/endpoints';
 import { LearnContentDetail, LearnContentSummary, LearnContentType } from '../../types';
 import clsx from 'clsx';
@@ -56,6 +63,12 @@ export const LearnContentDetailPage: React.FC = () => {
         publicLearnApi.getContentBySlug(articleSlug),
         publicLearnApi.getRelatedContent(articleSlug, 4).catch(() => []),
       ]);
+
+      // 301 Permanent Redirect handling: if backend reports redirectSlug, update URL seamlessly
+      if (data.redirectSlug && data.redirectSlug.toLowerCase() !== articleSlug.toLowerCase()) {
+        navigate(`/learn/${data.redirectSlug}`, { replace: true });
+        return;
+      }
 
       setContent(data);
       setRelatedContent(related || []);
@@ -133,6 +146,11 @@ export const LearnContentDetailPage: React.FC = () => {
   if (notFound || !content) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
+        <SeoHead
+          title="Tax Guide Not Found"
+          description="The requested tax guide or video could not be found."
+          robots="noindex, nofollow"
+        />
         <LearnHeader />
         <main className="max-w-xl mx-auto px-4 py-20 text-center space-y-6 flex-1 flex flex-col justify-center">
           <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
@@ -162,8 +180,36 @@ export const LearnContentDetailPage: React.FC = () => {
   const meta = getTypeMetadata(content.contentType);
   const MetaIcon = meta.icon;
 
+  const canonicalUrl = content.canonicalUrl || `https://taxoryn.com/learn/${content.slug}`;
+  const seoTitle = content.seoTitle || `${content.title} | Taxoryn Learn`;
+  const seoDescription = content.metaDescription || content.summary || `Read expert advice and compliance steps for ${content.title} on Taxoryn Learn.`;
+  const seoImage = content.featuredImageUrl || content.thumbnailUrl || 'https://taxoryn.com/taxoryn-og-banner.png';
+
+  const breadcrumbs = [
+    { name: 'Taxoryn Learn', url: '/learn' },
+    ...(content.categoryName ? [{ name: content.categoryName, url: `/learn/content?categoryId=${content.categoryId}` }] : []),
+    { name: content.title, url: `/learn/${content.slug}` },
+  ];
+
+  const structuredSchemas = [
+    generateBreadcrumbSchema(breadcrumbs),
+    content.contentType !== 'VIDEO' && content.contentType !== 'FAQ' ? generateArticleSchema(content, canonicalUrl) : null,
+    content.contentType === 'VIDEO' ? generateVideoSchema(content, canonicalUrl) : null,
+    content.contentType === 'FAQ' ? generateFaqSchema(content) : null,
+  ].filter(Boolean);
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-brand-500 selection:text-white">
+      {/* Search Engine Optimization Metadata & Schema.org JSON-LD */}
+      <SeoHead
+        title={seoTitle}
+        description={seoDescription}
+        canonicalUrl={canonicalUrl}
+        ogImage={seoImage}
+        ogType={content.contentType === 'VIDEO' ? 'video.other' : 'article'}
+        structuredData={structuredSchemas}
+      />
+
       {/* 1. Header */}
       <LearnHeader />
 
@@ -293,8 +339,9 @@ export const LearnContentDetailPage: React.FC = () => {
           <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-md">
             <img
               src={content.thumbnailUrl}
-              alt={content.title}
+              alt={content.altText || content.title}
               className="w-full h-auto max-h-[420px] object-cover"
+              loading="lazy"
             />
           </div>
         ) : null}
@@ -377,7 +424,7 @@ export const LearnContentDetailPage: React.FC = () => {
 
                 <div className="pt-3 flex flex-wrap items-center gap-3">
                   <Link
-                    to={`/marketplace?taxServiceId=${content.taxServices[0].id}&sourceType=CONTENT&sourceContentId=${content.id}`}
+                    to={`/marketplace?taxServiceId=${content.taxServices[0].id}&source=TAXORYN_LEARN&contentSlug=${encodeURIComponent(content.slug)}`}
                   >
                     <Button
                       variant="primary"
@@ -436,7 +483,7 @@ export const LearnContentDetailPage: React.FC = () => {
                     </div>
 
                     <Link
-                      to={`/marketplace?taxServiceId=${svc.id}&sourceType=CONTENT&sourceContentId=${content.id}`}
+                      to={`/marketplace?taxServiceId=${svc.id}&source=TAXORYN_LEARN&contentSlug=${encodeURIComponent(content.slug)}`}
                       className="block"
                     >
                       <Button

@@ -27,6 +27,9 @@ public class ContentSummaryResponse {
     private String thumbnailUrl;
     private String featuredImageUrl;
     private String altText;
+    private String seoTitle;
+    private String metaDescription;
+    private String canonicalUrl;
     private String youtubeVideoId;
     private Integer videoDurationSeconds;
     private String videoDurationFormatted;

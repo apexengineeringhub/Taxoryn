@@ -56,4 +56,14 @@ public interface ContentService {
     List<ContentSummaryResponse> getRelatedPublicContent(String slug, int limit);
 
     List<PublicContentCategoryDto> getPublicCategories();
+
+    // =========================================================================
+    // SEO, robots.txt, & XML Sitemap
+    // =========================================================================
+
+    List<PublicSitemapItemDto> getPublicSitemapItems();
+
+    String generateSitemapXml();
+
+    String getRobotsTxtContent();
 }

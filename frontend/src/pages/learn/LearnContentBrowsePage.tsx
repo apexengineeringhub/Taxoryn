@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useSearchParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
   Filter,
@@ -20,6 +20,7 @@ import {
 import { Button } from '../../components/common/Button';
 import { LearnHeader } from '../../components/learn/LearnHeader';
 import { LearnContentCard } from '../../components/learn/LearnContentCard';
+import { SeoHead } from '../../components/common/SeoHead';
 import { publicLearnApi } from '../../api/endpoints';
 import {
   LearnContentSummary,
@@ -32,11 +33,21 @@ import clsx from 'clsx';
 export const LearnContentBrowsePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine path-based content type filter
+  const routeType = useMemo<LearnContentType | ''>(() => {
+    if (location.pathname.includes('/learn/articles')) return 'ARTICLE';
+    if (location.pathname.includes('/learn/videos')) return 'VIDEO';
+    if (location.pathname.includes('/learn/guides')) return 'GUIDE';
+    if (location.pathname.includes('/learn/faqs')) return 'FAQ';
+    return '';
+  }, [location.pathname]);
 
   // URL query params state
   const currentSearch = searchParams.get('q') || '';
   const currentCategory = searchParams.get('categoryId') || '';
-  const currentType = searchParams.get('contentType') || '';
+  const currentType = routeType || searchParams.get('contentType') || '';
   const currentPage = parseInt(searchParams.get('page') || '0', 10);
 
   // Component state
@@ -140,8 +151,33 @@ export const LearnContentBrowsePage: React.FC = () => {
     { id: 'TAX_UPDATE', label: 'Tax Updates', icon: Bell },
   ];
 
+  const pageTitle = routeType === 'ARTICLE'
+    ? 'Tax Articles & Advisory Guides'
+    : routeType === 'VIDEO'
+    ? 'Tax Video Tutorials & Walkthroughs'
+    : routeType === 'GUIDE'
+    ? 'Step-by-Step Filing Guides'
+    : routeType === 'FAQ'
+    ? 'Tax FAQs & Expert Answers'
+    : 'Browse All Tax Topics & Guides';
+
+  const canonicalPath = routeType === 'ARTICLE'
+    ? 'https://taxoryn.com/learn/articles'
+    : routeType === 'VIDEO'
+    ? 'https://taxoryn.com/learn/videos'
+    : routeType === 'GUIDE'
+    ? 'https://taxoryn.com/learn/guides'
+    : routeType === 'FAQ'
+    ? 'https://taxoryn.com/learn/faqs'
+    : 'https://taxoryn.com/learn/content';
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-brand-500 selection:text-white">
+      <SeoHead
+        title={pageTitle}
+        description="Search and explore verified GST, Income Tax, TDS, and business compliance guides written by tax domain professionals on Taxoryn Learn."
+        canonicalUrl={canonicalPath}
+      />
       {/* Header */}
       <LearnHeader initialSearch={currentSearch} onSearch={(q) => updateFilters({ q })} />
 

@@ -95,10 +95,15 @@ export const App: React.FC = () => {
             <Route path="/marketplace/onboarding/:token" element={<CustomerOnboardingPortalPage />} />
             <Route path="/marketplace/proposal/:token" element={<CustomerOnboardingPortalPage />} />
 
-            {/* Taxoryn Learn Public Knowledge Hub */}
+            {/* Taxoryn Learn Public Knowledge Hub (Clean SEO Routes) */}
             <Route path="/learn" element={<LearnLandingPage />} />
             <Route path="/learn/content" element={<LearnContentBrowsePage />} />
+            <Route path="/learn/articles" element={<LearnContentBrowsePage />} />
+            <Route path="/learn/videos" element={<LearnContentBrowsePage />} />
+            <Route path="/learn/guides" element={<LearnContentBrowsePage />} />
+            <Route path="/learn/faqs" element={<LearnContentBrowsePage />} />
             <Route path="/learn/content/:slug" element={<LearnContentDetailPage />} />
+            <Route path="/learn/articles/:slug" element={<LearnContentDetailPage />} />
             <Route path="/learn/:slug" element={<LearnContentDetailPage />} />
 
             {/* Customer Self-Service Routes */}

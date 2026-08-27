@@ -28,6 +28,10 @@ public class ContentResponse {
     private String thumbnailUrl;
     private String featuredImageUrl;
     private String altText;
+    private String seoTitle;
+    private String metaDescription;
+    private String canonicalUrl;
+    private String redirectSlug;
     private String youtubeVideoId;
     private String youtubeEmbedUrl;
     private String youtubeWatchUrl;

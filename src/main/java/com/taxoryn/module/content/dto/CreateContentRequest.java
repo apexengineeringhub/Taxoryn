@@ -44,6 +44,15 @@ public class CreateContentRequest {
     @Size(max = 255, message = "Alt text cannot exceed 255 characters")
     private String altText;
 
+    @Size(max = 255, message = "SEO Title cannot exceed 255 characters")
+    private String seoTitle;
+
+    @Size(max = 500, message = "Meta Description cannot exceed 500 characters")
+    private String metaDescription;
+
+    @Size(max = 500, message = "Canonical URL cannot exceed 500 characters")
+    private String canonicalUrl;
+
     private String youtubeUrl;
 
     private Integer videoDurationSeconds;

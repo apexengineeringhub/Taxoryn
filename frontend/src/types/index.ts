@@ -2214,6 +2214,10 @@ export interface LearnContentSummary {
   thumbnailUrl?: string;
   featuredImageUrl?: string;
   altText?: string;
+  seoTitle?: string;
+  metaDescription?: string;
+  canonicalUrl?: string;
+  redirectSlug?: string;
   youtubeVideoId?: string;
   youtubeEmbedUrl?: string;
   youtubeWatchUrl?: string;
