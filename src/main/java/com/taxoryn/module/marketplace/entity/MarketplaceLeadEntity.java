@@ -78,6 +78,45 @@ public class MarketplaceLeadEntity extends AuditableEntity {
     @Column(name = "service_category", length = 100)
     private String serviceCategory;
 
+    @Column(name = "reference_number", length = 30, unique = true)
+    private String referenceNumber;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "enquiry_status", nullable = false, length = 50)
+    @Builder.Default
+    private EnquiryStatus enquiryStatus = EnquiryStatus.NEW;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "rejection_reason", length = 50)
+    private EnquiryRejectionReason rejectionReason;
+
+    @Column(name = "rejection_note", length = 500)
+    private String rejectionNote;
+
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
+
+    @Column(name = "received_at")
+    private java.time.Instant receivedAt;
+
+    @Column(name = "accepted_at")
+    private java.time.Instant acceptedAt;
+
+    @Column(name = "rejected_at")
+    private java.time.Instant rejectedAt;
+
+    @Column(name = "started_at")
+    private java.time.Instant startedAt;
+
+    @Column(name = "completed_at")
+    private java.time.Instant completedAt;
+
+    @Column(name = "cancelled_at")
+    private java.time.Instant cancelledAt;
+
+    @Column(name = "review_id")
+    private UUID reviewId;
+
     @Column(name = "requirement_description", columnDefinition = "TEXT")
     private String requirementDescription;
 

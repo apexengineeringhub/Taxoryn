@@ -87,6 +87,12 @@ import {
   UpdateTaxRequirementRequest,
   FinancialYearOption,
   EarlyEnquiryView,
+  EnquiryDetail,
+  AcceptEnquiryRequest,
+  RejectEnquiryRequest,
+  AssignEnquiryRequest,
+  CancelEnquiryRequest,
+  SubmitEnquiryReviewRequest,
   CreateMarketplaceLeadRequest,
   ApplicationFeedback,
   CreateApplicationFeedbackRequest,
@@ -1043,6 +1049,39 @@ export const marketplacePracticeApi = {
     const res = await apiClient.get<ApiResponse<EarlyEnquiryView>>(`/v1/practice/marketplace/enquiries/${id}`);
     return res.data.data;
   },
+  // Operational Lifecycle Enquiries
+  getPracticeEnquiries: async (params?: { status?: string; assignedEmployeeId?: string; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<EnquiryDetail>>>('/v1/marketplace/practice-profile/lifecycle-enquiries', { params });
+    return res.data.data;
+  },
+  getPracticeEnquiryDetail: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}`);
+    return res.data.data;
+  },
+  acceptEnquiry: async (id: string, payload?: AcceptEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/accept`, payload || {});
+    return res.data.data;
+  },
+  rejectEnquiry: async (id: string, payload: RejectEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/reject`, payload);
+    return res.data.data;
+  },
+  assignEnquiry: async (id: string, payload: AssignEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/assign`, payload);
+    return res.data.data;
+  },
+  startEnquiry: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/start`);
+    return res.data.data;
+  },
+  completeEnquiry: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/complete`);
+    return res.data.data;
+  },
+  cancelPracticeEnquiry: async (id: string, payload?: CancelEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/cancel`, payload || {});
+    return res.data.data;
+  },
   updateLeadStatus: async (id: string, params: { status?: string; notes?: string; assignedEmployeeId?: string }) => {
     const res = await apiClient.patch<ApiResponse<MarketplaceLead>>(`/v1/practice/marketplace/leads/${id}/status`, null, { params });
     return res.data.data;
@@ -1278,6 +1317,23 @@ export const marketplaceCustomerApi = {
   },
   getReviews: async () => {
     const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>('/v1/marketplace/customer/reviews');
+    return res.data.data;
+  },
+  // Operational Enquiry Tracking & Verified Reviews
+  getEnquiries: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<EnquiryDetail>>>('/v1/marketplace/customer/enquiries', { params });
+    return res.data.data;
+  },
+  getEnquiryDetail: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryDetail>>(`/v1/marketplace/customer/enquiries/${id}`);
+    return res.data.data;
+  },
+  cancelEnquiry: async (id: string, payload?: CancelEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/customer/enquiries/${id}/cancel`, payload || {});
+    return res.data.data;
+  },
+  submitVerifiedReview: async (id: string, payload: SubmitEnquiryReviewRequest) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceReview>>(`/v1/marketplace/customer/enquiries/${id}/review`, payload);
     return res.data.data;
   },
 };

@@ -13,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping({"/api/v1/marketplace/customer", "/api/marketplace/customer"})
@@ -80,6 +81,55 @@ public class MarketplaceCustomerController {
     public ResponseEntity<ApiResponse<List<MarketplaceProposalDto>>> getProposals() {
         List<MarketplaceProposalDto> proposals = customerService.getCustomerProposals();
         return ResponseEntity.ok(ApiResponse.success("Customer proposals retrieved successfully", proposals));
+    }
+
+    @GetMapping("/enquiries")
+    @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Customer Enquiries with Lifecycle Status", description = "Lists paginated enquiries submitted by customer with real-time status and timeline")
+    public ResponseEntity<ApiResponse<com.taxoryn.core.response.PagedResponse<EnquiryDetailDto>>> getCustomerEnquiries(
+            @RequestParam(required = false) com.taxoryn.module.marketplace.entity.EnquiryStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection
+    ) {
+        org.springframework.data.domain.Sort sort = "desc".equalsIgnoreCase(sortDirection)
+                ? org.springframework.data.domain.Sort.by(sortBy).descending()
+                : org.springframework.data.domain.Sort.by(sortBy).ascending();
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.max(1, size), sort);
+        com.taxoryn.core.response.PagedResponse<EnquiryDetailDto> response = customerService.getCustomerEnquiries(status, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Customer enquiries retrieved successfully", response));
+    }
+
+    @GetMapping("/enquiries/{id}")
+    @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Customer Enquiry Details", description = "Retrieves individual enquiry details including full event-driven timeline")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> getCustomerEnquiryDetail(@PathVariable UUID id) {
+        EnquiryDetailDto enquiry = customerService.getCustomerEnquiryDetail(id);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry details retrieved successfully", enquiry));
+    }
+
+    @PostMapping("/enquiries/{id}/cancel")
+    @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Cancel Customer Enquiry", description = "Allows customer to cancel enquiry before work commences (NEW or RECEIVED status)")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> cancelCustomerEnquiry(
+            @PathVariable UUID id,
+            @RequestBody(required = false) CancelEnquiryRequest request
+    ) {
+        EnquiryDetailDto cancelled = customerService.cancelCustomerEnquiry(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry cancelled successfully", cancelled));
+    }
+
+    @PostMapping("/enquiries/{id}/reviews")
+    @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit Verified Review for Completed Enquiry", description = "Submits a verified client review once an enquiry reaches COMPLETED status")
+    public ResponseEntity<ApiResponse<MarketplaceReviewDto>> submitVerifiedReview(
+            @PathVariable UUID id,
+            @Valid @RequestBody SubmitEnquiryReviewRequest request
+    ) {
+        MarketplaceReviewDto review = customerService.submitVerifiedEnquiryReview(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Verified review submitted successfully", review));
     }
 
     @GetMapping("/reviews")

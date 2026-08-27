@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -50,6 +51,8 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
     private final MarketplaceReviewRepository reviewRepository;
     private final MarketplaceProfileRepository practiceProfileRepository;
     private final CustomerTaxRequirementRepository requirementRepository;
+    private final TaxServiceRepository taxServiceRepository;
+    private final com.taxoryn.module.notification.service.NotificationService notificationService;
     private final CustomerTaxRequirementMapper requirementMapper;
     private final MarketplaceMapper mapper;
     private final CustomerProfileCompletenessCalculator completenessCalculator;
@@ -293,6 +296,326 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
         UUID userId = SecurityUtils.getCurrentUserId();
         List<MarketplaceLeadEntity> leads = leadRepository.findAllByCustomerIdOrderByCreatedAtDesc(userId);
         return mapper.toLeadDtoList(leads);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.core.response.PagedResponse<EnquiryDetailDto> getCustomerEnquiries(EnquiryStatus status, org.springframework.data.domain.Pageable pageable) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        org.springframework.data.domain.Page<MarketplaceLeadEntity> page = status != null
+                ? leadRepository.findByCustomerIdAndEnquiryStatusOrderByCreatedAtDesc(userId, status, pageable)
+                : leadRepository.findByCustomerIdOrderByCreatedAtDesc(userId, pageable);
+
+        return com.taxoryn.core.response.PagedResponse.of(page, this::enrichCustomerEnquiryDetailDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EnquiryDetailDto getCustomerEnquiryDetail(UUID enquiryId) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        MarketplaceLeadEntity lead = leadRepository.findByIdAndCustomerId(enquiryId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer Enquiry", "id", enquiryId));
+        return enrichCustomerEnquiryDetailDto(lead);
+    }
+
+    @Override
+    @Transactional
+    public EnquiryDetailDto cancelCustomerEnquiry(UUID enquiryId, CancelEnquiryRequest request) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        MarketplaceLeadEntity lead = leadRepository.findByIdAndCustomerId(enquiryId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer Enquiry", "id", enquiryId));
+
+        if (!lead.getEnquiryStatus().isCustomerCancellable()) {
+            throw new com.taxoryn.core.exception.BusinessValidationException(
+                    "Enquiry cannot be cancelled once work has begun. Current status: " + lead.getEnquiryStatus().getDisplayName()
+            );
+        }
+
+        lead.setEnquiryStatus(EnquiryStatus.CANCELLED);
+        lead.setLeadStatus(MarketplaceLeadEntity.LeadStatus.ARCHIVED);
+        lead.setCancelledAt(java.time.Instant.now());
+        if (request != null && StringUtils.hasText(request.getCancellationReason())) {
+            lead.setCancellationReason(request.getCancellationReason().trim());
+        }
+
+        MarketplaceLeadEntity saved = leadRepository.save(lead);
+        auditService.logEvent("ENQUIRY_CANCELLED", "MARKETPLACE_LEAD", saved.getId().toString(), saved.getOrganizationId(),
+                "Enquiry " + saved.getReferenceNumber() + " cancelled by customer");
+
+        // Notify Practice
+        if (notificationService != null) {
+            try {
+                UUID practiceUserId = userRepository.findAllByOrganizationId(saved.getOrganizationId()).stream()
+                        .findFirst()
+                        .map(UserEntity::getId)
+                        .orElse(null);
+                if (practiceUserId != null) {
+                    notificationService.notify(
+                            saved.getOrganizationId(),
+                            practiceUserId,
+                            null,
+                            com.taxoryn.module.notification.entity.NotificationEntity.NotificationType.GENERAL,
+                            "Enquiry Cancelled (" + saved.getReferenceNumber() + ")",
+                            "The client has cancelled enquiry " + saved.getReferenceNumber() + (StringUtils.hasText(saved.getCancellationReason()) ? ". Reason: " + saved.getCancellationReason() : ""),
+                            null,
+                            "/practice/marketplace/leads",
+                            "{\"enquiryId\":\"" + saved.getId() + "\"}"
+                    );
+                }
+            } catch (Exception e) {
+                log.warn("Failed to notify practice of enquiry cancellation: {}", e.getMessage());
+            }
+        }
+
+        return enrichCustomerEnquiryDetailDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public MarketplaceReviewDto submitVerifiedEnquiryReview(UUID enquiryId, SubmitEnquiryReviewRequest request) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        MarketplaceLeadEntity lead = leadRepository.findByIdAndCustomerId(enquiryId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer Enquiry", "id", enquiryId));
+
+        if (lead.getEnquiryStatus() != EnquiryStatus.COMPLETED) {
+            throw new com.taxoryn.core.exception.BusinessValidationException(
+                    "You can only submit a verified review after your tax enquiry has been completed by the practice. Current status: " + lead.getEnquiryStatus().getDisplayName()
+            );
+        }
+
+        if (lead.getReviewId() != null || reviewRepository.existsByLeadId(lead.getId())) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("A review has already been submitted for this completed enquiry.");
+        }
+
+        MarketplaceCustomerProfileEntity customerProfile = customerProfileRepository.findByUserId(userId).orElse(null);
+        String reviewerName = customerProfile != null && StringUtils.hasText(customerProfile.getDisplayName())
+                ? customerProfile.getDisplayName()
+                : (StringUtils.hasText(lead.getClientName()) ? lead.getClientName() : "Verified Client");
+
+        String designation = customerProfile != null && customerProfile.getCustomerType() != null
+                ? (customerProfile.getCustomerType() == CustomerType.BUSINESS ? "Business Owner" : "Individual Taxpayer")
+                : "Taxpayer";
+
+        MarketplaceReviewEntity review = MarketplaceReviewEntity.builder()
+                .organizationId(lead.getOrganizationId())
+                .marketplaceProfileId(lead.getMarketplaceProfileId())
+                .customerId(userId)
+                .leadId(lead.getId())
+                .reviewerName(reviewerName)
+                .reviewerDesignation(designation)
+                .reviewerCompany(customerProfile != null ? customerProfile.getBusinessName() : null)
+                .rating(request.getRating())
+                .reviewTitle(StringUtils.hasText(request.getReviewTitle()) ? request.getReviewTitle().trim() : null)
+                .reviewComment(request.getReviewComment().trim())
+                .serviceTaken(lead.getServiceCategory())
+                .isVerifiedClient(true)
+                .status(MarketplaceReviewEntity.ReviewStatus.APPROVED)
+                .build();
+
+        MarketplaceReviewEntity savedReview = reviewRepository.save(review);
+        lead.setReviewId(savedReview.getId());
+        leadRepository.save(lead);
+
+        // Update Practice Profile Rating Stats
+        practiceProfileRepository.findById(lead.getMarketplaceProfileId()).ifPresent(profile -> {
+            List<MarketplaceReviewEntity> allApproved = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
+                    profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
+            );
+            double avg = allApproved.stream().mapToInt(MarketplaceReviewEntity::getRating).average().orElse(5.0);
+            profile.setAverageRating(java.math.BigDecimal.valueOf(Math.round(avg * 100.0) / 100.0));
+            profile.setTotalReviews(allApproved.size());
+            practiceProfileRepository.save(profile);
+        });
+
+        auditService.logEvent("VERIFIED_REVIEW_SUBMITTED", "MARKETPLACE_REVIEW", savedReview.getId().toString(), lead.getOrganizationId(),
+                "Verified review submitted for enquiry " + lead.getReferenceNumber());
+
+        // Notify Practice of new review
+        if (notificationService != null) {
+            try {
+                UUID practiceUserId = userRepository.findAllByOrganizationId(lead.getOrganizationId()).stream()
+                        .findFirst()
+                        .map(UserEntity::getId)
+                        .orElse(null);
+                if (practiceUserId != null) {
+                    notificationService.notify(
+                            lead.getOrganizationId(),
+                            practiceUserId,
+                            null,
+                            com.taxoryn.module.notification.entity.NotificationEntity.NotificationType.GENERAL,
+                            "New Verified Review Received (" + request.getRating() + "★)",
+                            reviewerName + " submitted a " + request.getRating() + "★ verified review for enquiry " + lead.getReferenceNumber(),
+                            null,
+                            "/practice/marketplace/profile",
+                            "{\"reviewId\":\"" + savedReview.getId() + "\"}"
+                    );
+                }
+            } catch (Exception e) {
+                log.warn("Failed to notify practice of new review: {}", e.getMessage());
+            }
+        }
+
+        return mapper.toReviewDto(savedReview);
+    }
+
+    private EnquiryDetailDto enrichCustomerEnquiryDetailDto(MarketplaceLeadEntity entity) {
+        EnquiryStatus status = entity.getEnquiryStatus() != null ? entity.getEnquiryStatus() : EnquiryStatus.NEW;
+
+        String practiceName = null;
+        String practiceSlug = null;
+        String practiceCity = null;
+        if (entity.getMarketplaceProfileId() != null) {
+            var profileOpt = practiceProfileRepository.findById(entity.getMarketplaceProfileId());
+            if (profileOpt.isPresent()) {
+                practiceName = profileOpt.get().getDisplayName();
+                practiceSlug = profileOpt.get().getSlug();
+                practiceCity = profileOpt.get().getCity();
+            }
+        }
+
+        String taxServiceName = null;
+        String taxServiceCode = null;
+        String serviceCategoryName = entity.getServiceCategory();
+        if (entity.getTaxServiceId() != null && taxServiceRepository != null) {
+            var svcOpt = taxServiceRepository.findById(entity.getTaxServiceId());
+            if (svcOpt.isPresent()) {
+                taxServiceName = svcOpt.get().getName();
+                taxServiceCode = svcOpt.get().getCode();
+                if (svcOpt.get().getCategory() != null) {
+                    serviceCategoryName = svcOpt.get().getCategory().getName();
+                }
+            }
+        }
+
+        boolean canCancel = status.isCustomerCancellable();
+        boolean canReview = status.isReviewEligible() && (entity.getReviewId() == null && !reviewRepository.existsByLeadId(entity.getId()));
+
+        return EnquiryDetailDto.builder()
+                .id(entity.getId())
+                .referenceNumber(entity.getReferenceNumber() != null ? entity.getReferenceNumber() : "TXN-" + entity.getId().toString().substring(0, 8).toUpperCase())
+                .organizationId(entity.getOrganizationId())
+                .practiceName(practiceName)
+                .practiceSlug(practiceSlug)
+                .practiceCity(practiceCity)
+                .marketplaceProfileId(entity.getMarketplaceProfileId())
+                .customerId(entity.getCustomerId())
+                .clientName(entity.getClientName())
+                .clientEmail(entity.getClientEmail())
+                .clientPhone(entity.getClientPhone())
+                .city(entity.getCity())
+                .taxServiceId(entity.getTaxServiceId())
+                .taxServiceName(taxServiceName)
+                .taxServiceCode(taxServiceCode)
+                .serviceCategory(serviceCategoryName)
+                .financialYear(entity.getFinancialYear())
+                .customerType(entity.getCustomerType())
+                .requirementDescription(entity.getEarlyEnquiryMessage() != null ? entity.getEarlyEnquiryMessage() : entity.getRequirementDescription())
+                .earlyEnquiryMessage(entity.getEarlyEnquiryMessage())
+                .budgetRange(entity.getBudgetRange())
+                .urgency(entity.getUrgency())
+                .sourceType(entity.getSourceType())
+                .enquiryStatus(status)
+                .rejectionReason(entity.getRejectionReason())
+                .rejectionNote(entity.getRejectionNote())
+                .cancellationReason(entity.getCancellationReason())
+                .practitionerNotes(null) // Keep internal notes private from customer
+                .assignedEmployeeId(null) // Keep internal staff ID private
+                .assignedEmployeeName(null)
+                .createdAt(entity.getCreatedAt())
+                .receivedAt(entity.getReceivedAt() != null ? entity.getReceivedAt() : entity.getCreatedAt())
+                .acceptedAt(entity.getAcceptedAt())
+                .rejectedAt(entity.getRejectedAt())
+                .startedAt(entity.getStartedAt())
+                .completedAt(entity.getCompletedAt())
+                .cancelledAt(entity.getCancelledAt())
+                .timeline(buildCustomerTimeline(entity))
+                .canCancel(canCancel)
+                .canReview(canReview)
+                .reviewId(entity.getReviewId())
+                .build();
+    }
+
+    private List<EnquiryTimelineItemDto> buildCustomerTimeline(MarketplaceLeadEntity lead) {
+        List<EnquiryTimelineItemDto> items = new ArrayList<>();
+        EnquiryStatus status = lead.getEnquiryStatus() != null ? lead.getEnquiryStatus() : EnquiryStatus.NEW;
+
+        // 1. Submitted
+        items.add(EnquiryTimelineItemDto.builder()
+                .status(EnquiryStatus.NEW)
+                .title("Enquiry Submitted")
+                .description("Your enquiry was submitted securely to Taxoryn")
+                .timestamp(lead.getCreatedAt())
+                .completed(true)
+                .current(status == EnquiryStatus.NEW)
+                .build());
+
+        // 2. Delivered to Practice
+        boolean receivedDone = status != EnquiryStatus.NEW;
+        items.add(EnquiryTimelineItemDto.builder()
+                .status(EnquiryStatus.RECEIVED)
+                .title("Delivered to Practice")
+                .description("Delivered to practice inbox for review")
+                .timestamp(lead.getReceivedAt() != null ? lead.getReceivedAt() : lead.getCreatedAt())
+                .completed(receivedDone)
+                .current(status == EnquiryStatus.RECEIVED)
+                .build());
+
+        // 3. Accepted / Rejected / Cancelled
+        if (status == EnquiryStatus.REJECTED) {
+            items.add(EnquiryTimelineItemDto.builder()
+                    .status(EnquiryStatus.REJECTED)
+                    .title("Enquiry Declined")
+                    .description(lead.getRejectionReason() != null ? lead.getRejectionReason().getDisplayName() : "Declined by practice")
+                    .timestamp(lead.getRejectedAt() != null ? lead.getRejectedAt() : lead.getUpdatedAt())
+                    .completed(true)
+                    .current(true)
+                    .build());
+            return items;
+        } else if (status == EnquiryStatus.CANCELLED) {
+            items.add(EnquiryTimelineItemDto.builder()
+                    .status(EnquiryStatus.CANCELLED)
+                    .title("Enquiry Cancelled")
+                    .description(StringUtils.hasText(lead.getCancellationReason()) ? lead.getCancellationReason() : "Cancelled by you")
+                    .timestamp(lead.getCancelledAt() != null ? lead.getCancelledAt() : lead.getUpdatedAt())
+                    .completed(true)
+                    .current(true)
+                    .build());
+            return items;
+        }
+
+        boolean acceptedDone = lead.getAcceptedAt() != null || status == EnquiryStatus.ACCEPTED || status == EnquiryStatus.IN_PROGRESS || status == EnquiryStatus.COMPLETED;
+        items.add(EnquiryTimelineItemDto.builder()
+                .status(EnquiryStatus.ACCEPTED)
+                .title("Practice Accepted")
+                .description("Practice accepted and reviewed your tax requirement")
+                .timestamp(lead.getAcceptedAt())
+                .completed(acceptedDone)
+                .current(status == EnquiryStatus.ACCEPTED)
+                .build());
+
+        // 4. In Progress
+        boolean inProgressDone = lead.getStartedAt() != null || status == EnquiryStatus.IN_PROGRESS || status == EnquiryStatus.COMPLETED;
+        items.add(EnquiryTimelineItemDto.builder()
+                .status(EnquiryStatus.IN_PROGRESS)
+                .title("Work in Progress")
+                .description("Tax professional is preparing your compliance filing")
+                .timestamp(lead.getStartedAt())
+                .completed(inProgressDone)
+                .current(status == EnquiryStatus.IN_PROGRESS)
+                .build());
+
+        // 5. Completed
+        boolean completedDone = lead.getCompletedAt() != null || status == EnquiryStatus.COMPLETED;
+        items.add(EnquiryTimelineItemDto.builder()
+                .status(EnquiryStatus.COMPLETED)
+                .title("Completed")
+                .description("Compliance completed and verified")
+                .timestamp(lead.getCompletedAt())
+                .completed(completedDone)
+                .current(status == EnquiryStatus.COMPLETED)
+                .build());
+
+        return items;
     }
 
     @Override

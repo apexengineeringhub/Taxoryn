@@ -269,6 +269,94 @@ public class MarketplacePracticeController {
         return ResponseEntity.ok(ApiResponse.success("Early enquiry retrieved", enquiry));
     }
 
+    // --- Operational Enquiry Lifecycle Endpoints ---
+
+    @GetMapping("/lifecycle-enquiries")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List Practice Enquiries with Lifecycle Status", description = "Retrieves practice enquiries with timeline metadata, status filters, and employee assignments.")
+    public ResponseEntity<ApiResponse<PagedResponse<EnquiryDetailDto>>> getPracticeEnquiries(
+            @RequestParam(required = false) com.taxoryn.module.marketplace.entity.EnquiryStatus status,
+            @RequestParam(required = false) UUID assignedEmployeeId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection
+    ) {
+        Sort sort = "desc".equalsIgnoreCase(sortDirection) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), sort);
+        PagedResponse<EnquiryDetailDto> response = marketplaceService.getMyPracticeEnquiries(status, assignedEmployeeId, search, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Practice enquiries retrieved successfully", response));
+    }
+
+    @GetMapping("/lifecycle-enquiries/{id}")
+    @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Practice Enquiry Full Detail & Timeline", description = "Retrieves detailed enquiry record including visual progress timeline and notes.")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> getPracticeEnquiryDetail(@PathVariable UUID id) {
+        EnquiryDetailDto enquiry = marketplaceService.getPracticeEnquiryDetail(id);
+        return ResponseEntity.ok(ApiResponse.success("Practice enquiry details retrieved successfully", enquiry));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/accept")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Accept Enquiry", description = "Transitions enquiry from NEW/RECEIVED to ACCEPTED and notifies customer.")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> acceptEnquiry(
+            @PathVariable UUID id,
+            @RequestBody(required = false) AcceptEnquiryRequest request
+    ) {
+        EnquiryDetailDto updated = marketplaceService.acceptEnquiry(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry accepted successfully", updated));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/reject")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Reject Enquiry with Reason", description = "Transitions enquiry to REJECTED with a structured reason code and optional notes.")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> rejectEnquiry(
+            @PathVariable UUID id,
+            @Valid @RequestBody RejectEnquiryRequest request
+    ) {
+        EnquiryDetailDto updated = marketplaceService.rejectEnquiry(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry declined successfully", updated));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/assign")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Assign Enquiry to Practice Employee", description = "Assigns an enquiry to a specific employee and notifies them.")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> assignEnquiry(
+            @PathVariable UUID id,
+            @Valid @RequestBody AssignEnquiryRequest request
+    ) {
+        EnquiryDetailDto updated = marketplaceService.assignEnquiry(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry assigned successfully", updated));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/start")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Start Work on Enquiry", description = "Transitions enquiry to IN_PROGRESS and notifies customer.")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> startEnquiry(@PathVariable UUID id) {
+        EnquiryDetailDto updated = marketplaceService.startEnquiry(id);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry marked as in-progress", updated));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/complete")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Complete Enquiry", description = "Transitions enquiry to COMPLETED, prompting customer for verified review.")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> completeEnquiry(@PathVariable UUID id) {
+        EnquiryDetailDto updated = marketplaceService.completeEnquiry(id);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry completed successfully", updated));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/cancel")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Cancel Enquiry (Practice)", description = "Cancels enquiry from practice side.")
+    public ResponseEntity<ApiResponse<EnquiryDetailDto>> cancelEnquiryByPractice(
+            @PathVariable UUID id,
+            @RequestBody(required = false) CancelEnquiryRequest request
+    ) {
+        EnquiryDetailDto updated = marketplaceService.cancelEnquiryByPractice(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry cancelled successfully", updated));
+    }
+
     @PatchMapping("/leads/{id}/status")
     @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update Lead Status", description = "Transitions lead status (CONTACTED, PROPOSAL_SENT, ARCHIVED) with practitioner notes.")

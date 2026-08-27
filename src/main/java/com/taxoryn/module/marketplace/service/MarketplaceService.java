@@ -51,7 +51,23 @@ public interface MarketplaceService {
 
     PagedResponse<EarlyEnquiryViewDto> getMyEarlyEnquiries(LeadStatus status, String search, Pageable pageable);
 
+    PagedResponse<EnquiryDetailDto> getMyPracticeEnquiries(com.taxoryn.module.marketplace.entity.EnquiryStatus status, UUID assignedEmployeeId, String search, Pageable pageable);
+
     EarlyEnquiryViewDto getEarlyEnquiryById(UUID enquiryId);
+
+    EnquiryDetailDto getPracticeEnquiryDetail(UUID enquiryId);
+
+    EnquiryDetailDto acceptEnquiry(UUID enquiryId, AcceptEnquiryRequest request);
+
+    EnquiryDetailDto rejectEnquiry(UUID enquiryId, RejectEnquiryRequest request);
+
+    EnquiryDetailDto assignEnquiry(UUID enquiryId, AssignEnquiryRequest request);
+
+    EnquiryDetailDto startEnquiry(UUID enquiryId);
+
+    EnquiryDetailDto completeEnquiry(UUID enquiryId);
+
+    EnquiryDetailDto cancelEnquiryByPractice(UUID enquiryId, CancelEnquiryRequest request);
 
     MarketplaceLeadDto updateLeadStatus(UUID leadId, LeadStatus status, String notes, UUID assignedEmployeeId);
 

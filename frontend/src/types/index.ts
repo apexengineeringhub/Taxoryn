@@ -1756,6 +1756,143 @@ export interface CreateMarketplaceLeadRequest {
   urgency?: LeadUrgency | string;
 }
 
+export type EnquiryStatus =
+  | 'NEW'
+  | 'RECEIVED'
+  | 'ACCEPTED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type EnquiryRejectionReason =
+  | 'SERVICE_NOT_AVAILABLE'
+  | 'OUTSIDE_SERVICE_AREA'
+  | 'CURRENTLY_UNAVAILABLE'
+  | 'CAPACITY_FULL'
+  | 'OTHER';
+
+export interface EnquiryTimelineItem {
+  status: EnquiryStatus;
+  title: string;
+  description: string;
+  timestamp?: string;
+  completed: boolean;
+  current: boolean;
+}
+
+export interface EnquiryDetail {
+  id: string;
+  referenceNumber: string;
+  organizationId: string;
+  practiceName?: string;
+  practiceSlug?: string;
+  practiceCity?: string;
+  marketplaceProfileId: string;
+  customerId?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  city?: string;
+  taxServiceId?: string;
+  taxServiceName?: string;
+  taxServiceCode?: string;
+  serviceCategory?: string;
+  financialYear?: string;
+  customerType?: string;
+  requirementDescription?: string;
+  earlyEnquiryMessage?: string;
+  budgetRange?: string;
+  urgency?: LeadUrgency;
+  sourceType?: string;
+  enquiryStatus: EnquiryStatus;
+  rejectionReason?: EnquiryRejectionReason;
+  rejectionNote?: string;
+  cancellationReason?: string;
+  practitionerNotes?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  createdAt: string;
+  receivedAt?: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  timeline: EnquiryTimelineItem[];
+  canCancel: boolean;
+  canReview: boolean;
+  reviewId?: string;
+}
+
+export interface AcceptEnquiryRequest {
+  notes?: string;
+  estimatedDaysToComplete?: number;
+}
+
+export interface RejectEnquiryRequest {
+  rejectionReason: EnquiryRejectionReason;
+  rejectionNote?: string;
+}
+
+export interface AssignEnquiryRequest {
+  assignedEmployeeId: string;
+  assignmentNotes?: string;
+}
+
+export interface CancelEnquiryRequest {
+  cancellationReason?: string;
+}
+
+export interface SubmitEnquiryReviewRequest {
+  rating: number;
+  reviewTitle?: string;
+  reviewComment: string;
+}
+
+export interface MarketplaceLead {
+  id: string;
+  referenceNumber?: string;
+  organizationId: string;
+  practiceName?: string;
+  practiceSlug?: string;
+  marketplaceProfileId: string;
+  serviceId?: string;
+  serviceTitle?: string;
+  taxServiceId?: string;
+  taxServiceName?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  city?: string;
+  pan?: string;
+  gstin?: string;
+  serviceCategory?: string;
+  requirementDescription: string;
+  earlyEnquiryMessage?: string;
+  budgetRange?: string;
+  urgency: LeadUrgency;
+  enquiryStatus?: EnquiryStatus;
+  rejectionReason?: EnquiryRejectionReason;
+  rejectionNote?: string;
+  cancellationReason?: string;
+  receivedAt?: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  reviewId?: string;
+  leadStatus: LeadStatus;
+  convertedClientId?: string;
+  convertedClientName?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  practitionerNotes?: string;
+  createdAt: string;
+}
+
 // Application Feedback is deliberately separate from a MarketplaceReview.
 export type ApplicationFeedbackType = 'SUGGESTION' | 'PROBLEM' | 'GENERAL' | 'EXPERIENCE';
 export type ApplicationFeedbackCategory =

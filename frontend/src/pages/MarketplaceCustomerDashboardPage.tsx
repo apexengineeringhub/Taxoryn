@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { marketplaceCustomerApi } from '../api/endpoints';
-import { CustomerDashboard } from '../types';
+import { CustomerDashboard, EnquiryDetail, EnquiryStatus, SubmitEnquiryReviewRequest, CancelEnquiryRequest } from '../types';
 import {
   Compass,
   FileText,
@@ -19,6 +19,11 @@ import {
   Layers,
   MapPin,
   MessageSquarePlus,
+  History,
+  XCircle,
+  X,
+  MessageSquare,
+  CheckCircle,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -27,14 +32,37 @@ import clsx from 'clsx';
 
 export const MarketplaceCustomerDashboardPage: React.FC = () => {
   const [dashboard, setDashboard] = useState<CustomerDashboard | null>(null);
+  const [enquiries, setEnquiries] = useState<EnquiryDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'requirements' | 'requests' | 'consultations' | 'proposals' | 'reviews'>('requirements');
+  const [activeTab, setActiveTab] = useState<'requirements' | 'requests' | 'consultations' | 'proposals' | 'reviews'>('requests');
 
-  const fetchDashboard = async () => {
+  // Cancel Enquiry Modal
+  const [cancelTarget, setCancelTarget] = useState<EnquiryDetail | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [isSubmittingAction, setIsSubmittingAction] = useState<boolean>(false);
+
+  // Review Modal
+  const [reviewTarget, setReviewTarget] = useState<EnquiryDetail | null>(null);
+  const [reviewForm, setReviewForm] = useState<SubmitEnquiryReviewRequest>({
+    rating: 5,
+    reviewTitle: '',
+    reviewComment: '',
+  });
+
+  // Timeline Drawer Modal
+  const [timelineTarget, setTimelineTarget] = useState<EnquiryDetail | null>(null);
+
+  const [notificationBanner, setNotificationBanner] = useState<string | null>(null);
+
+  const fetchDashboardAndEnquiries = async () => {
     try {
       setIsLoading(true);
-      const data = await marketplaceCustomerApi.getDashboard();
-      setDashboard(data);
+      const [dashData, enqData] = await Promise.all([
+        marketplaceCustomerApi.getDashboard().catch(() => null),
+        marketplaceCustomerApi.getEnquiries({ size: 50 }).then((r) => r.content || []).catch(() => []),
+      ]);
+      setDashboard(dashData);
+      setEnquiries(enqData);
     } catch (err) {
       console.error('Failed to load customer dashboard', err);
     } finally {
@@ -43,8 +71,44 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchDashboard();
+    fetchDashboardAndEnquiries();
   }, []);
+
+  const handleCancelEnquiry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cancelTarget) return;
+    try {
+      setIsSubmittingAction(true);
+      await marketplaceCustomerApi.cancelEnquiry(cancelTarget.id, {
+        cancellationReason: cancelReason || undefined,
+      });
+      setCancelTarget(null);
+      setCancelReason('');
+      await fetchDashboardAndEnquiries();
+      setNotificationBanner(`Enquiry ${cancelTarget.referenceNumber} has been successfully cancelled.`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to cancel enquiry.');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewTarget) return;
+    try {
+      setIsSubmittingAction(true);
+      await marketplaceCustomerApi.submitVerifiedReview(reviewTarget.id, reviewForm);
+      setReviewTarget(null);
+      setReviewForm({ rating: 5, reviewTitle: '', reviewComment: '' });
+      await fetchDashboardAndEnquiries();
+      setNotificationBanner(`Thank you! Your verified review for ${reviewTarget.practiceName || 'the practice'} has been published.`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to submit review.');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -59,6 +123,27 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
 
   const profile = dashboard?.profile;
   const completeness = profile?.profileCompleteness;
+
+  const getStatusBadge = (status: EnquiryStatus) => {
+    switch (status) {
+      case 'NEW':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">Submitted</span>;
+      case 'RECEIVED':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">Received by Practice</span>;
+      case 'ACCEPTED':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">Accepted</span>;
+      case 'IN_PROGRESS':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">In Progress</span>;
+      case 'COMPLETED':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Completed</span>;
+      case 'REJECTED':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">Declined</span>;
+      case 'CANCELLED':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">Cancelled</span>;
+      default:
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">{status}</span>;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
@@ -78,7 +163,7 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Track your enquiries, consultation bookings, and engagement proposals
+                  Track your service enquiries, active compliance work, and verified reviews
                 </p>
               </div>
             </div>
@@ -87,25 +172,25 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
               <Link to="/marketplace/customer/feedback">
                 <Button variant="secondary" size="sm" className="text-xs bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
                   <MessageSquarePlus className="w-3.5 h-3.5 mr-1.5" />
-                  Give Feedback
+                  Feedback
                 </Button>
               </Link>
               <Link to="/marketplace/customer/requirements/new">
                 <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 font-bold">
                   <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Tell Us Your Tax Need
+                  Post Tax Need
                 </Button>
               </Link>
               <Link to="/marketplace/customer/profile">
                 <Button variant="secondary" size="sm" className="text-xs bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
                   <User className="w-3.5 h-3.5 mr-1.5" />
-                  My Profile
+                  Profile
                 </Button>
               </Link>
               <Link to="/marketplace">
                 <Button size="sm" className="text-xs bg-brand-600 hover:bg-brand-700 text-white shadow-md shadow-brand-500/20">
                   <Compass className="w-3.5 h-3.5 mr-1.5" />
-                  Explore Practitioners
+                  Find Practitioners
                 </Button>
               </Link>
             </div>
@@ -114,147 +199,246 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Banner notification */}
+        {notificationBanner && (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs text-emerald-800 font-semibold">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>{notificationBanner}</span>
+            </div>
+            <button onClick={() => setNotificationBanner(null)} className="text-emerald-600 font-bold">&times;</button>
+          </div>
+        )}
+
         {/* Profile Completeness Alert if < 100% */}
         {completeness && completeness.percentage < 100 && (
           <div className="p-4 bg-gradient-to-r from-amber-500/10 via-brand-500/10 to-indigo-500/10 border border-amber-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+              <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-amber-600" />
-                <span>Complete your Customer Profile ({completeness.percentage}%)</span>
+                <span className="text-xs font-bold text-slate-900">Your profile is {completeness.percentage}% complete</span>
               </div>
-              <p className="text-xs text-slate-600">
-                Add {completeness.missingItems.join(', ')} to receive faster responses from top tax professionals.
+              <p className="text-[11px] text-slate-600">
+                Complete your tax profile to get matched with certified CAs faster.
               </p>
             </div>
             <Link to="/marketplace/customer/profile">
-              <Button size="sm" variant="secondary" className="text-xs whitespace-nowrap bg-white border-amber-300 text-amber-900 hover:bg-amber-50">
+              <Button size="sm" variant="secondary" className="text-xs whitespace-nowrap bg-white text-slate-800 border-slate-300">
                 Complete Profile
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
               </Button>
             </Link>
           </div>
         )}
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <Link to="/marketplace/customer/requirements" className="block">
-            <Card className="p-4 bg-white border-indigo-200 hover:border-indigo-400 hover:shadow-md transition flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
-                <Layers className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-2xl font-black text-slate-900">{dashboard?.totalRequirements || 0}</div>
-                <div className="text-xs text-slate-500 font-medium">Tax Needs</div>
-              </div>
-            </Card>
-          </Link>
-
-          <Card className="p-4 bg-white border-slate-200 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-              <FileText className="w-5 h-5" />
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
+            <div className="text-[10px] uppercase font-bold text-slate-400">My Enquiries</div>
+            <div className="text-xl font-extrabold text-slate-900">{enquiries.length}</div>
+            <div className="text-[10px] text-slate-500">Active & completed</div>
+          </div>
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
+            <div className="text-[10px] uppercase font-bold text-slate-400">In Progress</div>
+            <div className="text-xl font-extrabold text-amber-600">
+              {enquiries.filter((e) => e.enquiryStatus === 'IN_PROGRESS' || e.enquiryStatus === 'ACCEPTED').length}
             </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900">{dashboard?.totalRequests || 0}</div>
-              <div className="text-xs text-slate-500 font-medium">Enquiries Sent</div>
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-white border-slate-200 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900">{dashboard?.totalConsultations || 0}</div>
-              <div className="text-xs text-slate-500 font-medium">Consultations</div>
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-white border-slate-200 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-              <Award className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900">{dashboard?.totalProposals || 0}</div>
-              <div className="text-xs text-slate-500 font-medium">Proposals</div>
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-white border-slate-200 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-              <Star className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900">{dashboard?.totalReviews || 0}</div>
-              <div className="text-xs text-slate-500 font-medium">Reviews Given</div>
-            </div>
-          </Card>
+            <div className="text-[10px] text-slate-500">Being handled by CA</div>
+          </div>
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
+            <div className="text-[10px] uppercase font-bold text-slate-400">Consultations</div>
+            <div className="text-xl font-extrabold text-purple-600">{dashboard?.totalConsultations || 0}</div>
+            <div className="text-[10px] text-slate-500">Scheduled sessions</div>
+          </div>
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
+            <div className="text-[10px] uppercase font-bold text-slate-400">My Verified Reviews</div>
+            <div className="text-xl font-extrabold text-emerald-600">{dashboard?.totalReviews || 0}</div>
+            <div className="text-[10px] text-slate-500">Shared feedback</div>
+          </div>
         </div>
 
-        {/* Tabbed Activity Section */}
-        <Card className="p-6 bg-white border-slate-200 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 overflow-x-auto">
+        {/* Main Tabs Card */}
+        <Card className="p-6 bg-white border-slate-200 shadow-sm rounded-3xl">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 overflow-x-auto">
             <div className="flex items-center gap-2">
               <button
-                type="button"
-                onClick={() => setActiveTab('requirements')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
-                  activeTab === 'requirements'
-                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                Tax Needs ({dashboard?.recentTaxRequirements?.length || 0})
-              </button>
-              <button
-                type="button"
                 onClick={() => setActiveTab('requests')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
+                className={clsx(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all',
                   activeTab === 'requests'
-                    ? 'bg-brand-50 text-brand-700 border border-brand-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                )}
               >
-                Enquiries ({dashboard?.recentLeads?.length || 0})
+                My Enquiries ({enquiries.length})
               </button>
               <button
-                type="button"
+                onClick={() => setActiveTab('requirements')}
+                className={clsx(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all',
+                  activeTab === 'requirements'
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                )}
+              >
+                Posted Needs ({dashboard?.recentTaxRequirements?.length || 0})
+              </button>
+              <button
                 onClick={() => setActiveTab('consultations')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
+                className={clsx(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all',
                   activeTab === 'consultations'
-                    ? 'bg-brand-50 text-brand-700 border border-brand-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                )}
               >
                 Consultations ({dashboard?.recentConsultations?.length || 0})
               </button>
               <button
-                type="button"
                 onClick={() => setActiveTab('proposals')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
+                className={clsx(
+                  'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all',
                   activeTab === 'proposals'
-                    ? 'bg-brand-50 text-brand-700 border border-brand-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                )}
               >
-                Proposals ({dashboard?.recentProposals?.length || 0})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('reviews')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
-                  activeTab === 'reviews'
-                    ? 'bg-brand-50 text-brand-700 border border-brand-200'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                My Reviews ({dashboard?.recentReviews?.length || 0})
+                Engagement Proposals ({dashboard?.recentProposals?.length || 0})
               </button>
             </div>
 
             <Link to="/marketplace" className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1 shrink-0 ml-4">
-              Browse More <ExternalLink className="w-3.5 h-3.5" />
+              Browse More Practices <ExternalLink className="w-3.5 h-3.5" />
             </Link>
           </div>
+
+          {/* Tab 1: Enquiries with Lifecycle State Machine */}
+          {activeTab === 'requests' && (
+            <div className="space-y-4">
+              {enquiries.length > 0 ? (
+                enquiries.map((enquiry) => (
+                  <div
+                    key={enquiry.id}
+                    className="p-5 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all bg-slate-50/50 space-y-4"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-100/80 px-2.5 py-0.5 rounded-md">
+                            {enquiry.referenceNumber}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900">
+                            {enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}
+                          </span>
+                          {getStatusBadge(enquiry.enquiryStatus)}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
+                          <span>Practice: <strong>{enquiry.practiceName || 'Tax Practice'}</strong></span>
+                          {enquiry.practiceCity && <span>• {enquiry.practiceCity}</span>}
+                          <span>• Submitted {new Date(enquiry.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setTimelineTarget(enquiry)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center gap-1"
+                        >
+                          <History className="w-3.5 h-3.5 text-indigo-600" />
+                          Timeline
+                        </button>
+
+                        {enquiry.canCancel && (
+                          <button
+                            onClick={() => {
+                              setCancelTarget(enquiry);
+                              setCancelReason('');
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-rose-200"
+                          >
+                            Cancel Enquiry
+                          </button>
+                        )}
+
+                        {enquiry.canReview && (
+                          <button
+                            onClick={() => {
+                              setReviewTarget(enquiry);
+                              setReviewForm({ rating: 5, reviewTitle: '', reviewComment: '' });
+                            }}
+                            className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center gap-1"
+                          >
+                            <Star className="w-3.5 h-3.5 fill-white" />
+                            Leave Verified Review
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Visual Progress Stepper */}
+                    {enquiry.enquiryStatus !== 'REJECTED' && enquiry.enquiryStatus !== 'CANCELLED' && (
+                      <div className="grid grid-cols-5 gap-2 pt-1">
+                        {[
+                          { label: 'Submitted', key: 'NEW' },
+                          { label: 'Received', key: 'RECEIVED' },
+                          { label: 'Accepted', key: 'ACCEPTED' },
+                          { label: 'In Progress', key: 'IN_PROGRESS' },
+                          { label: 'Completed', key: 'COMPLETED' },
+                        ].map((step, idx) => {
+                          const order = ['NEW', 'RECEIVED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'];
+                          const currentIdx = order.indexOf(enquiry.enquiryStatus);
+                          const isDone = currentIdx >= idx;
+                          const isCurrent = currentIdx === idx;
+                          return (
+                            <div key={step.key} className="text-center space-y-1">
+                              <div
+                                className={clsx(
+                                  'h-1.5 rounded-full transition-all',
+                                  isDone ? 'bg-emerald-500' : 'bg-slate-200'
+                                )}
+                              />
+                              <div
+                                className={clsx(
+                                  'text-[10px] font-bold',
+                                  isCurrent ? 'text-indigo-600' : isDone ? 'text-slate-700' : 'text-slate-400'
+                                )}
+                              >
+                                {step.label}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {enquiry.rejectionReason && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+                        <strong>Practice Note:</strong> This enquiry was declined due to:{' '}
+                        {enquiry.rejectionReason.replace(/_/g, ' ')}. {enquiry.rejectionNote}
+                      </div>
+                    )}
+
+                    {enquiry.cancellationReason && (
+                      <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-600">
+                        <strong>Cancelled Reason:</strong> {enquiry.cancellationReason}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12 space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">You haven't submitted any service enquiries yet.</p>
+                  <Link to="/marketplace">
+                    <Button size="sm" className="text-xs bg-brand-600 text-white">
+                      Explore Practices
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tab 0: Tax Needs & Requirements */}
           {activeTab === 'requirements' && (
@@ -333,60 +517,12 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                   <Layers className="w-8 h-8 text-indigo-400 mx-auto" />
                   <div className="text-xs font-bold text-slate-700">No Tax Requirements Yet</div>
                   <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                    Tell us what tax help you need (ITR, GST, Registrations) and we'll help prepare structured requirements for matching.
+                    Tell us what tax help you need and we'll help prepare structured requirements for matching.
                   </p>
                   <Link to="/marketplace/customer/requirements/new">
                     <Button size="sm" className="mt-2 text-xs bg-indigo-600 text-white font-bold">
                       <Plus className="w-3.5 h-3.5 mr-1" />
                       Tell Us Your Tax Need
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tab 1: Enquiries */}
-          {activeTab === 'requests' && (
-            <div className="space-y-3">
-              {dashboard?.recentLeads && dashboard.recentLeads.length > 0 ? (
-                dashboard.recentLeads.map((lead) => (
-                  <div
-                    key={lead.id}
-                    className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 transition-all bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">{lead.serviceCategory || 'Tax Advisory'}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                          {lead.leadStatus}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 line-clamp-1">{lead.requirementDescription || 'No description provided'}</p>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                        <span>Submitted on {new Date(lead.createdAt).toLocaleDateString()}</span>
-                        {lead.city && <span>• {lead.city}</span>}
-                      </div>
-                    </div>
-
-                    <div className="text-right flex items-center gap-2">
-                      <Link to={`/marketplace/profile/${lead.marketplaceProfileId}`}>
-                        <Button size="sm" variant="secondary" className="text-xs">
-                          View Practice
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-10 space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <p className="text-xs text-slate-500 font-medium">You haven't submitted any service enquiries yet.</p>
-                  <Link to="/marketplace">
-                    <Button size="sm" className="text-xs bg-brand-600 text-white">
-                      Explore Marketplace
                     </Button>
                   </Link>
                 </div>
@@ -454,81 +590,235 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-900">{p.proposalTitle}</span>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          className={clsx(
+                            'px-2 py-0.5 rounded-full text-[10px] font-bold',
                             p.proposalStatus === 'ACCEPTED'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                               : 'bg-amber-50 text-amber-700 border border-amber-100'
-                          }`}
+                          )}
                         >
                           {p.proposalStatus}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600">{p.practiceDisplayName || 'Tax Practice'}</p>
+                      <p className="text-xs text-slate-600">From {p.practiceDisplayName || 'Tax Practice'}</p>
                       <div className="text-[10px] text-slate-400">
-                        Fee: ₹{p.feeAmount?.toLocaleString('en-IN')} ({p.pricingType})
+                        {p.scopeOfWork ? p.scopeOfWork.slice(0, 80) + '...' : ''}
                       </div>
                     </div>
 
-                    <div>
-                      {p.accessToken && (
-                        <Link to={`/marketplace/proposal/${p.accessToken}`}>
-                          <Button size="sm" className="text-xs bg-brand-600 text-white">
-                            Review Proposal
-                            <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                          </Button>
-                        </Link>
-                      )}
+                    <div className="text-right flex items-center gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block">₹{p.feeAmount}</span>
+                        <span className="text-[10px] text-slate-400">{p.pricingType}</span>
+                      </div>
+                      <Link to={`/marketplace/onboarding/${p.accessToken}`}>
+                        <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
+                          Review Proposal
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 ))
               ) : (
                 <div className="text-center py-10 space-y-3">
                   <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                    <Award className="w-6 h-6" />
+                    <FileText className="w-6 h-6" />
                   </div>
                   <p className="text-xs text-slate-500 font-medium">No proposals received yet.</p>
                 </div>
               )}
             </div>
           )}
-
-          {/* Tab 4: Reviews */}
-          {activeTab === 'reviews' && (
-            <div className="space-y-3">
-              {dashboard?.recentReviews && dashboard.recentReviews.length > 0 ? (
-                dashboard.recentReviews.map((r) => (
-                  <div
-                    key={r.id}
-                    className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 transition-all bg-slate-50/50 space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-amber-500">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3.5 h-3.5 ${i < r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`}
-                          />
-                        ))}
-                        <span className="text-xs font-bold text-slate-700 ml-1">{r.rating}.0</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    {r.reviewTitle && <h4 className="text-xs font-bold text-slate-900">{r.reviewTitle}</h4>}
-                    <p className="text-xs text-slate-600">{r.reviewComment}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-10 space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                    <Star className="w-6 h-6" />
-                  </div>
-                  <p className="text-xs text-slate-500 font-medium">You haven't written any reviews yet.</p>
-                </div>
-              )}
-            </div>
-          )}
         </Card>
       </div>
+
+      {/* Cancel Enquiry Modal */}
+      {cancelTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-rose-600" />
+                <h3 className="text-base font-bold text-slate-900">Cancel Tax Enquiry</h3>
+              </div>
+              <button onClick={() => setCancelTarget(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Are you sure you want to cancel enquiry <strong>{cancelTarget.referenceNumber}</strong>? The practice will be notified.
+            </p>
+
+            <form onSubmit={handleCancelEnquiry} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700">Reason for Cancellation (Optional)</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Requirement fulfilled elsewhere, postponed filing..."
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="secondary" size="sm" onClick={() => setCancelTarget(null)}>
+                  Keep Enquiry
+                </Button>
+                <Button variant="primary" size="sm" disabled={isSubmittingAction} className="bg-rose-600 hover:bg-rose-700 text-white font-bold">
+                  {isSubmittingAction ? 'Cancelling...' : 'Confirm Cancellation'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Verified Review Modal */}
+      {reviewTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-500" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Leave Verified Review</h3>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    Verified Completed Engagement
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setReviewTarget(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700">Rating *</label>
+                <div className="flex items-center gap-2 mt-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      type="button"
+                      key={star}
+                      onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                      className="p-1"
+                    >
+                      <Star
+                        className={clsx(
+                          'w-6 h-6 transition-all',
+                          star <= reviewForm.rating
+                            ? 'text-amber-500 fill-amber-500'
+                            : 'text-slate-300'
+                        )}
+                      />
+                    </button>
+                  ))}
+                  <span className="text-xs font-bold text-slate-700 ml-2">{reviewForm.rating} / 5 Stars</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">Review Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Excellent return filing experience"
+                  value={reviewForm.reviewTitle || ''}
+                  onChange={(e) => setReviewForm({ ...reviewForm, reviewTitle: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">Your Feedback *</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Share details of your experience with the CA/tax practitioner..."
+                  value={reviewForm.reviewComment}
+                  onChange={(e) => setReviewForm({ ...reviewForm, reviewComment: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="secondary" size="sm" onClick={() => setReviewTarget(null)}>
+                  Cancel
+                </Button>
+                <Button variant="primary" size="sm" disabled={isSubmittingAction || !reviewForm.reviewComment.trim()} className="bg-amber-500 hover:bg-amber-600 text-white font-bold">
+                  {isSubmittingAction ? 'Publishing...' : 'Publish Verified Review'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline Modal */}
+      {timelineTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                  {timelineTarget.referenceNumber}
+                </span>
+                <h3 className="text-base font-bold text-slate-900 mt-1">
+                  Enquiry Status Timeline
+                </h3>
+              </div>
+              <button onClick={() => setTimelineTarget(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+              {timelineTarget.timeline?.map((item, idx) => (
+                <div key={idx} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={clsx(
+                        'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                        item.completed
+                          ? 'bg-emerald-600 text-white'
+                          : item.current
+                          ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
+                          : 'bg-slate-200 text-slate-500'
+                      )}
+                    >
+                      {item.completed ? '✓' : idx + 1}
+                    </div>
+                    {idx < (timelineTarget.timeline?.length || 0) - 1 && (
+                      <div
+                        className={clsx(
+                          'w-0.5 h-10 my-1',
+                          item.completed ? 'bg-emerald-500' : 'bg-slate-200'
+                        )}
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-0.5 pb-2">
+                    <div className="text-xs font-bold text-slate-900">{item.title}</div>
+                    <p className="text-[11px] text-slate-500">{item.description}</p>
+                    {item.timestamp && (
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {new Date(item.timestamp).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-3 border-t text-right">
+              <Button size="sm" variant="secondary" onClick={() => setTimelineTarget(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
