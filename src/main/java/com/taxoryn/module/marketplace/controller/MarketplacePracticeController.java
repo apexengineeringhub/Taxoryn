@@ -357,6 +357,33 @@ public class MarketplacePracticeController {
         return ResponseEntity.ok(ApiResponse.success("Enquiry cancelled successfully", updated));
     }
 
+    @GetMapping("/lifecycle-enquiries/{id}/messages")
+    @PreAuthorize("hasAuthority('MARKETPLACE_READ') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Enquiry Messages (Practice)", description = "Retrieves complete conversation thread for an enquiry.")
+    public ResponseEntity<ApiResponse<EnquiryMessageThreadDto>> getEnquiryMessages(@PathVariable UUID id) {
+        EnquiryMessageThreadDto thread = marketplaceService.getEnquiryMessagesForPractice(id);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry messages retrieved successfully", thread));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/messages")
+    @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Send Message on Enquiry (Practice)", description = "Sends a secure message to the customer for this enquiry.")
+    public ResponseEntity<ApiResponse<EnquiryMessageDto>> sendEnquiryMessage(
+            @PathVariable UUID id,
+            @jakarta.validation.Valid @RequestBody SendEnquiryMessageRequest request
+    ) {
+        EnquiryMessageDto message = marketplaceService.sendPracticeMessage(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Message sent successfully", message));
+    }
+
+    @PostMapping("/lifecycle-enquiries/{id}/messages/read")
+    @PreAuthorize("hasAuthority('MARKETPLACE_READ') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Mark Enquiry Messages Read (Practice)", description = "Marks all unread customer messages as read by practice.")
+    public ResponseEntity<ApiResponse<Void>> markMessagesRead(@PathVariable UUID id) {
+        marketplaceService.markMessagesReadByPractice(id);
+        return ResponseEntity.ok(ApiResponse.success("Messages marked as read", null));
+    }
+
     @PatchMapping("/leads/{id}/status")
     @PreAuthorize("hasAuthority('MARKETPLACE_WRITE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update Lead Status", description = "Transitions lead status (CONTACTED, PROPOSAL_SENT, ARCHIVED) with practitioner notes.")

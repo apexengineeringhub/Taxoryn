@@ -69,6 +69,12 @@ public interface MarketplaceService {
 
     EnquiryDetailDto cancelEnquiryByPractice(UUID enquiryId, CancelEnquiryRequest request);
 
+    EnquiryMessageThreadDto getEnquiryMessagesForPractice(UUID enquiryId);
+
+    EnquiryMessageDto sendPracticeMessage(UUID enquiryId, SendEnquiryMessageRequest request);
+
+    void markMessagesReadByPractice(UUID enquiryId);
+
     MarketplaceLeadDto updateLeadStatus(UUID leadId, LeadStatus status, String notes, UUID assignedEmployeeId);
 
     MarketplaceLeadDto convertLeadToClient(UUID leadId, ConvertLeadToClientRequest request);

@@ -53,6 +53,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final MarketplaceLeadRepository leadRepository;
     private final MarketplaceConsultationRepository consultationRepository;
     private final MarketplaceReviewRepository reviewRepository;
+    private final MarketplaceEnquiryMessageRepository enquiryMessageRepository;
     private final MarketplaceVerificationRepository verificationRepository;
     private final PracticeLocationRepository locationRepository;
     private final PracticeServiceRepository practiceServiceRepository;
@@ -1263,6 +1264,130 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 "Enquiry " + saved.getReferenceNumber() + " cancelled by practice");
 
         return enrichEnquiryDetailDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EnquiryMessageThreadDto getEnquiryMessagesForPractice(UUID enquiryId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceLeadEntity lead = leadRepository.findByIdAndOrganizationId(enquiryId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Enquiry", "id", enquiryId));
+
+        List<MarketplaceEnquiryMessageEntity> messages = enquiryMessageRepository.findByEnquiryIdOrderByCreatedAtAsc(enquiryId);
+        long unreadCustomer = enquiryMessageRepository.countByEnquiryIdAndIsReadByCustomerFalse(enquiryId);
+        long unreadPractice = enquiryMessageRepository.countByEnquiryIdAndIsReadByPracticeFalse(enquiryId);
+
+        String practiceName = organizationRepository.findById(organizationId)
+                .map(org -> org.getName())
+                .orElse("Practice");
+
+        String assignedEmployeeName = null;
+        if (lead.getAssignedEmployeeId() != null) {
+            assignedEmployeeName = employeeRepository.findById(lead.getAssignedEmployeeId())
+                    .map(emp -> emp.getFullName())
+                    .orElse(null);
+        }
+
+        List<EnquiryMessageDto> messageDtos = messages.stream()
+                .map(this::toEnquiryMessageDto)
+                .collect(Collectors.toList());
+
+        return EnquiryMessageThreadDto.builder()
+                .enquiryId(lead.getId())
+                .referenceNumber(lead.getReferenceNumber())
+                .enquiryStatus(lead.getEnquiryStatus())
+                .clientName(lead.getClientName())
+                .practiceName(practiceName)
+                .assignedEmployeeName(assignedEmployeeName)
+                .unreadCountForCustomer(unreadCustomer)
+                .unreadCountForPractice(unreadPractice)
+                .isMessagingActive(!lead.getEnquiryStatus().isTerminal())
+                .messages(messageDtos)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public EnquiryMessageDto sendPracticeMessage(UUID enquiryId, SendEnquiryMessageRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceLeadEntity lead = leadRepository.findByIdAndOrganizationId(enquiryId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Enquiry", "id", enquiryId));
+
+        if (lead.getEnquiryStatus().isTerminal()) {
+            throw new BusinessValidationException("Cannot send messages on a " + lead.getEnquiryStatus().getDisplayName() + " enquiry");
+        }
+
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+        String senderName = "Practice Practitioner";
+        if (currentUserId != null) {
+            senderName = userRepository.findById(currentUserId)
+                    .map(u -> u.getFullName())
+                    .orElseGet(() -> organizationRepository.findById(organizationId).map(org -> org.getName()).orElse("Practice Practitioner"));
+        }
+
+        MarketplaceEnquiryMessageEntity message = MarketplaceEnquiryMessageEntity.builder()
+                .enquiryId(lead.getId())
+                .senderType(MessageSenderType.PRACTICE_USER)
+                .senderUserId(currentUserId)
+                .senderName(senderName)
+                .messageBody(request.getMessageBody().trim())
+                .attachmentsJson(request.getAttachmentsJson())
+                .isReadByCustomer(false)
+                .isReadByPractice(true)
+                .build();
+
+        MarketplaceEnquiryMessageEntity saved = enquiryMessageRepository.save(message);
+
+        // Audit Log
+        auditService.logEvent("ENQUIRY_MESSAGE_SENT", "MARKETPLACE_LEAD", lead.getId().toString(), organizationId,
+                "Practice message sent on enquiry " + lead.getReferenceNumber() + " by " + senderName);
+
+        // Notify Customer if registered
+        if (notificationService != null && lead.getCustomerId() != null) {
+            try {
+                notificationService.notify(
+                        organizationId,
+                        lead.getCustomerId(),
+                        null,
+                        com.taxoryn.module.notification.entity.NotificationEntity.NotificationType.GENERAL,
+                        "New Message for Enquiry (" + lead.getReferenceNumber() + ")",
+                        senderName + ": " + (saved.getMessageBody().length() > 80 ? saved.getMessageBody().substring(0, 77) + "..." : saved.getMessageBody()),
+                        null,
+                        "/marketplace/customer/dashboard",
+                        "{\"enquiryId\":\"" + lead.getId() + "\",\"messageId\":\"" + saved.getId() + "\"}"
+                );
+            } catch (Exception e) {
+                log.warn("Failed to notify customer of practice message: {}", e.getMessage());
+            }
+        }
+
+        return toEnquiryMessageDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public void markMessagesReadByPractice(UUID enquiryId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        MarketplaceLeadEntity lead = leadRepository.findByIdAndOrganizationId(enquiryId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Enquiry", "id", enquiryId));
+
+        enquiryMessageRepository.markAllAsReadByPractice(lead.getId(), Instant.now());
+    }
+
+    private EnquiryMessageDto toEnquiryMessageDto(MarketplaceEnquiryMessageEntity entity) {
+        return EnquiryMessageDto.builder()
+                .id(entity.getId())
+                .enquiryId(entity.getEnquiryId())
+                .senderType(entity.getSenderType())
+                .senderUserId(entity.getSenderUserId())
+                .senderName(entity.getSenderName())
+                .messageBody(entity.getMessageBody())
+                .attachmentsJson(entity.getAttachmentsJson())
+                .isReadByCustomer(entity.getIsReadByCustomer())
+                .isReadByPractice(entity.getIsReadByPractice())
+                .readAt(entity.getReadAt())
+                .createdAt(entity.getCreatedAt())
+                .build();
     }
 
     @Override

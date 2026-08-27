@@ -24,6 +24,12 @@ public interface MarketplaceCustomerService {
 
     MarketplaceReviewDto submitVerifiedEnquiryReview(java.util.UUID enquiryId, SubmitEnquiryReviewRequest request);
 
+    EnquiryMessageThreadDto getCustomerEnquiryMessages(java.util.UUID enquiryId);
+
+    EnquiryMessageDto sendCustomerMessage(java.util.UUID enquiryId, SendEnquiryMessageRequest request);
+
+    void markMessagesReadByCustomer(java.util.UUID enquiryId);
+
     List<MarketplaceConsultationDto> getCustomerConsultations();
 
     List<MarketplaceProposalDto> getCustomerProposals();

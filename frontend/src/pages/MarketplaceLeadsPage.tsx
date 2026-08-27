@@ -26,6 +26,8 @@ import {
   X,
   ShieldCheck,
   Tag,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { marketplacePracticeApi, marketplaceOnboardingPracticeApi, employeeApi } from '../api/endpoints';
@@ -40,6 +42,8 @@ import {
   AcceptEnquiryRequest,
   RejectEnquiryRequest,
   AssignEnquiryRequest,
+  EnquiryMessage,
+  EnquiryMessageThread,
 } from '../types';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -96,6 +100,50 @@ export const MarketplaceLeadsPage: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
+  // Secure Messaging Drawer
+  const [selectedEnquiryForMessages, setSelectedEnquiryForMessages] = useState<EnquiryDetail | null>(null);
+  const [messageThread, setMessageThread] = useState<EnquiryMessageThread | null>(null);
+  const [messageText, setMessageText] = useState<string>('');
+  const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
+  const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
+
+  const openMessages = async (enquiry: EnquiryDetail) => {
+    setSelectedEnquiryForMessages(enquiry);
+    setMessageText('');
+    setIsLoadingMessages(true);
+    try {
+      const thread = await marketplacePracticeApi.getEnquiryMessages(enquiry.id);
+      setMessageThread(thread);
+      await marketplacePracticeApi.markMessagesRead(enquiry.id);
+    } catch (err: any) {
+      console.error('Failed to load enquiry messages:', err);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEnquiryForMessages || !messageText.trim() || isSendingMessage) return;
+    setIsSendingMessage(true);
+    try {
+      const newMsg = await marketplacePracticeApi.sendEnquiryMessage(selectedEnquiryForMessages.id, {
+        messageBody: messageText.trim(),
+      });
+      setMessageText('');
+      if (messageThread) {
+        setMessageThread({
+          ...messageThread,
+          messages: [...messageThread.messages, newMsg],
+        });
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to send message.');
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
 
   const fetchEnquiriesData = async () => {
     setIsLoading(true);
@@ -577,6 +625,17 @@ export const MarketplaceLeadsPage: React.FC = () => {
                               Proposal
                             </Button>
                           )}
+
+                        {/* Secure Messages Button */}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openMessages(enquiry)}
+                          className="text-xs bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 mr-1 text-indigo-600" />
+                          Messages
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -968,6 +1027,127 @@ export const MarketplaceLeadsPage: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Secure Messages Drawer Modal */}
+      {selectedEnquiryForMessages && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-xl w-full flex flex-col max-h-[85vh] shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">
+                      {selectedEnquiryForMessages.referenceNumber}
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Conversation with {selectedEnquiryForMessages.clientName}
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {selectedEnquiryForMessages.taxServiceName || selectedEnquiryForMessages.serviceCategory} • Status: <span className="font-semibold">{selectedEnquiryForMessages.enquiryStatus}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedEnquiryForMessages(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Messages Thread Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50 dark:bg-slate-900/50 min-h-[250px]">
+              {isLoadingMessages ? (
+                <div className="flex flex-col items-center justify-center h-48 text-slate-400">
+                  <Clock className="w-6 h-6 animate-spin mb-2" />
+                  <span className="text-xs">Loading secure conversation...</span>
+                </div>
+              ) : !messageThread || messageThread.messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-center p-4">
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-full mb-2">
+                    <MessageSquare className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No messages yet</p>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                    Start the conversation with {selectedEnquiryForMessages.clientName} regarding their tax requirement.
+                  </p>
+                </div>
+              ) : (
+                messageThread.messages.map((msg) => {
+                  const isPractice = msg.senderType === 'PRACTICE_USER';
+                  return (
+                    <div
+                      key={msg.id}
+                      className={clsx('flex flex-col max-w-[80%]', isPractice ? 'ml-auto items-end' : 'mr-auto items-start')}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1 px-1">
+                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          {msg.senderName}
+                        </span>
+                        {isPractice && (
+                          <span className="text-[9px] font-semibold bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded">
+                            Practice Staff
+                          </span>
+                        )}
+                        <span className="text-[9px] text-slate-400">
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div
+                        className={clsx(
+                          'p-3 rounded-2xl text-xs leading-relaxed shadow-sm',
+                          isPractice
+                            ? 'bg-indigo-600 text-white rounded-tr-xs'
+                            : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-tl-xs'
+                        )}
+                      >
+                        {msg.messageBody}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Message Reply Input Box */}
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              {selectedEnquiryForMessages.enquiryStatus === 'CANCELLED' || selectedEnquiryForMessages.enquiryStatus === 'REJECTED' ? (
+                <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-center text-xs text-slate-500 font-medium">
+                  This enquiry is {selectedEnquiryForMessages.enquiryStatus.toLowerCase()}. New messages cannot be sent.
+                </div>
+              ) : (
+                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder={`Reply to ${selectedEnquiryForMessages.clientName}...`}
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={!messageText.trim() || isSendingMessage}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5"
+                  >
+                    {isSendingMessage ? (
+                      <Clock className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

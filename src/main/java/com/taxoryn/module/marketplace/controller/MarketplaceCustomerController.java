@@ -132,6 +132,33 @@ public class MarketplaceCustomerController {
                 .body(ApiResponse.created("Verified review submitted successfully", review));
     }
 
+    @GetMapping("/enquiries/{id}/messages")
+    @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get Customer Enquiry Messages", description = "Retrieves complete conversation thread for customer's enquiry")
+    public ResponseEntity<ApiResponse<EnquiryMessageThreadDto>> getCustomerEnquiryMessages(@PathVariable UUID id) {
+        EnquiryMessageThreadDto thread = customerService.getCustomerEnquiryMessages(id);
+        return ResponseEntity.ok(ApiResponse.success("Enquiry messages retrieved successfully", thread));
+    }
+
+    @PostMapping("/enquiries/{id}/messages")
+    @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Send Customer Message on Enquiry", description = "Sends a message from the customer to the assigned practice / practitioner")
+    public ResponseEntity<ApiResponse<EnquiryMessageDto>> sendCustomerEnquiryMessage(
+            @PathVariable UUID id,
+            @Valid @RequestBody SendEnquiryMessageRequest request
+    ) {
+        EnquiryMessageDto message = customerService.sendCustomerMessage(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Message sent successfully", message));
+    }
+
+    @PostMapping("/enquiries/{id}/messages/read")
+    @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Mark Customer Enquiry Messages Read", description = "Marks unread practice messages as read by customer")
+    public ResponseEntity<ApiResponse<Void>> markCustomerMessagesRead(@PathVariable UUID id) {
+        customerService.markMessagesReadByCustomer(id);
+        return ResponseEntity.ok(ApiResponse.success("Messages marked as read", null));
+    }
+
     @GetMapping("/reviews")
     @PreAuthorize("hasRole('MARKETPLACE_CUSTOMER') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Get Customer Reviews", description = "Lists reviews submitted by the authenticated customer")

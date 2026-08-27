@@ -93,6 +93,9 @@ import {
   AssignEnquiryRequest,
   CancelEnquiryRequest,
   SubmitEnquiryReviewRequest,
+  EnquiryMessage,
+  SendEnquiryMessageRequest,
+  EnquiryMessageThread,
   CreateMarketplaceLeadRequest,
   ApplicationFeedback,
   CreateApplicationFeedbackRequest,
@@ -1082,6 +1085,18 @@ export const marketplacePracticeApi = {
     const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/cancel`, payload || {});
     return res.data.data;
   },
+  getEnquiryMessages: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryMessageThread>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/messages`);
+    return res.data.data;
+  },
+  sendEnquiryMessage: async (id: string, payload: SendEnquiryMessageRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryMessage>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/messages`, payload);
+    return res.data.data;
+  },
+  markMessagesRead: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/messages/read`);
+    return res.data;
+  },
   updateLeadStatus: async (id: string, params: { status?: string; notes?: string; assignedEmployeeId?: string }) => {
     const res = await apiClient.patch<ApiResponse<MarketplaceLead>>(`/v1/practice/marketplace/leads/${id}/status`, null, { params });
     return res.data.data;
@@ -1335,6 +1350,19 @@ export const marketplaceCustomerApi = {
   submitVerifiedReview: async (id: string, payload: SubmitEnquiryReviewRequest) => {
     const res = await apiClient.post<ApiResponse<MarketplaceReview>>(`/v1/marketplace/customer/enquiries/${id}/review`, payload);
     return res.data.data;
+  },
+  // Secure Messages
+  getEnquiryMessages: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryMessageThread>>(`/v1/marketplace/customer/enquiries/${id}/messages`);
+    return res.data.data;
+  },
+  sendEnquiryMessage: async (id: string, payload: SendEnquiryMessageRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryMessage>>(`/v1/marketplace/customer/enquiries/${id}/messages`, payload);
+    return res.data.data;
+  },
+  markMessagesRead: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/marketplace/customer/enquiries/${id}/messages/read`);
+    return res.data;
   },
 };
 

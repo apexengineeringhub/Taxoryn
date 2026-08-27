@@ -1851,6 +1851,40 @@ export interface SubmitEnquiryReviewRequest {
   reviewComment: string;
 }
 
+export type MessageSenderType = 'CUSTOMER' | 'PRACTICE_USER' | 'SYSTEM';
+
+export interface EnquiryMessage {
+  id: string;
+  enquiryId: string;
+  senderType: MessageSenderType;
+  senderUserId?: string;
+  senderName: string;
+  messageBody: string;
+  attachmentsJson?: string;
+  isReadByCustomer: boolean;
+  isReadByPractice: boolean;
+  readAt?: string;
+  createdAt: string;
+}
+
+export interface SendEnquiryMessageRequest {
+  messageBody: string;
+  attachmentsJson?: string;
+}
+
+export interface EnquiryMessageThread {
+  enquiryId: string;
+  referenceNumber: string;
+  enquiryStatus: EnquiryStatus;
+  clientName: string;
+  practiceName: string;
+  assignedEmployeeName?: string;
+  unreadCountForCustomer: number;
+  unreadCountForPractice: number;
+  isMessagingActive: boolean;
+  messages: EnquiryMessage[];
+}
+
 export interface MarketplaceLead {
   id: string;
   referenceNumber?: string;
