@@ -259,6 +259,24 @@ export const MarketplaceExplorePage: React.FC = () => {
     navigate(`/marketplace/compare?ids=${ids}`);
   };
 
+  const incomingTaxServiceId = searchParams.get('taxServiceId');
+  const incomingTaxServiceName = searchParams.get('taxServiceName');
+  const incomingSourceType = searchParams.get('sourceType') || (incomingTaxServiceId ? 'TAXORYN_LEARN' : undefined);
+  const incomingSourceContentId = searchParams.get('sourceContentId');
+  const incomingContentSlug = searchParams.get('contentSlug');
+
+  const buildPracticeUrl = (profile: MarketplaceProfile) => {
+    const params = new URLSearchParams();
+    if (incomingTaxServiceId) params.set('taxServiceId', incomingTaxServiceId);
+    if (incomingTaxServiceName) params.set('taxServiceName', incomingTaxServiceName);
+    if (incomingSourceType) params.set('sourceType', incomingSourceType);
+    if (incomingSourceContentId) params.set('sourceContentId', incomingSourceContentId);
+    if (incomingContentSlug) params.set('contentSlug', incomingContentSlug);
+    const qs = params.toString();
+    const target = `/practice/${profile.publicSlug || profile.slug || profile.id}`;
+    return qs ? `${target}?${qs}` : target;
+  };
+
   // Direct Conversion: Submit Quick Contact (Inquiry)
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -392,6 +410,39 @@ export const MarketplaceExplorePage: React.FC = () => {
               <span>Direct Search & Filters</span>
             </button>
           </div>
+
+          {/* Contextual Tax Service Banner (if routed from Learn Article CTA) */}
+          {(incomingTaxServiceName || incomingTaxServiceId) && (
+            <div className="bg-indigo-900/80 border border-indigo-400/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-left max-w-4xl mx-auto shadow-lg backdrop-blur-md">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-indigo-500/20 text-indigo-300 rounded-xl shrink-0 mt-0.5 sm:mt-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
+                    Tax Service Context From Taxoryn Learn
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white">
+                    {incomingTaxServiceName || 'Selected Tax Service'}
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Match with certified Chartered Accountants and Tax Experts specializing in this requirement. Select your location below.
+                  </p>
+                </div>
+              </div>
+              {incomingContentSlug && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => navigate(`/learn/${incomingContentSlug}`)}
+                  className="bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white border-white/20 text-xs rounded-xl shrink-0"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+                  <span>Back to Article</span>
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* ========================================================================= */}
           {/* 3-Step Guided Match Wizard */}
@@ -982,7 +1033,7 @@ export const MarketplaceExplorePage: React.FC = () => {
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <h3
-                                  onClick={() => navigate(`/practice/${profile.publicSlug || profile.slug || profile.id}`)}
+                                  onClick={() => navigate(buildPracticeUrl(profile))}
                                   className="font-bold text-slate-900 dark:text-white text-base hover:text-indigo-600 transition-colors cursor-pointer"
                                 >
                                   {profile.displayName}
@@ -1133,7 +1184,7 @@ export const MarketplaceExplorePage: React.FC = () => {
                           </Button>
 
                           <button
-                            onClick={() => navigate(`/practice/${profile.publicSlug || profile.slug || profile.id}`)}
+                            onClick={() => navigate(buildPracticeUrl(profile))}
                             title="View Full Profile"
                             className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors"
                           >

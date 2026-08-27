@@ -432,7 +432,7 @@ export const LearnContentDetailPage: React.FC = () => {
 
                 <div className="pt-3 flex flex-wrap items-center gap-3">
                   <Link
-                    to={`/marketplace?taxServiceId=${content.taxServices[0].id}&source=TAXORYN_LEARN&contentSlug=${encodeURIComponent(content.slug)}`}
+                    to={`/marketplace?taxServiceId=${content.taxServices[0].id}&taxServiceName=${encodeURIComponent(content.taxServices[0].name)}&sourceType=TAXORYN_LEARN&sourceContentId=${content.id}&contentSlug=${encodeURIComponent(content.slug)}`}
                   >
                     <Button
                       variant="primary"
@@ -451,6 +451,17 @@ export const LearnContentDetailPage: React.FC = () => {
                     </Button>
                   </Link>
                 </div>
+
+                <div className="pt-2 flex items-center gap-4 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    ICAI / ICSI Verified
+                  </span>
+                  <span>•</span>
+                  <span>Hyperlocal & Pan-India</span>
+                  <span>•</span>
+                  <span>Direct Practice Enquiries</span>
+                </div>
               </div>
             </section>
           ) : (
@@ -462,10 +473,10 @@ export const LearnContentDetailPage: React.FC = () => {
                     <span>Verified Tax Practitioners</span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                    How can we help with this?
+                    How can we help with your taxes?
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Connect with specialized tax professionals for the services mentioned in this guide:
+                    Connect with specialized tax professionals for the services covered in this guide:
                   </p>
                 </div>
               </div>
@@ -491,7 +502,7 @@ export const LearnContentDetailPage: React.FC = () => {
                     </div>
 
                     <Link
-                      to={`/marketplace?taxServiceId=${svc.id}&source=TAXORYN_LEARN&contentSlug=${encodeURIComponent(content.slug)}`}
+                      to={`/marketplace?taxServiceId=${svc.id}&taxServiceName=${encodeURIComponent(svc.name)}&sourceType=TAXORYN_LEARN&sourceContentId=${content.id}&contentSlug=${encodeURIComponent(content.slug)}`}
                       className="block"
                     >
                       <Button
@@ -499,7 +510,7 @@ export const LearnContentDetailPage: React.FC = () => {
                         size="sm"
                         className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl justify-between"
                       >
-                        <span>Find Professional</span>
+                        <span>Find a Tax Professional</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Button>
                     </Link>

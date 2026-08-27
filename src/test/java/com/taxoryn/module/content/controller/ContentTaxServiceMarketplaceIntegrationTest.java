@@ -361,7 +361,7 @@ class ContentTaxServiceMarketplaceIntegrationTest {
                 .clientPhone("+919876543210")
                 .city("Bengaluru")
                 .serviceCategory("GST")
-                .sourceType("CONTENT")
+                .sourceType("TAXORYN_LEARN")
                 .sourceContentId(contentId)
                 .requirementDescription("Inquiry generated from ITR Masterclass guide.")
                 .build();
@@ -370,8 +370,42 @@ class ContentTaxServiceMarketplaceIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(leadPayload)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.sourceType").value("CONTENT"))
+                .andExpect(jsonPath("$.data.sourceType").value("TAXORYN_LEARN"))
                 .andExpect(jsonPath("$.data.sourceContentId").value(contentIdStr))
-                .andExpect(jsonPath("$.data.taxServiceName").value(gstFilingService.getName()));
+                .andExpect(jsonPath("$.data.taxServiceName").value(gstFilingService.getName()))
+                .andExpect(jsonPath("$.data.pan").doesNotExist())
+                .andExpect(jsonPath("$.data.gstin").doesNotExist());
+    }
+
+    @Test
+    @WithMockUser(username = "content.admin@taxoryn.com", roles = {"TAXORYN_CONTENT_ADMIN"})
+    @DisplayName("Content without attached Tax Service does not enable marketplace CTA")
+    void testContentWithoutTaxServiceHasCtaDisabled() throws Exception {
+        String slug = "general-record-keeping-" + UUID.randomUUID();
+        CreateContentRequest request = CreateContentRequest.builder()
+                .contentType(ContentType.ARTICLE)
+                .title("Organizing Financial Records")
+                .slug(slug)
+                .body("Keep all receipts in cloud storage.")
+                .build();
+
+        String createResponse = mockMvc.perform(post("/api/v1/admin/content")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String contentIdStr = objectMapper.readTree(createResponse).path("data").path("id").asText();
+        UUID contentId = UUID.fromString(contentIdStr);
+
+        mockMvc.perform(post("/api/v1/admin/content/" + contentId + "/submit-review"));
+        mockMvc.perform(post("/api/v1/admin/content/" + contentId + "/approve"));
+        mockMvc.perform(post("/api/v1/admin/content/" + contentId + "/publish"));
+
+        mockMvc.perform(get("/api/v1/public/content/" + slug))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.marketplaceCtaEnabled").value(false))
+                .andExpect(jsonPath("$.data.taxServices", hasSize(0)))
+                .andExpect(jsonPath("$.data.taxServiceId").doesNotExist());
     }
 }

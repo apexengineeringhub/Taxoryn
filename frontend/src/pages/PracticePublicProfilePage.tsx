@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
   Star,
@@ -39,6 +39,7 @@ export const PracticePublicProfilePage: React.FC = () => {
   const { slug, id } = useParams<{ slug?: string; id?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [profile, setProfile] = useState<MarketplaceProfile | null>(null);
   const [services, setServices] = useState<MarketplaceService[]>([]);
@@ -52,7 +53,7 @@ export const PracticePublicProfilePage: React.FC = () => {
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
-  const [selectedTaxService, setSelectedTaxService] = useState<PublicTaxService | null>(null);
+  const [selectedTaxService, setSelectedTaxService] = useState<any>(null);
 
   // Forms
   const [inquiryForm, setInquiryForm] = useState({
@@ -127,6 +128,19 @@ export const PracticePublicProfilePage: React.FC = () => {
 
       setServices(svcRes);
       setReviews(revRes);
+
+      const targetTsId = searchParams.get('taxServiceId');
+      const targetTsName = searchParams.get('taxServiceName');
+      if (targetTsId && prof.offeredServices && prof.offeredServices.length > 0) {
+        const found = prof.offeredServices.find((s: any) => s.id === targetTsId || s.code === targetTsId);
+        if (found) {
+          setSelectedTaxService(found);
+        } else if (targetTsName) {
+          setSelectedTaxService({ id: targetTsId, name: targetTsName, title: targetTsName });
+        }
+      } else if (targetTsId && targetTsName) {
+        setSelectedTaxService({ id: targetTsId, name: targetTsName, title: targetTsName });
+      }
     } catch (err: any) {
       setErrorStatus(err?.response?.status || 404);
     } finally {
@@ -146,13 +160,14 @@ export const PracticePublicProfilePage: React.FC = () => {
     try {
       await marketplacePublicApi.submitLead({
         marketplaceProfileId: profile.id,
-        taxServiceId: selectedTaxService?.id,
-        sourceType: 'TAXORYN_PRACTICE_PROFILE',
+        taxServiceId: selectedTaxService?.id || searchParams.get('taxServiceId') || undefined,
+        sourceType: searchParams.get('sourceType') || (searchParams.get('taxServiceId') ? 'TAXORYN_LEARN' : 'TAXORYN_PRACTICE_PROFILE'),
+        sourceContentId: searchParams.get('sourceContentId') || undefined,
         clientName: inquiryForm.clientName,
         clientEmail: inquiryForm.clientEmail,
         clientPhone: inquiryForm.clientPhone,
         city: inquiryForm.city || profile.city,
-        serviceCategory: selectedTaxService?.categoryName || 'Tax Advisory',
+        serviceCategory: selectedTaxService?.categoryName || searchParams.get('taxServiceName') || 'Tax Advisory',
         requirementDescription: inquiryForm.requirementDescription,
         budgetRange: inquiryForm.budgetRange,
       });
@@ -368,13 +383,23 @@ export const PracticePublicProfilePage: React.FC = () => {
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to Marketplace
           </Link>
-          <Link
-            to="/learn"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-indigo-300" />
-            Taxoryn Learn
-          </Link>
+          {searchParams.get('contentSlug') ? (
+            <Link
+              to={`/learn/${searchParams.get('contentSlug')}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-indigo-300" />
+              Back to Guide
+            </Link>
+          ) : (
+            <Link
+              to="/learn"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-indigo-300" />
+              Taxoryn Learn
+            </Link>
+          )}
         </div>
 
         <div className="absolute top-4 right-4 md:right-8 z-10 flex items-center gap-2">
@@ -911,7 +936,7 @@ export const PracticePublicProfilePage: React.FC = () => {
             <form onSubmit={handleInquirySubmit} className="space-y-4">
               {selectedTaxService && (
                 <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 text-xs text-indigo-800 flex items-center justify-between">
-                  <span>Selected Service: <strong>{selectedTaxService.name}</strong></span>
+                  <span>Selected Service: <strong>{selectedTaxService.name || selectedTaxService.title}</strong></span>
                   <button
                     type="button"
                     onClick={() => setSelectedTaxService(null)}
