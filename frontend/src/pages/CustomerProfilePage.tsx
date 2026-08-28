@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { marketplaceCustomerApi } from '../api/endpoints';
 import { CustomerProfile, UpdateCustomerProfileRequest } from '../types';
-import { User, Mail, Phone, MapPin, Building, Globe, CheckCircle2, AlertCircle, Sparkles, ArrowLeft, Save } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Building, Globe, CheckCircle2, AlertCircle, Sparkles, ArrowLeft, Save, LogOut } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
+import { useAuth } from '../context/AuthContext';
 
 export const CustomerProfilePage: React.FC = () => {
+  const { logout } = useAuth();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [formData, setFormData] = useState<UpdateCustomerProfileRequest>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -98,6 +100,15 @@ export const CustomerProfilePage: React.FC = () => {
                 Find Tax Professionals
               </Button>
             </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => logout()}
+              className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 flex items-center gap-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </Button>
           </div>
         </div>
       </div>

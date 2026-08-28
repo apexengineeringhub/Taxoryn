@@ -1,12 +1,12 @@
 import React from 'react';
-import { Search, Bell, Plus, ShieldCheck, Server } from 'lucide-react';
+import { Search, Bell, Plus, ShieldCheck, Server, LogOut } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 
 export const Header: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { currentTheme, getEmployeeAvatar } = useBranding();
 
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
@@ -136,6 +136,15 @@ export const Header: React.FC = () => {
             )}
             <span>{getHeaderRoleLabel()}</span>
           </div>
+
+          {/* Quick Sign Out Button */}
+          <button
+            onClick={() => logout()}
+            title="Sign Out"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-1"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>

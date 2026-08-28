@@ -33,13 +33,16 @@ import {
   MessageSquare,
   CheckCircle,
   Send,
+  LogOut,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 
 export const MarketplaceCustomerDashboardPage: React.FC = () => {
+  const { logout } = useAuth();
   const [dashboard, setDashboard] = useState<CustomerDashboard | null>(null);
   const [enquiries, setEnquiries] = useState<EnquiryDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -246,6 +249,15 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                   Find Practitioners
                 </Button>
               </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => logout()}
+                className="text-xs text-rose-300 border-rose-900/60 bg-rose-950/30 hover:bg-rose-900/50 hover:text-white flex items-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </Button>
             </div>
           </div>
         </div>

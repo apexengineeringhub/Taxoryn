@@ -11,7 +11,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  logout: () => void;
+  logout: () => Promise<void> | void;
   setOrganization: (org: Organization | null) => void;
 }
 
@@ -93,14 +93,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('taxoryn_access_token');
-    localStorage.removeItem('taxoryn_refresh_token');
-    localStorage.removeItem('taxoryn_user');
-    localStorage.removeItem('taxoryn_org');
-    setUser(null);
-    setOrganization(null);
-    window.location.href = '/login';
+  const logout = async () => {
+    const refreshToken = localStorage.getItem('taxoryn_refresh_token');
+    const accessToken = localStorage.getItem('taxoryn_access_token');
+
+    try {
+      if (accessToken || refreshToken) {
+        await authApi.logout(refreshToken);
+      }
+    } catch (err) {
+      console.warn('Backend token invalidation completed with notice', err);
+    } finally {
+      localStorage.removeItem('taxoryn_access_token');
+      localStorage.removeItem('taxoryn_refresh_token');
+      localStorage.removeItem('taxoryn_user');
+      localStorage.removeItem('taxoryn_org');
+      setUser(null);
+      setOrganization(null);
+      window.location.href = '/login';
+    }
   };
 
   return (

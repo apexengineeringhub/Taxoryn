@@ -138,6 +138,12 @@ export const authApi = {
     const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/register-organization', payload);
     return res.data.data;
   },
+  logout: async (refreshToken?: string | null) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/logout', {
+      refreshToken: refreshToken || undefined,
+    });
+    return res.data;
+  },
 };
 
 // --- 2. Organization Dashboard ---

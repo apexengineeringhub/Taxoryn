@@ -30,6 +30,15 @@ apiClient.interceptors.response.use(
 
     // Auto-refresh on 401 Unauthorized
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Do not auto-refresh on authentication/session endpoints
+      if (
+        originalRequest.url?.includes('/auth/login') ||
+        originalRequest.url?.includes('/auth/logout') ||
+        originalRequest.url?.includes('/auth/refresh')
+      ) {
+        return Promise.reject(error);
+      }
+
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('taxoryn_refresh_token');
 
@@ -48,12 +57,19 @@ apiClient.interceptors.response.use(
             return apiClient(originalRequest);
           }
         } catch (refreshErr) {
-          // Token refresh failed -> Log out user
+          // Token refresh failed -> Log out user cleanly
           localStorage.removeItem('taxoryn_access_token');
           localStorage.removeItem('taxoryn_refresh_token');
           localStorage.removeItem('taxoryn_user');
+          localStorage.removeItem('taxoryn_org');
           window.location.href = '/login';
         }
+      } else {
+        localStorage.removeItem('taxoryn_access_token');
+        localStorage.removeItem('taxoryn_refresh_token');
+        localStorage.removeItem('taxoryn_user');
+        localStorage.removeItem('taxoryn_org');
+        window.location.href = '/login';
       }
     }
 
