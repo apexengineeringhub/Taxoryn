@@ -87,7 +87,45 @@ import {
   UpdateTaxRequirementRequest,
   FinancialYearOption,
   EarlyEnquiryView,
+  EnquiryDetail,
+  AcceptEnquiryRequest,
+  RejectEnquiryRequest,
+  AssignEnquiryRequest,
+  CancelEnquiryRequest,
+  SubmitEnquiryReviewRequest,
+  EnquiryMessage,
+  SendEnquiryMessageRequest,
+  EnquiryMessageThread,
   CreateMarketplaceLeadRequest,
+  ApplicationFeedback,
+  CreateApplicationFeedbackRequest,
+  AdminApplicationFeedbackSummary,
+  AdminApplicationFeedbackDetail,
+  FeedbackAssignment,
+  FeedbackNote,
+  FeedbackStatusHistory,
+  EngineeringIssue,
+  AdminAssignee,
+  AdminFeedbackStats,
+  AssignFeedbackRequest,
+  CreateFeedbackNoteRequest,
+  UpdateFeedbackPriorityRequest,
+  ResolveFeedbackRequest,
+  CloseFeedbackRequest,
+  RejectFeedbackRequest,
+  MarkDuplicateFeedbackRequest,
+  EscalateToEngineeringRequest,
+  FeedbackTeam,
+  Organization,
+  User,
+  PlatformDashboardSummary,
+  SupportDashboardSummary,
+  LearnContentSummary,
+  LearnContentDetail,
+  LearnPublicCategory,
+  ContentDashboardStats,
+  ContentVersion,
+  MediaAsset,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -750,7 +788,17 @@ export const employeeApi = {
 
 // --- 12. Audit Logs ---
 export const auditApi = {
-  getLogs: async (params?: { page?: number; size?: number; entityType?: string; action?: string; fromDate?: string; toDate?: string }) => {
+  getLogs: async (params?: {
+    page?: number;
+    size?: number;
+    entityType?: string;
+    action?: string;
+    search?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    organizationId?: string;
+  }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<AuditLog>>>('/v1/audit-logs', { params });
     return res.data.data;
   },
@@ -1004,6 +1052,51 @@ export const marketplacePracticeApi = {
     const res = await apiClient.get<ApiResponse<EarlyEnquiryView>>(`/v1/practice/marketplace/enquiries/${id}`);
     return res.data.data;
   },
+  // Operational Lifecycle Enquiries
+  getPracticeEnquiries: async (params?: { status?: string; assignedEmployeeId?: string; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<EnquiryDetail>>>('/v1/marketplace/practice-profile/lifecycle-enquiries', { params });
+    return res.data.data;
+  },
+  getPracticeEnquiryDetail: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}`);
+    return res.data.data;
+  },
+  acceptEnquiry: async (id: string, payload?: AcceptEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/accept`, payload || {});
+    return res.data.data;
+  },
+  rejectEnquiry: async (id: string, payload: RejectEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/reject`, payload);
+    return res.data.data;
+  },
+  assignEnquiry: async (id: string, payload: AssignEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/assign`, payload);
+    return res.data.data;
+  },
+  startEnquiry: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/start`);
+    return res.data.data;
+  },
+  completeEnquiry: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/complete`);
+    return res.data.data;
+  },
+  cancelPracticeEnquiry: async (id: string, payload?: CancelEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/cancel`, payload || {});
+    return res.data.data;
+  },
+  getEnquiryMessages: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryMessageThread>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/messages`);
+    return res.data.data;
+  },
+  sendEnquiryMessage: async (id: string, payload: SendEnquiryMessageRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryMessage>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/messages`, payload);
+    return res.data.data;
+  },
+  markMessagesRead: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/marketplace/practice-profile/lifecycle-enquiries/${id}/messages/read`);
+    return res.data;
+  },
   updateLeadStatus: async (id: string, params: { status?: string; notes?: string; assignedEmployeeId?: string }) => {
     const res = await apiClient.patch<ApiResponse<MarketplaceLead>>(`/v1/practice/marketplace/leads/${id}/status`, null, { params });
     return res.data.data;
@@ -1241,6 +1334,51 @@ export const marketplaceCustomerApi = {
     const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>('/v1/marketplace/customer/reviews');
     return res.data.data;
   },
+  // Operational Enquiry Tracking & Verified Reviews
+  getEnquiries: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<EnquiryDetail>>>('/v1/marketplace/customer/enquiries', { params });
+    return res.data.data;
+  },
+  getEnquiryDetail: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryDetail>>(`/v1/marketplace/customer/enquiries/${id}`);
+    return res.data.data;
+  },
+  cancelEnquiry: async (id: string, payload?: CancelEnquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryDetail>>(`/v1/marketplace/customer/enquiries/${id}/cancel`, payload || {});
+    return res.data.data;
+  },
+  submitVerifiedReview: async (id: string, payload: SubmitEnquiryReviewRequest) => {
+    const res = await apiClient.post<ApiResponse<MarketplaceReview>>(`/v1/marketplace/customer/enquiries/${id}/review`, payload);
+    return res.data.data;
+  },
+  // Secure Messages
+  getEnquiryMessages: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EnquiryMessageThread>>(`/v1/marketplace/customer/enquiries/${id}/messages`);
+    return res.data.data;
+  },
+  sendEnquiryMessage: async (id: string, payload: SendEnquiryMessageRequest) => {
+    const res = await apiClient.post<ApiResponse<EnquiryMessage>>(`/v1/marketplace/customer/enquiries/${id}/messages`, payload);
+    return res.data.data;
+  },
+  markMessagesRead: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/marketplace/customer/enquiries/${id}/messages/read`);
+    return res.data;
+  },
+};
+
+// --- 20. Application Feedback (kept separate from Marketplace Reviews) ---
+export const applicationFeedbackApi = {
+  create: async (payload: CreateApplicationFeedbackRequest, context?: { page?: string; feature?: string }) => {
+    const headers: Record<string, string> = {};
+    if (context?.page) headers['X-Feedback-Page'] = context.page;
+    if (context?.feature) headers['X-Feedback-Feature'] = context.feature;
+    const res = await apiClient.post<ApiResponse<ApplicationFeedback>>('/v1/customer/feedback', payload, { headers });
+    return res.data.data;
+  },
+  listMine: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ApplicationFeedback>>>('/v1/customer/feedback', { params });
+    return res.data.data;
+  },
 };
 
 // --- 19. Customer Tax Requirements API (Feature #6) ---
@@ -1276,3 +1414,312 @@ export const customerTaxRequirementApi = {
     return res.data.data;
   },
 };
+
+// --- 20. Platform Admin Feedback Management API ---
+export const adminFeedbackApi = {
+  getFeedbackList: async (params?: {
+    search?: string;
+    actorType?: string;
+    type?: string;
+    category?: string;
+    status?: string;
+    priority?: string;
+    practiceId?: string;
+    assignedTeam?: string;
+    assignedUserId?: string;
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<AdminApplicationFeedbackSummary>>>('/v1/admin/feedback', { params });
+    return res.data.data;
+  },
+  getFeedbackDetail: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}`);
+    return res.data.data;
+  },
+  startReview: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/start-review`);
+    return res.data.data;
+  },
+  assignFeedback: async (id: string, payload: AssignFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/assign`, payload);
+    return res.data.data;
+  },
+  addNote: async (id: string, payload: CreateFeedbackNoteRequest) => {
+    const res = await apiClient.post<ApiResponse<FeedbackNote>>(`/v1/admin/feedback/${id}/notes`, payload);
+    return res.data.data;
+  },
+  updatePriority: async (id: string, payload: UpdateFeedbackPriorityRequest) => {
+    const res = await apiClient.patch<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/priority`, payload);
+    return res.data.data;
+  },
+  resolveFeedback: async (id: string, payload: ResolveFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/resolve`, payload);
+    return res.data.data;
+  },
+  closeFeedback: async (id: string, payload?: CloseFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/close`, payload || {});
+    return res.data.data;
+  },
+  rejectFeedback: async (id: string, payload: RejectFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/reject`, payload);
+    return res.data.data;
+  },
+  markDuplicate: async (id: string, payload: MarkDuplicateFeedbackRequest) => {
+    const res = await apiClient.post<ApiResponse<AdminApplicationFeedbackDetail>>(`/v1/admin/feedback/${id}/duplicate`, payload);
+    return res.data.data;
+  },
+  escalateToEngineering: async (id: string, payload: EscalateToEngineeringRequest) => {
+    const res = await apiClient.post<ApiResponse<EngineeringIssue>>(`/v1/admin/feedback/${id}/escalate`, payload);
+    return res.data.data;
+  },
+  getStats: async () => {
+    const res = await apiClient.get<ApiResponse<AdminFeedbackStats>>('/v1/admin/feedback/stats');
+    return res.data.data;
+  },
+  getAssignees: async () => {
+    const res = await apiClient.get<ApiResponse<AdminAssignee[]>>('/v1/admin/feedback/assignees');
+    return res.data.data;
+  },
+  getTeams: async () => {
+    const res = await apiClient.get<ApiResponse<FeedbackTeam[]>>('/v1/admin/feedback/teams');
+    return res.data.data;
+  },
+};
+
+// --- 21. Platform Overview Dashboard API (SuperAdmin Only) ---
+export const platformDashboardApi = {
+  getOverview: async () => {
+    const res = await apiClient.get<ApiResponse<PlatformDashboardSummary>>('/v1/admin/platform/dashboard');
+    return res.data.data;
+  },
+};
+
+// --- 21b. Platform Support Dashboard API (Support Admin) ---
+export const supportDashboardApi = {
+  getOverview: async () => {
+    const res = await apiClient.get<ApiResponse<SupportDashboardSummary>>('/v1/admin/support/overview');
+    return res.data.data;
+  },
+};
+
+// --- 22. Platform Admin Practice Governance API ---
+export const adminPracticeApi = {
+  getPractices: async (params?: { page?: number; size?: number; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<Organization>>>('/v1/organizations', { params });
+    return res.data.data;
+  },
+  updateStatus: async (organizationId: string, payload: { status: string; reason?: string }) => {
+    const res = await apiClient.patch<ApiResponse<Organization>>(`/v1/organizations/${organizationId}/status`, payload);
+    return res.data.data;
+  },
+  getPracticeById: async (organizationId: string) => {
+    const res = await apiClient.get<ApiResponse<Organization>>(`/v1/organizations/${organizationId}`);
+    return res.data.data;
+  },
+};
+
+// --- 23. Platform Admin User Governance API ---
+export const adminUserApi = {
+  getUsers: async (params?: { role?: string; status?: string; search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<User>>>('/v1/admin/users', { params });
+    return res.data.data;
+  },
+  createUser: async (payload: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    roleCode: string;
+    status?: string;
+    temporaryPassword?: string;
+  }) => {
+    const res = await apiClient.post<ApiResponse<User>>('/v1/admin/users', payload);
+    return res.data.data;
+  },
+  updateRole: async (userId: string, roleCode: string) => {
+    const res = await apiClient.put<ApiResponse<User>>(`/v1/admin/users/${userId}/role`, { roleCode });
+    return res.data.data;
+  },
+  updateStatus: async (userId: string, status: string) => {
+    const res = await apiClient.patch<ApiResponse<User>>(`/v1/admin/users/${userId}/status`, null, { params: { status } });
+    return res.data.data;
+  },
+};
+
+// --- 24. Taxoryn Learn Public Knowledge API ---
+export const publicLearnApi = {
+  getContentList: async (params?: {
+    contentType?: string;
+    categoryId?: string;
+    taxServiceId?: string;
+    tag?: string;
+    search?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<LearnContentSummary>>>('/v1/public/content', { params });
+    return res.data.data;
+  },
+  getContentBySlug: async (slug: string) => {
+    const res = await apiClient.get<ApiResponse<LearnContentDetail>>(`/v1/public/content/${slug}`);
+    return res.data.data;
+  },
+  getRelatedContent: async (slug: string, limit: number = 4) => {
+    const res = await apiClient.get<ApiResponse<LearnContentSummary[]>>(`/v1/public/content/${slug}/related`, { params: { limit } });
+    return res.data.data;
+  },
+  getCategories: async () => {
+    const res = await apiClient.get<ApiResponse<LearnPublicCategory[]>>('/v1/public/content/categories');
+    return res.data.data;
+  },
+};
+
+// --- 25. Taxoryn Learn Admin Content Studio & Governance API ---
+export const adminLearnApi = {
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<ContentDashboardStats>>('/v1/admin/content/dashboard-stats');
+    return res.data.data;
+  },
+  getReviewQueue: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<LearnContentSummary>>>('/v1/admin/content/review-queue', { params });
+    return res.data.data;
+  },
+  getContentList: async (params?: {
+    contentType?: string;
+    status?: string;
+    categoryId?: string;
+    taxServiceId?: string;
+    tag?: string;
+    search?: string;
+    page?: number;
+    size?: number;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<LearnContentSummary>>>('/v1/admin/content', { params });
+    return res.data.data;
+  },
+  getContentById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}`);
+    return res.data.data;
+  },
+  previewContent: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/preview`);
+    return res.data.data;
+  },
+  createContent: async (payload: {
+    contentType: string;
+    title: string;
+    slug?: string;
+    summary?: string;
+    body: string;
+    thumbnailUrl?: string;
+    featuredImageUrl?: string;
+    altText?: string;
+    youtubeUrl?: string;
+    videoDurationSeconds?: number;
+    categoryId?: string;
+    taxServiceId?: string;
+    taxServiceIds?: string[];
+    tags?: string[];
+  }) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>('/v1/admin/content', payload);
+    return res.data.data;
+  },
+  updateContent: async (id: string, payload: {
+    contentType?: string;
+    title?: string;
+    slug?: string;
+    summary?: string;
+    body?: string;
+    thumbnailUrl?: string;
+    featuredImageUrl?: string;
+    altText?: string;
+    youtubeUrl?: string;
+    videoDurationSeconds?: number;
+    categoryId?: string;
+    taxServiceId?: string;
+    taxServiceIds?: string[];
+    tags?: string[];
+  }) => {
+    const res = await apiClient.put<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}`, payload);
+    return res.data.data;
+  },
+  submitForReview: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/submit-review`);
+    return res.data.data;
+  },
+  startReview: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/start-review`);
+    return res.data.data;
+  },
+  approveContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/approve`);
+    return res.data.data;
+  },
+  rejectContent: async (id: string, reason: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/reject`, { reason });
+    return res.data.data;
+  },
+  scheduleContent: async (id: string, scheduledPublishAt: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/schedule`, { scheduledPublishAt });
+    return res.data.data;
+  },
+  publishContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/publish`);
+    return res.data.data;
+  },
+  archiveContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/archive`);
+    return res.data.data;
+  },
+  restoreContent: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<LearnContentDetail>>(`/v1/admin/content/${id}/restore`);
+    return res.data.data;
+  },
+  getVersionHistory: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ContentVersion[]>>(`/v1/admin/content/${id}/versions`);
+    return res.data.data;
+  },
+  getControlledTaxServices: async () => {
+    const res = await apiClient.get<ApiResponse<PublicTaxService[]>>('/v1/admin/content/tax-services');
+    return res.data.data;
+  },
+};
+
+// --- 26. Content Studio Media Library API ---
+export const adminMediaApi = {
+  getMediaAssets: async (params?: { search?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MediaAsset>>>('/v1/admin/content/media', { params });
+    return res.data.data;
+  },
+  uploadMedia: async (file: File, altText?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (altText) {
+      formData.append('altText', altText);
+    }
+    const res = await apiClient.post<ApiResponse<MediaAsset>>('/v1/admin/content/media/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data.data;
+  },
+  updateMedia: async (id: string, payload: { altText?: string }) => {
+    const res = await apiClient.put<ApiResponse<MediaAsset>>(`/v1/admin/content/media/${id}`, payload);
+    return res.data.data;
+  },
+  deleteMedia: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/admin/content/media/${id}`);
+    return res.data.data;
+  },
+};
+
+
+

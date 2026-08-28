@@ -20,9 +20,13 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     Page<UserEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
 
+    java.util.List<UserEntity> findAllByOrganizationId(UUID organizationId);
+
     java.util.List<UserEntity> findAllByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 
     boolean existsByOrganizationIdAndEmailIgnoreCase(UUID organizationId, String email);
+
+    boolean existsByEmailIgnoreCase(String email);
 
     long countByOrganizationId(UUID organizationId);
 

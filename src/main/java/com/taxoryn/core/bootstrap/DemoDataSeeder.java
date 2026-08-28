@@ -114,6 +114,11 @@ public class DemoDataSeeder implements CommandLineRunner {
             log.error("Failed seeding permissions and roles", ex);
         }
         try {
+            seedSuperAdminUser();
+        } catch (Exception ex) {
+            log.error("Failed seeding Super Admin User", ex);
+        }
+        try {
             seedDemoOrganizationAndStaff("contact@apextax.com", "Apex Tax Advisors LLP", "AABFA1234K", "admin@apextax.com", "Admin", "User");
         } catch (Exception ex) {
             log.error("Failed seeding Apex Tax Advisors LLP", ex);
@@ -139,7 +144,15 @@ public class DemoDataSeeder implements CommandLineRunner {
                 "ORGANIZATION_VIEW", "ROLE_READ", "USER_VIEW", "USER_WRITE",
                 "CLIENT_PORTAL_ACCESS", "CLIENT_PORTAL_PROFILE_VIEW", "CLIENT_PORTAL_STATUS_VIEW",
                 "CLIENT_PORTAL_DOCUMENT_VIEW", "CLIENT_PORTAL_DOCUMENT_UPLOAD", "CLIENT_PORTAL_INVOICE_VIEW",
-                "CLIENT_PORTAL_USER_MANAGE"
+                "CLIENT_PORTAL_USER_MANAGE",
+                "FEEDBACK_VIEW", "FEEDBACK_REVIEW", "FEEDBACK_ASSIGN",
+                "FEEDBACK_RESOLVE", "FEEDBACK_ESCALATE", "FEEDBACK_MANAGE",
+                "PLATFORM_VIEW", "PRACTICE_VIEW", "PRACTICE_CREATE", "PRACTICE_UPDATE", "PRACTICE_VERIFY", "PRACTICE_SUSPEND",
+                "USER_DISABLE", "MARKETPLACE_VIEW", "MARKETPLACE_MANAGE",
+                "SUBSCRIPTION_VIEW", "SUBSCRIPTION_MANAGE", "PAYMENT_VIEW", "PAYMENT_MANAGE",
+                "CONTENT_VIEW", "CONTENT_MANAGE", "CONTENT_PUBLISH",
+                "SECURITY_VIEW", "SECURITY_MANAGE", "AUDIT_VIEW",
+                "PLATFORM_SETTINGS_VIEW", "PLATFORM_SETTINGS_MANAGE"
         );
 
         for (String code : permissionCodes) {
@@ -156,27 +169,238 @@ public class DemoDataSeeder implements CommandLineRunner {
         List<PermissionEntity> allPermissions = permissionRepository.findAll();
         Set<PermissionEntity> allPermSet = new HashSet<>(allPermissions);
 
-        // 2. ORG_ADMIN Role (All Permissions)
+        // 1. TAXORYN_SUPERADMIN Role (All Platform & Administrative Permissions)
+        Set<PermissionEntity> platformPerms = allPermissions.stream()
+                .filter(p -> p.getCode().startsWith("PLATFORM_")
+                        || p.getCode().startsWith("PRACTICE_")
+                        || p.getCode().startsWith("USER_")
+                        || p.getCode().startsWith("MARKETPLACE_")
+                        || p.getCode().startsWith("SUBSCRIPTION_")
+                        || p.getCode().startsWith("PAYMENT_")
+                        || p.getCode().startsWith("FEEDBACK_")
+                        || p.getCode().startsWith("CONTENT_")
+                        || p.getCode().startsWith("SECURITY_")
+                        || p.getCode().startsWith("AUDIT_")
+                        || p.getCode().startsWith("ROLE_")
+                        || p.getCode().equals("ORGANIZATION_VIEW")
+                )
+                .collect(Collectors.toSet());
+
+        RoleEntity taxorynSuperAdmin = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_SUPERADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_SUPERADMIN")
+                        .name("Taxoryn Platform SuperAdmin")
+                        .description("Full platform administrative and operations authority")
+                        .isSystemRole(true)
+                        .build()));
+        taxorynSuperAdmin.setPermissions(platformPerms);
+        roleRepository.save(taxorynSuperAdmin);
+
+        // 1b. Legacy SUPER_ADMIN Role (Alias with Platform Permissions)
+        RoleEntity superAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("SUPER_ADMIN")
+                        .name("Platform Super Administrator")
+                        .description("Platform Super Administrator with global administrative control")
+                        .isSystemRole(true)
+                        .build()));
+        superAdminRole.setPermissions(platformPerms);
+        roleRepository.save(superAdminRole);
+
+        // 1c. TAXORYN_OPERATIONS_ADMIN Role
+        RoleEntity opsAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_OPERATIONS_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_OPERATIONS_ADMIN")
+                        .name("Taxoryn Operations Admin")
+                        .description("Day-to-day platform operations, practice verification and account support")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> opsPerms = allPermissions.stream()
+                .filter(p -> p.getCode().equals("PLATFORM_VIEW")
+                        || p.getCode().startsWith("PRACTICE_")
+                        || p.getCode().equals("USER_VIEW") || p.getCode().equals("USER_UPDATE") || p.getCode().equals("USER_DISABLE")
+                        || p.getCode().equals("MARKETPLACE_VIEW")
+                        || p.getCode().startsWith("FEEDBACK_")
+                        || p.getCode().equals("AUDIT_VIEW")
+                )
+                .collect(Collectors.toSet());
+        opsAdminRole.setPermissions(opsPerms);
+        roleRepository.save(opsAdminRole);
+
+        // 1d. TAXORYN_SUPPORT_ADMIN Role
+        RoleEntity supportAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_SUPPORT_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_SUPPORT_ADMIN")
+                        .name("Taxoryn Support Admin")
+                        .description("Practice and user support, feedback triage and issue resolution")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> supportPerms = allPermissions.stream()
+                .filter(p -> p.getCode().equals("PLATFORM_VIEW")
+                        || p.getCode().equals("PRACTICE_VIEW")
+                        || p.getCode().equals("USER_VIEW")
+                        || p.getCode().equals("MARKETPLACE_VIEW")
+                        || p.getCode().equals("SUBSCRIPTION_VIEW")
+                        || p.getCode().startsWith("FEEDBACK_")
+                        || p.getCode().equals("AUDIT_VIEW")
+                )
+                .collect(Collectors.toSet());
+        supportAdminRole.setPermissions(supportPerms);
+        roleRepository.save(supportAdminRole);
+
+        // 1e. TAXORYN_FINANCE_ADMIN Role
+        RoleEntity financeAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_FINANCE_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_FINANCE_ADMIN")
+                        .name("Taxoryn Finance Admin")
+                        .description("Platform SaaS subscriptions, MRR/ARR and commercial revenue management")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> financePerms = allPermissions.stream()
+                .filter(p -> p.getCode().equals("PLATFORM_VIEW")
+                        || p.getCode().equals("PRACTICE_VIEW")
+                        || p.getCode().startsWith("SUBSCRIPTION_")
+                        || p.getCode().startsWith("PAYMENT_")
+                        || p.getCode().equals("MRR_VIEW")
+                        || p.getCode().equals("REFUND_MANAGE")
+                        || p.getCode().equals("BILLING_VIEW")
+                        || p.getCode().equals("FINANCE_REPORT_VIEW")
+                        || p.getCode().equals("AUDIT_VIEW")
+                )
+                .collect(Collectors.toSet());
+        financeAdminRole.setPermissions(financePerms);
+        roleRepository.save(financeAdminRole);
+
+        // 1f. TAXORYN_MARKETPLACE_ADMIN Role
+        RoleEntity marketplaceAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_MARKETPLACE_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_MARKETPLACE_ADMIN")
+                        .name("Taxoryn Marketplace Admin")
+                        .description("Marketplace service catalog, demand routing and partner optimization")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> marketplacePerms = allPermissions.stream()
+                .filter(p -> p.getCode().equals("PLATFORM_VIEW")
+                        || p.getCode().startsWith("MARKETPLACE_")
+                        || p.getCode().equals("CONSULTATION_VIEW")
+                        || p.getCode().equals("PRACTICE_MARKETPLACE_PROFILE_VIEW")
+                        || p.getCode().equals("AUDIT_VIEW")
+                )
+                .collect(Collectors.toSet());
+        marketplaceAdminRole.setPermissions(marketplacePerms);
+        roleRepository.save(marketplaceAdminRole);
+
+        // 1g. TAXORYN_CONTENT_ADMIN Role
+        RoleEntity contentAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_CONTENT_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_CONTENT_ADMIN")
+                        .name("Taxoryn Content Admin")
+                        .description("Platform knowledge base, compliance calendars and publication")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> contentPerms = allPermissions.stream()
+                .filter(p -> p.getCode().equals("PLATFORM_VIEW")
+                        || p.getCode().startsWith("CONTENT_")
+                        || p.getCode().startsWith("ARTICLE_")
+                        || p.getCode().startsWith("VIDEO_")
+                )
+                .collect(Collectors.toSet());
+        contentAdminRole.setPermissions(contentPerms);
+        roleRepository.save(contentAdminRole);
+
+        // 1h. TAXORYN_SECURITY_ADMIN Role
+        RoleEntity securityAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_SECURITY_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_SECURITY_ADMIN")
+                        .name("Taxoryn Security Admin")
+                        .description("Platform security governance, access auditing and session control")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> securityPerms = allPermissions.stream()
+                .filter(p -> p.getCode().equals("PLATFORM_VIEW")
+                        || p.getCode().startsWith("AUDIT_")
+                        || p.getCode().startsWith("SECURITY_")
+                        || p.getCode().startsWith("ACCESS_")
+                        || p.getCode().startsWith("ROLE_ASSIGNMENT_")
+                        || p.getCode().startsWith("SESSION_")
+                )
+                .collect(Collectors.toSet());
+        securityAdminRole.setPermissions(securityPerms);
+        roleRepository.save(securityAdminRole);
+
+        // 1i. TAXORYN_ENGINEERING_ADMIN Role
+        RoleEntity engAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAXORYN_ENGINEERING_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAXORYN_ENGINEERING_ADMIN")
+                        .name("Taxoryn Engineering Admin")
+                        .description("Subsystem health monitoring and engineering issue resolution")
+                        .isSystemRole(true)
+                        .build()));
+        Set<PermissionEntity> engPerms = allPermissions.stream()
+                .filter(p -> p.getCode().equals("PLATFORM_VIEW")
+                        || p.getCode().startsWith("PLATFORM_HEALTH_")
+                        || p.getCode().startsWith("SYSTEM_STATUS_")
+                        || p.getCode().startsWith("INTEGRATION_")
+                        || p.getCode().startsWith("TECHNICAL_")
+                        || p.getCode().equals("FEEDBACK_VIEW")
+                )
+                .collect(Collectors.toSet());
+        engAdminRole.setPermissions(engPerms);
+        roleRepository.save(engAdminRole);
+
+        // 2. ORG_ADMIN / PRACTICE_OWNER / PRACTICE_ADMIN Roles (Full Practice Scope)
+        Set<PermissionEntity> practiceAdminPerms = allPermissions.stream()
+                .filter(p -> !p.getCode().startsWith("PLATFORM_")
+                        && !p.getCode().startsWith("PRACTICE_VERIFY")
+                        && !p.getCode().startsWith("PRACTICE_SUSPEND")
+                        && !p.getCode().startsWith("USER_DISABLE")
+                        && !p.getCode().startsWith("SECURITY_")
+                        && !p.getCode().startsWith("PLATFORM_SETTINGS_")
+                )
+                .collect(Collectors.toSet());
+
         RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("ORG_ADMIN")
                         .name("Organization Administrator")
+                        .description("Full administrative authority within a practice tenant")
                         .isSystemRole(true)
                         .build()));
-        orgAdminRole.setPermissions(allPermSet);
+        orgAdminRole.setPermissions(practiceAdminPerms);
         roleRepository.save(orgAdminRole);
+
+        RoleEntity practiceOwnerRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTICE_OWNER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("PRACTICE_OWNER")
+                        .name("Practice Owner / Managing Partner")
+                        .description("Practice founding principal with executive ownership")
+                        .isSystemRole(true)
+                        .build()));
+        practiceOwnerRole.setPermissions(practiceAdminPerms);
+        roleRepository.save(practiceOwnerRole);
+
+        RoleEntity practiceAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTICE_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("PRACTICE_ADMIN")
+                        .name("Practice Administrator")
+                        .description("Full administrative authority within a practice tenant")
+                        .isSystemRole(true)
+                        .build()));
+        practiceAdminRole.setPermissions(practiceAdminPerms);
+        roleRepository.save(practiceAdminRole);
 
         // 3. PRACTITIONER Role (CA / Tax Practitioner)
         RoleEntity practitionerRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("PRACTITIONER")
                         .name("Tax Practitioner / CA")
+                        .description("Senior Tax Professional / Chartered Accountant")
                         .isSystemRole(true)
                         .build()));
-        practitionerRole.setPermissions(allPermSet);
+        practitionerRole.setPermissions(practiceAdminPerms);
         roleRepository.save(practitionerRole);
 
-        // 4. ARTICLE_ASSISTANT Role (Staff / Trainee) - PoLP Principle of Least Privilege
+        // 4. ARTICLE_ASSISTANT / STAFF / PRACTICE_EMPLOYEE Roles
         RoleEntity articleRole = roleRepository.findByCodeAndIsSystemRoleTrue("ARTICLE_ASSISTANT")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("ARTICLE_ASSISTANT")
@@ -197,7 +421,6 @@ public class DemoDataSeeder implements CommandLineRunner {
         articleRole.setPermissions(articlePerms);
         roleRepository.save(articleRole);
 
-        // 5. STAFF Role
         RoleEntity staffRole = roleRepository.findByCodeAndIsSystemRoleTrue("STAFF")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("STAFF")
@@ -207,7 +430,17 @@ public class DemoDataSeeder implements CommandLineRunner {
         staffRole.setPermissions(articlePerms);
         roleRepository.save(staffRole);
 
-        // 6. CLIENT_USER Role (Portal Access, Views & Uploads)
+        RoleEntity practiceEmpRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTICE_EMPLOYEE")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("PRACTICE_EMPLOYEE")
+                        .name("Practice Staff Member")
+                        .description("Executes assigned client compliance and workflow tasks")
+                        .isSystemRole(true)
+                        .build()));
+        practiceEmpRole.setPermissions(articlePerms);
+        roleRepository.save(practiceEmpRole);
+
+        // 6. CLIENT_USER / PRACTICE_CLIENT Role (Portal Access, Views & Uploads)
         RoleEntity clientUserRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("CLIENT_USER")
@@ -220,6 +453,16 @@ public class DemoDataSeeder implements CommandLineRunner {
                 .collect(Collectors.toSet());
         clientUserRole.setPermissions(clientUserPerms);
         roleRepository.save(clientUserRole);
+
+        RoleEntity practiceClientRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTICE_CLIENT")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("PRACTICE_CLIENT")
+                        .name("Practice Client")
+                        .description("Client taxpayer associated with a specific practice tenant")
+                        .isSystemRole(true)
+                        .build()));
+        practiceClientRole.setPermissions(clientUserPerms);
+        roleRepository.save(practiceClientRole);
 
         // 7. CLIENT_ADMIN Role (Full Portal Admin)
         RoleEntity clientAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_ADMIN")
@@ -234,6 +477,77 @@ public class DemoDataSeeder implements CommandLineRunner {
                 .collect(Collectors.toSet());
         clientAdminRole.setPermissions(clientAdminPerms);
         roleRepository.save(clientAdminRole);
+
+        // 8. MARKETPLACE_CUSTOMER Role
+        RoleEntity marketplaceCustomerRole = roleRepository.findByCodeAndIsSystemRoleTrue("MARKETPLACE_CUSTOMER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("MARKETPLACE_CUSTOMER")
+                        .name("Marketplace Customer")
+                        .description("Taxpayer exploring marketplace services and submitting requirements")
+                        .isSystemRole(true)
+                        .build()));
+        roleRepository.save(marketplaceCustomerRole);
+    }
+
+    private void seedSuperAdminUser() {
+        OrganizationEntity org = organizationRepository.findByEmailIgnoreCase("admin@taxoryn.com")
+                .orElseGet(() -> organizationRepository.save(OrganizationEntity.builder()
+                        .name("Taxoryn Platform Operations")
+                        .email("admin@taxoryn.com")
+                        .pan("AABFA0000K")
+                        .status(OrganizationStatus.ACTIVE)
+                        .subscriptionPlan(SubscriptionPlan.ENTERPRISE)
+                        .build()));
+
+        record PlatformUserSeed(String email, String firstName, String lastName, String phone, String roleCode) {}
+
+        List<PlatformUserSeed> platformUsers = List.of(
+                new PlatformUserSeed("superadmin@taxoryn.com", "Taxoryn", "SuperAdmin", "+918000000001", "TAXORYN_SUPERADMIN"),
+                new PlatformUserSeed("operations@taxoryn.com", "Anjali", "Deshmukh", "+918000000002", "TAXORYN_OPERATIONS_ADMIN"),
+                new PlatformUserSeed("support@taxoryn.com", "Rahul", "Verma", "+918000000003", "TAXORYN_SUPPORT_ADMIN"),
+                new PlatformUserSeed("marketplace@taxoryn.com", "Sneha", "Kapoor", "+918000000004", "TAXORYN_MARKETPLACE_ADMIN"),
+                new PlatformUserSeed("finance@taxoryn.com", "Vikram", "Singhania", "+918000000005", "TAXORYN_FINANCE_ADMIN"),
+                new PlatformUserSeed("content@taxoryn.com", "Priya", "Nair", "+918000000006", "TAXORYN_CONTENT_ADMIN"),
+                new PlatformUserSeed("security@taxoryn.com", "Amit", "Kulkarni", "+918000000007", "TAXORYN_SECURITY_ADMIN"),
+                new PlatformUserSeed("engineering@taxoryn.com", "Siddharth", "Mehta", "+918000000008", "TAXORYN_ENGINEERING_ADMIN")
+        );
+
+        for (PlatformUserSeed seed : platformUsers) {
+            RoleEntity role = roleRepository.findByCodeAndIsSystemRoleTrue(seed.roleCode()).orElse(null);
+            if (role == null) continue;
+
+            Optional<UserEntity> existingUser = userRepository.findByEmailIgnoreCase(seed.email());
+            UserEntity user;
+            if (existingUser.isEmpty()) {
+                user = UserEntity.builder()
+                        .email(seed.email())
+                        .passwordHash(passwordEncoder.encode("Password123!"))
+                        .firstName(seed.firstName())
+                        .lastName(seed.lastName())
+                        .phone(seed.phone())
+                        .status(UserStatus.ACTIVE)
+                        .roles(new HashSet<>(Set.of(role)))
+                        .build();
+                user.setOrganizationId(org.getId());
+                userRepository.save(user);
+                log.info("Platform user seeded: {} ({}) with password Password123!", seed.email(), seed.roleCode());
+            } else {
+                user = existingUser.get();
+                user.setStatus(UserStatus.ACTIVE);
+                user.setOrganizationId(org.getId());
+                user.setPasswordHash(passwordEncoder.encode("Password123!"));
+                if (user.getRoles() == null) {
+                    user.setRoles(new HashSet<>());
+                }
+                user.getRoles().clear();
+                user.getRoles().add(role);
+                if ("TAXORYN_SUPERADMIN".equals(seed.roleCode())) {
+                    roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN").ifPresent(user.getRoles()::add);
+                }
+                userRepository.save(user);
+                log.info("Platform user verified & updated: {} ({})", seed.email(), seed.roleCode());
+            }
+        }
     }
 
     private void seedDemoOrganizationAndStaff(String orgEmail, String orgName, String pan, String adminEmail, String firstName, String lastName) {

@@ -79,6 +79,9 @@ class TaxServiceSecurityIntegrationTest {
     private PracticeServiceRepository practiceServiceRepository;
 
     @Autowired
+    private com.taxoryn.module.content.repository.ContentRepository contentRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -93,6 +96,7 @@ class TaxServiceSecurityIntegrationTest {
     void setUp() {
         practiceServiceRepository.deleteAll();
         aliasRepository.deleteAll();
+        contentRepository.deleteAll();
         taxServiceRepository.deleteAll();
         categoryRepository.deleteAll();
         locationRepository.deleteAll();

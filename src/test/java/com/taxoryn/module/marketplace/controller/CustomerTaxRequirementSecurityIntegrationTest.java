@@ -62,6 +62,9 @@ class CustomerTaxRequirementSecurityIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
+    private com.taxoryn.module.content.repository.ContentRepository contentRepository;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
     private UserEntity userA;
@@ -77,6 +80,7 @@ class CustomerTaxRequirementSecurityIntegrationTest {
     @BeforeEach
     void setUp() {
         requirementRepository.deleteAll();
+        contentRepository.deleteAll();
         taxServiceRepository.deleteAll();
         categoryRepository.deleteAll();
         customerProfileRepository.deleteAll();

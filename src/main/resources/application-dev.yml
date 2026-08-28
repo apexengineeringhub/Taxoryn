@@ -1,4 +1,6 @@
 spring:
+  flyway:
+    validate-on-migrate: false
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/taxoryn_db}
     username: ${SPRING_DATASOURCE_USERNAME:taxoryn_user}
@@ -12,6 +14,8 @@ spring:
       max-lifetime: 1200000
   jpa:
     show-sql: true
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: true

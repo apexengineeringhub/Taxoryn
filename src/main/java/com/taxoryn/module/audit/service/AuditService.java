@@ -5,16 +5,18 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.audit.dto.AuditLogDto;
 import com.taxoryn.module.audit.dto.AuditLogFilterRequest;
 import com.taxoryn.module.audit.dto.AuditRecordRequest;
+import com.taxoryn.module.dashboard.dto.PlatformDashboardSummaryDto.RecentPlatformActivityDto;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
- * Service for immutable enterprise audit logging and inspection.
+ * Authoritative Service for immutable enterprise audit logging and inspection.
  */
 public interface AuditService {
 
     /**
-     * Retrieve paginated and filtered audit logs for the current authenticated tenant.
+     * Retrieve paginated and filtered audit logs with role-aware tenant/platform scope.
      */
     PagedResponse<AuditLogDto> getAuditLogs(AuditLogFilterRequest filterRequest);
 
@@ -22,6 +24,11 @@ public interface AuditService {
      * Legacy overload for basic page requests.
      */
     PagedResponse<AuditLogDto> getAuditLogs(PageRequestDto pageRequest);
+
+    /**
+     * Retrieve recent important platform activities for the SuperAdmin overview cockpit.
+     */
+    List<RecentPlatformActivityDto> getRecentImportantActivity(int limit);
 
     /**
      * Record a comprehensive audit log entry.

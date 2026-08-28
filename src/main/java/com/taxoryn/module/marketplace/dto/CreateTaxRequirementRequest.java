@@ -33,4 +33,8 @@ public class CreateTaxRequirementRequest {
     private String pincode;
 
     private Integer searchRadiusKm;
+ 
+    private String sourceType;
+
+    private UUID sourceContentId;
 }

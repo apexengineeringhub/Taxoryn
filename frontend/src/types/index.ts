@@ -31,8 +31,11 @@ export interface Organization {
   phone?: string;
   pan?: string;
   gstin?: string;
-  subscriptionPlan?: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
+  city?: string;
+  state?: string;
+  subscriptionPlan?: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  createdAt?: string;
 }
 
 export interface User {
@@ -44,9 +47,10 @@ export interface User {
   lastName?: string;
   phone?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-  roles: string[] | { id?: string; code: string; name: string }[];
+  roles: (string | { id?: string; code: string; name: string })[];
   permissions: string[];
   isClientUser?: boolean;
+  createdAt?: string;
 }
 
 export interface AuthTokens {
@@ -470,15 +474,31 @@ export interface Role {
 // 12. Audit Logs
 export interface AuditLog {
   id: string;
+  organizationId?: string;
+  organizationName?: string;
+  practiceName?: string;
   userId?: string;
+  actor?: string;
+  actorName?: string;
+  actorEmail?: string;
+  actorRole?: string;
   userName?: string;
   userEmail?: string;
   action: string;
+  displayAction?: string;
   entityType: string;
+  displayEntityType?: string;
+  entityName?: string;
   entityId?: string;
+  targetDisplayName?: string;
+  status?: string;
+  severity?: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
+  description?: string;
   timestamp: string;
+  createdAt?: string;
   ipAddress?: string;
   requestId?: string;
+  userAgent?: string;
   oldValue?: string;
   newValue?: string;
 }
@@ -889,6 +909,12 @@ export interface MarketplaceProfile {
   profileCompleteness?: ProfileCompleteness;
   completenessScore?: number;
   missingCompletenessFields?: string[];
+  workingHours?: string;
+  seoTitle?: string;
+  metaDescription?: string;
+  canonicalUrl?: string;
+  redirectSlug?: string;
+  relatedLearnContent?: LearnContentSummary[];
 }
 
 // 6. Controlled Tax Service Master Interfaces
@@ -1383,6 +1409,201 @@ export interface CustomerDashboard {
   totalReviews: number;
   recentTaxRequirements?: CustomerTaxRequirementSummary[];
   recentLeads: MarketplaceLead[];
+  clientPhone?: string;
+  serviceId?: string;
+  serviceTitle?: string;
+  proposalTitle: string;
+  scopeOfWork: string;
+  deliverables?: string;
+  feeAmount: number;
+  pricingType: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
+  estimatedTimelineDays: number;
+  proposalStatus: ProposalStatus;
+  accessToken: string;
+  validUntil?: string;
+  rejectionReason?: string;
+  acceptedAt?: string;
+  createdAt: string;
+}
+
+export interface OnboardingDocument {
+  id: string;
+  onboardingId: string;
+  documentType: OnboardingDocType;
+  documentName: string;
+  filePath: string;
+  fileSizeBytes: number;
+  contentType?: string;
+  isRequired: boolean;
+  verificationStatus: DocVerificationStatus;
+  rejectionReason?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  createdAt: string;
+}
+
+export interface MarketplaceOnboarding {
+  id: string;
+  organizationId: string;
+  practiceDisplayName?: string;
+  marketplaceProfileId: string;
+  leadId: string;
+  proposalId?: string;
+  proposalTitle?: string;
+  accessToken: string;
+  clientName: string;
+  legalName?: string;
+  clientEmail: string;
+  clientPhone: string;
+  entityType: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  pan?: string;
+  gstin?: string;
+  tan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  onboardingStatus: OnboardingStatus;
+  engagementLetterSigned: boolean;
+  engagementSignedAt?: string;
+  engagementLetterUrl?: string;
+  feeAgreementAgreed: boolean;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  promotedClientId?: string;
+  portalUserId?: string;
+  reviewerNotes?: string;
+  rejectionReason?: string;
+  completedAt?: string;
+  createdAt: string;
+  documents?: OnboardingDocument[];
+}
+
+export interface CreateProposalRequest {
+  leadId: string;
+  serviceId?: string;
+  proposalTitle: string;
+  scopeOfWork: string;
+  deliverables?: string;
+  feeAmount: number;
+  pricingType?: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
+  estimatedTimelineDays?: number;
+  validUntil?: string;
+}
+
+export interface AcceptProposalRequest {
+  isAccepted: boolean;
+  rejectionReason?: string;
+  clientNotes?: string;
+}
+
+export interface InitiateOnboardingRequest {
+  leadId: string;
+  proposalId?: string;
+  entityType?: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  assignedEmployeeId?: string;
+}
+
+export interface UpdateOnboardingDetailsRequest {
+  clientName: string;
+  legalName?: string;
+  entityType?: 'INDIVIDUAL' | 'COMPANY' | 'LLP' | 'FIRM' | 'HUF' | 'TRUST';
+  pan?: string;
+  gstin?: string;
+  tan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
+
+export interface SignEngagementLetterRequest {
+  signedConsent: boolean;
+  agreedToFees: boolean;
+  signatureName?: string;
+  signatureIpAddress?: string;
+}
+
+export interface VerifyOnboardingDocumentRequest {
+  verificationStatus: DocVerificationStatus;
+  rejectionReason?: string;
+}
+
+export interface ApproveAndPromoteClientRequest {
+  assignedEmployeeId?: string;
+  createOnboardingTask?: boolean;
+  provisionClientPortalUser?: boolean;
+  initialPortalPassword?: string;
+  reviewerNotes?: string;
+}
+
+// 8. Marketplace Customer Account & Profile
+export interface CustomerProfileCompleteness {
+  percentage: number;
+  completedItems: string[];
+  missingItems: string[];
+}
+
+export interface CustomerProfile {
+  id: string;
+  userId: string;
+  customerType: 'INDIVIDUAL' | 'BUSINESS';
+  firstName: string;
+  lastName?: string;
+  displayName: string;
+  email: string;
+  phone?: string;
+  profilePhotoUrl?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+  businessName?: string;
+  status: 'ACTIVE' | 'BLOCKED' | 'DEACTIVATED';
+  profileCompleteness?: CustomerProfileCompleteness;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RegisterCustomerRequest {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  password: string;
+  customerType?: 'INDIVIDUAL' | 'BUSINESS';
+  businessName?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+}
+
+export interface UpdateCustomerProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  phone?: string;
+  profilePhotoUrl?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferredLanguage?: string;
+  customerType?: 'INDIVIDUAL' | 'BUSINESS';
+  businessName?: string;
+}
+
+export interface CustomerDashboard {
+  profile: CustomerProfile;
+  totalRequirements?: number;
+  totalRequests: number;
+  totalConsultations: number;
+  totalProposals: number;
+  totalReviews: number;
+  recentTaxRequirements?: CustomerTaxRequirementSummary[];
+  recentLeads: MarketplaceLead[];
   recentConsultations: MarketplaceConsultation[];
   recentProposals: MarketplaceProposal[];
   recentReviews: MarketplaceReview[];
@@ -1422,6 +1643,8 @@ export interface CustomerTaxRequirement {
   state?: string;
   pincode?: string;
   searchRadiusKm?: number;
+  sourceType?: string;
+  sourceContentId?: string;
   editable: boolean;
   cancellable: boolean;
   createdAt: string;
@@ -1442,6 +1665,8 @@ export interface CustomerTaxRequirementSummary {
   financialYearDisplay?: string;
   city?: string;
   state?: string;
+  sourceType?: string;
+  sourceContentId?: string;
   editable: boolean;
   cancellable: boolean;
   createdAt: string;
@@ -1458,6 +1683,8 @@ export interface CreateTaxRequirementRequest {
   state?: string;
   pincode?: string;
   searchRadiusKm?: number;
+  sourceType?: string;
+  sourceContentId?: string;
 }
 
 export interface UpdateTaxRequirementRequest {
@@ -1511,6 +1738,8 @@ export interface CreateMarketplaceLeadRequest {
   taxRequirementId?: string;
   taxServiceId?: string;
   taxServiceCode?: string;
+  sourceType?: string;
+  sourceContentId?: string;
   financialYear?: string;
   customerType?: CustomerTaxpayerType;
   earlyEnquiryMessage?: string;
@@ -1526,4 +1755,749 @@ export interface CreateMarketplaceLeadRequest {
   budgetRange?: string;
   urgency?: LeadUrgency | string;
 }
+
+export type EnquiryStatus =
+  | 'NEW'
+  | 'RECEIVED'
+  | 'ACCEPTED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type EnquiryRejectionReason =
+  | 'SERVICE_NOT_AVAILABLE'
+  | 'OUTSIDE_SERVICE_AREA'
+  | 'CURRENTLY_UNAVAILABLE'
+  | 'CAPACITY_FULL'
+  | 'OTHER';
+
+export interface EnquiryTimelineItem {
+  status: EnquiryStatus;
+  title: string;
+  description: string;
+  timestamp?: string;
+  completed: boolean;
+  current: boolean;
+}
+
+export interface EnquiryDetail {
+  id: string;
+  referenceNumber: string;
+  organizationId: string;
+  practiceName?: string;
+  practiceSlug?: string;
+  practiceCity?: string;
+  marketplaceProfileId: string;
+  customerId?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  city?: string;
+  taxServiceId?: string;
+  taxServiceName?: string;
+  taxServiceCode?: string;
+  serviceCategory?: string;
+  financialYear?: string;
+  customerType?: string;
+  requirementDescription?: string;
+  earlyEnquiryMessage?: string;
+  budgetRange?: string;
+  urgency?: LeadUrgency;
+  sourceType?: string;
+  enquiryStatus: EnquiryStatus;
+  rejectionReason?: EnquiryRejectionReason;
+  rejectionNote?: string;
+  cancellationReason?: string;
+  practitionerNotes?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  createdAt: string;
+  receivedAt?: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  timeline: EnquiryTimelineItem[];
+  canCancel: boolean;
+  canReview: boolean;
+  reviewId?: string;
+}
+
+export interface AcceptEnquiryRequest {
+  notes?: string;
+  estimatedDaysToComplete?: number;
+}
+
+export interface RejectEnquiryRequest {
+  rejectionReason: EnquiryRejectionReason;
+  rejectionNote?: string;
+}
+
+export interface AssignEnquiryRequest {
+  assignedEmployeeId: string;
+  assignmentNotes?: string;
+}
+
+export interface CancelEnquiryRequest {
+  cancellationReason?: string;
+}
+
+export interface SubmitEnquiryReviewRequest {
+  rating: number;
+  reviewTitle?: string;
+  reviewComment: string;
+}
+
+export type MessageSenderType = 'CUSTOMER' | 'PRACTICE_USER' | 'SYSTEM';
+
+export interface EnquiryMessage {
+  id: string;
+  enquiryId: string;
+  senderType: MessageSenderType;
+  senderUserId?: string;
+  senderName: string;
+  messageBody: string;
+  attachmentsJson?: string;
+  isReadByCustomer: boolean;
+  isReadByPractice: boolean;
+  readAt?: string;
+  createdAt: string;
+}
+
+export interface SendEnquiryMessageRequest {
+  messageBody: string;
+  attachmentsJson?: string;
+}
+
+export interface EnquiryMessageThread {
+  enquiryId: string;
+  referenceNumber: string;
+  enquiryStatus: EnquiryStatus;
+  clientName: string;
+  practiceName: string;
+  assignedEmployeeName?: string;
+  unreadCountForCustomer: number;
+  unreadCountForPractice: number;
+  isMessagingActive: boolean;
+  messages: EnquiryMessage[];
+}
+
+export interface MarketplaceLead {
+  id: string;
+  referenceNumber?: string;
+  organizationId: string;
+  practiceName?: string;
+  practiceSlug?: string;
+  marketplaceProfileId: string;
+  serviceId?: string;
+  serviceTitle?: string;
+  taxServiceId?: string;
+  taxServiceName?: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  city?: string;
+  pan?: string;
+  gstin?: string;
+  serviceCategory?: string;
+  requirementDescription: string;
+  earlyEnquiryMessage?: string;
+  budgetRange?: string;
+  urgency: LeadUrgency;
+  enquiryStatus?: EnquiryStatus;
+  rejectionReason?: EnquiryRejectionReason;
+  rejectionNote?: string;
+  cancellationReason?: string;
+  receivedAt?: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  reviewId?: string;
+  leadStatus: LeadStatus;
+  convertedClientId?: string;
+  convertedClientName?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  practitionerNotes?: string;
+  createdAt: string;
+}
+
+// Application Feedback is deliberately separate from a MarketplaceReview.
+export type ApplicationFeedbackType = 'SUGGESTION' | 'PROBLEM' | 'GENERAL' | 'EXPERIENCE';
+export type ApplicationFeedbackCategory =
+  | 'APPLICATION_EXPERIENCE'
+  | 'PRACTICE_SEARCH'
+  | 'PRACTICE_PROFILE'
+  | 'CUSTOMER_PROFILE'
+  | 'TAX_SERVICE'
+  | 'REQUIREMENT'
+  | 'MATCHING'
+  | 'ENQUIRY'
+  | 'REVIEWS'
+  | 'ACCOUNT'
+  | 'PERFORMANCE'
+  | 'OTHER'
+  | 'PRACTICE_LOCATIONS'
+  | 'EMPLOYEE_MANAGEMENT'
+  | 'CUSTOMER_MANAGEMENT'
+  | 'ENQUIRIES'
+  | 'TAX_SERVICES'
+  | 'MARKETPLACE'
+  | 'CUSTOMER_MATCHING'
+  | 'NOTIFICATIONS'
+  | 'DOCUMENTS'
+  | 'REPORTS'
+  | 'BILLING'
+  | 'CUSTOMER_REQUIREMENTS'
+  | 'TASKS'
+  | 'PRACTICE_OPERATIONS'
+  | 'SEARCH';
+
+export type ApplicationFeedbackActorType = 'CUSTOMER' | 'PRACTITIONER' | 'PRACTICE_EMPLOYEE';
+export type ApplicationFeedbackContextType = 'CUSTOMER_PORTAL' | 'PRACTICE_PORTAL';
+export type ApplicationFeedbackStatus = 'NEW' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'ESCALATED' | 'RESOLVED' | 'CLOSED' | 'REJECTED' | 'DUPLICATE';
+export type ApplicationFeedbackPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type FeedbackTeam = 'CUSTOMER_SUPPORT' | 'OPERATIONS' | 'MARKETPLACE' | 'PRODUCT' | 'ENGINEERING' | 'MARKETING' | 'FINANCE';
+export type FeedbackNoteVisibility = 'INTERNAL' | 'CUSTOMER_VISIBLE';
+export type EngineeringIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'FIXED' | 'CLOSED';
+
+export interface CreateApplicationFeedbackRequest {
+  type: ApplicationFeedbackType;
+  category: ApplicationFeedbackCategory;
+  rating?: number;
+  title: string;
+  description: string;
+}
+
+export interface ApplicationFeedback extends CreateApplicationFeedbackRequest {
+  id: string;
+  actorType?: ApplicationFeedbackActorType;
+  contextType?: ApplicationFeedbackContextType;
+  practiceId?: string;
+  page?: string;
+  feature?: string;
+  source?: string;
+  status?: ApplicationFeedbackStatus;
+  priority?: ApplicationFeedbackPriority;
+  createdAt: string;
+}
+
+// Admin Feedback Management Interfaces
+export interface AdminApplicationFeedbackSummary {
+  id: string;
+  feedbackCode: string;
+  actorType: ApplicationFeedbackActorType;
+  contextType: ApplicationFeedbackContextType;
+  type: ApplicationFeedbackType;
+  category: ApplicationFeedbackCategory;
+  rating?: number;
+  title: string;
+  descriptionExcerpt: string;
+  page?: string;
+  feature?: string;
+  status: ApplicationFeedbackStatus;
+  priority: ApplicationFeedbackPriority;
+  assignedTeam?: FeedbackTeam;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  practiceId?: string;
+  practiceName?: string;
+  reporterName?: string;
+  reporterEmail?: string;
+  hasEngineeringIssue: boolean;
+  engineeringIssueCode?: string;
+  hasDuplicateOf: boolean;
+  duplicateOfId?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FeedbackAssignment {
+  id: string;
+  feedbackId: string;
+  team: FeedbackTeam;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  assignedUserEmail?: string;
+  assignedBy?: string;
+  assignedByName?: string;
+  reason?: string;
+  assignedAt: string;
+  unassignedAt?: string;
+  active: boolean;
+}
+
+export interface FeedbackNote {
+  id: string;
+  feedbackId: string;
+  authorId?: string;
+  authorName?: string;
+  note: string;
+  visibility: FeedbackNoteVisibility;
+  createdAt: string;
+}
+
+export interface FeedbackStatusHistory {
+  id: string;
+  feedbackId: string;
+  oldStatus?: ApplicationFeedbackStatus;
+  newStatus: ApplicationFeedbackStatus;
+  changedBy?: string;
+  changedByName?: string;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface EngineeringIssue {
+  id: string;
+  feedbackId: string;
+  issueCode: string;
+  title: string;
+  description: string;
+  priority: ApplicationFeedbackPriority;
+  status: EngineeringIssueStatus;
+  assignedTeam: string;
+  createdBy?: string;
+  createdByName?: string;
+  externalSystem?: string;
+  externalIssueId?: string;
+  externalIssueUrl?: string;
+  externalStatus?: string;
+  lastSyncedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminApplicationFeedbackDetail {
+  id: string;
+  feedbackCode: string;
+  userId: string;
+  reporterName: string;
+  reporterEmail?: string;
+  reporterPhone?: string;
+  actorType: ApplicationFeedbackActorType;
+  practiceId?: string;
+  practiceName?: string;
+  practiceEmail?: string;
+  practiceSubscriptionPlan?: string;
+  contextType: ApplicationFeedbackContextType;
+  type: ApplicationFeedbackType;
+  category: ApplicationFeedbackCategory;
+  rating?: number;
+  title: string;
+  description: string;
+  page?: string;
+  feature?: string;
+  source: string;
+  status: ApplicationFeedbackStatus;
+  priority: ApplicationFeedbackPriority;
+  assignedTeam?: FeedbackTeam;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  activeAssignment?: FeedbackAssignment;
+  assignmentHistory: FeedbackAssignment[];
+  duplicateOfId?: string;
+  duplicateOfTitle?: string;
+  resolutionNote?: string;
+  resolvedBy?: string;
+  resolvedByName?: string;
+  resolvedAt?: string;
+  closedBy?: string;
+  closedByName?: string;
+  closedAt?: string;
+  engineeringIssue?: EngineeringIssue;
+  notes: FeedbackNote[];
+  timeline: FeedbackStatusHistory[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminAssignee {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export interface AdminFeedbackStats {
+  totalCount: number;
+  newCount: number;
+  underReviewCount: number;
+  assignedCount: number;
+  inProgressCount: number;
+  escalatedCount: number;
+  resolvedCount: number;
+  closedCount: number;
+  rejectedCount: number;
+  duplicateCount: number;
+  criticalCount: number;
+  highCount: number;
+}
+
+export interface AssignFeedbackRequest {
+  team: FeedbackTeam;
+  assignedUserId?: string;
+  reason?: string;
+}
+
+export interface CreateFeedbackNoteRequest {
+  note: string;
+  visibility?: FeedbackNoteVisibility;
+}
+
+export interface UpdateFeedbackPriorityRequest {
+  priority: ApplicationFeedbackPriority;
+  reason?: string;
+}
+
+export interface ResolveFeedbackRequest {
+  resolutionNote: string;
+}
+
+export interface CloseFeedbackRequest {
+  reason?: string;
+}
+
+export interface RejectFeedbackRequest {
+  reason: string;
+}
+
+export interface MarkDuplicateFeedbackRequest {
+  duplicateOfId: string;
+  reason?: string;
+}
+
+export interface EscalateToEngineeringRequest {
+  title: string;
+  description: string;
+  priority: ApplicationFeedbackPriority;
+  internalNotes?: string;
+}
+
+// 18. Platform SuperAdmin Operations & Dashboard
+export interface PlatformKpis {
+  activePractices: number;
+  totalPractices: number;
+  activeUsers: number;
+  totalUsers: number;
+  activeCustomers: number;
+  totalMarketplaceLeads: number;
+  activeSubscriptions: number;
+  openFeedback: number;
+  platformStatus: string;
+  monthlyRecurringRevenue: number;
+  annualRecurringRevenue: number;
+}
+
+export interface PracticeEcosystem {
+  totalPractices: number;
+  activePractices: number;
+  pendingVerification: number;
+  inactivePractices: number;
+  suspendedPractices: number;
+  newPracticesThisMonth: number;
+}
+
+export interface UserEcosystem {
+  totalUsers: number;
+  activeUsers: number;
+  customers: number;
+  practitioners: number;
+  practiceEmployees: number;
+  taxorynAdminUsers: number;
+}
+
+export interface MarketplaceFunnel {
+  totalRequirements: number;
+  activeRequirements: number;
+  matchedRequirements: number;
+  totalEnquiries: number;
+  acceptedEnquiries: number;
+  completedServices: number;
+  conversionRate: number;
+}
+
+export interface SubscriptionMetrics {
+  totalSubscriptions: number;
+  starterTiers: number;
+  professionalTiers: number;
+  businessTiers: number;
+  enterpriseTiers: number;
+  activeTiers: number;
+  trialOrFreeTiers: number;
+  estimatedMrr: number;
+  estimatedArr: number;
+}
+
+export interface FeedbackOperations {
+  totalFeedback: number;
+  newFeedback: number;
+  underReview: number;
+  assigned: number;
+  inProgress: number;
+  escalatedToEng: number;
+  resolved: number;
+  criticalOpen: number;
+  topCategories: Record<string, number>;
+}
+
+export interface PlatformSummary {
+  activePractices: number;
+  totalPractices: number;
+  platformUsers: number;
+  marketplaceCustomers: number;
+  activeSubscriptions: number;
+}
+
+export interface PlatformMarketplace {
+  newRequirements: number;
+  activeEnquiries: number;
+  matchesCompleted: number;
+  consultationsBooked: number;
+}
+
+export interface PlatformAttention {
+  pendingPracticeVerification: number;
+  openFeedback: number;
+  securityAlerts: number;
+  paymentIssues: number;
+  marketplaceIssues: number;
+}
+
+export interface RecentPlatformActivity {
+  id: string;
+  displayTitle: string;
+  description: string;
+  targetDisplayName: string;
+  timestamp: string;
+  severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
+  status: 'SUCCESS' | 'PENDING' | 'ALERT';
+  navigationTarget: string;
+}
+
+export interface PlatformHealth {
+  api?: string;
+  database?: string;
+  backgroundJobs?: string;
+  marketplace?: string;
+  notifications?: string;
+  apiGatewayStatus: string;
+  databaseStatus: string;
+  authServiceStatus: string;
+  marketplaceStatus: string;
+  feedbackSubsystemStatus: string;
+  backgroundJobsStatus: string;
+  activeDbConnections: number;
+  maxDbConnections: number;
+  systemCpuLoad: number;
+  usedMemoryMb: number;
+  maxMemoryMb: number;
+  uptimeSeconds: number;
+}
+
+export interface RecentAdminActivity {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  userEmail: string;
+  description: string;
+  timestamp: string;
+  status: string;
+}
+
+export interface PlatformDashboardSummary {
+  summary?: PlatformSummary;
+  marketplace?: PlatformMarketplace;
+  attention?: PlatformAttention;
+  health?: PlatformHealth;
+  recentActivity?: RecentPlatformActivity[];
+  kpis: PlatformKpis;
+  practiceEcosystem: PracticeEcosystem;
+  userEcosystem: UserEcosystem;
+  marketplaceFunnel: MarketplaceFunnel;
+  subscriptionMetrics: SubscriptionMetrics;
+  feedbackOperations: FeedbackOperations;
+  platformHealth: PlatformHealth;
+  recentActivities: RecentAdminActivity[];
+}
+
+export interface SupportKpis {
+  openCases: number;
+  waitingForCustomer: number;
+  highPriority: number;
+  unresolvedFeedback: number;
+  resolvedThisMonth: number;
+}
+
+export interface SupportAttentionItem {
+  id: string;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  actionTarget: string;
+  actionLabel: string;
+}
+
+export interface RecentSupportActivity {
+  id: string;
+  title: string;
+  description: string;
+  actor: string;
+  target: string;
+  timestamp: string;
+  status: string;
+  severity: string;
+  navigationTarget: string;
+}
+
+export interface SupportDashboardSummary {
+  kpis: SupportKpis;
+  supportAttention: SupportAttentionItem[];
+  recentActivity: RecentSupportActivity[];
+}
+
+// 21. Taxoryn Learn Content Foundation & Public Knowledge Base
+export type LearnContentType = 'ARTICLE' | 'VIDEO' | 'GUIDE' | 'FAQ' | 'TAX_UPDATE';
+export type LearnContentStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'IN_REVIEW'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'SCHEDULED'
+  | 'REJECTED'
+  | 'PUBLISHED'
+  | 'ARCHIVED';
+
+export interface LearnContentTag {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface LearnContentSummary {
+  id: string;
+  contentType: LearnContentType;
+  title: string;
+  slug: string;
+  summary?: string;
+  thumbnailUrl?: string;
+  featuredImageUrl?: string;
+  altText?: string;
+  seoTitle?: string;
+  metaDescription?: string;
+  canonicalUrl?: string;
+  redirectSlug?: string;
+  youtubeVideoId?: string;
+  youtubeEmbedUrl?: string;
+  youtubeWatchUrl?: string;
+  videoDurationSeconds?: number;
+  videoDurationFormatted?: string;
+  status: LearnContentStatus;
+  rejectionReason?: string;
+  scheduledPublishAt?: string;
+  versionNumber?: number;
+  categoryId?: string;
+  categoryName?: string;
+  categoryCode?: string;
+  taxServiceId?: string;
+  taxServiceName?: string;
+  taxServiceCode?: string;
+  taxServices?: PublicTaxService[];
+  marketplaceCtaEnabled?: boolean;
+  scope: string;
+  authorId?: string;
+  authorName?: string;
+  reviewerId?: string;
+  reviewerName?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: LearnContentTag[];
+  publicReady: boolean;
+}
+
+export interface LearnContentDetail extends LearnContentSummary {
+  body: string;
+  authorEmail?: string;
+  reviewerEmail?: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface LearnPublicCategory {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  icon?: string;
+  publishedContentCount: number;
+}
+
+// 22. Content & Marketing Studio
+export interface MediaAsset {
+  id: string;
+  filename: string;
+  contentType: string;
+  fileSize: number;
+  publicUrl: string;
+  altText?: string;
+  uploadedByName?: string;
+  createdAt: string;
+}
+
+export interface ContentVersion {
+  id: string;
+  contentId: string;
+  versionNumber: number;
+  title: string;
+  summary?: string;
+  body: string;
+  thumbnailUrl?: string;
+  featuredImageUrl?: string;
+  altText?: string;
+  status: LearnContentStatus;
+  changeSummary?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface ContentAttentionItem {
+  id: string;
+  title: string;
+  contentType: string;
+  status: string;
+  message: string;
+  updatedAt: string;
+}
+
+export interface ContentActivityItem {
+  id: string;
+  action: string;
+  contentTitle: string;
+  contentType: string;
+  userName: string;
+  timestamp: string;
+}
+
+export interface ContentDashboardStats {
+  totalContent: number;
+  publishedCount: number;
+  draftCount: number;
+  inReviewCount: number;
+  scheduledCount: number;
+  archivedCount: number;
+  rejectedCount: number;
+  needsAttention: ContentAttentionItem[];
+  recentActivity: ContentActivityItem[];
+}
+
+
 

@@ -98,6 +98,22 @@ public class CreatePracticeProfileRequest {
     @Schema(description = "Languages spoken by practitioners")
     private String languagesSpoken;
 
+    @Size(max = 255, message = "Working hours cannot exceed 255 characters")
+    @Schema(description = "Operating / Working Hours", example = "Mon - Fri: 9:30 AM - 6:30 PM, Sat: 10:00 AM - 2:00 PM")
+    private String workingHours;
+
+    @Size(max = 255, message = "SEO Title cannot exceed 255 characters")
+    @Schema(description = "Custom SEO title tag for search engines")
+    private String seoTitle;
+
+    @Size(max = 2000, message = "Meta Description cannot exceed 2000 characters")
+    @Schema(description = "Custom meta description for search engine discovery")
+    private String metaDescription;
+
+    @Size(max = 500, message = "Canonical URL cannot exceed 500 characters")
+    @Schema(description = "Canonical URL override")
+    private String canonicalUrl;
+
     @DecimalMin(value = "0.0", inclusive = true, message = "Starting fee must be non-negative")
     @Schema(description = "Minimum starting service fee")
     private BigDecimal startingFee;

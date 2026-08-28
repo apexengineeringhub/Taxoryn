@@ -69,6 +69,7 @@ class MarketplaceCustomerSecurityIntegrationTest {
             OrganizationEntity newOrg = OrganizationEntity.builder()
                     .name("Test Practice Org")
                     .legalName("Test Practice Org LLP")
+                    .email("test.practice." + UUID.randomUUID() + "@taxoryn.com")
                     .pan("ABCDE1234F")
                     .status(OrganizationEntity.OrganizationStatus.ACTIVE)
                     .subscriptionPlan(OrganizationEntity.SubscriptionPlan.PROFESSIONAL)

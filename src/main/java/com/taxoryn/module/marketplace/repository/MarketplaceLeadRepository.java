@@ -1,5 +1,6 @@
 package com.taxoryn.module.marketplace.repository;
 
+import com.taxoryn.module.marketplace.entity.EnquiryStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,6 +22,10 @@ public interface MarketplaceLeadRepository extends JpaRepository<MarketplaceLead
     List<MarketplaceLeadEntity> findAllByOrganizationId(UUID organizationId);
 
     Optional<MarketplaceLeadEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
+    Optional<MarketplaceLeadEntity> findByIdAndCustomerId(UUID id, UUID customerId);
+
+    Optional<MarketplaceLeadEntity> findByReferenceNumber(String referenceNumber);
 
     @Query("SELECT l FROM MarketplaceLeadEntity l WHERE l.organizationId = :organizationId AND " +
            "(:status IS NULL OR l.leadStatus = :status) AND " +
@@ -32,9 +39,27 @@ public interface MarketplaceLeadRepository extends JpaRepository<MarketplaceLead
 
     long countByOrganizationIdAndLeadStatus(UUID organizationId, MarketplaceLeadEntity.LeadStatus status);
 
+    long countByOrganizationIdAndEnquiryStatus(UUID organizationId, EnquiryStatus enquiryStatus);
+
     long countByOrganizationId(UUID organizationId);
 
     List<MarketplaceLeadEntity> findAllByCustomerIdOrderByCreatedAtDesc(UUID customerId);
 
+    Page<MarketplaceLeadEntity> findByCustomerIdOrderByCreatedAtDesc(UUID customerId, Pageable pageable);
+
+    Page<MarketplaceLeadEntity> findByCustomerIdAndEnquiryStatusOrderByCreatedAtDesc(UUID customerId, EnquiryStatus enquiryStatus, Pageable pageable);
+
+    Page<MarketplaceLeadEntity> findByOrganizationIdAndAssignedEmployeeId(UUID organizationId, UUID assignedEmployeeId, Pageable pageable);
+
     long countByCustomerId(UUID customerId);
+
+    long countByCustomerIdAndEnquiryStatus(UUID customerId, EnquiryStatus enquiryStatus);
+
+    boolean existsByClientEmailIgnoreCaseAndTaxServiceIdAndMarketplaceProfileIdAndEnquiryStatusInAndCreatedAtAfter(
+            String clientEmail,
+            UUID taxServiceId,
+            UUID marketplaceProfileId,
+            Collection<EnquiryStatus> statuses,
+            Instant after
+    );
 }

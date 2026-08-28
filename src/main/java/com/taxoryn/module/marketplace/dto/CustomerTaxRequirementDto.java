@@ -30,6 +30,8 @@ public class CustomerTaxRequirementDto {
     private String state;
     private String pincode;
     private Integer searchRadiusKm;
+    private String sourceType;
+    private UUID sourceContentId;
     private boolean editable;
     private boolean cancellable;
     private Instant createdAt;

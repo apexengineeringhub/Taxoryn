@@ -61,10 +61,22 @@ class MarketplaceCustomerServiceTest {
     private MarketplaceReviewRepository reviewRepository;
 
     @Mock
+    private MarketplaceEnquiryMessageRepository enquiryMessageRepository;
+
+    @Mock
+    private com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
+
+    @Mock
     private MarketplaceProfileRepository practiceProfileRepository;
 
     @Mock
     private CustomerTaxRequirementRepository requirementRepository;
+
+    @Mock
+    private TaxServiceRepository taxServiceRepository;
+
+    @Mock
+    private com.taxoryn.module.notification.service.NotificationService notificationService;
 
     @Mock
     private CustomerTaxRequirementMapper requirementMapper;
@@ -96,8 +108,12 @@ class MarketplaceCustomerServiceTest {
                 consultationRepository,
                 proposalRepository,
                 reviewRepository,
+                enquiryMessageRepository,
+                employeeRepository,
                 practiceProfileRepository,
                 requirementRepository,
+                taxServiceRepository,
+                notificationService,
                 requirementMapper,
                 mapper,
                 completenessCalculator,
