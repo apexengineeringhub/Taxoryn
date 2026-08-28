@@ -1,4 +1,4 @@
-﻿-- V43__enquiry_secure_messaging.sql
+-- V43__enquiry_secure_messaging.sql
 -- Enables secure, auditable messaging between Customers and Certified Practices / Assigned Practitioners for Enquiries
 
 CREATE TABLE IF NOT EXISTS marketplace_enquiry_messages (
@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS marketplace_enquiry_messages (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
-    updated_by VARCHAR(100)
+    updated_by VARCHAR(100),
+    version BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_enq_msg_enquiry_created ON marketplace_enquiry_messages(enquiry_id, created_at ASC);

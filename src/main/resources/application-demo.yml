@@ -11,8 +11,12 @@ spring:
       connection-timeout: 30000
       max-lifetime: 1800000
       pool-name: TaxorynDemoHikariPool
+  flyway:
+    validate-on-migrate: false
   jpa:
     show-sql: false
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: false
