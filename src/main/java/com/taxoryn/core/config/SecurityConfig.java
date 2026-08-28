@@ -127,7 +127,7 @@ public class SecurityConfig {
                         ).permitAll()
                         // Lightweight liveness endpoint for Render keep-alive / external uptime monitors.
                         // No auth, no DB access - see com.taxoryn.core.health.HealthController.
-                        .requestMatchers("/api/health").permitAll()
+                        .requestMatchers("/", "/api/health", "/favicon.ico", "/error").permitAll()
                         // All other API endpoints require authentication
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()

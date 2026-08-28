@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Health", description = "Public, dependency-free liveness check for uptime monitoring and Render keep-alive")
 public class HealthController {
 
-    @GetMapping("/api/health")
+    @GetMapping({"/", "/api/health"})
     @Operation(
             summary = "Liveness check",
             description = "Returns HTTP 200 with {\"status\": \"UP\"} whenever the application process is running. " +
