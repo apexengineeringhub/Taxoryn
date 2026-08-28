@@ -35,7 +35,7 @@ apiClient.interceptors.response.use(
 
       if (refreshToken) {
         try {
-          const res = await axios.post('/api/v1/auth/refresh-token', { refreshToken });
+          const res = await axios.post(`${API_BASE_URL}/v1/auth/refresh-token`, { refreshToken });
           if (res.data?.success && res.data?.data?.accessToken) {
             const newToken = res.data.data.accessToken;
             localStorage.setItem('taxoryn_access_token', newToken);
