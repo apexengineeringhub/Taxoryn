@@ -1,0 +1,27 @@
+name: Render Backend Keep-Alive
+
+on:
+  schedule:
+    # Runs every 10 minutes to keep the Render free tier container active and warm
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping-health:
+    name: Ping Render Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Send Keep-Alive Ping
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_HEALTH_URL || 'https://taxoryn-backend.onrender.com/api/health' }}
+        run: |
+          echo "Sending keep-alive ping to: $BACKEND_URL"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$BACKEND_URL")
+          echo "HTTP Response Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 301 ] || [ "$HTTP_STATUS" -eq 302 ]; then
+            echo "✅ Render backend is active and responding (HTTP $HTTP_STATUS)."
+          else
+            echo "⚠️ Backend responded with HTTP $HTTP_STATUS (or is spinning up from cold start)."
+          fi
