@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://taxoryn-backend.onrender.com/api/:path*"
+      "destination": "https://taxoryn.onrender.com/api/:path*"
     },
     {
       "source": "/actuator/:path*",
-      "destination": "https://taxoryn-backend.onrender.com/actuator/:path*"
+      "destination": "https://taxoryn.onrender.com/actuator/:path*"
     },
     {
       "source": "/(.*)",

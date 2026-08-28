@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Send Keep-Alive Ping
         env:
-          BACKEND_URL: ${{ secrets.BACKEND_HEALTH_URL || 'https://taxoryn-backend.onrender.com/api/health' }}
+          BACKEND_URL: ${{ secrets.BACKEND_HEALTH_URL || 'https://taxoryn.onrender.com/api/health' }}
         run: |
           echo "Sending keep-alive ping to: $BACKEND_URL"
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$BACKEND_URL")
