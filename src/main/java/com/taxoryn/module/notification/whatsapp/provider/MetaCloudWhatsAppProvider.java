@@ -21,7 +21,14 @@ public class MetaCloudWhatsAppProvider implements WhatsAppProvider {
 
     private final WhatsAppProperties properties;
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(10000);
+        return new RestTemplate(factory);
+    }
 
     @Override
     public String getProviderName() {
@@ -131,6 +138,57 @@ public class MetaCloudWhatsAppProvider implements WhatsAppProvider {
             return WhatsAppSendResult.failure(getProviderName(), "Non-2xx response from Meta API: " + response.getStatusCode());
         } catch (Exception ex) {
             log.error("Meta WhatsApp API text message error: {}", ex.getMessage());
+            return WhatsAppSendResult.failure(getProviderName(), ex.getMessage());
+        }
+    }
+
+    @Override
+    public WhatsAppSendResult sendDocument(String phoneNumber, String documentUrl, String filename, String caption) {
+        if (!StringUtils.hasText(properties.getPhoneNumberId()) || !StringUtils.hasText(properties.getAccessToken())) {
+            log.warn("Meta Cloud WhatsApp provider is selected but phoneNumberId or accessToken is not configured");
+            return WhatsAppSendResult.failure(getProviderName(), "Meta WhatsApp credentials not configured");
+        }
+
+        String url = String.format("%s/%s/messages",
+                StringUtils.hasText(properties.getBaseUrl()) ? properties.getBaseUrl().replaceAll("/+$", "") : "https://graph.facebook.com/v19.0",
+                properties.getPhoneNumberId());
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(properties.getAccessToken());
+
+            Map<String, Object> documentObj = new HashMap<>();
+            documentObj.put("link", documentUrl);
+            if (StringUtils.hasText(filename)) {
+                documentObj.put("filename", filename);
+            }
+            if (StringUtils.hasText(caption)) {
+                documentObj.put("caption", caption);
+            }
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("messaging_product", "whatsapp");
+            payload.put("recipient_type", "individual");
+            payload.put("to", phoneNumber.replace("+", ""));
+            payload.put("type", "document");
+            payload.put("document", documentObj);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestEntity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode json = objectMapper.readTree(response.getBody());
+                String messageId = null;
+                if (json.has("messages") && json.get("messages").isArray() && json.get("messages").size() > 0) {
+                    messageId = json.get("messages").get(0).path("id").asText(null);
+                }
+                return WhatsAppSendResult.success(getProviderName(), messageId != null ? messageId : "META-DOC-" + UUID.randomUUID());
+            }
+
+            return WhatsAppSendResult.failure(getProviderName(), "Non-2xx response from Meta API: " + response.getStatusCode());
+        } catch (Exception ex) {
+            log.error("Meta WhatsApp API document message error: {}", ex.getMessage());
             return WhatsAppSendResult.failure(getProviderName(), ex.getMessage());
         }
     }

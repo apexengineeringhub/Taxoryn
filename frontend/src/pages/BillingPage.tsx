@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Clock,
   Send,
+  MessageSquare,
   XCircle,
   Trash2,
   ExternalLink,
@@ -439,6 +440,15 @@ export const BillingPage: React.FC = () => {
     }
   };
 
+  const handleSendReminder = async (inv: Invoice) => {
+    try {
+      await billingApi.sendReminder(inv.id);
+      alert(`WhatsApp payment reminder dispatched for invoice ${inv.invoiceNumber}!`);
+    } catch (err: any) {
+      alert(`Failed to send WhatsApp reminder: ${err.message}`);
+    }
+  };
+
   const handleCancelInvoice = async (inv: Invoice) => {
     if (!window.confirm(`Are you sure you want to cancel invoice ${inv.invoiceNumber}?`)) return;
     try {
@@ -568,6 +578,17 @@ export const BillingPage: React.FC = () => {
               className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-xs font-semibold inline-flex items-center gap-1 transition-colors"
             >
               <DollarSign className="w-3.5 h-3.5" /> Pay
+            </button>
+          )}
+
+          {/* WhatsApp Reminder */}
+          {row.status !== 'DRAFT' && row.status !== 'PAID' && row.status !== 'CANCELLED' && (
+            <button
+              onClick={() => handleSendReminder(row)}
+              title="Send WhatsApp Payment Reminder"
+              className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+            >
+              <MessageSquare className="w-3 h-3 text-emerald-600" /> Reminder
             </button>
           )}
 

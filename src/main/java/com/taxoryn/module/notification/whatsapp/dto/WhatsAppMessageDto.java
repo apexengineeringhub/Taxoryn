@@ -23,5 +23,8 @@ public class WhatsAppMessageDto {
     String status;
     String errorMessage;
     Instant sentAt;
+    Instant deliveredAt;
+    Instant readAt;
+    String mediaUrl;
     Instant createdAt;
 }

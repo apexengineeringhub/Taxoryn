@@ -31,7 +31,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@ActiveProfiles({"test", "dev"})
+@ActiveProfiles("test")
 class WhatsAppNotificationIntegrationTest {
 
     @Autowired
@@ -51,6 +51,9 @@ class WhatsAppNotificationIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
 
     private OrganizationEntity testOrg;
     private UserEntity testUser;
@@ -197,5 +200,106 @@ class WhatsAppNotificationIntegrationTest {
         PagedResponse<WhatsAppMessageDto> messages = whatsAppNotificationService.getMessages(PageRequest.of(0, 10));
         assertThat(messages).isNotNull();
         assertThat(messages.getContent()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Should format and send InvoiceIssuedEvent notification")
+    void testSendInvoiceIssuedMessage() {
+        com.taxoryn.module.notification.whatsapp.event.InvoiceIssuedEvent event = com.taxoryn.module.notification.whatsapp.event.InvoiceIssuedEvent.builder()
+                .organizationId(testOrg.getId())
+                .invoiceId(UUID.randomUUID())
+                .clientId(UUID.randomUUID())
+                .clientName("Acrobat Tech Ltd")
+                .clientPhone("9876543210")
+                .organizationName("Sharma & Associates")
+                .invoiceNumber("INV-2026-001")
+                .totalAmount(new java.math.BigDecimal("15000.00"))
+                .balanceAmount(new java.math.BigDecimal("15000.00"))
+                .currency("INR")
+                .issueDate(java.time.LocalDate.now())
+                .dueDate(java.time.LocalDate.now().plusDays(15))
+                .build();
+
+        WhatsAppMessageEntity entity = whatsAppNotificationService.sendInvoiceIssuedMessage(event);
+
+        assertThat(entity).isNotNull();
+        assertThat(entity.getStatus()).isEqualTo(WhatsAppMessageStatus.SENT);
+        assertThat(entity.getRecipientPhone()).isEqualTo("+919876543210");
+        assertThat(entity.getMessageContent()).contains("INV-2026-001");
+        assertThat(entity.getMessageContent()).contains("15000.00");
+        assertThat(mockWhatsAppProvider.getSentRecords()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Should format and send PaymentReceivedEvent notification")
+    void testSendPaymentReceivedMessage() {
+        com.taxoryn.module.notification.whatsapp.event.PaymentReceivedEvent event = com.taxoryn.module.notification.whatsapp.event.PaymentReceivedEvent.builder()
+                .organizationId(testOrg.getId())
+                .invoiceId(UUID.randomUUID())
+                .paymentId(UUID.randomUUID())
+                .clientId(UUID.randomUUID())
+                .clientName("Acrobat Tech Ltd")
+                .clientPhone("9876543210")
+                .organizationName("Sharma & Associates")
+                .invoiceNumber("INV-2026-001")
+                .paymentReference("UPI-123456789")
+                .amountPaid(new java.math.BigDecimal("10000.00"))
+                .remainingBalance(new java.math.BigDecimal("5000.00"))
+                .currency("INR")
+                .paymentDate(java.time.LocalDate.now())
+                .build();
+
+        WhatsAppMessageEntity entity = whatsAppNotificationService.sendPaymentReceivedMessage(event);
+
+        assertThat(entity).isNotNull();
+        assertThat(entity.getStatus()).isEqualTo(WhatsAppMessageStatus.SENT);
+        assertThat(entity.getMessageContent()).contains("10000.00");
+        assertThat(entity.getMessageContent()).contains("5000.00");
+        assertThat(entity.getMessageContent()).contains("UPI-123456789");
+    }
+
+    @Test
+    @DisplayName("Should process webhook delivery receipts and update message status")
+    void testWebhookStatusUpdate() {
+        WhatsAppMessageEntity entity = WhatsAppMessageEntity.builder()
+                .organizationId(testOrg.getId())
+                .recipientPhone("919876543210")
+                .templateType("INVOICE_ISSUED")
+                .templateName("invoice_issued")
+                .messageContent("Invoice test")
+                .provider("META")
+                .providerMessageId("wamid.HBgLMjAyNjA4Mjk=")
+                .status(WhatsAppMessageStatus.SENT)
+                .build();
+        entity = messageRepository.saveAndFlush(entity);
+
+        String webhookPayload = """
+                {
+                  "object": "whatsapp_business_account",
+                  "entry": [{
+                    "id": "1430976512178761",
+                    "changes": [{
+                      "value": {
+                        "messaging_product": "whatsapp",
+                        "metadata": { "display_phone_number": "15556581244", "phone_number_id": "1345984618587263" },
+                        "statuses": [{
+                          "id": "wamid.HBgLMjAyNjA4Mjk=",
+                          "status": "delivered",
+                          "timestamp": "1724930000",
+                          "recipient_id": "919876543210"
+                        }]
+                      },
+                      "field": "messages"
+                    }]
+                  }]
+                }
+                """;
+
+        whatsAppNotificationService.processWebhookPayload(webhookPayload, null);
+
+        entityManager.clear();
+        WhatsAppMessageEntity updated = messageRepository.findById(entity.getId()).orElseThrow();
+        assertThat(updated.getStatus()).isEqualTo(WhatsAppMessageStatus.DELIVERED);
+        assertThat(updated.getDeliveredAt()).isNotNull();
     }
 }

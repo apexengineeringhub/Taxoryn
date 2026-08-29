@@ -21,6 +21,8 @@ public interface WhatsAppMessageRepository extends JpaRepository<WhatsAppMessage
 
     List<WhatsAppMessageEntity> findByRecipientPhoneOrderByCreatedAtDesc(String recipientPhone);
 
+    java.util.Optional<WhatsAppMessageEntity> findByProviderMessageId(String providerMessageId);
+
     long countByStatus(WhatsAppMessageStatus status);
 
     long countByOrganizationIdAndStatus(UUID organizationId, WhatsAppMessageStatus status);

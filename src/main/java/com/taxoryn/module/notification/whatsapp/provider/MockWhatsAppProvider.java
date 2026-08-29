@@ -54,4 +54,14 @@ public class MockWhatsAppProvider implements WhatsAppProvider {
         sentRecords.add(new SentRecord(phoneNumber, null, Map.of(), messageText, msgId));
         return WhatsAppSendResult.success(getProviderName(), msgId);
     }
+
+    @Override
+    public WhatsAppSendResult sendDocument(String phoneNumber, String documentUrl, String filename, String caption) {
+        if (shouldFail) {
+            return WhatsAppSendResult.failure(getProviderName(), failureReason);
+        }
+        String msgId = "MOCK-WA-DOC-" + UUID.randomUUID().toString().substring(0, 8);
+        sentRecords.add(new SentRecord(phoneNumber, "DOCUMENT:" + filename, Map.of("url", documentUrl, "caption", caption != null ? caption : ""), null, msgId));
+        return WhatsAppSendResult.success(getProviderName(), msgId);
+    }
 }

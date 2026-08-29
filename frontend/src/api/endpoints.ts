@@ -126,6 +126,8 @@ import {
   ContentDashboardStats,
   ContentVersion,
   MediaAsset,
+  WhatsAppMessageRecord,
+  WhatsAppIntegrationStatus,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -734,6 +736,10 @@ export const billingApi = {
   recordPayment: async (invoiceId: string, payload: { amount: number; paymentMode: string; referenceNumber?: string; paymentDate: string; notes?: string }) => {
     const res = await apiClient.post<ApiResponse<any>>(`/v1/invoices/${invoiceId}/payments`, payload);
     return res.data.data;
+  },
+  sendReminder: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/invoices/${id}/reminder`);
+    return res.data;
   },
   getDashboardStats: async () => {
     const res = await apiClient.get<ApiResponse<BillingDashboardStats>>('/v1/invoices/dashboard/stats');
@@ -1723,6 +1729,22 @@ export const adminMediaApi = {
   },
   deleteMedia: async (id: string) => {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/admin/content/media/${id}`);
+    return res.data.data;
+  },
+};
+
+// --- 27. WhatsApp Integration API ---
+export const whatsappApi = {
+  getStatus: async () => {
+    const res = await apiClient.get<ApiResponse<WhatsAppIntegrationStatus>>('/v1/notifications/whatsapp/status');
+    return res.data.data;
+  },
+  getMessages: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<WhatsAppMessageRecord>>>('/v1/notifications/whatsapp/messages', { params });
+    return res.data.data;
+  },
+  resendMessage: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<WhatsAppMessageRecord>>(`/v1/notifications/whatsapp/messages/${id}/resend`);
     return res.data.data;
   },
 };

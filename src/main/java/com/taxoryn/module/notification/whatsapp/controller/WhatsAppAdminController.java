@@ -40,4 +40,14 @@ public class WhatsAppAdminController {
         PagedResponse<WhatsAppMessageDto> paged = whatsAppNotificationService.getMessages(pageable);
         return ResponseEntity.ok(ApiResponse.success("WhatsApp message logs retrieved", paged));
     }
+
+    @PostMapping("/messages/{id}/resend")
+    @PreAuthorize("hasRole('ORG_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Resend a WhatsApp message", description = "Re-dispatches a previously failed or pending message")
+    public ResponseEntity<ApiResponse<WhatsAppMessageDto>> resendMessage(
+            @PathVariable("id") java.util.UUID id
+    ) {
+        WhatsAppMessageDto resent = whatsAppNotificationService.resendMessage(id);
+        return ResponseEntity.ok(ApiResponse.success("WhatsApp message resent successfully", resent));
+    }
 }

@@ -51,6 +51,7 @@ import { LearnLandingPage } from './pages/learn/LearnLandingPage';
 import { LearnContentBrowsePage } from './pages/learn/LearnContentBrowsePage';
 import { LearnContentDetailPage } from './pages/learn/LearnContentDetailPage';
 import { PlatformContentManagementPage } from './pages/PlatformContentManagementPage';
+import { WhatsAppMessagesPage } from './pages/WhatsAppMessagesPage';
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 
@@ -258,6 +259,8 @@ export const App: React.FC = () => {
               />
               <Route path="/settings/branding" element={<PracticeBrandingPage />} />
               <Route path="/settings/marketplace" element={<PracticeMarketplaceProfilePage />} />
+              <Route path="/settings/whatsapp" element={<WhatsAppMessagesPage />} />
+              <Route path="/admin/whatsapp" element={<WhatsAppMessagesPage />} />
               <Route path="/settings/subscription" element={<SubscriptionsPage />} />
               <Route path="/feedback" element={<ApplicationFeedbackPage />} />
             </Route>

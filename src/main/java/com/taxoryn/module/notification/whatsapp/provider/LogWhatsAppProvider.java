@@ -30,4 +30,12 @@ public class LogWhatsAppProvider implements WhatsAppProvider {
                 phoneNumber, msgId, messageText);
         return WhatsAppSendResult.success(getProviderName(), msgId);
     }
+
+    @Override
+    public WhatsAppSendResult sendDocument(String phoneNumber, String documentUrl, String filename, String caption) {
+        String msgId = "LOG-WA-DOC-" + UUID.randomUUID().toString().substring(0, 8);
+        log.info("[WHATSAPP_LOG_PROVIDER] Dispatched document to phone '{}' | msgId: {} | url: {} | filename: {} | caption: {}",
+                phoneNumber, msgId, documentUrl, filename, caption);
+        return WhatsAppSendResult.success(getProviderName(), msgId);
+    }
 }

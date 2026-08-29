@@ -109,6 +109,8 @@ public class SecurityConfig {
                                 "/api/v1/public/content/**",
                                 "/api/public/media/**",
                                 "/api/v1/public/media/**",
+                                "/api/notifications/whatsapp/webhook",
+                                "/api/v1/notifications/whatsapp/webhook",
                                 "/api/v1/public/seo/**",
                                 "/robots.txt",
                                 "/sitemap.xml"

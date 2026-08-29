@@ -37,5 +37,7 @@ public interface InvoiceService {
 
     com.taxoryn.module.billing.dto.BulkInvoiceResultDto bulkCreateInvoices(com.taxoryn.module.billing.dto.BulkCreateInvoicesRequest request);
 
+    void sendInvoiceReminder(UUID invoiceId);
+
     List<InvoiceDto> seedDemoInvoices();
 }

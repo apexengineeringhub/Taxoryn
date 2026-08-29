@@ -20,6 +20,7 @@ import {
   Store,
   Search,
   ShieldCheck,
+  MessageSquare,
   MessageSquarePlus,
   Server,
 } from 'lucide-react';
@@ -110,6 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isFirmAdmin },
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
     { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
+    { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
     { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];

@@ -13,7 +13,17 @@ public interface WhatsAppNotificationService {
 
     WhatsAppMessageEntity sendWelcomeMessage(UserRegisteredEvent event);
 
+    WhatsAppMessageEntity sendInvoiceIssuedMessage(com.taxoryn.module.notification.whatsapp.event.InvoiceIssuedEvent event);
+
+    WhatsAppMessageEntity sendPaymentReceivedMessage(com.taxoryn.module.notification.whatsapp.event.PaymentReceivedEvent event);
+
+    WhatsAppMessageEntity sendInvoiceReminderMessage(com.taxoryn.module.notification.whatsapp.event.InvoiceReminderEvent event);
+
     WhatsAppMessageEntity sendTextMessage(UUID organizationId, UUID userId, String rawPhone, String messageText);
+
+    void processWebhookPayload(String payload, String signature);
+
+    WhatsAppMessageDto resendMessage(UUID messageId);
 
     WhatsAppIntegrationStatusDto getIntegrationStatus();
 

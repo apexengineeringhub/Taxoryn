@@ -2499,5 +2499,36 @@ export interface ContentDashboardStats {
   recentActivity: ContentActivityItem[];
 }
 
+export interface WhatsAppMessageRecord {
+  id: string;
+  organizationId?: string;
+  userId?: string;
+  recipientPhone: string;
+  templateType: string;
+  templateName: string;
+  messageContent: string;
+  provider: string;
+  providerMessageId?: string;
+  status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
+  errorMessage?: string;
+  sentAt?: string;
+  deliveredAt?: string;
+  readAt?: string;
+  mediaUrl?: string;
+  createdAt: string;
+}
+
+export interface WhatsAppIntegrationStatus {
+  enabled: boolean;
+  provider: string;
+  baseUrl: string;
+  phoneNumberIdConfigured: boolean;
+  accessTokenConfigured: boolean;
+  totalMessagesSent: number;
+  totalMessagesFailed: number;
+  totalMessagesPending: number;
+}
+
+
 
 

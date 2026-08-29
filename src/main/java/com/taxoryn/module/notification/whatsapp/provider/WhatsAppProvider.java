@@ -16,4 +16,11 @@ public interface WhatsAppProvider {
             String phoneNumber,
             String messageText
     );
+
+    WhatsAppSendResult sendDocument(
+            String phoneNumber,
+            String documentUrl,
+            String filename,
+            String caption
+    );
 }

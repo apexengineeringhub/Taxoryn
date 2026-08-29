@@ -53,4 +53,13 @@ public class WhatsAppMessageEntity extends AuditableEntity {
 
     @Column(name = "sent_at")
     private Instant sentAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    @Column(name = "read_at")
+    private Instant readAt;
+
+    @Column(name = "media_url", columnDefinition = "TEXT")
+    private String mediaUrl;
 }

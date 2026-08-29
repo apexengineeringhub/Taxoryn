@@ -53,6 +53,16 @@ public class WhatsAppProperties {
     private String languageCode = "en_US";
 
     /**
+     * Webhook verification token configured in Meta App dashboard.
+     */
+    private String webhookVerifyToken = "taxoryn_wa_webhook_secret";
+
+    /**
+     * Meta App Secret for validating X-Hub-Signature-256 HMAC SHA256 header.
+     */
+    private String appSecret;
+
+    /**
      * Optional custom template names mapping.
      */
     private Map<String, String> templates = new HashMap<>();
