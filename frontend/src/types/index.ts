@@ -160,7 +160,11 @@ export interface BulkImportError {
   rowNumber: number;
   clientName: string;
   pan: string;
+  field?: string;
+  invalidValue?: string;
   reason: string;
+  suggestedCorrection?: string;
+  duplicate?: boolean;
 }
 
 // 4. Task Management

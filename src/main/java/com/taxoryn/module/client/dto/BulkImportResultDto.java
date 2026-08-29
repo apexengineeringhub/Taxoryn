@@ -44,6 +44,10 @@ public class BulkImportResultDto {
         private int rowNumber;
         private String clientName;
         private String pan;
+        private String field;
+        private String invalidValue;
         private String reason;
+        private String suggestedCorrection;
+        private boolean duplicate;
     }
 }
