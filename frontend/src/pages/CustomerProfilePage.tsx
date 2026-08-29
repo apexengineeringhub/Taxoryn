@@ -363,6 +363,25 @@ export const CustomerProfilePage: React.FC = () => {
               </div>
             </form>
           </Card>
+
+          {/* Account Security & Password Card */}
+          <Card className="p-6 bg-white border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span>Account Security & Password</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Update your authentication credentials and password policy settings.
+                </p>
+              </div>
+              <Link to="/settings/security">
+                <Button variant="outline" size="sm" className="font-bold text-xs">
+                  Change Password &rarr;
+                </Button>
+              </Link>
+            </div>
+          </Card>
         </div>
       </div>
     </div>

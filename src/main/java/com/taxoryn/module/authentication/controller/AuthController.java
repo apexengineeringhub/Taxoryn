@@ -1,6 +1,7 @@
 package com.taxoryn.module.authentication.controller;
 
 import com.taxoryn.core.response.ApiResponse;
+import com.taxoryn.module.authentication.dto.ChangePasswordRequest;
 import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
 import com.taxoryn.module.authentication.dto.LoginResponse;
@@ -83,6 +84,14 @@ public class AuthController {
             @RequestBody(required = false) LogoutRequest request) {
         authService.logout(authHeader, request);
         return ResponseEntity.ok(ApiResponse.success("Successfully logged out and tokens invalidated", null));
+    }
+
+    @PostMapping("/change-password")
+    @SecurityRequirement(name = "BearerAuth")
+    @Operation(summary = "Change password for authenticated user", description = "Validates the current password against stored hash and sets a new password meeting policy standards.")
+    public ResponseEntity<ApiResponse<Void>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Your password has been changed successfully.", null));
     }
 
     @PostMapping("/forgot-password")

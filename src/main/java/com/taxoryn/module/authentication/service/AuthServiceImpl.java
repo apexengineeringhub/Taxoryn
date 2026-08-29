@@ -9,6 +9,7 @@ import com.taxoryn.core.security.JwtTokenProvider;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.audit.service.AuditService;
+import com.taxoryn.module.authentication.dto.ChangePasswordRequest;
 import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
 import com.taxoryn.module.authentication.dto.LoginResponse;
@@ -440,6 +441,54 @@ public class AuthServiceImpl implements AuthService {
         );
 
         log.info("Password successfully reset for user {}", user.getId());
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+        UserEntity user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUserId));
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "User account is " + user.getStatus() + ". Password cannot be changed");
+        }
+
+        // 1. Verify current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            log.warn("Failed password change attempt for user {}: current password incorrect", currentUserId);
+            throw new BadCredentialsException("Current password is incorrect");
+        }
+
+        // 2. Reject same password
+        if (request.getCurrentPassword().equals(request.getNewPassword()) || passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "New password must be different from your current password");
+        }
+
+        // 3. Verify confirmation match
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "New password and confirm password do not match");
+        }
+
+        // 4. Update password hash
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // 5. Invalidate any pending password reset tokens as safety precaution
+        passwordResetTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+
+        // 6. Record audit log
+        auditService.logEvent(
+                user.getOrganizationId(),
+                user.getId(),
+                "PASSWORD_CHANGED",
+                "USER",
+                user.getId().toString(),
+                null,
+                "Password successfully changed by authenticated user"
+        );
+
+        log.info("Password successfully changed for user {}", user.getId());
     }
 
     private String generateSecureToken() {

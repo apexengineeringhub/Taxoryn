@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { RegisterOrgPage } from './pages/RegisterOrgPage';
+import { AccountSecurityPage } from './pages/AccountSecurityPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { ClientMigrationHubPage } from './pages/ClientMigrationHubPage';
@@ -266,6 +267,8 @@ export const App: React.FC = () => {
               <Route path="/settings/whatsapp" element={<WhatsAppMessagesPage />} />
               <Route path="/admin/whatsapp" element={<WhatsAppMessagesPage />} />
               <Route path="/settings/subscription" element={<SubscriptionsPage />} />
+              <Route path="/settings/security" element={<AccountSecurityPage />} />
+              <Route path="/profile/security" element={<AccountSecurityPage />} />
               <Route path="/feedback" element={<ApplicationFeedbackPage />} />
             </Route>
 

@@ -146,6 +146,10 @@ export const authApi = {
     });
     return res.data;
   },
+  changePassword: async (payload: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/change-password', payload);
+    return res.data;
+  },
   forgotPassword: async (email: string) => {
     const res = await apiClient.post<ApiResponse<void>>('/v1/auth/forgot-password', { email });
     return res.data;

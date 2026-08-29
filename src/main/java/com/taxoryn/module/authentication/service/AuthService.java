@@ -1,5 +1,6 @@
 package com.taxoryn.module.authentication.service;
 
+import com.taxoryn.module.authentication.dto.ChangePasswordRequest;
 import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
 import com.taxoryn.module.authentication.dto.LoginResponse;
@@ -23,6 +24,8 @@ public interface AuthService {
     UserDto getMe();
 
     void logout(String accessToken, LogoutRequest request);
+
+    void changePassword(ChangePasswordRequest request);
 
     void forgotPassword(ForgotPasswordRequest request, String clientIp);
 

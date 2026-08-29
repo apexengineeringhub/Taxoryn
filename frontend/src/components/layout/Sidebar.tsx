@@ -23,6 +23,7 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Server,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -90,6 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
     { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
     { label: 'Find CA / CS / Advocates', path: '/marketplace', icon: Search, visible: true },
+    { label: 'Security & Password', path: '/settings/security', icon: Lock, visible: true },
     { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];
 
@@ -114,6 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
     { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
+    { label: 'Security & Password', path: '/settings/security', icon: Lock, visible: true },
     { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];
 
@@ -234,7 +237,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         <div
           className={clsx('flex items-center justify-between p-2 rounded-lg border', isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-white/5 border-white/5')}
         >
-          <div className="flex items-center gap-2.5 truncate">
+          <NavLink
+            to="/settings/security"
+            title="Account Security & Password Settings"
+            className="flex items-center gap-2.5 truncate hover:opacity-90 transition-opacity flex-1 min-w-0"
+          >
             {userAvatar ? (
               <img
                 src={userAvatar}
@@ -295,7 +302,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               </p>
               <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
             </div>
-          </div>
+          </NavLink>
           <button
             onClick={logout}
             title="Sign Out"
