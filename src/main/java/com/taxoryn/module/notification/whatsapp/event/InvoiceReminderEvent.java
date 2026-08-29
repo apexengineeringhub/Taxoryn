@@ -14,6 +14,7 @@ public class InvoiceReminderEvent {
     UUID invoiceId;
     UUID clientId;
     String clientName;
+    String clientEmail;
     String clientPhone;
     String organizationName;
     String invoiceNumber;

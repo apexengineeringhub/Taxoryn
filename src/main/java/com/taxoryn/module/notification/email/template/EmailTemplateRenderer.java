@@ -1,0 +1,294 @@
+package com.taxoryn.module.notification.email.template;
+
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.util.Map;
+
+@Component
+public class EmailTemplateRenderer {
+
+    public String renderSubject(EmailTemplateType type, Map<String, Object> data) {
+        String template = type.getDefaultSubject();
+        if (data != null) {
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                String val = entry.getValue() != null ? String.valueOf(entry.getValue()) : "";
+                template = template.replace("{{" + entry.getKey() + "}}", val);
+            }
+        }
+        return template;
+    }
+
+    public String renderHtml(EmailTemplateType type, Map<String, Object> data) {
+        return switch (type) {
+            case WELCOME_PRACTITIONER -> renderPractitionerWelcomeHtml(data);
+            case WELCOME_INDIVIDUAL -> renderIndividualWelcomeHtml(data);
+            case INVOICE_ISSUED -> renderInvoiceIssuedHtml(data);
+            case PAYMENT_RECEIVED -> renderPaymentReceivedHtml(data);
+            case INVOICE_REMINDER -> renderInvoiceReminderHtml(data);
+        };
+    }
+
+    private String renderPractitionerWelcomeHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Practitioner");
+        String practiceName = getString(data, "practiceName", "Your Practice");
+        String email = getString(data, "email", "");
+        String mobile = getString(data, "mobile", "");
+        String loginUrl = getString(data, "loginUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Welcome to Taxoryn</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #0f172a 0%%, #1e293b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; display: inline-flex; align-items: center; gap: 8px; }
+            .logo-badge { background: #10b981; color: #ffffff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; text-transform: uppercase; margin-left: 8px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .account-box { background: #f1f5f9; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
+            .account-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+            .account-item:last-child { margin-bottom: 0; }
+            .account-label { color: #64748b; font-weight: 500; }
+            .account-value { color: #0f172a; font-weight: 600; }
+            .feature-list { margin: 24px 0; padding-left: 0; list-style: none; }
+            .feature-item { font-size: 14px; color: #334155; margin-bottom: 10px; display: flex; align-items: flex-start; }
+            .feature-icon { color: #10b981; margin-right: 10px; font-weight: bold; }
+            .btn-wrapper { text-align: center; margin: 32px 0 16px; }
+            .btn { background-color: #0f172a; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block; transition: background-color 0.2s; }
+            .btn:hover { background-color: #1e293b; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer a { color: #64748b; text-decoration: underline; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                Taxoryn
+                <span class="logo-badge">Practitioner Suite</span>
+              </div>
+            </div>
+            <div class="content">
+              <h1>Welcome aboard, %s! 👋</h1>
+              <p>Your practice workspace for <strong>%s</strong> has been successfully configured on the Taxoryn Platform.</p>
+              
+              <div class="account-box">
+                <div class="account-item">
+                  <span class="account-label">Practice Name:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Registered Admin Email:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Registered Mobile / WhatsApp:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Subscription Tier:</span>
+                  <span class="account-value" style="color: #10b981;">Starter Tier (Active)</span>
+                </div>
+              </div>
+
+              <p><strong>What you can do right now with Taxoryn:</strong></p>
+              <ul class="feature-list">
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Client 360° Management:</strong> Onboard clients, assign PAN/GSTIN profiles, and delegate tasks to staff.</li>
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Compliance Pipelines:</strong> Track GSTR-1, 3B, ITR-1 to 7, and TDS 24Q/26Q filings seamlessly.</li>
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Professional Invoicing:</strong> Generate branded tax invoices with automated WhatsApp & email alerts.</li>
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Marketplace Discovery:</strong> Publish your verified practice profile to attract new tax and audit clients.</li>
+              </ul>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn" target="_blank">Access Practice Dashboard &rarr;</a>
+              </div>
+
+              <p style="font-size: 13px; color: #64748b; text-align: center; margin-top: 20px;">
+                Direct link: <a href="%s" style="color: #2563eb;">%s</a>
+              </p>
+            </div>
+            <div class="footer">
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+              <p>Need assistance? Contact our team at <a href="mailto:support@taxoryn.com">support@taxoryn.com</a></p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name), escape(practiceName), escape(practiceName), escape(email), escape(mobile), escape(loginUrl), escape(loginUrl), escape(loginUrl));
+    }
+
+    private String renderIndividualWelcomeHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Customer");
+        String email = getString(data, "email", "");
+        String mobile = getString(data, "mobile", "");
+        String loginUrl = getString(data, "loginUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Welcome to Taxoryn</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #047857 0%%, #065f46 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
+            .logo-badge { background: #ffffff; color: #047857; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; text-transform: uppercase; margin-left: 8px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .account-box { background: #f1f5f9; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
+            .account-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+            .account-item:last-child { margin-bottom: 0; }
+            .account-label { color: #64748b; font-weight: 500; }
+            .account-value { color: #0f172a; font-weight: 600; }
+            .feature-list { margin: 24px 0; padding-left: 0; list-style: none; }
+            .feature-item { font-size: 14px; color: #334155; margin-bottom: 10px; display: flex; align-items: flex-start; }
+            .feature-icon { color: #059669; margin-right: 10px; font-weight: bold; }
+            .btn-wrapper { text-align: center; margin: 32px 0 16px; }
+            .btn { background-color: #047857; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                Taxoryn
+                <span class="logo-badge">Customer Portal</span>
+              </div>
+            </div>
+            <div class="content">
+              <h1>Welcome, %s! 🎉</h1>
+              <p>Your Taxoryn taxpayer account is now ready. You can now hire verified Chartered Accountants, track tax filings, and manage compliance from a single secure portal.</p>
+              
+              <div class="account-box">
+                <div class="account-item">
+                  <span class="account-label">Email:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Mobile Number:</span>
+                  <span class="account-value">%s</span>
+                </div>
+              </div>
+
+              <p><strong>Explore what you can do on Taxoryn:</strong></p>
+              <ul class="feature-list">
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Find Verified CAs & CSs:</strong> Explore top-rated tax professionals near you with transparent pricing.</li>
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Post Tax Requirements:</strong> Get proposals for ITR filing, GST returns, business setup, and notice resolution.</li>
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Document Vault:</strong> Securely share financial records and Form 16/26AS with end-to-end encryption.</li>
+              </ul>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn" target="_blank">Access Your Account &rarr;</a>
+              </div>
+            </div>
+            <div class="footer">
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+              <p>Questions? Contact us at <a href="mailto:support@taxoryn.com">support@taxoryn.com</a></p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name), escape(email), escape(mobile), escape(loginUrl));
+    }
+
+    private String renderInvoiceIssuedHtml(Map<String, Object> data) {
+        String clientName = getString(data, "clientName", "Client");
+        String invoiceNumber = getString(data, "invoiceNumber", "");
+        String practiceName = getString(data, "organizationName", "Tax Practice");
+        String totalAmount = getString(data, "totalAmount", "0.00");
+        String dueDate = getString(data, "dueDate", "");
+        String invoiceUrl = getString(data, "invoiceUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Invoice %s</title></head>
+        <body style="font-family: sans-serif; background-color: #f8fafc; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 30px; border: 1px solid #e2e8f0;">
+            <h2 style="color: #0f172a;">New Invoice from %s</h2>
+            <p>Dear %s,</p>
+            <p>An invoice has been issued for your tax and compliance services.</p>
+            <p><strong>Invoice Number:</strong> %s<br><strong>Total Amount:</strong> ₹%s<br><strong>Due Date:</strong> %s</p>
+            <p><a href="%s" style="background: #0f172a; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">View Invoice &rarr;</a></p>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(invoiceNumber), escape(practiceName), escape(clientName), escape(invoiceNumber), escape(totalAmount), escape(dueDate), escape(invoiceUrl));
+    }
+
+    private String renderPaymentReceivedHtml(Map<String, Object> data) {
+        String clientName = getString(data, "clientName", "Client");
+        String invoiceNumber = getString(data, "invoiceNumber", "");
+        String amountPaid = getString(data, "amountPaid", "0.00");
+        String remainingBalance = getString(data, "remainingBalance", "0.00");
+        String paymentReference = getString(data, "paymentReference", "N/A");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Payment Receipt</title></head>
+        <body style="font-family: sans-serif; background-color: #f8fafc; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 30px; border: 1px solid #e2e8f0;">
+            <h2 style="color: #047857;">Payment Received Successfully</h2>
+            <p>Dear %s,</p>
+            <p>We have successfully recorded your payment of <strong>₹%s</strong> for Invoice <strong>%s</strong>.</p>
+            <p><strong>Reference:</strong> %s<br><strong>Remaining Balance Due:</strong> ₹%s</p>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(clientName), escape(amountPaid), escape(invoiceNumber), escape(paymentReference), escape(remainingBalance));
+    }
+
+    private String renderInvoiceReminderHtml(Map<String, Object> data) {
+        String clientName = getString(data, "clientName", "Client");
+        String invoiceNumber = getString(data, "invoiceNumber", "");
+        String balanceAmount = getString(data, "balanceAmount", "0.00");
+        String dueDate = getString(data, "dueDate", "Overdue");
+        String invoiceUrl = getString(data, "invoiceUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Payment Reminder</title></head>
+        <body style="font-family: sans-serif; background-color: #f8fafc; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 30px; border: 1px solid #e2e8f0;">
+            <h2 style="color: #b45309;">Payment Reminder: Invoice %s</h2>
+            <p>Dear %s,</p>
+            <p>This is a friendly reminder that an outstanding balance of <strong>₹%s</strong> is due for Invoice <strong>%s</strong>.</p>
+            <p><strong>Due Date:</strong> %s</p>
+            <p><a href="%s" style="background: #0f172a; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">Pay Now &rarr;</a></p>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(invoiceNumber), escape(clientName), escape(balanceAmount), escape(invoiceNumber), escape(dueDate), escape(invoiceUrl));
+    }
+
+    private String getString(Map<String, Object> data, String key, String defaultValue) {
+        if (data == null || !data.containsKey(key) || data.get(key) == null) {
+            return defaultValue;
+        }
+        String val = String.valueOf(data.get(key));
+        return StringUtils.hasText(val) ? val : defaultValue;
+    }
+
+    private String escape(String input) {
+        if (input == null) return "";
+        return input.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+}

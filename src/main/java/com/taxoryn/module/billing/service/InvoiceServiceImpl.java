@@ -438,6 +438,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .invoiceId(invoice.getId())
                     .clientId(client.getId())
                     .clientName(client.getDisplayName())
+                    .clientEmail(client.getEmail())
                     .clientPhone(client.getPhone())
                     .organizationName(orgName)
                     .invoiceNumber(invoice.getInvoiceNumber())
