@@ -46,24 +46,28 @@ public class EmailTemplateRenderer {
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
             .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
-            .header { background: linear-gradient(135deg, #0f172a 0%%, #1e293b 100%%); padding: 32px 40px; text-align: left; }
-            .logo { font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; display: inline-flex; align-items: center; gap: 8px; }
-            .logo-badge { background: #10b981; color: #ffffff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; text-transform: uppercase; margin-left: 8px; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #00d1a3; }
+            .logo-badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; letter-spacing: 0.5px; }
+            .motto-bar { color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
             .content { padding: 36px 40px; }
-            h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 16px; }
+            h1 { font-size: 22px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
             p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
-            .account-box { background: #f1f5f9; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
+            .account-box { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
             .account-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
             .account-item:last-child { margin-bottom: 0; }
             .account-label { color: #64748b; font-weight: 500; }
-            .account-value { color: #0f172a; font-weight: 600; }
+            .account-value { color: #082e5b; font-weight: 700; }
             .feature-list { margin: 24px 0; padding-left: 0; list-style: none; }
             .feature-item { font-size: 14px; color: #334155; margin-bottom: 10px; display: flex; align-items: flex-start; }
-            .feature-icon { color: #10b981; margin-right: 10px; font-weight: bold; }
+            .feature-icon { color: #00d1a3; margin-right: 10px; font-weight: bold; }
             .btn-wrapper { text-align: center; margin: 32px 0 16px; }
-            .btn { background-color: #0f172a; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block; transition: background-color 0.2s; }
-            .btn:hover { background-color: #1e293b; }
-            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; box-shadow: 0 2px 4px rgba(0, 209, 163, 0.2); }
+            .btn:hover { background-color: #00b388; }
+            .footer { background: #f8fafc; padding: 28px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
+            .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 12px; }
             .footer a { color: #64748b; text-decoration: underline; }
           </style>
         </head>
@@ -71,9 +75,10 @@ public class EmailTemplateRenderer {
           <div class="container">
             <div class="header">
               <div class="logo">
-                Taxoryn
+                TAXO<span class="logo-accent">RYN</span>
                 <span class="logo-badge">Practitioner Suite</span>
               </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
             </div>
             <div class="content">
               <h1>Welcome aboard, %s! 👋</h1>
@@ -94,7 +99,7 @@ public class EmailTemplateRenderer {
                 </div>
                 <div class="account-item">
                   <span class="account-label">Subscription Tier:</span>
-                  <span class="account-value" style="color: #10b981;">Starter Tier (Active)</span>
+                  <span class="account-value" style="color: #00b388;">Starter Tier (Active)</span>
                 </div>
               </div>
 
@@ -111,10 +116,12 @@ public class EmailTemplateRenderer {
               </div>
 
               <p style="font-size: 13px; color: #64748b; text-align: center; margin-top: 20px;">
-                Direct link: <a href="%s" style="color: #2563eb;">%s</a>
+                Direct link: <a href="%s" style="color: #082e5b; font-weight: 600;">%s</a>
               </p>
             </div>
             <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <div class="footer-motto">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
               <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
               <p>Need assistance? Contact our team at <a href="mailto:support@taxoryn.com">support@taxoryn.com</a></p>
             </div>
@@ -140,32 +147,37 @@ public class EmailTemplateRenderer {
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
             .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
-            .header { background: linear-gradient(135deg, #047857 0%%, #065f46 100%%); padding: 32px 40px; text-align: left; }
-            .logo { font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
-            .logo-badge { background: #ffffff; color: #047857; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; text-transform: uppercase; margin-left: 8px; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #00d1a3; }
+            .logo-badge { background: #ffffff; color: #082e5b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; letter-spacing: 0.5px; }
+            .motto-bar { color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
             .content { padding: 36px 40px; }
-            h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 16px; }
+            h1 { font-size: 22px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
             p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
-            .account-box { background: #f1f5f9; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
+            .account-box { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
             .account-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
             .account-item:last-child { margin-bottom: 0; }
             .account-label { color: #64748b; font-weight: 500; }
-            .account-value { color: #0f172a; font-weight: 600; }
+            .account-value { color: #082e5b; font-weight: 700; }
             .feature-list { margin: 24px 0; padding-left: 0; list-style: none; }
             .feature-item { font-size: 14px; color: #334155; margin-bottom: 10px; display: flex; align-items: flex-start; }
-            .feature-icon { color: #059669; margin-right: 10px; font-weight: bold; }
+            .feature-icon { color: #00d1a3; margin-right: 10px; font-weight: bold; }
             .btn-wrapper { text-align: center; margin: 32px 0 16px; }
-            .btn { background-color: #047857; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block; }
-            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; }
+            .footer { background: #f8fafc; padding: 28px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
+            .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 12px; }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
               <div class="logo">
-                Taxoryn
+                TAXO<span class="logo-accent">RYN</span>
                 <span class="logo-badge">Customer Portal</span>
               </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
             </div>
             <div class="content">
               <h1>Welcome, %s! 🎉</h1>
@@ -194,6 +206,8 @@ public class EmailTemplateRenderer {
               </div>
             </div>
             <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <div class="footer-motto">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
               <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
               <p>Questions? Contact us at <a href="mailto:support@taxoryn.com">support@taxoryn.com</a></p>
             </div>
@@ -215,13 +229,21 @@ public class EmailTemplateRenderer {
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"><title>Invoice %s</title></head>
-        <body style="font-family: sans-serif; background-color: #f8fafc; padding: 20px;">
-          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 30px; border: 1px solid #e2e8f0;">
-            <h2 style="color: #0f172a;">New Invoice from %s</h2>
-            <p>Dear %s,</p>
-            <p>An invoice has been issued for your tax and compliance services.</p>
-            <p><strong>Invoice Number:</strong> %s<br><strong>Total Amount:</strong> ₹%s<br><strong>Due Date:</strong> %s</p>
-            <p><a href="%s" style="background: #0f172a; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">View Invoice &rarr;</a></p>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 32px; border: 1px solid #e2e8f0;">
+            <div style="font-weight: 900; font-size: 20px; color: #082e5b; letter-spacing: 1px; margin-bottom: 2px;">TAXO<span style="color: #00d1a3;">RYN</span></div>
+            <div style="font-weight: 700; font-size: 8px; color: #00b388; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 20px;">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            <h2 style="color: #082e5b; margin-top: 0;">New Invoice from %s</h2>
+            <p style="color: #475569;">Dear %s,</p>
+            <p style="color: #475569;">An invoice has been issued for your professional tax and compliance services.</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <p style="margin: 4px 0;"><strong>Invoice Number:</strong> %s</p>
+              <p style="margin: 4px 0;"><strong>Total Amount:</strong> ₹%s</p>
+              <p style="margin: 4px 0;"><strong>Due Date:</strong> %s</p>
+            </div>
+            <p><a href="%s" style="background: #00d1a3; color: #07152b; font-weight: 800; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View Invoice &rarr;</a></p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 30px;">
+            <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 0;">&copy; 2026 Taxoryn Technologies Pvt Ltd.</p>
           </div>
         </body>
         </html>
@@ -239,12 +261,19 @@ public class EmailTemplateRenderer {
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"><title>Payment Receipt</title></head>
-        <body style="font-family: sans-serif; background-color: #f8fafc; padding: 20px;">
-          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 30px; border: 1px solid #e2e8f0;">
-            <h2 style="color: #047857;">Payment Received Successfully</h2>
-            <p>Dear %s,</p>
-            <p>We have successfully recorded your payment of <strong>₹%s</strong> for Invoice <strong>%s</strong>.</p>
-            <p><strong>Reference:</strong> %s<br><strong>Remaining Balance Due:</strong> ₹%s</p>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 32px; border: 1px solid #e2e8f0;">
+            <div style="font-weight: 900; font-size: 20px; color: #082e5b; letter-spacing: 1px; margin-bottom: 2px;">TAXO<span style="color: #00d1a3;">RYN</span></div>
+            <div style="font-weight: 700; font-size: 8px; color: #00b388; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 20px;">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            <h2 style="color: #00b388; margin-top: 0;">Payment Received Successfully</h2>
+            <p style="color: #475569;">Dear %s,</p>
+            <p style="color: #475569;">We have successfully recorded your payment of <strong>₹%s</strong> for Invoice <strong>%s</strong>.</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <p style="margin: 4px 0;"><strong>Reference:</strong> %s</p>
+              <p style="margin: 4px 0;"><strong>Remaining Balance:</strong> ₹%s</p>
+            </div>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 30px;">
+            <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 0;">&copy; 2026 Taxoryn Technologies Pvt Ltd.</p>
           </div>
         </body>
         </html>
@@ -262,13 +291,19 @@ public class EmailTemplateRenderer {
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"><title>Payment Reminder</title></head>
-        <body style="font-family: sans-serif; background-color: #f8fafc; padding: 20px;">
-          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 30px; border: 1px solid #e2e8f0;">
-            <h2 style="color: #b45309;">Payment Reminder: Invoice %s</h2>
-            <p>Dear %s,</p>
-            <p>This is a friendly reminder that an outstanding balance of <strong>₹%s</strong> is due for Invoice <strong>%s</strong>.</p>
-            <p><strong>Due Date:</strong> %s</p>
-            <p><a href="%s" style="background: #0f172a; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">Pay Now &rarr;</a></p>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 32px; border: 1px solid #e2e8f0;">
+            <div style="font-weight: 900; font-size: 20px; color: #082e5b; letter-spacing: 1px; margin-bottom: 2px;">TAXO<span style="color: #00d1a3;">RYN</span></div>
+            <div style="font-weight: 700; font-size: 8px; color: #00b388; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 20px;">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            <h2 style="color: #d97706; margin-top: 0;">Payment Reminder: Invoice %s</h2>
+            <p style="color: #475569;">Dear %s,</p>
+            <p style="color: #475569;">This is a friendly reminder that an outstanding balance of <strong>₹%s</strong> is due for Invoice <strong>%s</strong>.</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <p style="margin: 4px 0;"><strong>Due Date:</strong> %s</p>
+            </div>
+            <p><a href="%s" style="background: #082e5b; color: #fff; font-weight: 800; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Pay Now &rarr;</a></p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 30px;">
+            <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 0;">&copy; 2026 Taxoryn Technologies Pvt Ltd.</p>
           </div>
         </body>
         </html>

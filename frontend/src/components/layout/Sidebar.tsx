@@ -27,6 +27,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
+import { TaxorynLogo } from '../common/TaxorynLogo';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -141,9 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       >
         <div className="flex items-center gap-2.5 min-w-0">
           {isSuperAdmin ? (
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
-              TX
-            </div>
+            <TaxorynLogo variant="symbol" size="sm" />
           ) : practiceLogo ? (
             <img
               src={practiceLogo}
@@ -154,12 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               )}
             />
           ) : (
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white shadow-md font-black text-sm shrink-0 tracking-wider transition-colors"
-              style={{ backgroundColor: currentTheme.primaryColor }}
-            >
-              {practiceInitials}
-            </div>
+            <TaxorynLogo variant="symbol" size="sm" />
           )}
           <div className="min-w-0">
             <span

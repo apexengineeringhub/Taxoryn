@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Building2, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
 import { Button } from '../components/common/Button';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { authApi } from '../api/endpoints';
 
 export const RegisterOrgPage: React.FC = () => {
@@ -104,11 +105,9 @@ export const RegisterOrgPage: React.FC = () => {
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl p-8 border border-slate-100 z-10 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl mx-auto shadow-lg shadow-brand-500/30">
-            TX
-          </div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Onboard Your Tax Practice</h2>
+        <div className="flex flex-col items-center text-center space-y-2">
+          <TaxorynLogo variant="horizontal" theme="light" size="md" />
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight mt-2">Onboard Your Tax Practice</h2>
           <p className="text-xs text-slate-500">Create a dedicated multi-tenant practice environment on Taxoryn</p>
         </div>
 

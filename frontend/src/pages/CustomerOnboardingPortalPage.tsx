@@ -14,6 +14,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { marketplaceOnboardingPublicApi } from '../api/endpoints';
 import {
   MarketplaceOnboarding,
@@ -215,8 +216,9 @@ export const CustomerOnboardingPortalPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Brand Banner */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-xs font-semibold">
+        <div className="text-center space-y-3 flex flex-col items-center">
+          <TaxorynLogo variant="horizontal" theme="light" size="sm" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
             <Lock className="w-3.5 h-3.5" /> 256-Bit Encrypted Client Onboarding
           </div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">

@@ -33,6 +33,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { marketplacePublicApi } from '../api/endpoints';
 import { MarketplaceProfile, ProfessionalType, PublicTaxServiceCategory } from '../types';
 import clsx from 'clsx';
@@ -353,10 +354,43 @@ export const MarketplaceExplorePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20">
+      {/* Top Brand Navigation Bar */}
+      <nav className="bg-[#07152B] border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-md">
+        <div className="flex items-center gap-3">
+          <TaxorynLogo variant="horizontal" theme="dark" size="sm" />
+          <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-widest text-[#00D1A3] bg-white/5 border border-[#00D1A3]/30 px-2 py-0.5 rounded-full">
+            Marketplace
+          </span>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3 text-xs">
+          <button
+            type="button"
+            onClick={() => navigate('/learn')}
+            className="text-slate-300 hover:text-white font-medium px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
+          >
+            Learn
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/marketplace/customer/requirements/new')}
+            className="text-slate-300 hover:text-white font-medium px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
+          >
+            Post Requirement
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="bg-[#00D1A3] hover:bg-[#00B388] text-[#07152B] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all"
+          >
+            Sign In
+          </button>
+        </div>
+      </nav>
+
       {/* ========================================================================= */}
       {/* Top Customer Entry Banner: "Find Tax Professional" */}
       {/* ========================================================================= */}
-      <div className="relative bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white pt-10 pb-16 px-4 sm:px-6 lg:px-8 border-b border-indigo-900/50 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#082E5B] via-[#07152B] to-[#070C1A] text-white pt-10 pb-16 px-4 sm:px-6 lg:px-8 border-b border-indigo-900/50 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(99,102,241,0.18),transparent_50%)] pointer-events-none" />
 
         <div className="max-w-7xl mx-auto space-y-6 relative z-10">

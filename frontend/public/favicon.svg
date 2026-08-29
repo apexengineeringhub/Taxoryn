@@ -1,0 +1,47 @@
+<svg width="64" height="64" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fav_bg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#082E5B" />
+      <stop offset="100%" stopColor="#061A38" />
+    </linearGradient>
+    <linearGradient id="fav_t" x1="15" y1="10" x2="65" y2="45" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FFFFFF" />
+      <stop offset="100%" stopColor="#E2E8F0" />
+    </linearGradient>
+    <linearGradient id="fav_teal" x1="30" y1="20" x2="85" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#00D1A3" />
+      <stop offset="100%" stopColor="#059669" />
+    </linearGradient>
+    <linearGradient id="fav_cyan" x1="10" y1="80" x2="50" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#00D1A3" />
+      <stop offset="100%" stopColor="#38BDF8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background App Icon Tile with Rounded Corners -->
+  <rect width="100" height="100" rx="22" fill="url(#fav_bg)" />
+
+  <!-- Base Swoosh -->
+  <path d="M 18 58 C 14 74, 30 88, 56 86 C 68 85, 78 78, 84 68" stroke="url(#fav_cyan)" strokeWidth="4.5" strokeLinecap="round" fill="none" />
+
+  <!-- R-Letter Arch -->
+  <path d="M 44 24 C 62 20, 80 26, 82 42 C 84 54, 72 62, 58 63 L 78 86" stroke="url(#fav_teal)" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+
+  <!-- T-Letter Stem -->
+  <path d="M 28 14 L 72 14 L 64 24 L 46 24 L 32 46 L 24 46 Z" fill="url(#fav_t)" />
+
+  <!-- Growth Bars -->
+  <rect x="22" y="66" width="4" height="12" rx="1.5" fill="#00D1A3" />
+  <rect x="29" y="58" width="4" height="20" rx="1.5" fill="#00D1A3" />
+  <rect x="36" y="50" width="4" height="28" rx="1.5" fill="#00D1A3" />
+
+  <!-- Center Tax Document -->
+  <rect x="42" y="30" width="28" height="38" rx="3.5" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="1.2" />
+  <text x="56" y="41" textAnchor="middle" fill="#07152B" fontSize="7.5" fontWeight="900" fontFamily="system-ui, sans-serif" letterSpacing="0.8">TAX</text>
+  <line x1="47" y1="46" x2="65" y2="46" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+  <line x1="47" y1="50" x2="65" y2="50" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+  <line x1="47" y1="54" x2="59" y2="54" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+
+  <circle cx="56" cy="61" r="4.5" fill="#00D1A3" />
+  <path d="M 53.8 61 L 55.3 62.5 L 58.5 59.5" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+</svg>

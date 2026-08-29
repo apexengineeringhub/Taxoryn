@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { SeoHead } from '../components/common/SeoHead';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { marketplacePublicApi } from '../api/endpoints';
 import { MarketplaceProfile, MarketplaceService, MarketplaceReview, PublicTaxService, LearnContentSummary } from '../types';
 import { generatePracticeProfileSchema, generateBreadcrumbSchema } from '../utils/schemaGenerators';
@@ -375,7 +376,10 @@ export const PracticePublicProfilePage: React.FC = () => {
           <div className="absolute inset-0 bg-[radial-gradient(#4f46e5_1px,transparent_1px)] [background-size:20px_20px] opacity-20" />
         )}
 
-        <div className="absolute top-4 left-4 md:left-8 z-10 flex items-center gap-3">
+        <div className="absolute top-4 left-4 md:left-8 z-10 flex items-center gap-2.5">
+          <Link to="/marketplace" className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition-all flex items-center justify-center">
+            <TaxorynLogo variant="symbol" size="xs" />
+          </Link>
           <Link
             to="/marketplace"
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-md text-xs font-medium transition-all"

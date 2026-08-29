@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { useBranding, THEME_TEMPLATES } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
@@ -316,10 +317,10 @@ export const PracticeBrandingPage: React.FC = () => {
 
                 <div className="flex items-center gap-3 mb-4">
                   <div
-                    className="w-9 h-9 rounded-xl shadow-2xs border border-white/20 flex items-center justify-center text-white text-xs font-black"
+                    className="w-9 h-9 rounded-xl shadow-2xs border border-white/20 flex items-center justify-center text-xs font-black p-1"
                     style={{ backgroundColor: tpl.primaryColor }}
                   >
-                    TX
+                    <TaxorynLogo variant="symbol" size="xs" />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
