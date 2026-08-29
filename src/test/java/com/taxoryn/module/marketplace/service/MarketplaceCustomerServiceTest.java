@@ -89,6 +89,8 @@ class MarketplaceCustomerServiceTest {
 
     @Mock
     private AuditService auditService;
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private MarketplaceMapper mapper;
     private CustomerProfileCompletenessCalculator completenessCalculator;
@@ -119,7 +121,8 @@ class MarketplaceCustomerServiceTest {
                 completenessCalculator,
                 passwordEncoder,
                 jwtTokenProvider,
-                auditService
+                auditService,
+                eventPublisher
         );
     }
 

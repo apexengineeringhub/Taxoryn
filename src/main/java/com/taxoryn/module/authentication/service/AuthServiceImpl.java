@@ -32,11 +32,14 @@ import com.taxoryn.module.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import com.taxoryn.module.notification.whatsapp.event.UserRegisteredEvent;
+import com.taxoryn.module.notification.whatsapp.event.UserRegistrationType;
 
 import java.util.HashSet;
 import java.util.List;
@@ -58,6 +61,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final OrganizationMapper organizationMapper;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${taxoryn.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
@@ -149,6 +153,18 @@ public class AuthServiceImpl implements AuthService {
 
         // 4. Create Initial STARTER SaaS Subscription
         subscriptionService.createInitialSubscription(savedOrg.getId(), com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.STARTER);
+
+        // 5. Publish UserRegisteredEvent for post-registration welcome notifications
+        eventPublisher.publishEvent(UserRegisteredEvent.builder()
+                .userId(savedUser.getId())
+                .organizationId(savedOrg.getId())
+                .registrationType(UserRegistrationType.PRACTITIONER)
+                .firstName(savedUser.getFirstName())
+                .lastName(savedUser.getLastName())
+                .organizationName(savedOrg.getName())
+                .email(savedUser.getEmail())
+                .phone(savedUser.getPhone())
+                .build());
 
         return createAuthResponse(savedUser, savedOrg);
     }

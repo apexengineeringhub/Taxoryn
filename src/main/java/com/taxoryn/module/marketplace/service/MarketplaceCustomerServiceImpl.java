@@ -23,11 +23,14 @@ import com.taxoryn.module.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import com.taxoryn.module.notification.whatsapp.event.UserRegisteredEvent;
+import com.taxoryn.module.notification.whatsapp.event.UserRegistrationType;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,6 +64,7 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${taxoryn.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
@@ -149,6 +153,18 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
 
         CustomerProfileDto profileDto = mapper.toCustomerProfileDto(savedProfile);
         profileDto.setProfileCompleteness(completenessCalculator.calculate(savedProfile));
+
+        // Publish UserRegisteredEvent for asynchronous post-registration welcome notifications
+        eventPublisher.publishEvent(UserRegisteredEvent.builder()
+                .userId(savedUser.getId())
+                .organizationId(null)
+                .registrationType(UserRegistrationType.INDIVIDUAL)
+                .firstName(savedUser.getFirstName())
+                .lastName(savedUser.getLastName())
+                .organizationName(null)
+                .email(savedUser.getEmail())
+                .phone(savedUser.getPhone())
+                .build());
 
         log.info("Marketplace customer account successfully created: id={}, email={}", savedUser.getId(), savedUser.getEmail());
 
