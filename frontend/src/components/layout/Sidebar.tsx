@@ -142,7 +142,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       >
         <div className="flex items-center gap-2.5 min-w-0">
           {isSuperAdmin ? (
-            <TaxorynLogo variant="symbol" size="sm" />
+            <div className="w-9 h-9 rounded-xl bg-[#082E5B] flex items-center justify-center p-1 shadow-xs shrink-0 border border-white/10">
+              <TaxorynLogo variant="symbol" theme="dark" size="xs" />
+            </div>
           ) : practiceLogo ? (
             <img
               src={practiceLogo}
@@ -153,7 +155,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               )}
             />
           ) : (
-            <TaxorynLogo variant="symbol" size="sm" />
+            <div className="w-9 h-9 rounded-xl bg-[#082E5B] flex items-center justify-center p-1 shadow-xs shrink-0 border border-white/10">
+              <TaxorynLogo variant="symbol" theme="dark" size="xs" />
+            </div>
           )}
           <div className="min-w-0">
             <span

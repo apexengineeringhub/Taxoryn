@@ -355,35 +355,37 @@ export const MarketplaceExplorePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20">
       {/* Top Brand Navigation Bar */}
-      <nav className="bg-[#07152B] border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-md">
-        <div className="flex items-center gap-3">
-          <TaxorynLogo variant="horizontal" theme="dark" size="sm" />
-          <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-widest text-[#00D1A3] bg-white/5 border border-[#00D1A3]/30 px-2 py-0.5 rounded-full">
-            Marketplace
-          </span>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3 text-xs">
-          <button
-            type="button"
-            onClick={() => navigate('/learn')}
-            className="text-slate-300 hover:text-white font-medium px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            Learn
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/marketplace/customer/requirements/new')}
-            className="text-slate-300 hover:text-white font-medium px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            Post Requirement
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/login')}
-            className="bg-[#00D1A3] hover:bg-[#00B388] text-[#07152B] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all"
-          >
-            Sign In
-          </button>
+      <nav className="bg-[#07152B] border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3 sticky top-0 z-30 shadow-md">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <TaxorynLogo variant="horizontal" theme="dark" size="sm" />
+            <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-widest text-[#00D1A3] bg-white/5 border border-[#00D1A3]/30 px-2.5 py-0.5 rounded-full">
+              Marketplace
+            </span>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-4 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => navigate('/learn')}
+              className="text-slate-300 hover:text-white px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              Learn
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/marketplace/customer/requirements/new')}
+              className="text-slate-300 hover:text-white px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              Post Requirement
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="bg-[#00D1A3] hover:bg-[#00B388] text-[#07152B] font-bold px-3.5 py-1.5 rounded-lg shadow-sm transition-all"
+            >
+              Sign In
+            </button>
+          </div>
         </div>
       </nav>
 

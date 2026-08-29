@@ -36,8 +36,16 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
   const currentSize = sizeMap[size];
 
   // Theme color resolutions
+  const isLightTheme = theme === 'light';
   const textColor = theme === 'dark' ? '#FFFFFF' : theme === 'light' ? '#07152B' : 'currentColor';
   const subtextColor = theme === 'dark' ? '#94A3B8' : theme === 'light' ? '#64748B' : 'currentColor';
+
+  // Dynamic T-gradient colors based on background theme
+  const tGradId = isLightTheme ? 'taxoryn_t_grad_light' : 'taxoryn_t_grad_dark';
+  const tStartColor = isLightTheme ? '#082E5B' : '#FFFFFF';
+  const tMidColor = isLightTheme ? '#07152B' : '#F8FAFC';
+  const tEndColor = isLightTheme ? '#061A38' : '#E2E8F0';
+  const tStroke = isLightTheme ? '#082E5B' : '#FFFFFF';
 
   // Master SVG TR Symbol with Tax Document, Checkmark, Growth Bars & Swoosh
   const renderSymbol = (dimension: number) => (
@@ -51,36 +59,43 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
       aria-label="Taxoryn Symbol"
     >
       <defs>
-        {/* T-Letter Gradient (Crisp Silver / White to Ice Blue) */}
-        <linearGradient id="taxoryn_t_grad" x1="15" y1="10" x2="65" y2="45" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="100%" stopColor="#E2E8F0" />
+        {/* T-Letter Gradient (Crisp Brilliant White on Dark, Deep Navy on Light) */}
+        <linearGradient id={tGradId} x1="20" y1="12" x2="75" y2="60" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor={tStartColor} />
+          <stop offset="60%" stopColor={tMidColor} />
+          <stop offset="100%" stopColor={tEndColor} />
         </linearGradient>
 
-        {/* R-Letter & Swoosh Gradient (Signature Emerald Teal) */}
-        <linearGradient id="taxoryn_teal_grad" x1="30" y1="20" x2="85" y2="80" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#00D1A3" />
-          <stop offset="60%" stopColor="#00B388" />
-          <stop offset="100%" stopColor="#059669" />
+        {/* T-Letter 3D Drop Shadow */}
+        <filter id="taxoryn_t_shadow" x="12" y="10" width="74" height="58" filterUnits="userSpaceOnUse">
+          <feDropShadow dx="1" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity={isLightTheme ? "0.18" : "0.38"} />
+        </filter>
+
+        {/* R-Letter & Accents Gradient (Vivid Emerald Teal) */}
+        <linearGradient id="taxoryn_teal_grad" x1="45" y1="20" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#00E5B3" />
+          <stop offset="45%" stopColor="#00D1A3" />
+          <stop offset="100%" stopColor="#009E77" />
         </linearGradient>
 
-        {/* Cyan Accent Gradient for Growth & Curves */}
-        <linearGradient id="taxoryn_cyan_grad" x1="10" y1="80" x2="50" y2="30" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#00D1A3" />
-          <stop offset="100%" stopColor="#38BDF8" />
+        {/* Dynamic Encircling Swoosh Gradient */}
+        <linearGradient id="taxoryn_swoosh_grad" x1="15" y1="35" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#38BDF8" />
+          <stop offset="50%" stopColor="#00D1A3" />
+          <stop offset="100%" stopColor="#00E5B3" />
         </linearGradient>
 
         {/* Document Shadow */}
-        <filter id="taxoryn_doc_shadow" x="38" y="26" width="36" height="46" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.18" />
+        <filter id="taxoryn_doc_shadow" x="40" y="28" width="38" height="48" filterUnits="userSpaceOnUse">
+          <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000000" floodOpacity={isLightTheme ? "0.15" : "0.25"} />
         </filter>
       </defs>
 
-      {/* 1. Dynamic Encircling Swoosh (Base Arch) */}
+      {/* 1. Dynamic Encircling Swoosh (Base Arc) */}
       <path
-        d="M 18 58 C 14 74, 30 88, 56 86 C 68 85, 78 78, 84 68"
-        stroke="url(#taxoryn_cyan_grad)"
-        strokeWidth="4"
+        d="M 19 36 C 10 56, 16 82, 42 88 C 64 92, 78 82, 86 68"
+        stroke="url(#taxoryn_swoosh_grad)"
+        strokeWidth="4.5"
         strokeLinecap="round"
         fill="none"
         opacity="0.95"
@@ -88,7 +103,7 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
 
       {/* 2. Stylized 'R' Arch & Leg */}
       <path
-        d="M 44 24 C 62 20, 80 26, 82 42 C 84 54, 72 62, 58 63 L 78 86"
+        d="M 48 24 H 65 C 77 24, 85 30, 85 41 C 85 51, 75 57, 61 57 H 49 M 61 57 L 80 80"
         stroke="url(#taxoryn_teal_grad)"
         strokeWidth="11"
         strokeLinecap="round"
@@ -96,28 +111,42 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
         fill="none"
       />
 
-      {/* 3. Bold Geometric 'T' Top Bar & Stem */}
-      <path
-        d="M 28 14 L 72 14 L 64 24 L 46 24 L 32 46 L 24 46 Z"
-        fill="url(#taxoryn_t_grad)"
-      />
+      {/* 3. Bold Geometric 'T' Top Bar & Stem (Prominent, High-Contrast & Sharp) */}
+      <g filter="url(#taxoryn_t_shadow)">
+        <path
+          d="M 22 14 L 78 14 L 72 23 L 53 23 L 41 52 L 27 60 L 37 23 L 17 23 Z"
+          fill={`url(#${tGradId})`}
+          stroke={tStroke}
+          strokeWidth="0.5"
+          strokeLinejoin="round"
+        />
+      </g>
 
       {/* 4. Ascending Growth Bars (Analytics / Reconciliation) */}
-      <rect x="22" y="66" width="4" height="12" rx="1.5" fill="#00D1A3" />
-      <rect x="29" y="58" width="4" height="20" rx="1.5" fill="#00D1A3" />
-      <rect x="36" y="50" width="4" height="28" rx="1.5" fill="#00D1A3" />
+      <rect x="24" y="66" width="4.5" height="12" rx="2" fill="url(#taxoryn_teal_grad)" />
+      <rect x="31" y="56" width="4.5" height="22" rx="2" fill="url(#taxoryn_teal_grad)" />
+      <rect x="38" y="46" width="4.5" height="32" rx="2" fill="url(#taxoryn_teal_grad)" />
 
-      {/* 5. Center Tax Document */}
+      {/* 5. Center Tax Document (Folded Corner + Form Lines + Checkmark Badge) */}
       <g filter="url(#taxoryn_doc_shadow)">
-        <rect x="42" y="30" width="28" height="38" rx="3.5" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="1.2" />
-        
+        <path
+          d="M 44 32 H 72 V 64 L 66 70 H 44 Z"
+          fill="#FFFFFF"
+          stroke="#CBD5E1"
+          strokeWidth="1.2"
+        />
+        <path
+          d="M 66 64 H 72 L 66 70 Z"
+          fill="#94A3B8"
+        />
+
         {/* Document Header "TAX" */}
         <text
           x="56"
-          y="41"
+          y="43"
           textAnchor="middle"
           fill="#07152B"
-          fontSize="7.5"
+          fontSize="8"
           fontWeight="900"
           fontFamily="system-ui, sans-serif"
           letterSpacing="0.8"
@@ -126,16 +155,16 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
         </text>
 
         {/* Document Form Lines */}
-        <line x1="47" y1="46" x2="65" y2="46" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="47" y1="50" x2="65" y2="50" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="47" y1="54" x2="59" y2="54" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="48" y1="48" x2="68" y2="48" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="48" y1="52" x2="68" y2="52" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="48" y1="56" x2="62" y2="56" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
 
         {/* Circular Checkmark Badge */}
-        <circle cx="56" cy="61" r="4.5" fill="#00D1A3" />
+        <circle cx="56" cy="62" r="5" fill="#00D1A3" />
         <path
-          d="M 53.8 61 L 55.3 62.5 L 58.5 59.5"
+          d="M 53.5 62 L 55.2 63.7 L 58.7 60.2"
           stroke="#FFFFFF"
-          strokeWidth="1.4"
+          strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"

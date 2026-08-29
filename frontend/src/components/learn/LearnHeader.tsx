@@ -44,16 +44,23 @@ export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', on
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Brand Logo & Learn Badge */}
           <div className="flex items-center gap-3">
-            <Link to="/learn" className="flex items-center gap-2.5 group">
-              <TaxorynLogo variant="symbol" size="sm" />
+            <Link to="/learn" className="flex items-center gap-3 group">
+              <div className="w-10 h-10 rounded-xl bg-[#082E5B] flex items-center justify-center p-1 shadow-xs shrink-0 border border-white/10 group-hover:scale-105 transition-transform">
+                <TaxorynLogo variant="symbol" theme="dark" size="xs" />
+              </div>
               <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-xl tracking-tight text-slate-900">Taxoryn</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center tracking-wider leading-none">
+                    <span className="font-black text-lg tracking-[0.14em] text-[#07152B]">TAXO</span>
+                    <span className="font-black text-lg tracking-[0.14em] text-[#00D1A3]">RYN</span>
+                  </div>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#E6FBF6] text-[#00B388] border border-[#CCF7ED]">
                     Learn
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">SIMPLIFYING TAX PRACTICE MANAGEMENT</span>
+                <span className="text-[9px] font-bold text-slate-400 tracking-[0.16em] uppercase hidden sm:inline mt-0.5">
+                  SIMPLIFYING TAX PRACTICE MANAGEMENT
+                </span>
               </div>
             </Link>
           </div>

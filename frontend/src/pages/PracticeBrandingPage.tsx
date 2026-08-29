@@ -320,7 +320,7 @@ export const PracticeBrandingPage: React.FC = () => {
                     className="w-9 h-9 rounded-xl shadow-2xs border border-white/20 flex items-center justify-center text-xs font-black p-1"
                     style={{ backgroundColor: tpl.primaryColor }}
                   >
-                    <TaxorynLogo variant="symbol" size="xs" />
+                    <TaxorynLogo variant="symbol" size="xs" theme="dark" />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">

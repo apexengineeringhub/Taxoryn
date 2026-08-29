@@ -20,6 +20,7 @@ import {
   Video,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { marketplacePublicApi } from '../api/endpoints';
 import { MarketplaceProfile } from '../types';
 import clsx from 'clsx';
@@ -194,21 +195,30 @@ export const MarketplaceComparePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-24">
-      {/* Top Header */}
-      <div className="bg-slate-900 border-b border-slate-800 py-4 px-4 sm:px-6 lg:px-8">
+      {/* Top Header & Brand Navbar */}
+      <nav className="bg-[#07152B] border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3 sticky top-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <button
-            onClick={() => navigate('/marketplace')}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Tax Directory</span>
-          </button>
-          <div className="text-xs font-bold text-slate-400">
-            Comparing {profiles.length} Tax Practitioners
+          <div className="flex items-center gap-3">
+            <TaxorynLogo variant="horizontal" theme="dark" size="sm" />
+            <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-widest text-[#00D1A3] bg-white/5 border border-[#00D1A3]/30 px-2.5 py-0.5 rounded-full">
+              Compare
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-xs font-bold text-slate-400 hidden sm:inline">
+              Comparing {profiles.length} Tax Practitioners
+            </div>
+            <button
+              onClick={() => navigate('/marketplace')}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white transition-colors py-1 px-2.5 rounded-lg hover:bg-white/10"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Directory</span>
+            </button>
           </div>
         </div>
-      </div>
+      </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-8">
         <div className="text-center space-y-2">
