@@ -42,6 +42,12 @@ public class CreateDocumentRequest {
     @Schema(description = "Assessment Year", example = "2027-28")
     private String assessmentYear;
 
+    @Schema(description = "Optional linked task ID")
+    private UUID taskId;
+
+    @Schema(description = "Optional linked compliance obligation ID")
+    private UUID complianceId;
+
     @NotEmpty(message = "At least one document item must be requested")
     @Valid
     @Builder.Default

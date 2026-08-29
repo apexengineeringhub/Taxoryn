@@ -34,6 +34,8 @@ public class DocumentRequestDto {
     private String assessmentYear;
     private UUID requestedByUserId;
     private String requestedByName;
+    private UUID taskId;
+    private UUID complianceId;
     private Instant sentAt;
     private Instant completedAt;
     private Instant createdAt;

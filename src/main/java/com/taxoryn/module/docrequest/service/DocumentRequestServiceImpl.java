@@ -93,6 +93,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 .status(RequestStatus.SENT)
                 .financialYear(request.getFinancialYear())
                 .assessmentYear(request.getAssessmentYear())
+                .taskId(request.getTaskId())
+                .complianceId(request.getComplianceId())
                 .requestedByUserId(currentUserId)
                 .sentAt(Instant.now())
                 .build();
@@ -620,6 +622,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 .assessmentYear(entity.getAssessmentYear())
                 .requestedByUserId(entity.getRequestedByUserId())
                 .requestedByName(requestedByName)
+                .taskId(entity.getTaskId())
+                .complianceId(entity.getComplianceId())
                 .sentAt(entity.getSentAt())
                 .completedAt(entity.getCompletedAt())
                 .createdAt(entity.getCreatedAt())

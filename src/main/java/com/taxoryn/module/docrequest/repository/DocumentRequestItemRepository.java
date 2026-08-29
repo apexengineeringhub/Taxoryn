@@ -21,4 +21,6 @@ public interface DocumentRequestItemRepository extends JpaRepository<DocumentReq
     long countByRequestIdAndStatus(UUID requestId, ItemStatus status);
 
     long countByRequestId(UUID requestId);
+
+    long countByOrganizationIdAndStatus(UUID organizationId, ItemStatus status);
 }

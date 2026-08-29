@@ -168,6 +168,8 @@ export interface BulkImportError {
 }
 
 // 4. Task Management
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED';
+
 export interface Task {
   id: string;
   organizationId: string;
@@ -180,12 +182,54 @@ export interface Task {
   description?: string;
   category?: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  status: 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
+  status: TaskStatus;
   dueDate: string;
   completedDate?: string;
+  completedAt?: string;
   estimatedHours?: number;
   actualHours?: number;
   unassign?: boolean;
+
+  // Task & Compliance Enhancement V1.1
+  complianceId?: string;
+  complianceTitle?: string;
+  statutoryDueDate?: string;
+  documentRequestId?: string;
+  documentRequestNumber?: string;
+  documentRequestStatus?: string;
+  documentRequestItemsCount?: number;
+  documentRequestReceivedCount?: number;
+  blockedReason?: string;
+  isOverdue?: boolean;
+  isDueToday?: boolean;
+  isDueThisWeek?: boolean;
+}
+
+export interface WorklistSummary {
+  overdueCount: number;
+  dueTodayCount: number;
+  dueThisWeekCount: number;
+  inProgressCount: number;
+  blockedCount: number;
+  completedTodayCount: number;
+  documentsWaitingCount: number;
+  myTasksCount: number;
+  teamTasksCount: number;
+}
+
+export interface TaskWorklistParams {
+  scope?: 'MY_WORK' | 'TEAM_WORK';
+  bucket?: 'ALL' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'BLOCKED' | 'COMPLETED';
+  status?: TaskStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  category?: string;
+  clientId?: string;
+  assigneeId?: string;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
 }
 
 export interface BulkTaskCreateRequest {
@@ -204,6 +248,41 @@ export interface BulkTaskImportResult {
   totalFailed: number;
   createdTasks: Task[];
   errors: string[];
+}
+
+export interface ComplianceObligation {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  pan?: string;
+  gstin?: string;
+  ruleId?: string;
+  title: string;
+  complianceType: 'GST' | 'ITR' | 'TDS' | 'ROC_MCA' | 'ADVANCE_TAX' | 'AUDIT' | 'OTHER';
+  period: string;
+  dueDate: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'WAIVED' | 'CANCELLED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  taskId?: string;
+  completedAt?: string;
+  completedBy?: string;
+  notes?: string;
+  daysRemaining?: number;
+  isOverdue?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceDashboardStats {
+  dueTodayCount: number;
+  dueThisWeekCount: number;
+  overdueCount: number;
+  completedCount: number;
+  totalActiveCount: number;
+  byTypeCounts?: Record<string, number>;
 }
 
 // 5. GST Compliance

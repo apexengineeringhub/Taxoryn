@@ -136,6 +136,10 @@ import {
   NotificationItem,
   NotificationFilterParams,
   UnreadCountResponse,
+  WorklistSummary,
+  TaskWorklistParams,
+  ComplianceObligation,
+  ComplianceDashboardStats,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -258,6 +262,14 @@ export const taskApi = {
   },
   bulkImport: async (tasks: Partial<Task>[]) => {
     const res = await apiClient.post<ApiResponse<any>>('/v1/tasks/bulk', tasks);
+    return res.data.data;
+  },
+  getWorklist: async (params?: TaskWorklistParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<Task>>>('/v1/tasks/worklist', { params: { size: 100, ...params } });
+    return res.data.data;
+  },
+  getWorklistSummary: async () => {
+    const res = await apiClient.get<ApiResponse<WorklistSummary>>('/v1/tasks/worklist/summary');
     return res.data.data;
   },
 };
@@ -667,6 +679,61 @@ export const tdsApi = {
 export const calendarApi = {
   getEvents: async (params?: { fromDate?: string; toDate?: string; complianceType?: string }) => {
     const res = await apiClient.get<ApiResponse<CalendarEvent[]>>('/v1/compliance-calendar/events', { params });
+    return res.data.data;
+  },
+};
+
+export const complianceApi = {
+  getCalendar: async (params?: {
+    fromDate?: string;
+    toDate?: string;
+    period?: string;
+    complianceType?: string;
+    status?: string;
+    clientId?: string;
+    assignedEmployeeId?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligation>>>('/v1/compliance/calendar', { params: { size: 100, ...params } });
+    return res.data.data;
+  },
+  getUpcoming: async (daysAhead: number = 30) => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/upcoming', { params: { daysAhead } });
+    return res.data.data;
+  },
+  getOverdue: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/overdue');
+    return res.data.data;
+  },
+  getDueToday: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/today');
+    return res.data.data;
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceDashboardStats>>('/v1/compliance/dashboard/stats');
+    return res.data.data;
+  },
+  getObligationById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}`);
+    return res.data.data;
+  },
+  createObligation: async (payload: Partial<ComplianceObligation>) => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligation>>('/v1/compliance/obligations', payload);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, payload: { status: string; completionNotes?: string }) => {
+    const res = await apiClient.patch<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/status`, payload);
+    return res.data.data;
+  },
+  assignEmployee: async (id: string, payload: { employeeId: string; remarks?: string }) => {
+    const res = await apiClient.put<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/assigned-employee`, payload);
+    return res.data.data;
+  },
+  createTaskForObligation: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/create-task`);
     return res.data.data;
   },
 };

@@ -33,6 +33,22 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
 
     Page<TaskEntity> findAllByOrganizationIdAndStatus(UUID organizationId, TaskStatus status, Pageable pageable);
 
+    long countByOrganizationIdAndStatus(UUID organizationId, TaskStatus status);
+
+    long countByOrganizationIdAndStatusIn(UUID organizationId, Collection<TaskStatus> statuses);
+
+    long countByOrganizationIdAndStatusInAndDueDate(UUID organizationId, Collection<TaskStatus> statuses, LocalDate dueDate);
+
+    long countByOrganizationIdAndStatusInAndDueDateBetween(UUID organizationId, Collection<TaskStatus> statuses, LocalDate startDate, LocalDate endDate);
+
+    long countByOrganizationIdAndStatusInAndDueDateBefore(UUID organizationId, Collection<TaskStatus> statuses, LocalDate date);
+
+    long countByOrganizationIdAndStatusAndCompletedAtGreaterThanEqual(UUID organizationId, TaskStatus status, java.time.Instant since);
+
+    List<TaskEntity> findAllByOrganizationIdAndComplianceId(UUID organizationId, UUID complianceId);
+
+    List<TaskEntity> findAllByOrganizationIdAndDocumentRequestId(UUID organizationId, UUID documentRequestId);
+
     @Query("SELECT DISTINCT t.clientId FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.assignedTo IN :assigneeIds AND t.clientId IS NOT NULL")
     java.util.List<UUID> findClientIdsByAssignedToIn(@Param("organizationId") UUID organizationId, @Param("assigneeIds") Collection<UUID> assigneeIds);
 

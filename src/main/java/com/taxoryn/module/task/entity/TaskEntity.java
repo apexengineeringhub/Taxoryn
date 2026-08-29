@@ -54,6 +54,18 @@ public class TaskEntity extends TenantAuditableEntity {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    @Column(name = "compliance_id")
+    private UUID complianceId;
+
+    @Column(name = "document_request_id")
+    private UUID documentRequestId;
+
+    @Column(name = "blocked_reason", columnDefinition = "TEXT")
+    private String blockedReason;
+
+    @Column(name = "completed_at")
+    private java.time.Instant completedAt;
+
     public enum TaskCategory {
         GST,
         ITR,
@@ -68,6 +80,7 @@ public class TaskEntity extends TenantAuditableEntity {
         TODO,
         IN_PROGRESS,
         UNDER_REVIEW,
+        BLOCKED,
         COMPLETED,
         CANCELLED
     }
