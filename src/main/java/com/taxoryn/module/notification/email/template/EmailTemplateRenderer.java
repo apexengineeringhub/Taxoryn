@@ -26,6 +26,7 @@ public class EmailTemplateRenderer {
             case INVOICE_ISSUED -> renderInvoiceIssuedHtml(data);
             case PAYMENT_RECEIVED -> renderPaymentReceivedHtml(data);
             case INVOICE_REMINDER -> renderInvoiceReminderHtml(data);
+            case PASSWORD_RESET -> renderPasswordResetHtml(data);
         };
     }
 
@@ -308,6 +309,81 @@ public class EmailTemplateRenderer {
         </body>
         </html>
         """.formatted(escape(invoiceNumber), escape(clientName), escape(balanceAmount), escape(invoiceNumber), escape(dueDate), escape(invoiceUrl));
+    }
+
+    private String renderPasswordResetHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Taxoryn User");
+        String resetUrl = getString(data, "resetUrl", "http://localhost:5173/reset-password");
+        String expiryMinutes = getString(data, "expiryMinutes", "30");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Reset Your Taxoryn Password</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #00d1a3; }
+            .logo-badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; letter-spacing: 0.5px; }
+            .motto-bar { color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 22px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .btn-wrapper { text-align: center; margin: 32px 0; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; box-shadow: 0 2px 4px rgba(0, 209, 163, 0.2); }
+            .btn:hover { background-color: #00b388; }
+            .security-box { background: #f8fafc; border-left: 4px solid #00d1a3; border-radius: 4px; padding: 16px; margin: 24px 0; font-size: 13px; color: #64748b; }
+            .raw-link { word-break: break-all; font-size: 12px; color: #0284c7; }
+            .footer { background: #f8fafc; padding: 28px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
+            .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                TAXO<span class="logo-accent">RYN</span>
+                <span class="logo-badge">Security</span>
+              </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            </div>
+            <div class="content">
+              <h1>Password Reset Request</h1>
+              <p>Hello <strong>%s</strong>,</p>
+              <p>We received a request to reset the password for your Taxoryn account. Click the button below to establish a new password:</p>
+              
+              <div class="btn-wrapper">
+                <a href="%s" class="btn">Reset My Password &rarr;</a>
+              </div>
+
+              <div class="security-box">
+                <strong>Important Security Notice:</strong>
+                <ul style="margin: 6px 0 0; padding-left: 18px;">
+                  <li>This link will expire in <strong>%s minutes</strong> and can only be used once.</li>
+                  <li>If you did not request this password reset, please ignore this email or contact support immediately. Your password remains safe.</li>
+                </ul>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                If the button above does not work, copy and paste this link into your browser:<br>
+                <a href="%s" class="raw-link">%s</a>
+              </p>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXORYN</div>
+              <div class="footer-motto">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name), escape(resetUrl), escape(expiryMinutes), escape(resetUrl), escape(resetUrl));
     }
 
     private String getString(Map<String, Object> data, String key, String defaultValue) {

@@ -8,12 +8,18 @@ import com.taxoryn.core.exception.UnauthorizedException;
 import com.taxoryn.core.security.JwtTokenProvider;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.module.audit.service.AuditService;
+import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
 import com.taxoryn.module.authentication.dto.LoginResponse;
 import com.taxoryn.module.authentication.dto.LogoutRequest;
 import com.taxoryn.module.authentication.dto.RefreshTokenRequest;
 import com.taxoryn.module.authentication.dto.RegisterOrganizationRequest;
 import com.taxoryn.module.authentication.dto.RegisterUserByAdminRequest;
+import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
+import com.taxoryn.module.authentication.entity.PasswordResetTokenEntity;
+import com.taxoryn.module.authentication.repository.PasswordResetTokenRepository;
+import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import com.taxoryn.module.organization.dto.OrganizationDto;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationEntity.OrganizationStatus;
@@ -41,8 +47,16 @@ import org.springframework.util.StringUtils;
 import com.taxoryn.module.notification.whatsapp.event.UserRegisteredEvent;
 import com.taxoryn.module.notification.whatsapp.event.UserRegistrationType;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -62,9 +76,18 @@ public class AuthServiceImpl implements AuthService {
     private final OrganizationMapper organizationMapper;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final ApplicationEventPublisher eventPublisher;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailNotificationService emailNotificationService;
+    private final AuditService auditService;
 
     @Value("${taxoryn.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
+
+    @Value("${taxoryn.auth.password-reset.expiration-minutes:30}")
+    private long passwordResetExpirationMinutes;
+
+    @Value("${taxoryn.frontend.reset-password-url:http://localhost:5173/reset-password}")
+    private String resetPasswordBaseUrl;
 
     @Override
     @Transactional(readOnly = true)
@@ -311,5 +334,133 @@ public class AuthServiceImpl implements AuthService {
                 .user(userDto)
                 .organization(orgDto)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request, String clientIp) {
+        String email = request.getEmail().toLowerCase().trim();
+        Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(email);
+
+        if (userOpt.isPresent()) {
+            UserEntity user = userOpt.get();
+            if (user.getStatus() == UserStatus.ACTIVE) {
+                // 1. Invalidate any existing unused tokens for this user
+                passwordResetTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+
+                // 2. Generate cryptographically secure token & SHA-256 hash
+                String rawToken = generateSecureToken();
+                String tokenHash = hashToken(rawToken);
+
+                // 3. Persist hashed token in database
+                PasswordResetTokenEntity tokenEntity = PasswordResetTokenEntity.builder()
+                        .userId(user.getId())
+                        .tokenHash(tokenHash)
+                        .expiresAt(Instant.now().plus(passwordResetExpirationMinutes, ChronoUnit.MINUTES))
+                        .createdByIp(clientIp)
+                        .build();
+                passwordResetTokenRepository.save(tokenEntity);
+
+                // 4. Construct complete reset URL with raw token
+                String resetUrl = resetPasswordBaseUrl.contains("?")
+                        ? resetPasswordBaseUrl + "&token=" + rawToken
+                        : resetPasswordBaseUrl + "?token=" + rawToken;
+
+                // 5. Dispatch branded password reset email
+                emailNotificationService.sendPasswordResetEmail(
+                        user.getEmail(),
+                        user.getFullName(),
+                        resetUrl,
+                        passwordResetExpirationMinutes
+                );
+
+                // 6. Record audit log
+                auditService.logEvent(
+                        user.getOrganizationId(),
+                        user.getId(),
+                        "PASSWORD_RESET_REQUESTED",
+                        "USER",
+                        user.getId().toString(),
+                        null,
+                        "Password reset initiated for IP: " + (clientIp != null ? clientIp : "unknown")
+                );
+
+                log.info("Password reset token generated and email dispatched for user {}", user.getId());
+            } else {
+                log.warn("Password reset requested for non-active user {} (status: {})", user.getId(), user.getStatus());
+            }
+        } else {
+            log.info("Password reset requested for non-existent email: {}", email);
+        }
+        // Generic return for anti-enumeration security
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request, String clientIp) {
+        String rawToken = request.getToken().trim();
+        String tokenHash = hashToken(rawToken);
+
+        PasswordResetTokenEntity tokenEntity = passwordResetTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new BadCredentialsException("Invalid or expired password reset token"));
+
+        if (!tokenEntity.isValid()) {
+            log.warn("Attempt to use invalid/expired password reset token {} (used: {}, expired: {})",
+                    tokenEntity.getId(), tokenEntity.isUsed(), tokenEntity.isExpired());
+            throw new BadCredentialsException("Invalid or expired password reset token");
+        }
+
+        UserEntity user = userRepository.findById(tokenEntity.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", tokenEntity.getUserId()));
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "User account is " + user.getStatus() + ". Password cannot be reset");
+        }
+
+        // 1. Update user password hash
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // 2. Mark token as consumed
+        tokenEntity.setUsedAt(Instant.now());
+        passwordResetTokenRepository.save(tokenEntity);
+
+        // 3. Invalidate any other pending tokens
+        passwordResetTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+
+        // 4. Record audit log
+        auditService.logEvent(
+                user.getOrganizationId(),
+                user.getId(),
+                "PASSWORD_RESET_COMPLETED",
+                "USER",
+                user.getId().toString(),
+                null,
+                "Password reset completed successfully for IP: " + (clientIp != null ? clientIp : "unknown")
+        );
+
+        log.info("Password successfully reset for user {}", user.getId());
+    }
+
+    private String generateSecureToken() {
+        byte[] randomBytes = new byte[32];
+        new SecureRandom().nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+    }
+
+    private String hashToken(String rawToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not available", e);
+        }
     }
 }

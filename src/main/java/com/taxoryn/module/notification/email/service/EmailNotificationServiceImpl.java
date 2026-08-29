@@ -125,6 +125,28 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         emailSender.sendEmail(event.getClientEmail(), event.getClientName(), subject, htmlBody, data);
     }
 
+    @Override
+    public void sendPasswordResetEmail(String recipientEmail, String recipientName, String resetUrl, long expiryMinutes) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send password reset email: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "Valued Member";
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("email", recipientEmail.trim());
+        data.put("resetUrl", resetUrl);
+        data.put("expiryMinutes", String.valueOf(expiryMinutes));
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.PASSWORD_RESET, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.PASSWORD_RESET, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Password reset email dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
     private String buildFullName(String firstName, String lastName) {
         if (StringUtils.hasText(firstName) && StringUtils.hasText(lastName)) {
             return firstName.trim() + " " + lastName.trim();

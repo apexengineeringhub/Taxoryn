@@ -1,17 +1,20 @@
 package com.taxoryn.module.authentication.controller;
 
 import com.taxoryn.core.response.ApiResponse;
+import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
 import com.taxoryn.module.authentication.dto.LoginResponse;
 import com.taxoryn.module.authentication.dto.LogoutRequest;
 import com.taxoryn.module.authentication.dto.RefreshTokenRequest;
 import com.taxoryn.module.authentication.dto.RegisterOrganizationRequest;
 import com.taxoryn.module.authentication.dto.RegisterUserByAdminRequest;
+import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
 import com.taxoryn.module.authentication.service.AuthService;
 import com.taxoryn.module.user.dto.UserDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -80,5 +83,43 @@ public class AuthController {
             @RequestBody(required = false) LogoutRequest request) {
         authService.logout(authHeader, request);
         return ResponseEntity.ok(ApiResponse.success("Successfully logged out and tokens invalidated", null));
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Initiate password recovery", description = "Generates a secure, time-limited reset token and sends an email with reset instructions if the account exists.")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = extractClientIp(servletRequest);
+        authService.forgotPassword(request, clientIp);
+        return ResponseEntity.ok(ApiResponse.success(
+                "If an account exists for this email, you will receive password reset instructions.",
+                null
+        ));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Complete password recovery", description = "Validates the raw reset token and updates the user password.")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = extractClientIp(servletRequest);
+        authService.resetPassword(request, clientIp);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Password has been reset successfully. You can now log in with your new password.",
+                null
+        ));
+    }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (org.springframework.util.StringUtils.hasText(xfHeader)) {
+            return xfHeader.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (org.springframework.util.StringUtils.hasText(realIp)) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "0.0.0.0";
     }
 }

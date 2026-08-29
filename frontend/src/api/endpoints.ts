@@ -146,6 +146,14 @@ export const authApi = {
     });
     return res.data;
   },
+  forgotPassword: async (email: string) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/forgot-password', { email });
+    return res.data;
+  },
+  resetPassword: async (payload: { token: string; newPassword: string }) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/reset-password', payload);
+    return res.data;
+  },
 };
 
 // --- 2. Organization Dashboard ---

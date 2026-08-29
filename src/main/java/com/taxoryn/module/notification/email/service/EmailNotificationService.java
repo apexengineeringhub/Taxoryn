@@ -14,4 +14,6 @@ public interface EmailNotificationService {
     void sendPaymentReceivedEmail(PaymentReceivedEvent event);
 
     void sendInvoiceReminderEmail(InvoiceReminderEvent event);
+
+    void sendPasswordResetEmail(String recipientEmail, String recipientName, String resetUrl, long expiryMinutes);
 }
