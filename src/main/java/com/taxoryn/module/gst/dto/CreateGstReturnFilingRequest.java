@@ -67,6 +67,15 @@ public class CreateGstReturnFilingRequest {
     @Schema(description = "GST Portal Acknowledgement reference number (ARN)", example = "AA2707261234567")
     private String acknowledgementNumber;
 
+    @Schema(description = "Optional linked compliance obligation ID")
+    private UUID complianceId;
+
+    @Schema(description = "Optional flag to auto-generate linked task in Task module", example = "true")
+    private Boolean createTask;
+
+    @Schema(description = "Optional linked document request ID")
+    private UUID documentRequestId;
+
     @Schema(description = "Practitioner notes or remarks")
     private String notes;
 }

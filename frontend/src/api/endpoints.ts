@@ -317,6 +317,22 @@ export const gstApi = {
       return res.data.data;
     }
   },
+  getFilingById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}`);
+    return res.data.data;
+  },
+  createTaskForFiling: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}/create-task`);
+    return res.data.data;
+  },
+  createDocumentRequestForFiling: async (id: string, payload?: any) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/gst/filings/${id}/document-requests`, payload || {});
+    return res.data.data;
+  },
+  getFilingDocuments: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/gst/filings/${id}/documents`);
+    return res.data.data;
+  },
   batchGenerateFilings: async (payload: { returnPeriod: string; returnType?: string; returnTypes?: string[]; financialYear: string; dueDate?: string; gstr1DueDate?: string; gstr3bDueDate?: string; cmp08DueDate?: string }) => {
     const res = await apiClient.post<ApiResponse<GstReturnFiling[]>>('/v1/gst/filings/batch-generate', payload);
     return res.data.data;

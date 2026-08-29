@@ -49,6 +49,10 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
 
     List<TaskEntity> findAllByOrganizationIdAndDocumentRequestId(UUID organizationId, UUID documentRequestId);
 
+    List<TaskEntity> findAllByOrganizationIdAndGstFilingId(UUID organizationId, UUID gstFilingId);
+
+    Optional<TaskEntity> findByOrganizationIdAndGstFilingId(UUID organizationId, UUID gstFilingId);
+
     @Query("SELECT DISTINCT t.clientId FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.assignedTo IN :assigneeIds AND t.clientId IS NOT NULL")
     java.util.List<UUID> findClientIdsByAssignedToIn(@Param("organizationId") UUID organizationId, @Param("assigneeIds") Collection<UUID> assigneeIds);
 

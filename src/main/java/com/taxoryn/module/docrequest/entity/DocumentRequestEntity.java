@@ -66,6 +66,9 @@ public class DocumentRequestEntity extends TenantAuditableEntity {
     @Column(name = "compliance_id")
     private UUID complianceId;
 
+    @Column(name = "gst_filing_id")
+    private UUID gstFilingId;
+
     @Column(name = "sent_at")
     @Builder.Default
     private Instant sentAt = Instant.now();

@@ -83,6 +83,39 @@ public class GstReturnFilingDto {
     @Schema(description = "Practitioner notes or remarks")
     private String notes;
 
+    @Schema(description = "Linked compliance obligation ID")
+    private UUID complianceId;
+
+    @Schema(description = "Linked compliance obligation title", example = "GSTR-3B Monthly Return - July 2026")
+    private String complianceTitle;
+
+    @Schema(description = "Linked task ID in Task Management module")
+    private UUID taskId;
+
+    @Schema(description = "Linked task title")
+    private String taskTitle;
+
+    @Schema(description = "Linked task workflow status (TODO, IN_PROGRESS, UNDER_REVIEW, BLOCKED, COMPLETED)")
+    private String taskStatus;
+
+    @Schema(description = "Linked document request ID")
+    private UUID documentRequestId;
+
+    @Schema(description = "Linked document request reference number", example = "REQ-2026-000123")
+    private String documentRequestNumber;
+
+    @Schema(description = "Linked document request status", example = "SENT")
+    private String documentRequestStatus;
+
+    @Schema(description = "Total document checklist items requested")
+    private Integer documentRequestItemsCount;
+
+    @Schema(description = "Total document checklist items received/uploaded")
+    private Integer documentRequestReceivedCount;
+
+    @Schema(description = "Count of attached documents in Document Vault")
+    private Integer documentsCount;
+
     @Schema(description = "Creation timestamp")
     private Instant createdAt;
 

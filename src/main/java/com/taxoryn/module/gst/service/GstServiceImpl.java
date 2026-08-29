@@ -57,6 +57,36 @@ import java.util.UUID;
 import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.CompliancePriority;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.ComplianceStatus;
+import com.taxoryn.module.compliance.entity.ComplianceRuleEntity;
+import com.taxoryn.module.compliance.entity.ComplianceRuleEntity.ComplianceType;
+import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
+import com.taxoryn.module.compliance.repository.ComplianceRuleRepository;
+import com.taxoryn.module.docrequest.dto.CreateDocumentRequest;
+import com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem;
+import com.taxoryn.module.docrequest.dto.DocumentRequestDto;
+import com.taxoryn.module.docrequest.entity.DocumentRequestEntity;
+import com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus;
+import com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository;
+import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
+import com.taxoryn.module.docrequest.service.DocumentRequestService;
+import com.taxoryn.module.document.dto.DocumentDto;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentStatus;
+import com.taxoryn.module.document.mapper.DocumentMapper;
+import com.taxoryn.module.document.repository.DocumentRepository;
+import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
+import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
+import com.taxoryn.module.notification.service.NotificationService;
+import com.taxoryn.module.task.entity.TaskEntity;
+import com.taxoryn.module.task.entity.TaskEntity.TaskCategory;
+import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
+import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
+import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.user.entity.UserEntity;
+import com.taxoryn.module.user.repository.UserRepository;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -67,6 +97,16 @@ public class GstServiceImpl implements GstService {
     private final GstMonthlySummaryRepository gstMonthlySummaryRepository;
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
+    private final UserRepository userRepository;
+    private final ComplianceObligationRepository complianceObligationRepository;
+    private final ComplianceRuleRepository complianceRuleRepository;
+    private final TaskRepository taskRepository;
+    private final DocumentRequestRepository documentRequestRepository;
+    private final DocumentRequestItemRepository documentRequestItemRepository;
+    private final DocumentRequestService documentRequestService;
+    private final DocumentRepository documentRepository;
+    private final DocumentMapper documentMapper;
+    private final NotificationService notificationService;
     private final GstMapper gstMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
@@ -276,19 +316,35 @@ public class GstServiceImpl implements GstService {
                 .returnType(request.getReturnType())
                 .returnPeriod(request.getReturnPeriod())
                 .financialYear(request.getFinancialYear())
-                .dueDate(request.getDueDate())
+                .dueDate(request.getDueDate() != null ? request.getDueDate() : LocalDate.now().plusDays(20))
                 .filingStatus(request.getFilingStatus() != null ? request.getFilingStatus() : GstFilingStatus.PENDING)
+                .filingDate(request.getFilingStatus() == GstFilingStatus.FILED ? (request.getDueDate() != null ? request.getDueDate() : LocalDate.now()) : null)
+                .acknowledgementNumber(request.getAcknowledgementNumber())
                 .totalTaxableValue(request.getTotalTaxableValue() != null ? request.getTotalTaxableValue() : BigDecimal.ZERO)
                 .totalTaxLiability(request.getTotalTaxLiability() != null ? request.getTotalTaxLiability() : BigDecimal.ZERO)
                 .totalItcClaimed(request.getTotalItcClaimed() != null ? request.getTotalItcClaimed() : BigDecimal.ZERO)
                 .taxPaidCash(request.getTaxPaidCash() != null ? request.getTaxPaidCash() : BigDecimal.ZERO)
                 .taxPaidItc(request.getTaxPaidItc() != null ? request.getTaxPaidItc() : BigDecimal.ZERO)
                 .assignedEmployeeId(assignedEmpId)
+                .documentRequestId(request.getDocumentRequestId())
                 .notes(request.getNotes())
                 .build();
         filing.setOrganizationId(organizationId);
 
         GstReturnFilingEntity saved = gstReturnFilingRepository.save(filing);
+
+        // 1. Auto-resolve or create Compliance Obligation Linkage
+        ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, profile, organizationId);
+        if (obligation != null) {
+            saved.setComplianceId(obligation.getId());
+            saved = gstReturnFilingRepository.save(saved);
+        }
+
+        // 2. Optionally create linked Task
+        if (Boolean.TRUE.equals(request.getCreateTask())) {
+            createTaskForFilingInternal(saved, profile, organizationId);
+        }
+
         log.info("Created GST filing: id={}, type={}, period={} for tenant={}", saved.getId(), saved.getReturnType(), saved.getReturnPeriod(), organizationId);
         GstReturnFilingDto result = enrichFilingDto(saved, profile);
         auditService.logEvent("GST_FILING_CREATED", "GST_FILING", saved.getId().toString(), null, result);
@@ -304,8 +360,8 @@ public class GstServiceImpl implements GstService {
                 .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", id));
 
         GstFilingStatus oldStatus = filing.getFilingStatus();
-
         filing.setFilingStatus(request.getFilingStatus());
+
         if (request.getFilingDate() != null) {
             filing.setFilingDate(request.getFilingDate());
         } else if (request.getFilingStatus() == GstFilingStatus.FILED && filing.getFilingDate() == null) {
@@ -313,7 +369,7 @@ public class GstServiceImpl implements GstService {
         }
 
         if (StringUtils.hasText(request.getAcknowledgementNumber())) {
-            filing.setAcknowledgementNumber(request.getAcknowledgementNumber().trim());
+            filing.setAcknowledgementNumber(request.getAcknowledgementNumber().trim().toUpperCase());
         }
         if (request.getTotalTaxableValue() != null) {
             filing.setTotalTaxableValue(request.getTotalTaxableValue());
@@ -333,12 +389,85 @@ public class GstServiceImpl implements GstService {
         if (StringUtils.hasText(request.getNotes())) {
             filing.setNotes(request.getNotes());
         }
+        if (request.getTaskId() != null) {
+            filing.setTaskId(request.getTaskId());
+        }
+        if (request.getComplianceId() != null) {
+            filing.setComplianceId(request.getComplianceId());
+        }
+        if (request.getDocumentRequestId() != null) {
+            filing.setDocumentRequestId(request.getDocumentRequestId());
+        }
 
         GstReturnFilingEntity saved = gstReturnFilingRepository.save(filing);
+
+        // Synchronize Workflow with Tasks & Compliance
+        handleWorkflowStatusTransitions(saved, oldStatus, request.getReviewComments(), organizationId);
+
         log.info("Updated GST filing status: id={}, newStatus={} for tenant={}", saved.getId(), saved.getFilingStatus(), organizationId);
         GstReturnFilingDto result = enrichFilingDto(saved, null);
         auditService.logEvent("GST_FILING_STATUS_UPDATED", "GST_FILING", saved.getId().toString(), oldStatus != null ? oldStatus.name() : null, saved.getFilingStatus().name());
         return result;
+    }
+
+    private void handleWorkflowStatusTransitions(GstReturnFilingEntity filing, GstFilingStatus oldStatus, String reviewComments, UUID organizationId) {
+        if (filing.getFilingStatus() == GstFilingStatus.PREPARED) {
+            // Task transitions to IN_PROGRESS if currently TODO
+            if (filing.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(filing.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            if (task.getStatus() == TaskStatus.TODO) {
+                                task.setStatus(TaskStatus.IN_PROGRESS);
+                                taskRepository.save(task);
+                            }
+                        });
+            }
+            auditService.logEvent("GST_FILING_PREPARED", "GST_FILING", filing.getId().toString(), null, "Return prepared for review");
+        } else if (filing.getFilingStatus() == GstFilingStatus.UNDER_REVIEW) {
+            // Task transitions to UNDER_REVIEW
+            if (filing.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(filing.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.UNDER_REVIEW);
+                            taskRepository.save(task);
+                        });
+            }
+            notifyReviewReady(organizationId, filing);
+            auditService.logEvent("GST_FILING_SUBMITTED_FOR_REVIEW", "GST_FILING", filing.getId().toString(), null, "Submitted for review");
+        } else if (filing.getFilingStatus() == GstFilingStatus.FILED) {
+            // 1. Complete Compliance Obligation
+            if (filing.getComplianceId() != null) {
+                complianceObligationRepository.findByIdAndOrganizationId(filing.getComplianceId(), organizationId)
+                        .ifPresent(ob -> {
+                            ob.setStatus(ComplianceStatus.COMPLETED);
+                            ob.setCompletedAt(java.time.Instant.now());
+                            ob.setCompletedBy(SecurityUtils.getCurrentUserEmail());
+                            complianceObligationRepository.save(ob);
+                        });
+            }
+            // 2. Complete Task
+            if (filing.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(filing.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.COMPLETED);
+                            task.setCompletedAt(java.time.Instant.now());
+                            taskRepository.save(task);
+                        });
+            }
+            notifyFilingCompleted(organizationId, filing);
+            auditService.logEvent("GST_FILING_FILED", "GST_FILING", filing.getId().toString(), null, "ARN recorded: " + filing.getAcknowledgementNumber());
+        } else if (StringUtils.hasText(reviewComments) && (filing.getFilingStatus() == GstFilingStatus.PENDING || filing.getFilingStatus() == GstFilingStatus.PREPARED)) {
+            // Reviewer requested rework
+            if (filing.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(filing.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.IN_PROGRESS);
+                            task.setBlockedReason("Rework required: " + reviewComments);
+                            taskRepository.save(task);
+                        });
+            }
+            auditService.logEvent("GST_FILING_REWORK_REQUESTED", "GST_FILING", filing.getId().toString(), null, reviewComments);
+        }
     }
 
     @Override
@@ -455,6 +584,14 @@ public class GstServiceImpl implements GstService {
                     filing.setOrganizationId(organizationId);
 
                     GstReturnFilingEntity saved = gstReturnFilingRepository.save(filing);
+
+                    // Auto-link or generate Compliance Obligation
+                    ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, profile, organizationId);
+                    if (obligation != null) {
+                        saved.setComplianceId(obligation.getId());
+                        saved = gstReturnFilingRepository.save(saved);
+                    }
+
                     createdFilings.add(enrichFilingDto(saved, profile));
                 }
             }
@@ -675,8 +812,248 @@ public class GstServiceImpl implements GstService {
     }
 
     // =========================================================================
+    // 5. Workflow Linkages (Compliance, Task, Document Request)
+    // =========================================================================
+
+    @Override
+    @Transactional
+    public GstReturnFilingDto createTaskForFiling(UUID filingId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(filingId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", filingId));
+
+        if (filing.getTaskId() != null) {
+            return enrichFilingDto(filing, null);
+        }
+
+        GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(filing.getGstProfileId(), organizationId).orElse(null);
+        createTaskForFilingInternal(filing, profile, organizationId);
+
+        return enrichFilingDto(filing, profile);
+    }
+
+    private TaskEntity createTaskForFilingInternal(GstReturnFilingEntity filing, GstProfileEntity profile, UUID organizationId) {
+        if (filing.getTaskId() != null) {
+            return taskRepository.findByIdAndOrganizationId(filing.getTaskId(), organizationId).orElse(null);
+        }
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(filing.getClientId(), organizationId).orElse(null);
+        String clientLabel = client != null ? client.getDisplayName() : "Client";
+
+        UUID rawAssignee = filing.getAssignedEmployeeId() != null
+                ? filing.getAssignedEmployeeId()
+                : (profile != null ? profile.getAssignedEmployeeId() : null);
+
+        UUID assigneeUserId = resolveAssigneeUserId(rawAssignee, organizationId);
+
+        TaskEntity task = TaskEntity.builder()
+                .clientId(filing.getClientId())
+                .assignedTo(assigneeUserId)
+                .title("Prepare " + filing.getReturnType() + " - " + filing.getReturnPeriod() + " (" + clientLabel + ")")
+                .description("Operational GST return preparation deliverable for " + filing.getReturnType() + " (" + filing.getReturnPeriod() + "). Verify sales register, purchase register, and GSTR-2B ITC reconciliation.")
+                .taskCategory(TaskCategory.GST)
+                .priority(filing.getReturnType() == GstReturnType.GSTR3B ? TaskPriority.URGENT : TaskPriority.HIGH)
+                .dueDate(filing.getDueDate())
+                .complianceId(filing.getComplianceId())
+                .documentRequestId(filing.getDocumentRequestId())
+                .gstFilingId(filing.getId())
+                .status(filing.getFilingStatus() == GstFilingStatus.FILED ? TaskStatus.COMPLETED : TaskStatus.TODO)
+                .build();
+        task.setOrganizationId(organizationId);
+
+        TaskEntity savedTask = taskRepository.save(task);
+        filing.setTaskId(savedTask.getId());
+        gstReturnFilingRepository.save(filing);
+
+        if (filing.getComplianceId() != null) {
+            complianceObligationRepository.findByIdAndOrganizationId(filing.getComplianceId(), organizationId)
+                    .ifPresent(ob -> {
+                        ob.setTaskId(savedTask.getId());
+                        complianceObligationRepository.save(ob);
+                    });
+        }
+
+        if (savedTask.getAssignedTo() != null) {
+            notifyTaskAssigned(organizationId, savedTask);
+        }
+
+        auditService.logEvent("GST_TASK_CREATED", "TASK", savedTask.getId().toString(), null, "Linked to GST Filing " + filing.getId());
+        return savedTask;
+    }
+
+    @Override
+    @Transactional
+    public DocumentRequestDto createDocumentRequestForFiling(UUID filingId, CreateDocumentRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(filingId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", filingId));
+
+        request.setClientId(filing.getClientId());
+        request.setTaskId(filing.getTaskId());
+        request.setComplianceId(filing.getComplianceId());
+        if (!StringUtils.hasText(request.getPurpose())) {
+            request.setPurpose("GST " + filing.getReturnType() + " " + filing.getReturnPeriod() + " Supporting Documents");
+        }
+        if (request.getDueDate() == null && filing.getDueDate() != null) {
+            request.setDueDate(filing.getDueDate().minusDays(3));
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            List<CreateDocumentRequestItem> defaultItems = new ArrayList<>();
+            defaultItems.add(CreateDocumentRequestItem.builder().title("Sales Register / Invoices (" + filing.getReturnPeriod() + ")").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.GST_INVOICE_SALE).required(true).build());
+            defaultItems.add(CreateDocumentRequestItem.builder().title("Purchase Register / Bills (" + filing.getReturnPeriod() + ")").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.GST_INVOICE_PURCHASE).required(true).build());
+            defaultItems.add(CreateDocumentRequestItem.builder().title("GSTR-2B Statement / Excel").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.OTHER).required(false).build());
+            defaultItems.add(CreateDocumentRequestItem.builder().title("Bank Statement for " + filing.getReturnPeriod()).documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.BANK_STATEMENT).required(false).build());
+            request.setItems(defaultItems);
+        }
+
+        DocumentRequestDto createdReq = documentRequestService.createAndSendRequest(request);
+
+        // Link back to filing
+        filing.setDocumentRequestId(createdReq.getId());
+        gstReturnFilingRepository.save(filing);
+
+        // If task exists, update task's documentRequestId
+        if (filing.getTaskId() != null) {
+            taskRepository.findByIdAndOrganizationId(filing.getTaskId(), organizationId)
+                    .ifPresent(task -> {
+                        task.setDocumentRequestId(createdReq.getId());
+                        taskRepository.save(task);
+                    });
+        }
+
+        // Also update DocumentRequestEntity's gstFilingId
+        documentRequestRepository.findByIdAndOrganizationId(createdReq.getId(), organizationId)
+                .ifPresent(docReq -> {
+                    docReq.setGstFilingId(filing.getId());
+                    documentRequestRepository.save(docReq);
+                });
+
+        auditService.logEvent("GST_DOCUMENT_REQUEST_CREATED", "DOCUMENT_REQUEST", createdReq.getId().toString(), null, "Linked to GST Filing " + filing.getId());
+        return createdReq;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getFilingDocuments(UUID filingId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        gstReturnFilingRepository.findByIdAndOrganizationId(filingId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", filingId));
+
+        return documentRepository.findAllByOrganizationIdAndGstFilingIdAndStatus(organizationId, filingId, DocumentStatus.ACTIVE)
+                .stream().map(documentMapper::toDto).toList();
+    }
+
+    // =========================================================================
     // Helpers & Enrichers
     // =========================================================================
+
+    private ComplianceObligationEntity resolveOrCreateComplianceObligation(
+            GstReturnFilingEntity filing, GstProfileEntity profile, UUID organizationId) {
+        if (filing.getComplianceId() != null) {
+            return complianceObligationRepository.findByIdAndOrganizationId(filing.getComplianceId(), organizationId).orElse(null);
+        }
+
+        Optional<ComplianceObligationEntity> existing = complianceObligationRepository
+                .findByOrganizationIdAndClientIdAndPeriodAndComplianceType(organizationId, filing.getClientId(), filing.getReturnPeriod(), ComplianceType.GST);
+        if (existing.isPresent()) {
+            ComplianceObligationEntity ob = existing.get();
+            if (ob.getGstFilingId() == null) {
+                ob.setGstFilingId(filing.getId());
+                complianceObligationRepository.save(ob);
+            }
+            return ob;
+        }
+
+        String title = filing.getReturnType().name() + " Monthly Return - " + filing.getReturnPeriod();
+        ComplianceObligationEntity obligation = ComplianceObligationEntity.builder()
+                .clientId(filing.getClientId())
+                .title(title)
+                .complianceType(ComplianceType.GST)
+                .period(filing.getReturnPeriod())
+                .dueDate(filing.getDueDate() != null ? filing.getDueDate() : LocalDate.now().plusDays(20))
+                .status(filing.getFilingStatus() == GstFilingStatus.FILED ? ComplianceStatus.COMPLETED : ComplianceStatus.PENDING)
+                .priority(filing.getReturnType() == GstReturnType.GSTR3B ? CompliancePriority.CRITICAL : CompliancePriority.HIGH)
+                .assignedEmployeeId(filing.getAssignedEmployeeId() != null ? filing.getAssignedEmployeeId() : (profile != null ? profile.getAssignedEmployeeId() : null))
+                .gstFilingId(filing.getId())
+                .build();
+        obligation.setOrganizationId(organizationId);
+
+        return complianceObligationRepository.save(obligation);
+    }
+
+    private UUID resolveAssigneeUserId(UUID assignedTo, UUID organizationId) {
+        if (assignedTo == null) return null;
+        return employeeRepository.findByIdAndOrganizationId(assignedTo, organizationId)
+                .map(emp -> {
+                    if (emp.getUserId() != null) {
+                        return emp.getUserId();
+                    }
+                    if (emp.getEmail() != null) {
+                        Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(emp.getEmail().toLowerCase().trim());
+                        if (userOpt.isPresent()) {
+                            emp.setUserId(userOpt.get().getId());
+                            employeeRepository.save(emp);
+                            return userOpt.get().getId();
+                        }
+                    }
+                    return assignedTo;
+                })
+                .orElse(assignedTo);
+    }
+
+    private void notifyTaskAssigned(UUID organizationId, TaskEntity task) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    task.getAssignedTo(),
+                    null,
+                    NotificationType.TASK_ASSIGNED,
+                    "New GST Task Assigned",
+                    "You have been assigned to prepare GST task: " + task.getTitle(),
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/tasks",
+                    "{\"taskId\":\"" + task.getId() + "\",\"category\":\"GST\"}"
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send task assigned notification for task {}: {}", task.getId(), ex.getMessage());
+        }
+    }
+
+    private void notifyReviewReady(UUID organizationId, GstReturnFilingEntity filing) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    null,
+                    null,
+                    NotificationType.GST_FILING_READY_FOR_REVIEW,
+                    "GST Return Ready for Review",
+                    "GST return " + filing.getReturnType() + " for period " + filing.getReturnPeriod() + " has been prepared and is awaiting partner review.",
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/gst",
+                    "{\"filingId\":\"" + filing.getId() + "\"}"
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send review ready notification for filing {}: {}", filing.getId(), ex.getMessage());
+        }
+    }
+
+    private void notifyFilingCompleted(UUID organizationId, GstReturnFilingEntity filing) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    null,
+                    null,
+                    NotificationType.GST_FILING_COMPLETED,
+                    "GST Return Filed Successfully",
+                    "GST return " + filing.getReturnType() + " for period " + filing.getReturnPeriod() + " was filed. ARN: " + filing.getAcknowledgementNumber(),
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/gst",
+                    "{\"filingId\":\"" + filing.getId() + "\",\"arn\":\"" + filing.getAcknowledgementNumber() + "\"}"
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send filing completed notification for filing {}: {}", filing.getId(), ex.getMessage());
+        }
+    }
 
     private GstProfileDto enrichProfileDto(GstProfileEntity entity) {
         GstProfileDto dto = gstMapper.toDto(entity);
@@ -707,6 +1084,40 @@ public class GstServiceImpl implements GstService {
             employeeRepository.findByIdAndOrganizationId(entity.getAssignedEmployeeId(), entity.getOrganizationId())
                     .ifPresent(emp -> dto.setAssignedEmployeeName(emp.getFullName()));
         }
+
+        // Enrich Compliance Linkage
+        if (entity.getComplianceId() != null) {
+            complianceObligationRepository.findByIdAndOrganizationId(entity.getComplianceId(), entity.getOrganizationId())
+                    .ifPresent(ob -> dto.setComplianceTitle(ob.getTitle()));
+        }
+
+        // Enrich Task Linkage
+        if (entity.getTaskId() != null) {
+            taskRepository.findByIdAndOrganizationId(entity.getTaskId(), entity.getOrganizationId())
+                    .ifPresent(task -> {
+                        dto.setTaskTitle(task.getTitle());
+                        dto.setTaskStatus(task.getStatus().name());
+                    });
+        }
+
+        // Enrich Document Request Linkage
+        if (entity.getDocumentRequestId() != null) {
+            documentRequestRepository.findByIdAndOrganizationId(entity.getDocumentRequestId(), entity.getOrganizationId())
+                    .ifPresent(docReq -> {
+                        dto.setDocumentRequestNumber(docReq.getRequestNumber());
+                        dto.setDocumentRequestStatus(docReq.getStatus().name());
+                        dto.setDocumentRequestItemsCount((int) documentRequestItemRepository.countByRequestId(docReq.getId()));
+                        long receivedCount = documentRequestItemRepository.countByRequestIdAndStatus(docReq.getId(), ItemStatus.ACCEPTED)
+                                + documentRequestItemRepository.countByRequestIdAndStatus(docReq.getId(), ItemStatus.UPLOADED);
+                        dto.setDocumentRequestReceivedCount((int) receivedCount);
+                    });
+        }
+
+        // Count Attached Documents in Vault
+        long docCount = documentRepository.countByOrganizationIdAndGstFilingIdAndStatus(
+                entity.getOrganizationId(), entity.getId(), DocumentStatus.ACTIVE);
+        dto.setDocumentsCount((int) docCount);
+
         return dto;
     }
 

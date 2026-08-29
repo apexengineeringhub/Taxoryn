@@ -23,6 +23,12 @@ public interface GstReturnFilingRepository extends JpaRepository<GstReturnFiling
 
     List<GstReturnFilingEntity> findAllByOrganizationIdAndClientIdOrderByDueDateDesc(UUID organizationId, UUID clientId);
 
+    Optional<GstReturnFilingEntity> findByOrganizationIdAndTaskId(UUID organizationId, UUID taskId);
+
+    Optional<GstReturnFilingEntity> findByOrganizationIdAndComplianceId(UUID organizationId, UUID complianceId);
+
+    Optional<GstReturnFilingEntity> findByOrganizationIdAndDocumentRequestId(UUID organizationId, UUID documentRequestId);
+
     List<GstReturnFilingEntity> findAllByOrganizationIdAndReturnPeriod(UUID organizationId, String returnPeriod);
 
     long countByOrganizationIdAndReturnPeriodAndReturnTypeAndFilingStatus(

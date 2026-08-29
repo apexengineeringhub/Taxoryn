@@ -61,6 +61,9 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "task_id")
     private UUID taskId;
 
+    @Column(name = "gst_filing_id")
+    private UUID gstFilingId;
+
     @Column(name = "completed_at")
     private Instant completedAt;
 

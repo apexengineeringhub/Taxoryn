@@ -52,6 +52,13 @@ public interface GstService {
 
     List<GstReturnFilingDto> getClientFilingHistory(UUID clientId);
 
+    // 5. Workflow Linkages (Compliance, Task, Document Request)
+    GstReturnFilingDto createTaskForFiling(UUID id);
+
+    com.taxoryn.module.docrequest.dto.DocumentRequestDto createDocumentRequestForFiling(UUID filingId, com.taxoryn.module.docrequest.dto.CreateDocumentRequest request);
+
+    List<com.taxoryn.module.document.dto.DocumentDto> getFilingDocuments(UUID filingId);
+
     com.taxoryn.module.gst.dto.BulkGstImportResultDto bulkCreateProfiles(java.util.List<CreateGstProfileRequest> requests);
 
     com.taxoryn.module.gst.dto.BulkGstImportResultDto bulkCreateFilings(java.util.List<CreateGstReturnFilingRequest> requests);

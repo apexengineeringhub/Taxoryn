@@ -162,6 +162,36 @@ public class GstController {
                 .body(ApiResponse.created("Batch generated " + filings.size() + " filings successfully", filings));
     }
 
+    @PostMapping("/filings/{id}/create-task")
+    @PreAuthorize("hasAuthority('GST_UPDATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Generate linked task for GST filing", description = "Generates and assigns an operational preparation task in the Task Management module.")
+    public ResponseEntity<ApiResponse<GstReturnFilingDto>> createTaskForFiling(@PathVariable UUID id) {
+        GstReturnFilingDto filing = gstService.createTaskForFiling(id);
+        return ResponseEntity.ok(ApiResponse.success("Task generated and linked to GST filing successfully", filing));
+    }
+
+    @PostMapping("/filings/{id}/document-requests")
+    @PreAuthorize("hasAuthority('GST_UPDATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Request supporting documents for GST filing", description = "Creates a document checklist request sent to client portal (Sales/Purchase register, GSTR-2B).")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> createDocumentRequestForFiling(
+            @PathVariable UUID id,
+            @RequestBody(required = false) com.taxoryn.module.docrequest.dto.CreateDocumentRequest request) {
+        if (request == null) {
+            request = new com.taxoryn.module.docrequest.dto.CreateDocumentRequest();
+        }
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto docReq = gstService.createDocumentRequestForFiling(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Document request created and sent to client successfully", docReq));
+    }
+
+    @GetMapping("/filings/{id}/documents")
+    @PreAuthorize("hasAuthority('GST_VIEW') or hasAuthority('GST_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List attached documents for GST filing", description = "Retrieves all active documents in vault linked to this GST return filing.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.document.dto.DocumentDto>>> getFilingDocuments(@PathVariable UUID id) {
+        List<com.taxoryn.module.document.dto.DocumentDto> documents = gstService.getFilingDocuments(id);
+        return ResponseEntity.ok(ApiResponse.success("Filing documents retrieved successfully", documents));
+    }
+
     // =========================================================================
     // 3. Monthly Computation & Summary
     // =========================================================================

@@ -320,6 +320,22 @@ export interface GstReturnFiling {
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   notes?: string;
+
+  // Workflow linkages
+  complianceId?: string;
+  complianceTitle?: string;
+  taskId?: string;
+  taskTitle?: string;
+  taskStatus?: string;
+  documentRequestId?: string;
+  documentRequestNumber?: string;
+  documentRequestStatus?: string;
+  documentRequestItemsCount?: number;
+  documentRequestReceivedCount?: number;
+  documentsCount?: number;
+  createTask?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BulkGstImportResult {
