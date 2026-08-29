@@ -147,6 +147,85 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
                 maskEmail(recipientEmail), success, emailSender.getProviderName());
     }
 
+    @Override
+    public void sendDocumentRequestEmail(String recipientEmail, String clientName, String purpose, String practiceName, java.time.LocalDate dueDate, String message, java.util.List<String> itemTitles) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            return;
+        }
+
+        StringBuilder itemsListHtml = new StringBuilder();
+        if (itemTitles != null && !itemTitles.isEmpty()) {
+            for (String t : itemTitles) {
+                itemsListHtml.append("<li>").append(t).append("</li>");
+            }
+        } else {
+            itemsListHtml.append("<li>Standard tax compliance documents</li>");
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", StringUtils.hasText(clientName) ? clientName.trim() : "Valued Client");
+        data.put("purpose", StringUtils.hasText(purpose) ? purpose.trim() : "Tax Preparation");
+        data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Consultant");
+        data.put("dueDate", dueDate != null ? dueDate.toString() : "Promptly");
+        data.put("message", message != null ? message : "");
+        data.put("itemsListHtml", itemsListHtml.toString());
+        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "http://localhost:5173/login");
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REQUEST, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REQUEST, data);
+
+        emailSender.sendEmail(recipientEmail.trim(), clientName, subject, htmlBody, data);
+    }
+
+    @Override
+    public void sendDocumentReminderEmail(String recipientEmail, String clientName, String purpose, String practiceName, java.time.LocalDate dueDate, java.util.List<String> pendingItemTitles) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            return;
+        }
+
+        StringBuilder itemsListHtml = new StringBuilder();
+        if (pendingItemTitles != null && !pendingItemTitles.isEmpty()) {
+            for (String t : pendingItemTitles) {
+                itemsListHtml.append("<li>").append(t).append("</li>");
+            }
+        } else {
+            itemsListHtml.append("<li>Pending compliance documents</li>");
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", StringUtils.hasText(clientName) ? clientName.trim() : "Valued Client");
+        data.put("purpose", StringUtils.hasText(purpose) ? purpose.trim() : "Tax Preparation");
+        data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Consultant");
+        data.put("dueDate", dueDate != null ? dueDate.toString() : "Immediate");
+        data.put("itemsListHtml", itemsListHtml.toString());
+        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "http://localhost:5173/login");
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REMINDER, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REMINDER, data);
+
+        emailSender.sendEmail(recipientEmail.trim(), clientName, subject, htmlBody, data);
+    }
+
+    @Override
+    public void sendDocumentRejectedEmail(String recipientEmail, String clientName, String purpose, String documentTitle, String reason, String practiceName) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            return;
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", StringUtils.hasText(clientName) ? clientName.trim() : "Valued Client");
+        data.put("purpose", StringUtils.hasText(purpose) ? purpose.trim() : "Tax Preparation");
+        data.put("documentTitle", StringUtils.hasText(documentTitle) ? documentTitle.trim() : "Document");
+        data.put("reason", StringUtils.hasText(reason) ? reason.trim() : "Correction required by practitioner");
+        data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Consultant");
+        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "http://localhost:5173/login");
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REJECTED, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REJECTED, data);
+
+        emailSender.sendEmail(recipientEmail.trim(), clientName, subject, htmlBody, data);
+    }
+
     private String buildFullName(String firstName, String lastName) {
         if (StringUtils.hasText(firstName) && StringUtils.hasText(lastName)) {
             return firstName.trim() + " " + lastName.trim();

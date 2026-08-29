@@ -545,6 +545,79 @@ export interface ClientDocumentRequest {
   uploadedDocumentName?: string;
 }
 
+// Multi-Item Document Requests V1
+export interface DocumentRequestItem {
+  id: string;
+  requestId: string;
+  clientId: string;
+  documentType: string;
+  title: string;
+  description?: string;
+  required: boolean;
+  status: 'PENDING' | 'UPLOADED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED';
+  uploadedDocumentId?: string;
+  uploadedDocumentName?: string;
+  uploadedDocumentSize?: number;
+  uploadedDocumentContentType?: string;
+  uploadedAt?: string;
+  reviewedByUserId?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface DocumentRequest {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName: string;
+  clientPan?: string;
+  requestNumber: string;
+  purpose: string;
+  dueDate?: string;
+  message?: string;
+  status: 'DRAFT' | 'SENT' | 'PARTIALLY_COMPLETED' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE';
+  financialYear?: string;
+  assessmentYear?: string;
+  requestedByUserId?: string;
+  requestedByName?: string;
+  sentAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  totalItems: number;
+  uploadedItems: number;
+  acceptedItems: number;
+  pendingItems: number;
+  rejectedItems: number;
+  isOverdue: boolean;
+  items: DocumentRequestItem[];
+}
+
+export interface CreateDocumentRequestItem {
+  documentType?: string;
+  title: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface CreateDocumentRequest {
+  clientId: string;
+  purpose: string;
+  dueDate?: string;
+  message?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  items: CreateDocumentRequestItem[];
+}
+
+export interface DocumentRequestSummary {
+  totalRequests: number;
+  pendingRequests: number;
+  partiallyCompletedRequests: number;
+  completedRequests: number;
+  overdueRequests: number;
+}
+
 export interface ClientPortalUser {
   userId: string;
   clientId: string;

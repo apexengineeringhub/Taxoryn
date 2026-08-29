@@ -27,6 +27,9 @@ public class EmailTemplateRenderer {
             case PAYMENT_RECEIVED -> renderPaymentReceivedHtml(data);
             case INVOICE_REMINDER -> renderInvoiceReminderHtml(data);
             case PASSWORD_RESET -> renderPasswordResetHtml(data);
+            case DOCUMENT_REQUEST -> renderDocumentRequestHtml(data);
+            case DOCUMENT_REMINDER -> renderDocumentReminderHtml(data);
+            case DOCUMENT_REJECTED -> renderDocumentRejectedHtml(data);
         };
     }
 
@@ -384,6 +387,245 @@ public class EmailTemplateRenderer {
         </body>
         </html>
         """.formatted(escape(name), escape(resetUrl), escape(expiryMinutes), escape(resetUrl), escape(resetUrl));
+    }
+
+    private String renderDocumentRequestHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Client");
+        String purpose = getString(data, "purpose", "Tax Preparation");
+        String practiceName = getString(data, "practiceName", "Your Tax Consultant");
+        String dueDate = getString(data, "dueDate", "Promptly");
+        String message = getString(data, "message", "");
+        String itemsListHtml = getString(data, "itemsListHtml", "<li>Standard tax compliance documents</li>");
+        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Documents Required — %s</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #00d1a3; }
+            .logo-badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; letter-spacing: 0.5px; }
+            .motto-bar { color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 20px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 12px; }
+            p { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .purpose-box { background: #f0fdf9; border-radius: 8px; border: 1px solid #bbf7d0; padding: 16px 20px; margin: 20px 0; }
+            .purpose-title { font-size: 15px; font-weight: 800; color: #065f46; margin: 0 0 4px; }
+            .due-info { font-size: 13px; color: #047857; font-weight: 600; }
+            .message-box { background: #f8fafc; border-left: 4px solid #00d1a3; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #334155; font-style: italic; }
+            .items-container { margin: 20px 0; }
+            .items-title { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+            .items-list { list-style: none; padding-left: 0; margin: 0; }
+            .items-list li { padding: 8px 12px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 600; color: #334155; display: flex; align-items: center; }
+            .items-list li::before { content: "📄"; margin-right: 8px; }
+            .btn-wrapper { text-align: center; margin: 30px 0 10px; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(0, 209, 163, 0.2); }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 13px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
+            .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                TAXO<span class="logo-accent">RYN</span>
+                <span class="logo-badge">Client Portal</span>
+              </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            </div>
+            <div class="content">
+              <h1>Hello %s, 👋</h1>
+              <p>Your tax consultant at <strong>%s</strong> has requested documents from you to complete your filing.</p>
+              
+              <div class="purpose-box">
+                <div class="purpose-title">📋 Purpose: %s</div>
+                <div class="due-info">⏰ Submission Due Date: <strong>%s</strong></div>
+              </div>
+
+              %s
+
+              <div class="items-container">
+                <div class="items-title">Requested Document Checklist:</div>
+                <ul class="items-list">
+                  %s
+                </ul>
+              </div>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn">Upload Requested Documents →</a>
+              </div>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXORYN</div>
+              <div class="footer-motto">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(
+                escape(purpose),
+                escape(name),
+                escape(practiceName),
+                escape(purpose),
+                escape(dueDate),
+                StringUtils.hasText(message) ? "<div class=\"message-box\">\"" + escape(message) + "\"</div>" : "",
+                itemsListHtml,
+                escape(uploadUrl)
+        );
+    }
+
+    private String renderDocumentReminderHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Client");
+        String purpose = getString(data, "purpose", "Tax Preparation");
+        String practiceName = getString(data, "practiceName", "Your Tax Consultant");
+        String dueDate = getString(data, "dueDate", "Promptly");
+        String itemsListHtml = getString(data, "itemsListHtml", "<li>Pending documents</li>");
+        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Reminder: Documents Required — %s</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #b45309 0%%, #78350f 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #fde047; }
+            .logo-badge { background: #fde047; color: #78350f; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; }
+            .motto-bar { color: #fef08a; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 20px; font-weight: 800; color: #78350f; margin-top: 0; margin-bottom: 12px; }
+            p { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .due-box { background: #fef3c7; border-radius: 8px; border: 1px solid #fde68a; padding: 16px 20px; margin: 20px 0; font-size: 14px; color: #92400e; font-weight: bold; }
+            .items-list { list-style: none; padding-left: 0; margin: 16px 0; }
+            .items-list li { padding: 8px 12px; margin-bottom: 6px; background: #fffbeb; border-radius: 6px; border: 1px solid #fef3c7; font-size: 13px; font-weight: 600; color: #78350f; }
+            .btn-wrapper { text-align: center; margin: 30px 0 10px; }
+            .btn { background-color: #d97706; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 14px; display: inline-block; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                TAXO<span class="logo-accent">RYN</span>
+                <span class="logo-badge">Friendly Reminder</span>
+              </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            </div>
+            <div class="content">
+              <h1>Document Reminder for %s</h1>
+              <p>This is a quick reminder from <strong>%s</strong> regarding pending documents for <strong>%s</strong>.</p>
+              
+              <div class="due-box">
+                ⏰ Submission Due Date: %s
+              </div>
+
+              <p>Please upload the following pending items as soon as possible:</p>
+              <ul class="items-list">
+                %s
+              </ul>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn">Upload Pending Documents →</a>
+              </div>
+            </div>
+            <div class="footer">
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(
+                escape(purpose),
+                escape(name),
+                escape(practiceName),
+                escape(purpose),
+                escape(dueDate),
+                itemsListHtml,
+                escape(uploadUrl)
+        );
+    }
+
+    private String renderDocumentRejectedHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Client");
+        String documentTitle = getString(data, "documentTitle", "Document");
+        String purpose = getString(data, "purpose", "Tax Preparation");
+        String reason = getString(data, "reason", "Document could not be verified.");
+        String practiceName = getString(data, "practiceName", "Your Tax Consultant");
+        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Document Needs Correction</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #991b1b 0%%, #450a0a 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 20px; font-weight: 800; color: #991b1b; margin-top: 0; }
+            p { font-size: 14px; line-height: 1.6; color: #475569; }
+            .reason-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 20px 0; border-radius: 4px; }
+            .reason-title { font-weight: bold; color: #991b1b; margin-bottom: 4px; font-size: 13px; }
+            .reason-text { font-size: 14px; color: #7f1d1d; }
+            .btn-wrapper { text-align: center; margin: 30px 0 10px; }
+            .btn { background-color: #ef4444; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 14px; display: inline-block; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">TAXORYN</div>
+            </div>
+            <div class="content">
+              <h1>Action Required: Document Needs Correction</h1>
+              <p>Hello %s,</p>
+              <p>Your tax consultant at <strong>%s</strong> has reviewed the uploaded document <strong>%s</strong> for <strong>%s</strong> and indicated that a correction is required:</p>
+              
+              <div class="reason-box">
+                <div class="reason-title">Reason from Practitioner:</div>
+                <div class="reason-text">%s</div>
+              </div>
+
+              <p>Please upload a corrected replacement document through your Taxoryn Client Portal.</p>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn">Upload Replacement Document →</a>
+              </div>
+            </div>
+            <div class="footer">
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(
+                escape(name),
+                escape(practiceName),
+                escape(documentTitle),
+                escape(purpose),
+                escape(reason),
+                escape(uploadUrl)
+        );
     }
 
     private String getString(Map<String, Object> data, String key, String defaultValue) {

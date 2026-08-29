@@ -35,6 +35,7 @@ import {
   DocumentItem,
   RegisterClientPortalUserRequest,
 } from '../types';
+import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import clsx from 'clsx';
 
 export const ClientPortalManagementPage: React.FC = () => {
@@ -890,13 +891,28 @@ export const ClientPortalManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: Document Vault */}
+      {/* TAB 5: Document Requests & Vault */}
       {activeTab === 'documents' && (
         <div className="space-y-6">
+          {/* Multi-Item Document Requests V1 */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" />
+                Requested Documents from Tax Consultant
+              </h2>
+              <span className="text-xs font-semibold text-slate-500">Document Request Checklist V1</span>
+            </div>
+            <PortalDocumentRequestsView
+              isPracticeUser={isPracticeUser}
+              clientId={isPracticeUser ? selectedClientId : undefined}
+            />
+          </div>
+
           <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <div>
               <h2 className="text-sm font-bold text-slate-900">Secure Document Repository</h2>
-              <p className="text-xs text-slate-500">Upload bank statements, TDS certificates, and tax computation files.</p>
+              <p className="text-xs text-slate-500">Directly upload bank statements, TDS certificates, and tax computation files.</p>
             </div>
             <Button
               variant="primary"

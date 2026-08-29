@@ -27,6 +27,11 @@ import {
   ClientGstStatus,
   ClientItrStatus,
   ClientDocumentRequest,
+  DocumentRequest,
+  DocumentRequestItem,
+  CreateDocumentRequest,
+  CreateDocumentRequestItem,
+  DocumentRequestSummary,
   ClientPortalUser,
   RegisterClientPortalUserRequest,
   TdsProfile,
@@ -676,6 +681,10 @@ export const documentApi = {
     return res.data.data;
   },
   downloadUrl: (id: string) => `/api/v1/documents/${id}/download`,
+  download: async (id: string) => {
+    const res = await apiClient.get(`/v1/documents/${id}/download`, { responseType: 'blob' });
+    return res.data as Blob;
+  },
 };
 
 // --- 9. Billing & Invoices ---
@@ -905,6 +914,74 @@ export const portalApi = {
   },
   requestDocument: async (payload: { clientId: string; title: string; description?: string; documentType: string; dueDate?: string }) => {
     const res = await apiClient.post<ApiResponse<ClientDocumentRequest>>('/v1/portal/document-requests', payload);
+    return res.data.data;
+  },
+};
+
+// --- 13. Multi-Item Document Requests V1 ---
+export const documentRequestApi = {
+  getAll: async (params?: { page?: number; size?: number; clientId?: string; status?: string; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<DocumentRequest>>>('/v1/document-requests', { params });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest>>(`/v1/document-requests/${id}`);
+    return res.data.data;
+  },
+  getByClient: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest[]>>(`/v1/document-requests/clients/${clientId}`);
+    return res.data.data;
+  },
+  create: async (payload: CreateDocumentRequest) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>('/v1/document-requests', payload);
+    return res.data.data;
+  },
+  acceptItem: async (itemId: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/items/${itemId}/accept`);
+    return res.data.data;
+  },
+  rejectItem: async (itemId: string, rejectionReason: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/items/${itemId}/reject`, {
+      rejectionReason,
+    });
+    return res.data.data;
+  },
+  uploadItem: async (itemId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/items/${itemId}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  sendReminder: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/document-requests/${id}/remind`);
+    return res.data;
+  },
+  cancel: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/${id}/cancel`);
+    return res.data.data;
+  },
+  getSummaryStats: async () => {
+    const res = await apiClient.get<ApiResponse<DocumentRequestSummary>>('/v1/document-requests/summary/stats');
+    return res.data.data;
+  },
+
+  // Client Portal Endpoints
+  getPortalRequests: async () => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest[]>>('/v1/portal/document-requests/v1');
+    return res.data.data;
+  },
+  getPortalRequestById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest>>(`/v1/portal/document-requests/v1/${id}`);
+    return res.data.data;
+  },
+  uploadPortalItem: async (itemId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/portal/document-requests/v1/items/${itemId}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data.data;
   },
 };
