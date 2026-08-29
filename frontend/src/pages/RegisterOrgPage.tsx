@@ -14,6 +14,7 @@ export const RegisterOrgPage: React.FC = () => {
     adminFirstName: '',
     adminLastName: '',
     adminEmail: '',
+    adminPhone: '',
     adminPassword: '',
   });
 
@@ -32,6 +33,7 @@ export const RegisterOrgPage: React.FC = () => {
       adminFirstName: 'Rajesh',
       adminLastName: 'Verma',
       adminEmail: `admin.${Date.now()}@apextax.com`,
+      adminPhone: '+919876543210',
       adminPassword: 'Password123!',
     });
     setFieldErrors({});
@@ -71,6 +73,7 @@ export const RegisterOrgPage: React.FC = () => {
         adminFirstName: formData.adminFirstName.trim(),
         adminLastName: formData.adminLastName ? formData.adminLastName.trim() : undefined,
         adminEmail: formData.adminEmail.trim(),
+        adminPhone: formData.adminPhone ? formData.adminPhone.trim() : undefined,
         adminPassword: formData.adminPassword,
       };
 
@@ -215,6 +218,26 @@ export const RegisterOrgPage: React.FC = () => {
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
+          </div>
+
+          {/* Admin Mobile / WhatsApp Number */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              Admin Mobile / WhatsApp Number * <span className="text-[10px] text-slate-400 font-normal">(e.g. +919876543210)</span>
+            </label>
+            <input
+              type="tel"
+              required
+              placeholder="+919876543210"
+              value={formData.adminPhone}
+              onChange={(e) => setFormData({ ...formData, adminPhone: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                fieldErrors.adminPhone ? 'border-rose-400 focus:ring-rose-500/20 bg-rose-50/20' : 'border-slate-200 focus:ring-brand-500'
+              }`}
+            />
+            {fieldErrors.adminPhone && (
+              <p className="text-rose-600 text-[11px] font-medium mt-1">{fieldErrors.adminPhone}</p>
+            )}
           </div>
 
           {/* Admin Email */}

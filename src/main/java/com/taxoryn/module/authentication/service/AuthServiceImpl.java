@@ -136,13 +136,17 @@ public class AuthServiceImpl implements AuthService {
                     return roleRepository.save(fallback);
                 });
 
+        String phone = org.springframework.util.StringUtils.hasText(request.getAdminPhone())
+                ? request.getAdminPhone().trim()
+                : (org.springframework.util.StringUtils.hasText(request.getOrganizationPhone()) ? request.getOrganizationPhone().trim() : null);
+
         // 3. Create Admin User under the new Tenant
         UserEntity adminUser = UserEntity.builder()
                 .email(adminEmail)
                 .passwordHash(passwordEncoder.encode(request.getAdminPassword()))
                 .firstName(request.getAdminFirstName().trim())
                 .lastName(request.getAdminLastName() != null ? request.getAdminLastName().trim() : null)
-                .phone(request.getAdminPhone())
+                .phone(phone)
                 .status(UserStatus.ACTIVE)
                 .roles(new HashSet<>(Set.of(orgAdminRole)))
                 .build();
