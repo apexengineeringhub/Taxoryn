@@ -532,14 +532,52 @@ export const ClientPortalManagementPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Pending Document Requests Checklist */}
-          {pendingDocRequests.length > 0 && (
+          {/* Action Required: Multi-Item Document Requests & Legacy Requests */}
+          {((dashboard?.activeMultiItemRequests && dashboard.activeMultiItemRequests.length > 0) || pendingDocRequests.length > 0) && (
             <Card
-              title="Action Required: Pending Document Requests"
-              subtitle="Please upload the requested statutory compliance documents"
-              className="border-amber-200 bg-amber-50/20"
+              title="🚨 Action Required: Pending Document Uploads"
+              subtitle="Please upload required tax and compliance documents to avoid delays"
+              className="border-amber-200 bg-amber-50/20 shadow-2xs"
             >
               <div className="space-y-3">
+                {dashboard?.activeMultiItemRequests?.map((req) => (
+                  <div
+                    key={req.id}
+                    className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">{req.purpose}</span>
+                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
+                          {req.requestNumber}
+                        </span>
+                        {req.isOverdue && (
+                          <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded">
+                            OVERDUE
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {req.items?.filter((i) => i.status === 'PENDING' || i.status === 'REJECTED').length || 0} items remaining to upload
+                      </p>
+                      {req.dueDate && (
+                        <span className="text-[11px] text-amber-700 font-semibold block">
+                          Due Date: {req.dueDate}
+                        </span>
+                      )}
+                    </div>
+
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setActiveTab('documents')}
+                      leftIcon={<UploadCloud className="w-4 h-4" />}
+                    >
+                      Open Checklist & Upload
+                    </Button>
+                  </div>
+                ))}
+
                 {pendingDocRequests.map((req) => (
                   <div
                     key={req.id}

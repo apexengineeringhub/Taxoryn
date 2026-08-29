@@ -140,6 +140,33 @@ public class NotificationServiceImpl implements NotificationService {
             }
         }
 
+        String resolvedEntityType = entityType;
+        String resolvedEntityId = entityId;
+        if (resolvedEntityType == null && org.springframework.util.StringUtils.hasText(metadata)) {
+            try {
+                if (metadata.contains("\"itemId\":\"")) {
+                    resolvedEntityType = "DOCUMENT_REQUEST_ITEM";
+                    resolvedEntityId = extractJsonField(metadata, "itemId");
+                } else if (metadata.contains("\"requestId\":\"")) {
+                    resolvedEntityType = "DOCUMENT_REQUEST";
+                    resolvedEntityId = extractJsonField(metadata, "requestId");
+                } else if (metadata.contains("\"taskId\":\"")) {
+                    resolvedEntityType = "TASK";
+                    resolvedEntityId = extractJsonField(metadata, "taskId");
+                } else if (metadata.contains("\"gstFilingId\":\"")) {
+                    resolvedEntityType = "GST_FILING";
+                    resolvedEntityId = extractJsonField(metadata, "gstFilingId");
+                } else if (metadata.contains("\"itrReturnId\":\"")) {
+                    resolvedEntityType = "ITR_RETURN";
+                    resolvedEntityId = extractJsonField(metadata, "itrReturnId");
+                } else if (metadata.contains("\"invoiceId\":\"")) {
+                    resolvedEntityType = "INVOICE";
+                    resolvedEntityId = extractJsonField(metadata, "invoiceId");
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
         NotificationEntity entity = NotificationEntity.builder()
                 .organizationId(organizationId)
                 .userId(targetUserId)
@@ -147,8 +174,8 @@ public class NotificationServiceImpl implements NotificationService {
                 .notificationType(resolvedType)
                 .severity(resolvedSeverity)
                 .category(resolvedCategory)
-                .entityType(entityType)
-                .entityId(entityId)
+                .entityType(resolvedEntityType)
+                .entityId(resolvedEntityId)
                 .title(title)
                 .message(message)
                 .channels(resolvedChannels.stream().map(Enum::name).collect(Collectors.joining(",")))
@@ -372,6 +399,19 @@ public class NotificationServiceImpl implements NotificationService {
     private String joinName(String firstName, String lastName) {
         String full = (StringUtils.hasText(firstName) ? firstName : "") + (StringUtils.hasText(lastName) ? " " + lastName : "");
         return full.trim();
+    }
+
+    private String extractJsonField(String json, String field) {
+        String key = "\"" + field + "\":\"";
+        int idx = json.indexOf(key);
+        if (idx != -1) {
+            int start = idx + key.length();
+            int end = json.indexOf("\"", start);
+            if (end != -1) {
+                return json.substring(start, end);
+            }
+        }
+        return null;
     }
 
     private record RecipientContact(String name, String email, String phone) {

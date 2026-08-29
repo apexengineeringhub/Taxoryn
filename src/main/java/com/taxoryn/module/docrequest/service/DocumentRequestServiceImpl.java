@@ -72,6 +72,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     private final NotificationService notificationService;
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
+    private final com.taxoryn.module.task.repository.TaskRepository taskRepository;
+    private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
 
     @Override
     @Transactional
@@ -301,6 +303,39 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
             request.setCompletedAt(Instant.now());
             docRequestRepository.save(request);
 
+            // Unblock linked Task if any
+            if (request.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(request.getTaskId(), organizationId).ifPresent(task -> {
+                    if (task.getStatus() == com.taxoryn.module.task.entity.TaskEntity.TaskStatus.BLOCKED) {
+                        task.setStatus(com.taxoryn.module.task.entity.TaskEntity.TaskStatus.IN_PROGRESS);
+                        task.setBlockedReason(null);
+                        taskRepository.save(task);
+
+                        auditService.logEvent(
+                                "TASK_UNBLOCKED",
+                                "TASK",
+                                task.getId().toString(),
+                                organizationId,
+                                "Task unblocked: All required documents accepted for request " + request.getRequestNumber()
+                        );
+
+                        if (task.getAssignedTo() != null) {
+                            notificationService.notify(
+                                    organizationId,
+                                    task.getAssignedTo(),
+                                    null,
+                                    NotificationType.TASK_UNBLOCKED,
+                                    "Task Unblocked: " + task.getTitle(),
+                                    "All required client documents for \"" + request.getPurpose() + "\" have been accepted. You can now proceed with this task.",
+                                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                                    "/tasks/" + task.getId(),
+                                    "{\"taskId\":\"" + task.getId() + "\",\"requestId\":\"" + request.getId() + "\"}"
+                            );
+                        }
+                    }
+                });
+            }
+
             auditService.logEvent(
                     "DOCUMENT_REQUEST_COMPLETED",
                     "DOCUMENT_REQUEST",
@@ -350,12 +385,48 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
             docRequestRepository.save(request);
         }
 
-        // Notify client about rejection
+        // Block linked Task if any
+        if (request.getTaskId() != null) {
+            taskRepository.findByIdAndOrganizationId(request.getTaskId(), organizationId).ifPresent(task -> {
+                if (task.getStatus() != com.taxoryn.module.task.entity.TaskEntity.TaskStatus.COMPLETED
+                        && task.getStatus() != com.taxoryn.module.task.entity.TaskEntity.TaskStatus.CANCELLED) {
+                    task.setStatus(com.taxoryn.module.task.entity.TaskEntity.TaskStatus.BLOCKED);
+                    task.setBlockedReason("Document rejected: " + item.getTitle() + " - " + rejectRequest.getRejectionReason().trim());
+                    taskRepository.save(task);
+
+                    auditService.logEvent(
+                            "TASK_BLOCKED",
+                            "TASK",
+                            task.getId().toString(),
+                            organizationId,
+                            "Task blocked: document rejected for " + request.getRequestNumber()
+                    );
+                }
+            });
+        }
+
+        // 1. Notify client via In-App Notification
         ClientEntity client = clientRepository.findById(request.getClientId()).orElse(null);
         String practiceName = organizationRepository.findById(organizationId)
                 .map(OrganizationEntity::getName)
                 .orElse("Taxoryn Practice");
 
+        if (client != null) {
+            notificationService.notify(
+                    organizationId,
+                    null,
+                    client.getId(),
+                    NotificationType.DOCUMENT_REJECTED,
+                    "Action Required: Document Needs Correction",
+                    "Your document \"" + item.getTitle() + "\" for " + request.getPurpose() +
+                            " was rejected: " + item.getRejectionReason() + ". Please re-upload a corrected file.",
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/portal?tab=documents",
+                    "{\"requestId\":\"" + request.getId() + "\",\"itemId\":\"" + item.getId() + "\"}"
+            );
+        }
+
+        // 2. Notify client via Branded Email
         if (client != null && StringUtils.hasText(client.getEmail())) {
             try {
                 emailNotificationService.sendDocumentRejectedEmail(
@@ -525,6 +596,34 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 organizationId,
                 "Uploaded document '" + uploadedDoc.getFileName() + "' for request item '" + item.getTitle() + "' in " + request.getRequestNumber()
         );
+
+        // 5. Notify assigned practitioner
+        try {
+            ClientEntity client = clientRepository.findById(request.getClientId()).orElse(null);
+            String clientDisplayName = client != null ? client.getDisplayName() : "Client";
+            UUID practitionerUserId = request.getRequestedByUserId();
+            if (practitionerUserId == null && client != null && client.getAssignedEmployeeId() != null) {
+                practitionerUserId = employeeRepository.findByIdAndOrganizationId(client.getAssignedEmployeeId(), organizationId)
+                        .map(com.taxoryn.module.employee.entity.EmployeeEntity::getUserId)
+                        .orElse(null);
+            }
+
+            if (practitionerUserId != null) {
+                notificationService.notify(
+                        organizationId,
+                        practitionerUserId,
+                        null,
+                        NotificationType.DOCUMENT_UPLOADED,
+                        "Document Uploaded: " + item.getTitle(),
+                        clientDisplayName + " uploaded document for " + request.getPurpose() + " (" + item.getTitle() + ").",
+                        Set.of(NotificationChannel.IN_APP),
+                        "/documents",
+                        "{\"requestId\":\"" + request.getId() + "\",\"itemId\":\"" + item.getId() + "\",\"documentId\":\"" + uploadedDoc.getId() + "\"}"
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to notify practitioner on document upload: {}", e.getMessage());
+        }
 
         return toDto(request);
     }

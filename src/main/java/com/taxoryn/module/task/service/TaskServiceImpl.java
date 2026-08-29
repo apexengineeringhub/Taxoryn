@@ -282,6 +282,12 @@ public class TaskServiceImpl implements TaskService {
                             docReq.setTaskId(saved.getId());
                             documentRequestRepository.save(docReq);
                         }
+                        if (docReq.getStatus() != com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.COMPLETED
+                                && (saved.getStatus() == TaskStatus.TODO || saved.getStatus() == TaskStatus.IN_PROGRESS)) {
+                            saved.setStatus(TaskStatus.BLOCKED);
+                            saved.setBlockedReason("Waiting for client documents: " + docReq.getPurpose());
+                            taskRepository.save(saved);
+                        }
                     });
         }
 

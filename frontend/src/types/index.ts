@@ -767,6 +767,7 @@ export interface ClientPortalDashboard {
   assignedPractitionerPhone?: string;
   pendingDocumentsCount: number;
   pendingTasksCount: number;
+  pendingActionItemsCount?: number;
   activeGstReturnsCount: number;
   activeItrReturnsCount: number;
   unpaidInvoicesCount: number;
@@ -774,6 +775,7 @@ export interface ClientPortalDashboard {
   latestGstFilings: ClientGstStatus[];
   latestItrReturns: ClientItrStatus[];
   pendingDocumentRequests: ClientDocumentRequest[];
+  activeMultiItemRequests?: DocumentRequest[];
   pendingTasks: any[];
   recentNotifications: any[];
   latestInvoices: Invoice[];

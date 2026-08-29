@@ -31,6 +31,7 @@ public class ClientPortalDashboardDto {
 
     private long pendingDocumentsCount;
     private long pendingTasksCount;
+    private long pendingActionItemsCount;
     private long activeGstReturnsCount;
     private long activeItrReturnsCount;
     private long unpaidInvoicesCount;
@@ -39,6 +40,7 @@ public class ClientPortalDashboardDto {
     private List<ClientGstStatusDto> latestGstFilings;
     private List<ClientItrStatusDto> latestItrReturns;
     private List<ClientDocumentRequestDto> pendingDocumentRequests;
+    private List<com.taxoryn.module.docrequest.dto.DocumentRequestDto> activeMultiItemRequests;
     private List<ClientTaskDto> pendingTasks;
     private List<ClientNotificationDto> recentNotifications;
     private List<com.taxoryn.module.billing.dto.InvoiceDto> latestInvoices;

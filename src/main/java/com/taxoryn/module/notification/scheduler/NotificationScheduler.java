@@ -24,10 +24,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Background jobs that scan open work items nearing or past their due date and raise the
@@ -54,10 +56,16 @@ public class NotificationScheduler {
     private final InvoiceRepository invoiceRepository;
     private final ClientRepository clientRepository;
     private final NotificationService notificationService;
+    private final com.taxoryn.module.docrequest.repository.DocumentRequestRepository documentRequestRepository;
+    private final com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository documentRequestItemRepository;
+    private final com.taxoryn.module.notification.repository.NotificationRepository notificationRepository;
+    private final com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
+    private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
+    private final com.taxoryn.module.user.repository.UserRepository userRepository;
 
     /**
      * Runs daily at 07:00 AM, ahead of the working day, covering tasks due today, tasks already
-     * overdue, GST/ITR filings due within the reminder window, and overdue invoices.
+     * overdue, GST/ITR filings due within the reminder window, overdue invoices, and client document follow-ups.
      */
     @Scheduled(cron = "0 0 7 * * ?")
     public void runDailyReminders() {
@@ -74,6 +82,7 @@ public class NotificationScheduler {
                 remindDueGstFilings(org);
                 remindDueItrReturns(org);
                 remindOverdueInvoices(org);
+                remindClientDocumentRequests(org);
             } catch (Exception ex) {
                 log.error("Notification reminder scan failed for organization {}: {}", org.getId(), ex.getMessage(), ex);
             } finally {
@@ -199,6 +208,178 @@ public class NotificationScheduler {
                             "/invoices/" + invoice.getId(),
                             "{\"invoiceId\":\"" + invoice.getId() + "\"}"
                     ));
+        }
+    }
+
+    private void remindClientDocumentRequests(OrganizationEntity org) {
+        LocalDate today = LocalDate.now();
+        java.time.Instant todayStart = today.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+
+        List<com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus> activeStatuses = List.of(
+                com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT,
+                com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.PARTIALLY_COMPLETED
+        );
+
+        List<com.taxoryn.module.docrequest.entity.DocumentRequestEntity> activeRequests =
+                documentRequestRepository.findAllByOrganizationIdAndStatusIn(org.getId(), activeStatuses);
+
+        for (com.taxoryn.module.docrequest.entity.DocumentRequestEntity req : activeRequests) {
+            if (req.getDueDate() == null) {
+                continue;
+            }
+
+            long daysUntilDue = java.time.temporal.ChronoUnit.DAYS.between(today, req.getDueDate());
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(req.getClientId(), org.getId()).orElse(null);
+            if (client == null) {
+                continue;
+            }
+
+            List<String> pendingItemTitles = documentRequestItemRepository.findAllByRequestIdOrderByCreatedAtAsc(req.getId()).stream()
+                    .filter(i -> i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING
+                            || i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED)
+                    .map(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity::getTitle)
+                    .toList();
+
+            // Tier 1: Due - 3 days
+            if (daysUntilDue == 3) {
+                boolean alreadyNotified = notificationRepository.existsByOrganizationIdAndEntityTypeAndEntityIdAndNotificationTypeAndCreatedAtGreaterThanEqual(
+                        org.getId(), "DOCUMENT_REQUEST", req.getId().toString(), NotificationType.DOCUMENT_REMINDER, todayStart);
+
+                if (!alreadyNotified) {
+                    notificationService.notify(
+                            org.getId(), null, client.getId(),
+                            NotificationType.DOCUMENT_REMINDER,
+                            "Reminder: Documents Required for " + req.getPurpose(),
+                            "Please upload the required documents for " + req.getPurpose() + " (Due on " + req.getDueDate() + " - in 3 days).",
+                            Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                            "/portal?tab=documents",
+                            "{\"requestId\":\"" + req.getId() + "\",\"requestNumber\":\"" + req.getRequestNumber() + "\"}"
+                    );
+                    if (StringUtils.hasText(client.getEmail())) {
+                        try {
+                            emailNotificationService.sendDocumentReminderEmail(
+                                    client.getEmail(), client.getDisplayName(), req.getPurpose(), org.getName(), req.getDueDate(), pendingItemTitles);
+                        } catch (Exception e) {
+                            log.warn("Failed to send 3-day reminder email to {}: {}", client.getEmail(), e.getMessage());
+                        }
+                    }
+                }
+            }
+            // Tier 2: Due - 1 day (Tomorrow)
+            else if (daysUntilDue == 1) {
+                boolean alreadyNotified = notificationRepository.existsByOrganizationIdAndEntityTypeAndEntityIdAndNotificationTypeAndCreatedAtGreaterThanEqual(
+                        org.getId(), "DOCUMENT_REQUEST", req.getId().toString(), NotificationType.DOCUMENT_REMINDER, todayStart);
+
+                if (!alreadyNotified) {
+                    notificationService.notify(
+                            org.getId(), null, client.getId(),
+                            NotificationType.DOCUMENT_REMINDER,
+                            "Urgent Reminder: Documents Due Tomorrow for " + req.getPurpose(),
+                            "Please upload your documents for " + req.getPurpose() + " (Due tomorrow, " + req.getDueDate() + ").",
+                            Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                            "/portal?tab=documents",
+                            "{\"requestId\":\"" + req.getId() + "\",\"requestNumber\":\"" + req.getRequestNumber() + "\"}"
+                    );
+                    if (StringUtils.hasText(client.getEmail())) {
+                        try {
+                            emailNotificationService.sendDocumentReminderEmail(
+                                    client.getEmail(), client.getDisplayName(), req.getPurpose(), org.getName(), req.getDueDate(), pendingItemTitles);
+                        } catch (Exception e) {
+                            log.warn("Failed to send 1-day reminder email to {}: {}", client.getEmail(), e.getMessage());
+                        }
+                    }
+                }
+            }
+            // Tier 3: Due Today
+            else if (daysUntilDue == 0) {
+                boolean alreadyNotified = notificationRepository.existsByOrganizationIdAndEntityTypeAndEntityIdAndNotificationTypeAndCreatedAtGreaterThanEqual(
+                        org.getId(), "DOCUMENT_REQUEST", req.getId().toString(), NotificationType.DOCUMENT_DUE_TODAY, todayStart);
+
+                if (!alreadyNotified) {
+                    notificationService.notify(
+                            org.getId(), null, client.getId(),
+                            NotificationType.DOCUMENT_DUE_TODAY,
+                            "Due Today: Documents Required for " + req.getPurpose(),
+                            "Required documents for " + req.getPurpose() + " are due today (" + req.getDueDate() + "). Please upload as soon as possible.",
+                            Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                            "/portal?tab=documents",
+                            "{\"requestId\":\"" + req.getId() + "\",\"requestNumber\":\"" + req.getRequestNumber() + "\"}"
+                    );
+                    if (StringUtils.hasText(client.getEmail())) {
+                        try {
+                            emailNotificationService.sendDocumentReminderEmail(
+                                    client.getEmail(), client.getDisplayName(), req.getPurpose(), org.getName(), req.getDueDate(), pendingItemTitles);
+                        } catch (Exception e) {
+                            log.warn("Failed to send due-today reminder email to {}: {}", client.getEmail(), e.getMessage());
+                        }
+                    }
+                }
+            }
+            // Tier 4: Overdue
+            else if (daysUntilDue < 0) {
+                boolean alreadyNotified = notificationRepository.existsByOrganizationIdAndEntityTypeAndEntityIdAndNotificationTypeAndCreatedAtGreaterThanEqual(
+                        org.getId(), "DOCUMENT_REQUEST", req.getId().toString(), NotificationType.DOCUMENT_OVERDUE, todayStart);
+
+                if (!alreadyNotified) {
+                    // 1. Client notification
+                    notificationService.notify(
+                            org.getId(), null, client.getId(),
+                            NotificationType.DOCUMENT_OVERDUE,
+                            "Overdue: Documents Required for " + req.getPurpose(),
+                            "The document submission for " + req.getPurpose() + " was due on " + req.getDueDate() + " and is now overdue. Please upload the remaining files.",
+                            Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                            "/portal?tab=documents",
+                            "{\"requestId\":\"" + req.getId() + "\",\"requestNumber\":\"" + req.getRequestNumber() + "\"}"
+                    );
+                    if (StringUtils.hasText(client.getEmail())) {
+                        try {
+                            emailNotificationService.sendDocumentReminderEmail(
+                                    client.getEmail(), client.getDisplayName(), req.getPurpose() + " (OVERDUE)", org.getName(), req.getDueDate(), pendingItemTitles);
+                        } catch (Exception e) {
+                            log.warn("Failed to send overdue reminder email to {}: {}", client.getEmail(), e.getMessage());
+                        }
+                    }
+
+                    // 2. Practitioner Alert
+                    UUID assignedUserId = req.getRequestedByUserId();
+                    if (assignedUserId == null && client.getAssignedEmployeeId() != null) {
+                        assignedUserId = employeeRepository.findByIdAndOrganizationId(client.getAssignedEmployeeId(), org.getId())
+                                .map(com.taxoryn.module.employee.entity.EmployeeEntity::getUserId)
+                                .orElse(null);
+                    }
+
+                    if (assignedUserId != null) {
+                        notificationService.notify(
+                                org.getId(), assignedUserId, null,
+                                NotificationType.DOCUMENT_OVERDUE,
+                                "Client Action Overdue: " + client.getDisplayName(),
+                                "Client " + client.getDisplayName() + " has overdue document submission for " + req.getPurpose() + " (Due: " + req.getDueDate() + ").",
+                                Set.of(NotificationChannel.IN_APP),
+                                "/documents",
+                                "{\"requestId\":\"" + req.getId() + "\",\"clientId\":\"" + client.getId() + "\"}"
+                        );
+                    }
+
+                    // 3. Manager Escalation if overdue > 3 days
+                    if (daysUntilDue <= -3) {
+                        List<com.taxoryn.module.user.entity.UserEntity> orgAdmins = userRepository.findAllByOrganizationId(org.getId()).stream()
+                                .filter(u -> u.getRoles() != null && u.getRoles().stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PARTNER".equals(r.getCode())))
+                                .toList();
+
+                        for (com.taxoryn.module.user.entity.UserEntity admin : orgAdmins) {
+                            notificationService.notify(
+                                    org.getId(), admin.getId(), null,
+                                    NotificationType.DOCUMENT_OVERDUE,
+                                    "Escalation: Client Documents Overdue > 3 Days (" + client.getDisplayName() + ")",
+                                    "Client " + client.getDisplayName() + " has pending document submission for " + req.getPurpose() + " overdue since " + req.getDueDate() + ".",
+                                    Set.of(NotificationChannel.IN_APP),
+                                    "/documents",
+                                    "{\"requestId\":\"" + req.getId() + "\",\"clientId\":\"" + client.getId() + "\"}"
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 }

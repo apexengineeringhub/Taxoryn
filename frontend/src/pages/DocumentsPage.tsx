@@ -153,6 +153,55 @@ export const DocumentsPage: React.FC = () => {
     }
   };
 
+  const handleSendReminder = async (requestId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await documentRequestApi.sendReminder(requestId);
+      alert('Follow-up reminder sent to client successfully!');
+    } catch (err: any) {
+      alert(`Failed to send reminder: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const getDueBadge = (dueDate?: string, isOverdue?: boolean) => {
+    if (!dueDate) return <span className="text-slate-400 text-xs">—</span>;
+    const due = new Date(dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0 || isOverdue) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200 rounded-full mt-0.5">
+          <AlertTriangle className="w-2.5 h-2.5" />
+          Overdue ({Math.abs(diffDays)}d)
+        </span>
+      );
+    }
+    if (diffDays === 0) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200 rounded-full mt-0.5">
+          <Clock className="w-2.5 h-2.5" />
+          Due Today
+        </span>
+      );
+    }
+    if (diffDays <= 3) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200 rounded-full mt-0.5">
+          <Clock className="w-2.5 h-2.5" />
+          Due in {diffDays}d
+        </span>
+      );
+    }
+    return (
+      <span className="text-slate-600 text-xs font-semibold block">
+        {dueDate}
+      </span>
+    );
+  };
+
   const requestColumns: Column<DocumentRequest>[] = [
     {
       header: 'Request Reference',
@@ -180,22 +229,14 @@ export const DocumentsPage: React.FC = () => {
       ),
     },
     {
-      header: 'Due Date',
+      header: 'Due Date & Timing',
       accessor: (row) => (
-        <div>
-          {row.dueDate ? (
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>{row.dueDate}</span>
-            </div>
-          ) : (
-            <span className="text-slate-400 text-xs">—</span>
-          )}
-          {row.isOverdue && (
-            <span className="inline-block px-1.5 py-0.2 text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 rounded mt-0.5">
-              Overdue
-            </span>
-          )}
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+            <span>{row.dueDate || 'No Due Date'}</span>
+          </div>
+          {getDueBadge(row.dueDate, row.isOverdue)}
         </div>
       ),
     },
@@ -228,13 +269,25 @@ export const DocumentsPage: React.FC = () => {
       header: 'Actions',
       align: 'right',
       cell: (row) => (
-        <button
-          onClick={() => setSelectedReviewRequest(row)}
-          className="inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs"
-        >
-          <Eye className="w-3.5 h-3.5 text-slate-500" />
-          <span>Review Checklist</span>
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          {(row.status === 'SENT' || row.status === 'PARTIALLY_COMPLETED') && (
+            <button
+              onClick={(e) => handleSendReminder(row.id, e)}
+              title="Send Follow-up Reminder"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-brand-700 bg-brand-50 border border-brand-200 hover:bg-brand-100 rounded-xl transition-colors shadow-2xs"
+            >
+              <Send className="w-3 h-3 text-brand-600" />
+              <span>Remind</span>
+            </button>
+          )}
+          <button
+            onClick={() => setSelectedReviewRequest(row)}
+            className="inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs"
+          >
+            <Eye className="w-3.5 h-3.5 text-slate-500" />
+            <span>Review</span>
+          </button>
+        </div>
       ),
     },
   ];
