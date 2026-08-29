@@ -39,6 +39,10 @@ import java.util.UUID;
  * organization is processed under its own {@code TenantContext} so every downstream repository
  * call and notification stays correctly tenant-scoped.
  */
+import com.taxoryn.module.tds.entity.TdsReturnEntity;
+import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus;
+import com.taxoryn.module.tds.repository.TdsReturnRepository;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -47,12 +51,14 @@ public class NotificationScheduler {
     private static final Set<TaskStatus> CLOSED_TASK_STATUSES = Set.of(TaskStatus.COMPLETED, TaskStatus.CANCELLED);
     private static final Set<GstFilingStatus> CLOSED_GST_STATUSES = Set.of(GstFilingStatus.FILED, GstFilingStatus.CANCELLED);
     private static final Set<ItrStatus> CLOSED_ITR_STATUSES = Set.of(ItrStatus.FILED, ItrStatus.COMPLETED, ItrStatus.CANCELLED);
+    private static final Set<TdsFilingStatus> CLOSED_TDS_STATUSES = Set.of(TdsFilingStatus.FILED, TdsFilingStatus.CANCELLED);
     private static final int DUE_SOON_WINDOW_DAYS = 3;
 
     private final OrganizationRepository organizationRepository;
     private final TaskRepository taskRepository;
     private final GstReturnFilingRepository gstReturnFilingRepository;
     private final ItrReturnRepository itrReturnRepository;
+    private final TdsReturnRepository tdsReturnRepository;
     private final InvoiceRepository invoiceRepository;
     private final ClientRepository clientRepository;
     private final NotificationService notificationService;
@@ -81,6 +87,7 @@ public class NotificationScheduler {
                 remindOverdueTasks(org);
                 remindDueGstFilings(org);
                 remindDueItrReturns(org);
+                remindDueTdsReturns(org);
                 remindOverdueInvoices(org);
                 remindClientDocumentRequests(org);
             } catch (Exception ex) {
@@ -176,6 +183,30 @@ public class NotificationScheduler {
                     Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
                     "/itr/returns/" + itr.getId(),
                     "{\"itrReturnId\":\"" + itr.getId() + "\"}"
+            );
+        }
+    }
+
+    private void remindDueTdsReturns(OrganizationEntity org) {
+        LocalDate from = LocalDate.now();
+        LocalDate to = from.plusDays(DUE_SOON_WINDOW_DAYS);
+
+        List<TdsReturnEntity> dueSoon = tdsReturnRepository.findAllByOrganizationIdAndDueDateBetweenAndFilingStatusNotIn(
+                org.getId(), from, to, CLOSED_TDS_STATUSES);
+
+        for (TdsReturnEntity tds : dueSoon) {
+            if (tds.getAssignedEmployeeId() == null) {
+                continue;
+            }
+            notificationService.notify(
+                    org.getId(), tds.getAssignedEmployeeId(), null,
+                    NotificationType.TDS_DUE,
+                    "TDS Return Due: " + tds.getFormType() + " (" + tds.getQuarter() + " FY " + tds.getFinancialYear() + ")",
+                    "The " + tds.getFormType() + " return for " + tds.getQuarter() + " FY " + tds.getFinancialYear() +
+                            " is due on " + tds.getDueDate() + ".",
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/tds/returns/" + tds.getId(),
+                    "{\"tdsReturnId\":\"" + tds.getId() + "\"}"
             );
         }
     }

@@ -93,6 +93,19 @@ public class CreateTdsReturnRequest {
     @Schema(description = "Assigned Employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Whether to auto-generate a practice workflow task for this return", example = "true")
+    @Builder.Default
+    private Boolean createTask = true;
+
+    @Schema(description = "Existing Linked Document Request ID")
+    private UUID documentRequestId;
+
+    @Schema(description = "Existing Linked Compliance Obligation ID")
+    private UUID complianceId;
+
+    @Schema(description = "Existing Linked Task ID")
+    private UUID taskId;
+
     @Builder.Default
     @Schema(description = "FVU Validation Status", example = "NOT_VALIDATED")
     private FvuValidationStatus fvuValidationStatus = FvuValidationStatus.NOT_VALIDATED;

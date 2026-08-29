@@ -70,6 +70,19 @@ public class CreateItrReturnRequest {
     @Schema(description = "Assigned practitioner employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Whether to auto-generate a practice workflow task for this return", example = "true")
+    @Builder.Default
+    private Boolean createTask = true;
+
+    @Schema(description = "Existing Linked Document Request ID")
+    private UUID documentRequestId;
+
+    @Schema(description = "Existing Linked Compliance Obligation ID")
+    private UUID complianceId;
+
+    @Schema(description = "Existing Linked Task ID")
+    private UUID taskId;
+
     @Schema(description = "Notes or remarks")
     private String notes;
 }

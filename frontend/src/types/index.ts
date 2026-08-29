@@ -385,6 +385,9 @@ export interface ItrReturn {
   status: 'DOCUMENTS_PENDING' | 'DATA_ENTRY' | 'UNDER_REVIEW' | 'READY_TO_FILE' | 'FILED' | 'VERIFICATION_PENDING' | 'COMPLETED' | 'CANCELLED';
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
+  complianceId?: string;
+  taskId?: string;
+  documentRequestId?: string;
   notes?: string;
 }
 
@@ -831,6 +834,9 @@ export interface TdsReturn {
   totalPenalty?: number;
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
+  complianceId?: string;
+  taskId?: string;
+  documentRequestId?: string;
   fvuValidationStatus: 'NOT_VALIDATED' | 'VALIDATED' | 'FAILED';
   notes?: string;
   createdAt?: string;

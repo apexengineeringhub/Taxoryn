@@ -18,6 +18,25 @@ import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFormType;
 import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsQuarter;
 import com.taxoryn.module.tds.mapper.TdsMapper;
 import com.taxoryn.module.tds.repository.*;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.CompliancePriority;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.ComplianceStatus;
+import com.taxoryn.module.compliance.entity.ComplianceRuleEntity;
+import com.taxoryn.module.compliance.entity.ComplianceRuleEntity.ComplianceType;
+import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
+import com.taxoryn.module.compliance.repository.ComplianceRuleRepository;
+import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
+import com.taxoryn.module.docrequest.service.DocumentRequestService;
+import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
+import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
+import com.taxoryn.module.notification.service.NotificationService;
+import com.taxoryn.module.task.entity.TaskEntity;
+import com.taxoryn.module.task.entity.TaskEntity.TaskCategory;
+import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
+import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
+import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.user.entity.UserEntity;
+import com.taxoryn.module.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -42,6 +61,13 @@ public class TdsServiceImpl implements TdsService {
     private final TdsCertificateRepository tdsCertificateRepository;
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
+    private final UserRepository userRepository;
+    private final ComplianceObligationRepository complianceObligationRepository;
+    private final ComplianceRuleRepository complianceRuleRepository;
+    private final TaskRepository taskRepository;
+    private final DocumentRequestRepository documentRequestRepository;
+    private final DocumentRequestService documentRequestService;
+    private final NotificationService notificationService;
     private final TdsMapper tdsMapper;
     private final TdsCalculatorService tdsCalculatorService;
     private final AuditService auditService;
@@ -313,12 +339,32 @@ public class TdsServiceImpl implements TdsService {
                 .totalLateFee(request.getTotalLateFee() != null ? request.getTotalLateFee() : BigDecimal.ZERO)
                 .totalPenalty(request.getTotalPenalty() != null ? request.getTotalPenalty() : BigDecimal.ZERO)
                 .assignedEmployeeId(request.getAssignedEmployeeId() != null ? request.getAssignedEmployeeId() : profile.getAssignedEmployeeId())
+                .documentRequestId(request.getDocumentRequestId())
+                .complianceId(request.getComplianceId())
+                .taskId(request.getTaskId())
                 .fvuValidationStatus(request.getFvuValidationStatus() != null ? request.getFvuValidationStatus() : FvuValidationStatus.NOT_VALIDATED)
                 .notes(request.getNotes())
                 .build();
         entity.setOrganizationId(organizationId);
 
         TdsReturnEntity saved = tdsReturnRepository.save(entity);
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId).orElse(null);
+
+        // 1. Auto-resolve or create Compliance Obligation Linkage
+        if (saved.getComplianceId() == null && client != null) {
+            ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, client, organizationId);
+            if (obligation != null) {
+                saved.setComplianceId(obligation.getId());
+                saved = tdsReturnRepository.save(saved);
+            }
+        }
+
+        // 2. Optionally create linked Task
+        if (saved.getTaskId() == null && Boolean.TRUE.equals(request.getCreateTask()) && client != null) {
+            createTaskForReturnInternal(saved, client, organizationId);
+        }
+
         log.info("Created TDS Return ID: {} Form: {} Quarter: {} FY: {}", saved.getId(), saved.getFormType(), saved.getQuarter(), saved.getFinancialYear());
         auditService.logEvent("TDS_RETURN_CREATED", "TDS_RETURN", saved.getId().toString(), null, "TDS Return scheduled for Form " + saved.getFormType() + " " + saved.getQuarter() + " FY " + saved.getFinancialYear());
 
@@ -371,6 +417,9 @@ public class TdsServiceImpl implements TdsService {
         if (request.getTotalInterest() != null) entity.setTotalInterest(request.getTotalInterest());
         if (request.getTotalLateFee() != null) entity.setTotalLateFee(request.getTotalLateFee());
         if (request.getTotalPenalty() != null) entity.setTotalPenalty(request.getTotalPenalty());
+        if (request.getTaskId() != null) entity.setTaskId(request.getTaskId());
+        if (request.getComplianceId() != null) entity.setComplianceId(request.getComplianceId());
+        if (request.getDocumentRequestId() != null) entity.setDocumentRequestId(request.getDocumentRequestId());
         if (request.getAssignedEmployeeId() != null) entity.setAssignedEmployeeId(request.getAssignedEmployeeId());
         if (request.getFvuValidationStatus() != null) entity.setFvuValidationStatus(request.getFvuValidationStatus());
         if (request.getNotes() != null) entity.setNotes(request.getNotes());
@@ -388,13 +437,24 @@ public class TdsServiceImpl implements TdsService {
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
 
+        TdsFilingStatus oldStatus = entity.getFilingStatus();
         entity.setFilingStatus(request.getFilingStatus());
         if (request.getFilingDate() != null) entity.setFilingDate(request.getFilingDate());
+        else if (request.getFilingStatus() == TdsFilingStatus.FILED && entity.getFilingDate() == null) {
+            entity.setFilingDate(LocalDate.now());
+        }
         if (request.getTokenNumber() != null) entity.setTokenNumber(request.getTokenNumber());
         if (request.getReceiptNumber() != null) entity.setReceiptNumber(request.getReceiptNumber());
+        if (request.getTaskId() != null) entity.setTaskId(request.getTaskId());
+        if (request.getComplianceId() != null) entity.setComplianceId(request.getComplianceId());
+        if (request.getDocumentRequestId() != null) entity.setDocumentRequestId(request.getDocumentRequestId());
         if (request.getNotes() != null) entity.setNotes(request.getNotes());
 
         TdsReturnEntity updated = tdsReturnRepository.save(entity);
+
+        // Synchronize Workflow with Tasks & Compliance
+        handleWorkflowStatusTransitions(updated, oldStatus, request.getReviewComments(), organizationId);
+
         auditService.logEvent("TDS_STATUS_UPDATED", "TDS_RETURN", updated.getId().toString(), null, "TDS Return status transitioned to " + request.getFilingStatus());
 
         return enrichReturnEntity(updated);
@@ -407,13 +467,18 @@ public class TdsServiceImpl implements TdsService {
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
 
+        TdsFilingStatus oldStatus = entity.getFilingStatus();
         entity.setFilingStatus(TdsFilingStatus.FILED);
-        entity.setFilingDate(request.getFilingDate());
+        entity.setFilingDate(request.getFilingDate() != null ? request.getFilingDate() : LocalDate.now());
         entity.setTokenNumber(request.getTokenNumber());
         if (request.getReceiptNumber() != null) entity.setReceiptNumber(request.getReceiptNumber());
         if (request.getNotes() != null) entity.setNotes(request.getNotes());
 
         TdsReturnEntity updated = tdsReturnRepository.save(entity);
+
+        // Synchronize Workflow with Tasks & Compliance
+        handleWorkflowStatusTransitions(updated, oldStatus, null, organizationId);
+
         auditService.logEvent("TDS_RETURN_FILED", "TDS_RETURN", updated.getId().toString(), null, "TDS Return marked as FILED with Token " + request.getTokenNumber());
 
         return enrichReturnEntity(updated);
@@ -458,6 +523,8 @@ public class TdsServiceImpl implements TdsService {
                 );
 
                 if (existing.isEmpty()) {
+                    ClientEntity client = clientRepository.findByIdAndOrganizationId(profile.getClientId(), organizationId).orElse(null);
+
                     TdsReturnEntity entity = TdsReturnEntity.builder()
                             .clientId(profile.getClientId())
                             .tdsProfileId(profile.getId())
@@ -471,7 +538,19 @@ public class TdsServiceImpl implements TdsService {
                             .fvuValidationStatus(FvuValidationStatus.NOT_VALIDATED)
                             .build();
                     entity.setOrganizationId(organizationId);
-                    createdReturns.add(entity);
+
+                    TdsReturnEntity saved = tdsReturnRepository.save(entity);
+
+                    if (client != null) {
+                        ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, client, organizationId);
+                        if (obligation != null) {
+                            saved.setComplianceId(obligation.getId());
+                            saved = tdsReturnRepository.save(saved);
+                        }
+                        createTaskForReturnInternal(saved, client, organizationId);
+                    }
+
+                    createdReturns.add(saved);
                 }
             }
         }
@@ -1058,6 +1137,202 @@ public class TdsServiceImpl implements TdsService {
         ClientEntity client = clientRepository.findById(entity.getClientId()).orElse(null);
         EmployeeEntity emp = entity.getAssignedEmployeeId() != null ? employeeRepository.findById(entity.getAssignedEmployeeId()).orElse(null) : null;
         return enrichProfileDto(dto, client, emp);
+    }
+
+    private ComplianceObligationEntity resolveOrCreateComplianceObligation(TdsReturnEntity ret, ClientEntity client, UUID organizationId) {
+        String period = ret.getFinancialYear() + " " + ret.getQuarter();
+        Optional<ComplianceObligationEntity> existing = complianceObligationRepository
+                .findByOrganizationIdAndClientIdAndPeriodAndComplianceType(organizationId, client.getId(), period, ComplianceType.TDS);
+
+        if (existing.isPresent()) {
+            ComplianceObligationEntity ob = existing.get();
+            ob.setTdsReturnId(ret.getId());
+            return complianceObligationRepository.save(ob);
+        }
+
+        Optional<ComplianceRuleEntity> ruleOpt = complianceRuleRepository.findActiveRulesForOrganization(organizationId)
+                .stream().filter(r -> r.getComplianceType() == ComplianceType.TDS).findFirst();
+
+        ComplianceObligationEntity obligation = ComplianceObligationEntity.builder()
+                .clientId(client.getId())
+                .ruleId(ruleOpt.map(ComplianceRuleEntity::getId).orElse(null))
+                .title("TDS Return " + ret.getFormType() + " (" + ret.getQuarter() + " FY " + ret.getFinancialYear() + ") - " + client.getDisplayName())
+                .complianceType(ComplianceType.TDS)
+                .period(period)
+                .dueDate(ret.getDueDate() != null ? ret.getDueDate() : calculateQuarterlyDueDate(ret.getQuarter(), ret.getFinancialYear()))
+                .status(ret.getFilingStatus() == TdsFilingStatus.FILED ? ComplianceStatus.COMPLETED : ComplianceStatus.PENDING)
+                .priority(CompliancePriority.HIGH)
+                .assignedEmployeeId(ret.getAssignedEmployeeId())
+                .tdsReturnId(ret.getId())
+                .notes("Auto-linked from TDS return " + ret.getId())
+                .build();
+        obligation.setOrganizationId(organizationId);
+
+        return complianceObligationRepository.save(obligation);
+    }
+
+    private void createTaskForReturnInternal(TdsReturnEntity ret, ClientEntity client, UUID organizationId) {
+        UUID assignedUserId = resolveAssigneeUserId(ret.getAssignedEmployeeId(), organizationId);
+        TaskEntity task = TaskEntity.builder()
+                .clientId(client.getId())
+                .assignedTo(assignedUserId)
+                .title("Prepare TDS Return " + ret.getFormType() + " – " + ret.getQuarter() + " FY " + ret.getFinancialYear() + " – " + client.getDisplayName())
+                .description("Statutory TDS Return preparation for Form " + ret.getFormType() + " (" + ret.getQuarter() + " FY " + ret.getFinancialYear() + ")")
+                .taskCategory(TaskCategory.TDS)
+                .priority(TaskPriority.HIGH)
+                .dueDate(ret.getDueDate())
+                .complianceId(ret.getComplianceId())
+                .tdsReturnId(ret.getId())
+                .documentRequestId(ret.getDocumentRequestId())
+                .status(ret.getDocumentRequestId() != null ? TaskStatus.BLOCKED : TaskStatus.TODO)
+                .blockedReason(ret.getDocumentRequestId() != null ? "Pending required client documents / challans" : null)
+                .build();
+        task.setOrganizationId(organizationId);
+
+        TaskEntity savedTask = taskRepository.save(task);
+        ret.setTaskId(savedTask.getId());
+        tdsReturnRepository.save(ret);
+
+        if (assignedUserId != null) {
+            notifyTaskAssigned(organizationId, savedTask);
+        }
+    }
+
+    private UUID resolveAssigneeUserId(UUID assignedTo, UUID organizationId) {
+        if (assignedTo == null) return null;
+        return employeeRepository.findByIdAndOrganizationId(assignedTo, organizationId)
+                .map(emp -> {
+                    if (emp.getUserId() != null) {
+                        return emp.getUserId();
+                    }
+                    if (emp.getEmail() != null) {
+                        Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(emp.getEmail().toLowerCase().trim());
+                        if (userOpt.isPresent()) {
+                            emp.setUserId(userOpt.get().getId());
+                            employeeRepository.save(emp);
+                            return userOpt.get().getId();
+                        }
+                    }
+                    return assignedTo;
+                })
+                .orElse(assignedTo);
+    }
+
+    private void handleWorkflowStatusTransitions(TdsReturnEntity ret, TdsFilingStatus oldStatus, String reviewComments, UUID organizationId) {
+        if (StringUtils.hasText(reviewComments) && (ret.getFilingStatus() == TdsFilingStatus.PENDING || ret.getFilingStatus() == TdsFilingStatus.DRAFT)) {
+            // Reviewer requested rework
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.IN_PROGRESS);
+                            task.setBlockedReason("Rework required: " + reviewComments);
+                            taskRepository.save(task);
+                        });
+            }
+            auditService.logEvent("TDS_REWORK_REQUESTED", "TDS_RETURN", ret.getId().toString(), null, "Rework: " + reviewComments);
+        } else if (ret.getFilingStatus() == TdsFilingStatus.CHALLANS_ATTACHED || ret.getFilingStatus() == TdsFilingStatus.DRAFT || ret.getFilingStatus() == TdsFilingStatus.READY_TO_FILE) {
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            if (task.getStatus() == TaskStatus.TODO || task.getStatus() == TaskStatus.BLOCKED || task.getStatus() == TaskStatus.UNDER_REVIEW) {
+                                task.setStatus(TaskStatus.IN_PROGRESS);
+                                task.setBlockedReason(null);
+                                taskRepository.save(task);
+                            }
+                        });
+            }
+            auditService.logEvent("TDS_RETURN_PREPARED", "TDS_RETURN", ret.getId().toString(), null, "Return status set to " + ret.getFilingStatus());
+        } else if (ret.getFilingStatus() == TdsFilingStatus.UNDER_REVIEW) {
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.UNDER_REVIEW);
+                            taskRepository.save(task);
+                        });
+            }
+            notifyReviewReady(organizationId, ret);
+            auditService.logEvent("TDS_SUBMITTED_FOR_REVIEW", "TDS_RETURN", ret.getId().toString(), null, "Submitted for review");
+        } else if (ret.getFilingStatus() == TdsFilingStatus.FILED) {
+            // 1. Complete Compliance Obligation
+            if (ret.getComplianceId() != null) {
+                complianceObligationRepository.findByIdAndOrganizationId(ret.getComplianceId(), organizationId)
+                        .ifPresent(ob -> {
+                            ob.setStatus(ComplianceStatus.COMPLETED);
+                            ob.setCompletedAt(java.time.Instant.now());
+                            try {
+                                ob.setCompletedBy(SecurityUtils.getCurrentUserEmail());
+                            } catch (Exception ignored) {
+                                ob.setCompletedBy("system");
+                            }
+                            complianceObligationRepository.save(ob);
+                        });
+            }
+            // 2. Complete Task
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.COMPLETED);
+                            task.setCompletedAt(java.time.Instant.now());
+                            taskRepository.save(task);
+                        });
+            }
+            notifyFilingCompleted(organizationId, ret);
+            auditService.logEvent("TDS_COMPLETED", "TDS_RETURN", ret.getId().toString(), null, "Token: " + ret.getTokenNumber());
+        }
+    }
+
+    private void notifyTaskAssigned(UUID organizationId, TaskEntity task) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    task.getAssignedTo(),
+                    null,
+                    NotificationType.TASK_ASSIGNED,
+                    "New TDS Task Assigned: " + task.getTitle(),
+                    "You have been assigned to prepare " + task.getTitle() + " due on " + task.getDueDate(),
+                    Set.of(NotificationChannel.IN_APP),
+                    "/tasks?taskId=" + task.getId(),
+                    "{\"taskId\":\"" + task.getId() + "\",\"tdsReturnId\":\"" + task.getTdsReturnId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send task assignment notification for task {}: {}", task.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyReviewReady(UUID organizationId, TdsReturnEntity returnEntity) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    returnEntity.getAssignedEmployeeId(),
+                    null,
+                    NotificationType.TDS_READY_FOR_REVIEW,
+                    "TDS Return Ready for Review: " + returnEntity.getFormType() + " (" + returnEntity.getQuarter() + " FY " + returnEntity.getFinancialYear() + ")",
+                    "TDS return for " + returnEntity.getFormType() + " is prepared and ready for review.",
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/tds/returns/" + returnEntity.getId(),
+                    "{\"tdsReturnId\":\"" + returnEntity.getId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to dispatch TDS review notification for return {}: {}", returnEntity.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyFilingCompleted(UUID organizationId, TdsReturnEntity returnEntity) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    returnEntity.getAssignedEmployeeId(),
+                    returnEntity.getClientId(),
+                    NotificationType.TDS_FILING_COMPLETED,
+                    "TDS Return Filing Completed: " + returnEntity.getFormType() + " (Token: " + returnEntity.getTokenNumber() + ")",
+                    "The TDS Return for Form " + returnEntity.getFormType() + " " + returnEntity.getQuarter() + " has been recorded as filed.",
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/tds/returns/" + returnEntity.getId(),
+                    "{\"tdsReturnId\":\"" + returnEntity.getId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to dispatch TDS filing completed notification for return {}: {}", returnEntity.getId(), e.getMessage());
+        }
     }
 
     private TdsProfileDto enrichProfileDto(TdsProfileDto dto, ClientEntity client, EmployeeEntity emp) {

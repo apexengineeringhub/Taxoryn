@@ -88,6 +88,15 @@ public class TdsReturnDto {
     @Schema(description = "Assigned Employee Name")
     private String assignedEmployeeName;
 
+    @Schema(description = "Linked Statutory Compliance Obligation ID")
+    private UUID complianceId;
+
+    @Schema(description = "Linked Practice Task ID")
+    private UUID taskId;
+
+    @Schema(description = "Linked Multi-Item Document Request ID")
+    private UUID documentRequestId;
+
     @Schema(description = "FVU Validation Status", example = "NOT_VALIDATED")
     private FvuValidationStatus fvuValidationStatus;
 

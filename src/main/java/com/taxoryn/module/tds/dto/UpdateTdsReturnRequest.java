@@ -58,6 +58,15 @@ public class UpdateTdsReturnRequest {
     @Schema(description = "FVU Validation Status")
     private FvuValidationStatus fvuValidationStatus;
 
+    @Schema(description = "Linked Task ID")
+    private UUID taskId;
+
+    @Schema(description = "Linked Compliance ID")
+    private UUID complianceId;
+
+    @Schema(description = "Linked Document Request ID")
+    private UUID documentRequestId;
+
     @Schema(description = "Practitioner Notes")
     private String notes;
 }

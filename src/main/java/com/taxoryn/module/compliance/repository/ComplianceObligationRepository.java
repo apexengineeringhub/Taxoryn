@@ -21,6 +21,10 @@ public interface ComplianceObligationRepository extends JpaRepository<Compliance
 
     Optional<ComplianceObligationEntity> findByOrganizationIdAndGstFilingId(UUID organizationId, UUID gstFilingId);
 
+    Optional<ComplianceObligationEntity> findByOrganizationIdAndItrReturnId(UUID organizationId, UUID itrReturnId);
+
+    Optional<ComplianceObligationEntity> findByOrganizationIdAndTdsReturnId(UUID organizationId, UUID tdsReturnId);
+
     Optional<ComplianceObligationEntity> findByOrganizationIdAndClientIdAndPeriodAndComplianceType(
             UUID organizationId, UUID clientId, String period, com.taxoryn.module.compliance.entity.ComplianceRuleEntity.ComplianceType complianceType);
 

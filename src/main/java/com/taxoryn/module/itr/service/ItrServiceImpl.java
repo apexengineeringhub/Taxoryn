@@ -48,6 +48,25 @@ import java.util.Set;
 import java.util.UUID;
 import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.CompliancePriority;
+import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.ComplianceStatus;
+import com.taxoryn.module.compliance.entity.ComplianceRuleEntity;
+import com.taxoryn.module.compliance.entity.ComplianceRuleEntity.ComplianceType;
+import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
+import com.taxoryn.module.compliance.repository.ComplianceRuleRepository;
+import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
+import com.taxoryn.module.docrequest.service.DocumentRequestService;
+import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
+import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
+import com.taxoryn.module.notification.service.NotificationService;
+import com.taxoryn.module.task.entity.TaskEntity;
+import com.taxoryn.module.task.entity.TaskEntity.TaskCategory;
+import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
+import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
+import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.user.entity.UserEntity;
+import com.taxoryn.module.user.repository.UserRepository;
 
 @Slf4j
 @Service
@@ -58,6 +77,13 @@ public class ItrServiceImpl implements ItrService {
     private final ItrReturnRepository itrReturnRepository;
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
+    private final UserRepository userRepository;
+    private final ComplianceObligationRepository complianceObligationRepository;
+    private final ComplianceRuleRepository complianceRuleRepository;
+    private final TaskRepository taskRepository;
+    private final DocumentRequestRepository documentRequestRepository;
+    private final DocumentRequestService documentRequestService;
+    private final NotificationService notificationService;
     private final ItrMapper itrMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
@@ -306,11 +332,29 @@ public class ItrServiceImpl implements ItrService {
                 .acknowledgementNumber(request.getAcknowledgementNumber())
                 .status(status)
                 .assignedEmployeeId(assignedEmpId)
+                .documentRequestId(request.getDocumentRequestId())
+                .complianceId(request.getComplianceId())
+                .taskId(request.getTaskId())
                 .notes(request.getNotes())
                 .build();
         entity.setOrganizationId(organizationId);
 
         ItrReturnEntity saved = itrReturnRepository.save(entity);
+
+        // 1. Auto-resolve or create Compliance Obligation Linkage
+        if (saved.getComplianceId() == null) {
+            ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, client, organizationId);
+            if (obligation != null) {
+                saved.setComplianceId(obligation.getId());
+                saved = itrReturnRepository.save(saved);
+            }
+        }
+
+        // 2. Optionally create linked Task
+        if (saved.getTaskId() == null && Boolean.TRUE.equals(request.getCreateTask())) {
+            createTaskForReturnInternal(saved, client, organizationId);
+        }
+
         log.info("Created ITR return: id={}, client={}, AY={} for tenant={}", saved.getId(), client.getDisplayName(), saved.getAssessmentYear(), organizationId);
         ItrReturnDto result = enrichReturnDto(saved);
         auditService.logEvent("ITR_RETURN_CREATED", "ITR_RETURN", saved.getId().toString(), null, result);
@@ -397,12 +441,28 @@ public class ItrServiceImpl implements ItrService {
                         .filingDate(req.getFilingDate() != null ? req.getFilingDate() : (status == ItrStatus.FILED ? LocalDate.now() : null))
                         .acknowledgementNumber(req.getAcknowledgementNumber())
                         .status(status)
-                        .assignedEmployeeId(req.getAssignedEmployeeId() != null ? req.getAssignedEmployeeId() : client.getAssignedEmployeeId())
+                        .assignedEmployeeId(req.getAssignedEmployeeId() != null ? req.getAssignedEmployeeId() : profileOpt.map(ItrProfileEntity::getAssignedEmployeeId).orElse(client.getAssignedEmployeeId()))
+                        .documentRequestId(req.getDocumentRequestId())
+                        .complianceId(req.getComplianceId())
+                        .taskId(req.getTaskId())
                         .notes(req.getNotes())
                         .build();
                 entity.setOrganizationId(organizationId);
 
                 ItrReturnEntity saved = itrReturnRepository.save(entity);
+
+                if (saved.getComplianceId() == null) {
+                    ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, client, organizationId);
+                    if (obligation != null) {
+                        saved.setComplianceId(obligation.getId());
+                        saved = itrReturnRepository.save(saved);
+                    }
+                }
+
+                if (saved.getTaskId() == null && Boolean.TRUE.equals(req.getCreateTask())) {
+                    createTaskForReturnInternal(saved, client, organizationId);
+                }
+
                 result.getImportedItems().add(client.getDisplayName() + " (AY " + saved.getAssessmentYear() + " - " + saved.getItrType() + ")");
                 result.setTotalCreated(result.getTotalCreated() + 1);
 
@@ -471,6 +531,8 @@ public class ItrServiceImpl implements ItrService {
                     dueDate = request.getNonAuditDueDate() != null ? request.getNonAuditDueDate() : deriveDefaultDueDate(ay, profile.getTaxpayerType());
                 }
 
+                ClientEntity client = clientRepository.findByIdAndOrganizationId(profile.getClientId(), organizationId).orElse(null);
+
                 ItrReturnEntity entity = ItrReturnEntity.builder()
                         .clientId(profile.getClientId())
                         .itrProfileId(profile.getId())
@@ -485,6 +547,16 @@ public class ItrServiceImpl implements ItrService {
                 entity.setOrganizationId(organizationId);
 
                 ItrReturnEntity saved = itrReturnRepository.save(entity);
+
+                if (client != null) {
+                    ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, client, organizationId);
+                    if (obligation != null) {
+                        saved.setComplianceId(obligation.getId());
+                        saved = itrReturnRepository.save(saved);
+                    }
+                    createTaskForReturnInternal(saved, client, organizationId);
+                }
+
                 createdReturns.add(enrichReturnDto(saved));
             }
         }
@@ -507,6 +579,9 @@ public class ItrServiceImpl implements ItrService {
         if (request.getTaxpayerType() != null) entity.setTaxpayerType(request.getTaxpayerType());
         if (request.getDueDate() != null) entity.setDueDate(request.getDueDate());
         if (request.getStatus() != null) entity.setStatus(request.getStatus());
+        if (request.getTaskId() != null) entity.setTaskId(request.getTaskId());
+        if (request.getComplianceId() != null) entity.setComplianceId(request.getComplianceId());
+        if (request.getDocumentRequestId() != null) entity.setDocumentRequestId(request.getDocumentRequestId());
         if (request.getAssignedEmployeeId() != null) {
             employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
@@ -586,18 +661,39 @@ public class ItrServiceImpl implements ItrService {
         ItrStatus oldStatus = entity.getStatus();
         entity.setStatus(request.getStatus());
 
-        if (request.getStatus() == ItrStatus.FILED && entity.getFilingDate() == null) {
+        if (request.getFilingDate() != null) {
+            entity.setFilingDate(request.getFilingDate());
+        } else if (request.getStatus() == ItrStatus.FILED && entity.getFilingDate() == null) {
             entity.setFilingDate(LocalDate.now());
         }
-        if (request.getStatus() == ItrStatus.COMPLETED && entity.getVerificationDate() == null) {
+
+        if (request.getVerificationDate() != null) {
+            entity.setVerificationDate(request.getVerificationDate());
+        } else if (request.getStatus() == ItrStatus.COMPLETED && entity.getVerificationDate() == null) {
             entity.setVerificationDate(LocalDate.now());
         }
 
+        if (StringUtils.hasText(request.getAcknowledgementNumber())) {
+            entity.setAcknowledgementNumber(request.getAcknowledgementNumber().trim().toUpperCase());
+        }
+        if (request.getTaskId() != null) {
+            entity.setTaskId(request.getTaskId());
+        }
+        if (request.getComplianceId() != null) {
+            entity.setComplianceId(request.getComplianceId());
+        }
+        if (request.getDocumentRequestId() != null) {
+            entity.setDocumentRequestId(request.getDocumentRequestId());
+        }
         if (request.getNotes() != null) {
             entity.setNotes(request.getNotes());
         }
 
         ItrReturnEntity saved = itrReturnRepository.save(entity);
+
+        // Synchronize Workflow with Tasks & Compliance
+        handleWorkflowStatusTransitions(saved, oldStatus, request.getReviewComments(), organizationId);
+
         log.info("Updated ITR return status: id={}, status={} for tenant={}", saved.getId(), saved.getStatus(), organizationId);
         ItrReturnDto result = enrichReturnDto(saved);
         auditService.logEvent("ITR_STATUS_UPDATED", "ITR_RETURN", saved.getId().toString(), oldStatus.name(), saved.getStatus().name());
@@ -612,14 +708,14 @@ public class ItrServiceImpl implements ItrService {
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
 
         ItrReturnDto oldSnapshot = enrichReturnDto(entity);
+        ItrStatus oldStatus = entity.getStatus();
 
-        entity.setFilingDate(request.getFilingDate());
+        entity.setFilingDate(request.getFilingDate() != null ? request.getFilingDate() : LocalDate.now());
         entity.setAcknowledgementNumber(request.getAcknowledgementNumber().trim().toUpperCase());
-        entity.setStatus(ItrStatus.FILED);
+        entity.setStatus(request.getVerificationDate() != null ? ItrStatus.COMPLETED : ItrStatus.FILED);
 
         if (request.getVerificationDate() != null) {
             entity.setVerificationDate(request.getVerificationDate());
-            entity.setStatus(ItrStatus.COMPLETED);
         }
 
         if (request.getNotes() != null) {
@@ -627,6 +723,10 @@ public class ItrServiceImpl implements ItrService {
         }
 
         ItrReturnEntity saved = itrReturnRepository.save(entity);
+
+        // Synchronize Workflow with Tasks & Compliance
+        handleWorkflowStatusTransitions(saved, oldStatus, null, organizationId);
+
         log.info("Recorded ITR filing details: id={}, ackNo={} for tenant={}", saved.getId(), saved.getAcknowledgementNumber(), organizationId);
         ItrReturnDto result = enrichReturnDto(saved);
         auditService.logEvent("ITR_FILING_RECORDED", "ITR_RETURN", saved.getId().toString(), oldSnapshot, result);
@@ -830,6 +930,203 @@ public class ItrServiceImpl implements ItrService {
                     .ifPresent(e -> dto.setAssignedEmployeeName(e.getFullName()));
         }
         return dto;
+    }
+
+    private ComplianceObligationEntity resolveOrCreateComplianceObligation(ItrReturnEntity ret, ClientEntity client, UUID organizationId) {
+        String period = ret.getAssessmentYear();
+        Optional<ComplianceObligationEntity> existing = complianceObligationRepository
+                .findByOrganizationIdAndClientIdAndPeriodAndComplianceType(organizationId, client.getId(), period, ComplianceType.ITR);
+
+        if (existing.isPresent()) {
+            ComplianceObligationEntity ob = existing.get();
+            ob.setItrReturnId(ret.getId());
+            return complianceObligationRepository.save(ob);
+        }
+
+        Optional<ComplianceRuleEntity> ruleOpt = complianceRuleRepository.findActiveRulesForOrganization(organizationId)
+                .stream().filter(r -> r.getComplianceType() == ComplianceType.ITR).findFirst();
+
+        ComplianceObligationEntity obligation = ComplianceObligationEntity.builder()
+                .clientId(client.getId())
+                .ruleId(ruleOpt.map(ComplianceRuleEntity::getId).orElse(null))
+                .title("ITR Filing " + ret.getItrType() + " (AY " + ret.getAssessmentYear() + ") - " + client.getDisplayName())
+                .complianceType(ComplianceType.ITR)
+                .period(period)
+                .dueDate(ret.getDueDate() != null ? ret.getDueDate() : deriveDefaultDueDate(ret.getAssessmentYear(), ret.getTaxpayerType()))
+                .status(ret.getStatus() == ItrStatus.FILED || ret.getStatus() == ItrStatus.COMPLETED ? ComplianceStatus.COMPLETED : ComplianceStatus.PENDING)
+                .priority(CompliancePriority.HIGH)
+                .assignedEmployeeId(ret.getAssignedEmployeeId())
+                .itrReturnId(ret.getId())
+                .notes("Auto-linked from ITR return " + ret.getId())
+                .build();
+        obligation.setOrganizationId(organizationId);
+
+        return complianceObligationRepository.save(obligation);
+    }
+
+    private void createTaskForReturnInternal(ItrReturnEntity ret, ClientEntity client, UUID organizationId) {
+        UUID assignedUserId = resolveAssigneeUserId(ret.getAssignedEmployeeId(), organizationId);
+        TaskEntity task = TaskEntity.builder()
+                .clientId(client.getId())
+                .assignedTo(assignedUserId)
+                .title("Prepare ITR " + ret.getItrType() + " – AY " + ret.getAssessmentYear() + " – " + client.getDisplayName())
+                .description("Statutory Income Tax Return preparation for Assessment Year " + ret.getAssessmentYear() + " (FY " + ret.getFinancialYear() + ")")
+                .taskCategory(TaskCategory.ITR)
+                .priority(TaskPriority.HIGH)
+                .dueDate(ret.getDueDate())
+                .complianceId(ret.getComplianceId())
+                .itrReturnId(ret.getId())
+                .documentRequestId(ret.getDocumentRequestId())
+                .status(ret.getDocumentRequestId() != null ? TaskStatus.BLOCKED : TaskStatus.TODO)
+                .blockedReason(ret.getDocumentRequestId() != null ? "Pending required client documents" : null)
+                .build();
+        task.setOrganizationId(organizationId);
+
+        TaskEntity savedTask = taskRepository.save(task);
+        ret.setTaskId(savedTask.getId());
+        itrReturnRepository.save(ret);
+
+        if (assignedUserId != null) {
+            notifyTaskAssigned(organizationId, savedTask);
+        }
+    }
+
+    private UUID resolveAssigneeUserId(UUID assignedTo, UUID organizationId) {
+        if (assignedTo == null) return null;
+        return employeeRepository.findByIdAndOrganizationId(assignedTo, organizationId)
+                .map(emp -> {
+                    if (emp.getUserId() != null) {
+                        return emp.getUserId();
+                    }
+                    if (emp.getEmail() != null) {
+                        Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(emp.getEmail().toLowerCase().trim());
+                        if (userOpt.isPresent()) {
+                            emp.setUserId(userOpt.get().getId());
+                            employeeRepository.save(emp);
+                            return userOpt.get().getId();
+                        }
+                    }
+                    return assignedTo;
+                })
+                .orElse(assignedTo);
+    }
+
+    private void handleWorkflowStatusTransitions(ItrReturnEntity ret, ItrStatus oldStatus, String reviewComments, UUID organizationId) {
+        if (StringUtils.hasText(reviewComments) && (ret.getStatus() == ItrStatus.DOCUMENTS_PENDING || ret.getStatus() == ItrStatus.DATA_ENTRY)) {
+            // Reviewer requested rework
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.IN_PROGRESS);
+                            task.setBlockedReason("Rework required: " + reviewComments);
+                            taskRepository.save(task);
+                        });
+            }
+            auditService.logEvent("ITR_REWORK_REQUESTED", "ITR_RETURN", ret.getId().toString(), null, "Rework: " + reviewComments);
+        } else if (ret.getStatus() == ItrStatus.DATA_ENTRY || ret.getStatus() == ItrStatus.READY_TO_FILE) {
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            if (task.getStatus() == TaskStatus.TODO || task.getStatus() == TaskStatus.BLOCKED || task.getStatus() == TaskStatus.UNDER_REVIEW) {
+                                task.setStatus(TaskStatus.IN_PROGRESS);
+                                task.setBlockedReason(null);
+                                taskRepository.save(task);
+                            }
+                        });
+            }
+            auditService.logEvent("ITR_RETURN_PREPARED", "ITR_RETURN", ret.getId().toString(), null, "Return status set to " + ret.getStatus());
+        } else if (ret.getStatus() == ItrStatus.UNDER_REVIEW) {
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.UNDER_REVIEW);
+                            taskRepository.save(task);
+                        });
+            }
+            notifyReviewReady(organizationId, ret);
+            auditService.logEvent("ITR_SUBMITTED_FOR_REVIEW", "ITR_RETURN", ret.getId().toString(), null, "Submitted for review");
+        } else if (ret.getStatus() == ItrStatus.FILED || ret.getStatus() == ItrStatus.COMPLETED) {
+            // 1. Complete Compliance Obligation
+            if (ret.getComplianceId() != null) {
+                complianceObligationRepository.findByIdAndOrganizationId(ret.getComplianceId(), organizationId)
+                        .ifPresent(ob -> {
+                            ob.setStatus(ComplianceStatus.COMPLETED);
+                            ob.setCompletedAt(java.time.Instant.now());
+                            try {
+                                ob.setCompletedBy(SecurityUtils.getCurrentUserEmail());
+                            } catch (Exception ignored) {
+                                ob.setCompletedBy("system");
+                            }
+                            complianceObligationRepository.save(ob);
+                        });
+            }
+            // 2. Complete Task
+            if (ret.getTaskId() != null) {
+                taskRepository.findByIdAndOrganizationId(ret.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.COMPLETED);
+                            task.setCompletedAt(java.time.Instant.now());
+                            taskRepository.save(task);
+                        });
+            }
+            notifyFilingCompleted(organizationId, ret);
+            auditService.logEvent(ret.getStatus() == ItrStatus.COMPLETED ? "ITR_COMPLETED" : "ITR_FILED",
+                    "ITR_RETURN", ret.getId().toString(), null, "Ack: " + ret.getAcknowledgementNumber());
+        }
+    }
+
+    private void notifyTaskAssigned(UUID organizationId, TaskEntity task) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    task.getAssignedTo(),
+                    null,
+                    NotificationType.TASK_ASSIGNED,
+                    "New ITR Task Assigned: " + task.getTitle(),
+                    "You have been assigned to prepare " + task.getTitle() + " due on " + task.getDueDate(),
+                    Set.of(NotificationChannel.IN_APP),
+                    "/tasks?taskId=" + task.getId(),
+                    "{\"taskId\":\"" + task.getId() + "\",\"itrReturnId\":\"" + task.getItrReturnId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send task assignment notification for task {}: {}", task.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyReviewReady(UUID organizationId, ItrReturnEntity returnEntity) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    returnEntity.getAssignedEmployeeId(),
+                    null,
+                    NotificationType.ITR_READY_FOR_REVIEW,
+                    "ITR Ready for Review: AY " + returnEntity.getAssessmentYear() + " (" + returnEntity.getItrType() + ")",
+                    "ITR return for AY " + returnEntity.getAssessmentYear() + " is prepared and ready for partner review.",
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/itr/returns/" + returnEntity.getId(),
+                    "{\"itrReturnId\":\"" + returnEntity.getId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to dispatch ITR review notification for return {}: {}", returnEntity.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyFilingCompleted(UUID organizationId, ItrReturnEntity returnEntity) {
+        try {
+            notificationService.notify(
+                    organizationId,
+                    returnEntity.getAssignedEmployeeId(),
+                    returnEntity.getClientId(),
+                    NotificationType.ITR_FILING_COMPLETED,
+                    "ITR Filing Completed: AY " + returnEntity.getAssessmentYear() + " (Ack: " + returnEntity.getAcknowledgementNumber() + ")",
+                    "The Income Tax Return for AY " + returnEntity.getAssessmentYear() + " has been recorded as filed.",
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/itr/returns/" + returnEntity.getId(),
+                    "{\"itrReturnId\":\"" + returnEntity.getId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to dispatch ITR filing completed notification for return {}: {}", returnEntity.getId(), e.getMessage());
+        }
     }
 
     private TaxpayerType mapClientTypeToTaxpayerType(ClientEntity.ClientType clientType) {
