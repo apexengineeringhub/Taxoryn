@@ -4,8 +4,10 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.notification.dto.NotificationDto;
 import com.taxoryn.module.notification.dto.NotificationFilterRequest;
 import com.taxoryn.module.notification.dto.SendNotificationRequest;
+import com.taxoryn.module.notification.entity.NotificationEntity.Category;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
+import com.taxoryn.module.notification.entity.NotificationEntity.Severity;
 
 import java.util.Set;
 import java.util.UUID;
@@ -55,6 +57,24 @@ public interface NotificationService {
                             String metadata);
 
     /**
+     * Enhanced V1 notify method supporting severity, category, entity routing, and expiration.
+     */
+    NotificationDto notify(UUID organizationId,
+                            UUID userId,
+                            UUID clientId,
+                            NotificationType notificationType,
+                            Severity severity,
+                            Category category,
+                            String entityType,
+                            String entityId,
+                            String title,
+                            String message,
+                            Set<NotificationChannel> channels,
+                            String actionUrl,
+                            String metadata,
+                            java.time.Instant expiresAt);
+
+    /**
      * Retrieves the paginated in-app notification history for the current recipient
      * (firm user or client-portal user), newest first, with optional read/type filters.
      */
@@ -69,6 +89,11 @@ public interface NotificationService {
      * Marks a single notification belonging to the current recipient as read.
      */
     NotificationDto markAsRead(UUID notificationId);
+
+    /**
+     * Marks a single notification belonging to the current recipient as unread.
+     */
+    NotificationDto markAsUnread(UUID notificationId);
 
     /**
      * Marks every unread notification belonging to the current recipient as read.

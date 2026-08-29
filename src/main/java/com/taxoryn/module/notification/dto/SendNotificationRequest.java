@@ -1,7 +1,9 @@
 package com.taxoryn.module.notification.dto;
 
+import com.taxoryn.module.notification.entity.NotificationEntity.Category;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
+import com.taxoryn.module.notification.entity.NotificationEntity.Severity;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,6 +12,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,6 +33,20 @@ public class SendNotificationRequest {
     @Schema(description = "Type of notification", example = "TASK_ASSIGNED")
     private NotificationType notificationType;
 
+    @Schema(description = "Severity level", example = "INFO")
+    @Builder.Default
+    private Severity severity = Severity.INFO;
+
+    @Schema(description = "Category", example = "TASK")
+    @Builder.Default
+    private Category category = Category.SYSTEM;
+
+    @Schema(description = "Target Entity Type for deeplink routing", example = "TASK")
+    private String entityType;
+
+    @Schema(description = "Target Entity ID for deeplink routing", example = "84729103-abcd")
+    private String entityId;
+
     @NotBlank(message = "Title is required")
     @Schema(description = "Notification title", example = "New Task Assigned: GSTR-3B Review")
     private String title;
@@ -47,4 +64,7 @@ public class SendNotificationRequest {
 
     @Schema(description = "Context metadata / JSON payload", example = "{\"taskId\":\"84729103-abcd\"}")
     private String metadata;
+
+    @Schema(description = "Optional expiration timestamp")
+    private Instant expiresAt;
 }

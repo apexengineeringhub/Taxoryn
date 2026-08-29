@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
+import { NotificationBellDropdown } from '../notification/NotificationBellDropdown';
 
 export const Header: React.FC = () => {
   const { user, logout } = useAuth();
@@ -75,14 +76,8 @@ export const Header: React.FC = () => {
           </button>
         )}
 
-        {/* Notifications Bell */}
-        <button
-          title="Notifications"
-          className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white"></span>
-        </button>
+        {/* Notifications Bell Dropdown */}
+        <NotificationBellDropdown />
 
         {/* Vertical Divider */}
         <div className="h-6 w-px bg-slate-200" />

@@ -59,11 +59,16 @@ public class NotificationServiceImpl implements NotificationService {
                 request.getUserId(),
                 request.getClientId(),
                 request.getNotificationType(),
+                request.getSeverity(),
+                request.getCategory(),
+                request.getEntityType(),
+                request.getEntityId(),
                 request.getTitle(),
                 request.getMessage(),
                 request.getChannels(),
                 request.getActionUrl(),
-                request.getMetadata()
+                request.getMetadata(),
+                request.getExpiresAt()
         );
     }
 
@@ -78,10 +83,48 @@ public class NotificationServiceImpl implements NotificationService {
                                    Set<NotificationChannel> channels,
                                    String actionUrl,
                                    String metadata) {
+        return notify(
+                organizationId,
+                userId,
+                clientId,
+                notificationType,
+                null,
+                null,
+                null,
+                null,
+                title,
+                message,
+                channels,
+                actionUrl,
+                metadata,
+                null
+        );
+    }
+
+    @Override
+    @Transactional
+    public NotificationDto notify(UUID organizationId,
+                                   UUID userId,
+                                   UUID clientId,
+                                   NotificationType notificationType,
+                                   NotificationEntity.Severity severity,
+                                   NotificationEntity.Category category,
+                                   String entityType,
+                                   String entityId,
+                                   String title,
+                                   String message,
+                                   Set<NotificationChannel> channels,
+                                   String actionUrl,
+                                   String metadata,
+                                   Instant expiresAt) {
 
         if (userId == null && clientId == null) {
             throw new BusinessValidationException("Either userId or clientId must be provided to target a notification");
         }
+
+        NotificationType resolvedType = notificationType != null ? notificationType : NotificationType.GENERAL;
+        NotificationEntity.Category resolvedCategory = category != null ? category : inferCategory(resolvedType);
+        NotificationEntity.Severity resolvedSeverity = severity != null ? severity : inferSeverity(resolvedType);
 
         Set<NotificationChannel> resolvedChannels = (channels == null || channels.isEmpty())
                 ? Set.of(NotificationChannel.IN_APP)
@@ -101,21 +144,26 @@ public class NotificationServiceImpl implements NotificationService {
                 .organizationId(organizationId)
                 .userId(targetUserId)
                 .clientId(clientId)
-                .notificationType(notificationType != null ? notificationType : NotificationType.GENERAL)
+                .notificationType(resolvedType)
+                .severity(resolvedSeverity)
+                .category(resolvedCategory)
+                .entityType(entityType)
+                .entityId(entityId)
                 .title(title)
                 .message(message)
                 .channels(resolvedChannels.stream().map(Enum::name).collect(Collectors.joining(",")))
                 .isRead(false)
                 .actionUrl(actionUrl)
                 .metadata(metadata)
+                .expiresAt(expiresAt)
                 .emailStatus(resolvedChannels.contains(NotificationChannel.EMAIL) ? DeliveryStatus.PENDING : DeliveryStatus.NOT_REQUESTED)
                 .smsStatus(resolvedChannels.contains(NotificationChannel.SMS) ? DeliveryStatus.PENDING : DeliveryStatus.NOT_REQUESTED)
                 .whatsappStatus(resolvedChannels.contains(NotificationChannel.WHATSAPP) ? DeliveryStatus.PENDING : DeliveryStatus.NOT_REQUESTED)
                 .build();
 
         NotificationEntity saved = notificationRepository.save(entity);
-        log.info("Recorded in-app notification: id={}, type={}, org={}, userId={}, clientId={}, channels={}",
-                saved.getId(), saved.getNotificationType(), organizationId, userId, clientId, saved.getChannels());
+        log.info("Recorded in-app notification: id={}, type={}, severity={}, category={}, org={}, userId={}, clientId={}, channels={}",
+                saved.getId(), saved.getNotificationType(), saved.getSeverity(), saved.getCategory(), organizationId, userId, clientId, saved.getChannels());
 
         // Fan out to any additional requested channels asynchronously; in-app delivery is
         // already satisfied by the persisted row above.
@@ -150,6 +198,14 @@ public class NotificationServiceImpl implements NotificationService {
 
             if (filterRequest.getIsRead() != null) {
                 predicates.add(cb.equal(root.get("isRead"), filterRequest.getIsRead()));
+            }
+
+            if (filterRequest.getCategory() != null) {
+                predicates.add(cb.equal(root.get("category"), filterRequest.getCategory()));
+            }
+
+            if (filterRequest.getSeverity() != null) {
+                predicates.add(cb.equal(root.get("severity"), filterRequest.getSeverity()));
             }
 
             if (filterRequest.getNotificationType() != null) {
@@ -193,6 +249,23 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
+    public NotificationDto markAsUnread(UUID notificationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        NotificationEntity notification = notificationRepository.findByIdAndOrganizationId(notificationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification", "id", notificationId));
+
+        assertOwnership(notification);
+
+        if (notification.isRead()) {
+            notification.setRead(false);
+            notification.setReadAt(null);
+            notification = notificationRepository.save(notification);
+        }
+        return notificationMapper.toDto(notification);
+    }
+
+    @Override
+    @Transactional
     public int markAllAsRead() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         RecipientTarget target = resolveCurrentTarget(organizationId);
@@ -215,6 +288,27 @@ public class NotificationServiceImpl implements NotificationService {
 
         assertOwnership(notification);
         notificationRepository.delete(notification);
+    }
+
+    private NotificationEntity.Category inferCategory(NotificationType type) {
+        String name = type.name();
+        if (name.startsWith("DOCUMENT")) return NotificationEntity.Category.DOCUMENT;
+        if (name.startsWith("TASK")) return NotificationEntity.Category.TASK;
+        if (name.startsWith("GST") || name.startsWith("ITR") || name.startsWith("COMPLIANCE")) return NotificationEntity.Category.COMPLIANCE;
+        if (name.startsWith("CLIENT")) return NotificationEntity.Category.CLIENT;
+        if (name.startsWith("PASSWORD")) return NotificationEntity.Category.ACCOUNT;
+        if (name.startsWith("PAYMENT") || name.startsWith("INVOICE")) return NotificationEntity.Category.BILLING;
+        return NotificationEntity.Category.SYSTEM;
+    }
+
+    private NotificationEntity.Severity inferSeverity(NotificationType type) {
+        String name = type.name();
+        if (name.endsWith("OVERDUE") || name.endsWith("REJECTED")) return NotificationEntity.Severity.ACTION_REQUIRED;
+        if (name.endsWith("DUE")) return NotificationEntity.Severity.WARNING;
+        if (name.endsWith("ACCEPTED") || name.endsWith("COMPLETED") || name.equals("CLIENT_REGISTERED") || name.equals("PAYMENT_RECEIVED")) {
+            return NotificationEntity.Severity.SUCCESS;
+        }
+        return NotificationEntity.Severity.INFO;
     }
 
     private void assertOwnership(NotificationEntity notification) {

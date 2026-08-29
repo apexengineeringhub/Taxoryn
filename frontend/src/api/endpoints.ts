@@ -133,6 +133,9 @@ import {
   MediaAsset,
   WhatsAppMessageRecord,
   WhatsAppIntegrationStatus,
+  NotificationItem,
+  NotificationFilterParams,
+  UnreadCountResponse,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1834,6 +1837,38 @@ export const whatsappApi = {
   },
   resendMessage: async (id: string) => {
     const res = await apiClient.post<ApiResponse<WhatsAppMessageRecord>>(`/v1/notifications/whatsapp/messages/${id}/resend`);
+    return res.data.data;
+  },
+};
+
+// --- 28. Notification Center API ---
+export const notificationApi = {
+  getAll: async (params?: NotificationFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<NotificationItem>>>('/v1/notifications', { params });
+    return res.data.data;
+  },
+  getUnreadCount: async () => {
+    const res = await apiClient.get<ApiResponse<UnreadCountResponse>>('/v1/notifications/unread-count');
+    return res.data.data;
+  },
+  markAsRead: async (id: string) => {
+    const res = await apiClient.patch<ApiResponse<NotificationItem>>(`/v1/notifications/${id}/read`);
+    return res.data.data;
+  },
+  markAsUnread: async (id: string) => {
+    const res = await apiClient.patch<ApiResponse<NotificationItem>>(`/v1/notifications/${id}/unread`);
+    return res.data.data;
+  },
+  markAllAsRead: async () => {
+    const res = await apiClient.post<ApiResponse<{ updated: number }>>('/v1/notifications/mark-all-read');
+    return res.data.data;
+  },
+  dismiss: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/notifications/${id}`);
+    return res.data.data;
+  },
+  send: async (payload: Partial<NotificationItem>) => {
+    const res = await apiClient.post<ApiResponse<NotificationItem>>('/v1/notifications/send', payload);
     return res.data.data;
   },
 };

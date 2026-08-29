@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 public interface NotificationMapper {
 
     @Mapping(target = "channels", expression = "java(splitChannels(entity.getChannels()))")
+    @Mapping(target = "isRead", source = "read")
     NotificationDto toDto(NotificationEntity entity);
 
     List<NotificationDto> toDtoList(List<NotificationEntity> entities);

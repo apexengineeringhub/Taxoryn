@@ -2606,6 +2606,74 @@ export interface WhatsAppIntegrationStatus {
   totalMessagesPending: number;
 }
 
+// 45. Notification Center V1
+export type NotificationSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'ACTION_REQUIRED';
+
+export type NotificationCategory = 'CLIENT' | 'DOCUMENT' | 'TASK' | 'COMPLIANCE' | 'ACCOUNT' | 'BILLING' | 'SYSTEM';
+
+export type NotificationType =
+  | 'CLIENT_REGISTERED'
+  | 'DOCUMENT_REQUEST_CREATED'
+  | 'DOCUMENT_UPLOADED'
+  | 'DOCUMENT_REJECTED'
+  | 'DOCUMENT_ACCEPTED'
+  | 'DOCUMENT_REQUEST_COMPLETED'
+  | 'DOCUMENT_REQUIRED'
+  | 'TASK_ASSIGNED'
+  | 'TASK_DUE'
+  | 'TASK_OVERDUE'
+  | 'COMPLIANCE_DUE'
+  | 'COMPLIANCE_OVERDUE'
+  | 'GST_DUE'
+  | 'ITR_DUE'
+  | 'PAYMENT_DUE'
+  | 'PAYMENT_RECEIVED'
+  | 'INVOICE_ISSUED'
+  | 'PASSWORD_CHANGED'
+  | 'PASSWORD_RESET_COMPLETED'
+  | 'SYSTEM_NOTIFICATION'
+  | 'GENERAL';
+
+export interface NotificationItem {
+  id: string;
+  organizationId: string;
+  userId?: string;
+  clientId?: string;
+  recipientName?: string;
+  notificationType: NotificationType;
+  severity: NotificationSeverity;
+  category: NotificationCategory;
+  entityType?: string;
+  entityId?: string;
+  title: string;
+  message: string;
+  channels: string[];
+  isRead: boolean;
+  read?: boolean;
+  readAt?: string;
+  expiresAt?: string;
+  actionUrl?: string;
+  metadata?: string;
+  emailStatus?: 'NOT_REQUESTED' | 'PENDING' | 'SENT' | 'FAILED';
+  smsStatus?: 'NOT_REQUESTED' | 'PENDING' | 'SENT' | 'FAILED';
+  whatsappStatus?: 'NOT_REQUESTED' | 'PENDING' | 'SENT' | 'FAILED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UnreadCountResponse {
+  unreadCount: number;
+}
+
+export interface NotificationFilterParams {
+  page?: number;
+  size?: number;
+  isRead?: boolean;
+  category?: NotificationCategory;
+  severity?: NotificationSeverity;
+  notificationType?: NotificationType;
+}
+
 
 
 

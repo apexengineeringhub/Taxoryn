@@ -55,6 +55,25 @@ public class NotificationEntity extends AuditableEntity {
     @Column(name = "read_at")
     private Instant readAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "severity", nullable = false, length = 32)
+    @Builder.Default
+    private Severity severity = Severity.INFO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, length = 32)
+    @Builder.Default
+    private Category category = Category.SYSTEM;
+
+    @Column(name = "entity_type", length = 64)
+    private String entityType;
+
+    @Column(name = "entity_id", length = 64)
+    private String entityId;
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
     @Column(name = "action_url")
     private String actionUrl;
 
@@ -76,14 +95,44 @@ public class NotificationEntity extends AuditableEntity {
     @Builder.Default
     private DeliveryStatus whatsappStatus = DeliveryStatus.NOT_REQUESTED;
 
+    public enum Severity {
+        INFO,
+        SUCCESS,
+        WARNING,
+        ACTION_REQUIRED
+    }
+
+    public enum Category {
+        CLIENT,
+        DOCUMENT,
+        TASK,
+        COMPLIANCE,
+        ACCOUNT,
+        BILLING,
+        SYSTEM
+    }
+
     public enum NotificationType {
+        CLIENT_REGISTERED,
+        DOCUMENT_REQUEST_CREATED,
+        DOCUMENT_UPLOADED,
+        DOCUMENT_REJECTED,
+        DOCUMENT_ACCEPTED,
+        DOCUMENT_REQUEST_COMPLETED,
+        DOCUMENT_REQUIRED,
         TASK_ASSIGNED,
         TASK_DUE,
         TASK_OVERDUE,
-        DOCUMENT_REQUIRED,
+        COMPLIANCE_DUE,
+        COMPLIANCE_OVERDUE,
         GST_DUE,
         ITR_DUE,
         PAYMENT_DUE,
+        PAYMENT_RECEIVED,
+        INVOICE_ISSUED,
+        PASSWORD_CHANGED,
+        PASSWORD_RESET_COMPLETED,
+        SYSTEM_NOTIFICATION,
         GENERAL
     }
 

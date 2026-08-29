@@ -55,6 +55,7 @@ import { LearnContentBrowsePage } from './pages/learn/LearnContentBrowsePage';
 import { LearnContentDetailPage } from './pages/learn/LearnContentDetailPage';
 import { PlatformContentManagementPage } from './pages/PlatformContentManagementPage';
 import { WhatsAppMessagesPage } from './pages/WhatsAppMessagesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 
@@ -190,6 +191,7 @@ export const App: React.FC = () => {
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/billing" element={<BillingPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/marketplace/leads" element={<MarketplaceLeadsPage />} />
               <Route path="/marketplace/onboarding" element={<MarketplaceOnboardingHubPage />} />
               <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
