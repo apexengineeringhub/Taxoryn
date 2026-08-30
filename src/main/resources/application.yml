@@ -2,7 +2,7 @@ spring:
   application:
     name: taxoryn
   profiles:
-    active: dev
+    active: demo
   config:
     import:
       - "optional:classpath:application-local.yml"
