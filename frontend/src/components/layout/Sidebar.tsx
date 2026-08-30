@@ -25,6 +25,7 @@ import {
   Server,
   Lock,
   Bell,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -108,6 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
     { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
+    { label: 'Reports', path: '/reports', icon: BarChart3, visible: true },
     { label: 'Notification Center', path: '/notifications', icon: Bell, visible: true },
     { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: isFirmAdmin },
     { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, visible: isFirmAdmin },

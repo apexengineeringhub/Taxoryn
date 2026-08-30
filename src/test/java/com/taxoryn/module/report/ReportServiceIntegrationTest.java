@@ -565,10 +565,10 @@ public class ReportServiceIntegrationTest {
                 .status(ClientStatus.ACTIVE)
                 .build();
         org2Client.setOrganizationId(org2.getId());
-        org2Client = clientRepository.save(org2Client);
+        final ClientEntity savedOrg2Client = clientRepository.save(org2Client);
 
         TaskEntity task = TaskEntity.builder()
-                .clientId(org2Client.getId())
+                .clientId(savedOrg2Client.getId())
                 .title("Org 2 Secret Task")
                 .status(TaskStatus.TODO)
                 .priority(TaskPriority.HIGH)
@@ -583,5 +583,143 @@ public class ReportServiceIntegrationTest {
 
         // Org 1 report must only count Org 1 clients
         assertThat(org1Overview.getTotalClients()).isEqualTo(2);
+
+        // Org 1 must never see Org 2's client/task in any of the other report types either
+        ClientReportDto org1ClientReport = reportService.getClientReport(null, null);
+        assertThat(org1ClientReport.getTotalClients()).isEqualTo(2);
+        assertThat(org1ClientReport.getClientsRequiringAttention())
+                .noneMatch(c -> c.getClientId().equals(savedOrg2Client.getId()));
+
+        WorkManagementReportDto org1WorkReport = reportService.getWorkManagementReport(null, null);
+        assertThat(org1WorkReport.getTotalTasks()).isEqualTo(0);
+
+        TaxWorkReportDto org1TaxWorkReport = reportService.getTaxWorkReport(null, null, null, null, null);
+        assertThat(org1TaxWorkReport.getGstTotalClients()).isEqualTo(0);
+
+        FinancialReportDto org1FinancialReport = reportService.getFinancialReport(null, null);
+        assertThat(org1FinancialReport.getTotalInvoiced()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    @DisplayName("Staff role scope restricts Tax Work, Client, and Work Management reports to own accessible clients")
+    void testStaffScopeRestrictsReportsToOwnClients() {
+        LocalDate today = LocalDate.now();
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+
+        RoleEntity staffRole = roleRepository.findByCodeAndIsSystemRoleTrue("STAFF")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder().name("Staff").code("STAFF").isSystemRole(true).build()));
+
+        // A second, independent staff member with their own client — must be invisible to staffUser1's scope
+        UserEntity staffUser2 = userRepository.save(UserEntity.builder()
+                .organizationId(org1.getId())
+                .email("staff2-" + suffix + "@example.com")
+                .passwordHash("$2a$10$abcdefghijklmnopqrstuvwxyzABCDE")
+                .firstName("Staff2")
+                .lastName("Rao")
+                .roles(new HashSet<>(Set.of(staffRole)))
+                .build());
+
+        EmployeeEntity emp2 = EmployeeEntity.builder()
+                .userId(staffUser2.getId())
+                .employeeCode("EMP2-" + suffix)
+                .firstName("Staff2")
+                .lastName("Rao")
+                .email(staffUser2.getEmail())
+                .phone("9876543299")
+                .department("Indirect Tax")
+                .designation("Associate")
+                .status(EmployeeStatus.ACTIVE)
+                .build();
+        emp2.setOrganizationId(org1.getId());
+        EmployeeEntity employee2 = employeeRepository.save(emp2);
+
+        ClientEntity c3 = ClientEntity.builder()
+                .displayName("Gamma Client " + suffix)
+                .legalName("Gamma Client Pvt Ltd")
+                .pan("AABCG" + suffix.substring(0, 4) + "G")
+                .clientType(ClientType.PRIVATE_LIMITED)
+                .status(ClientStatus.ACTIVE)
+                .assignedEmployeeId(employee2.getId())
+                .build();
+        c3.setOrganizationId(org1.getId());
+        ClientEntity client3 = clientRepository.save(c3);
+
+        // GST filing belonging to employee2's client — must not be visible to staffUser1
+        GstProfileEntity gstProfile3 = GstProfileEntity.builder()
+                .clientId(client3.getId())
+                .gstin("29AABCG" + suffix.substring(0, 4) + "G1")
+                .legalName(client3.getLegalName())
+                .tradeName(client3.getDisplayName())
+                .build();
+        gstProfile3.setOrganizationId(org1.getId());
+        gstProfile3 = gstProfileRepository.save(gstProfile3);
+
+        GstReturnFilingEntity gstFiling3 = GstReturnFilingEntity.builder()
+                .clientId(client3.getId())
+                .gstProfileId(gstProfile3.getId())
+                .returnType(GstReturnType.GSTR1)
+                .returnPeriod("062026")
+                .financialYear("2026-27")
+                .dueDate(today.plusDays(5))
+                .filingStatus(GstFilingStatus.PENDING)
+                .build();
+        gstFiling3.setOrganizationId(org1.getId());
+        gstReturnFilingRepository.save(gstFiling3);
+
+        // Task assigned to employee2 on client3 — must not appear in staffUser1's Work Management view
+        TaskEntity task3 = TaskEntity.builder()
+                .clientId(client3.getId())
+                .title("Gamma GST Filing")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.GST)
+                .dueDate(today.plusDays(4))
+                .assignedTo(employee2.getId())
+                .build();
+        task3.setOrganizationId(org1.getId());
+        taskRepository.save(task3);
+
+        // Task assigned to employee1 on client1 — must appear in staffUser1's own scope
+        TaskEntity task1 = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("Acme GST Filing")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.GST)
+                .dueDate(today.plusDays(4))
+                .assignedTo(employee1.getId())
+                .build();
+        task1.setOrganizationId(org1.getId());
+        taskRepository.save(task1);
+
+        // --- Authenticate as staffUser1 (employee1): restricted to client1 & client2 only ---
+        authenticateAs(staffUser1, "STAFF");
+
+        ClientReportDto clientReport = reportService.getClientReport(null, null);
+        assertThat(clientReport.getTotalClients()).isEqualTo(2);
+        assertThat(clientReport.getClientsRequiringAttention())
+                .noneMatch(c -> c.getClientId().equals(client3.getId()));
+
+        TaxWorkReportDto taxWorkReport = reportService.getTaxWorkReport(null, null, null, null, null);
+        assertThat(taxWorkReport.getGstTotalClients()).isEqualTo(0);
+
+        WorkManagementReportDto workReport = reportService.getWorkManagementReport(null, null);
+        assertThat(workReport.getEmployeeProductivity())
+                .noneMatch(e -> e.getEmployeeId().equals(employee2.getId()));
+        assertThat(workReport.getEmployeeProductivity())
+                .anyMatch(e -> e.getEmployeeId().equals(employee1.getId()));
+
+        // --- Admin still sees the full organization ---
+        authenticateAs(adminUser1, "ORG_ADMIN", "CLIENT_READ", "TASK_READ", "COMPLIANCE_READ", "BILLING_VIEW", "BILLING_READ");
+
+        ClientReportDto adminClientReport = reportService.getClientReport(null, null);
+        assertThat(adminClientReport.getTotalClients()).isEqualTo(3);
+
+        TaxWorkReportDto adminTaxWorkReport = reportService.getTaxWorkReport(null, null, null, null, null);
+        assertThat(adminTaxWorkReport.getGstTotalClients()).isGreaterThanOrEqualTo(1);
+
+        WorkManagementReportDto adminWorkReport = reportService.getWorkManagementReport(null, null);
+        assertThat(adminWorkReport.getEmployeeProductivity())
+                .anyMatch(e -> e.getEmployeeId().equals(employee2.getId()));
     }
 }

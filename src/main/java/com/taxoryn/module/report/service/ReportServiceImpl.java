@@ -206,13 +206,23 @@ public class ReportServiceImpl implements ReportService {
         LocalDate today = LocalDate.now();
         LocalDate endOfWeek = today.plusDays(7);
 
+        // Tenant/RBAC scope: non-firm-admin roles (managers, staff) only see their accessible clients' tax work,
+        // mirroring the scoping convention used by DashboardServiceImpl/TaskServiceImpl/etc.
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = scope.isFirmAdmin() ? null : securityScopeEvaluator.getAccessibleClientIds(scope);
+
         // 1. GST Filings
         List<GstReturnFilingEntity> allGst = gstReturnFilingRepository.findAllByOrganizationId(organizationId);
+        if (accessibleClientIds != null) {
+            allGst = allGst.stream().filter(g -> accessibleClientIds.contains(g.getClientId())).toList();
+        }
         if (StringUtils.hasText(financialYear)) {
             allGst = allGst.stream().filter(g -> financialYear.equalsIgnoreCase(g.getFinancialYear())).toList();
         }
 
-        long gstTotalClients = gstProfileRepository.countDistinctClientsByOrganizationId(organizationId);
+        long gstTotalClients = accessibleClientIds == null
+                ? gstProfileRepository.countDistinctClientsByOrganizationId(organizationId)
+                : allGst.stream().map(GstReturnFilingEntity::getClientId).filter(java.util.Objects::nonNull).distinct().count();
         long gstFiled = allGst.stream().filter(f -> f.getFilingStatus() == GstFilingStatus.FILED).count();
         long gstReview = allGst.stream().filter(f -> f.getFilingStatus() == GstFilingStatus.UNDER_REVIEW).count();
         long gstOverdue = allGst.stream().filter(f -> f.getFilingStatus() != GstFilingStatus.FILED && f.getFilingStatus() != GstFilingStatus.CANCELLED && f.getDueDate() != null && f.getDueDate().isBefore(today)).count();
@@ -226,13 +236,18 @@ public class ReportServiceImpl implements ReportService {
 
         // 2. ITR Returns
         List<ItrReturnEntity> allItr = itrReturnRepository.findAllByOrganizationId(organizationId);
+        if (accessibleClientIds != null) {
+            allItr = allItr.stream().filter(i -> accessibleClientIds.contains(i.getClientId())).toList();
+        }
         if (StringUtils.hasText(assessmentYear)) {
             allItr = allItr.stream().filter(i -> assessmentYear.equalsIgnoreCase(i.getAssessmentYear())).toList();
         } else if (StringUtils.hasText(financialYear)) {
             allItr = allItr.stream().filter(i -> financialYear.equalsIgnoreCase(i.getFinancialYear())).toList();
         }
 
-        long itrTotalClients = itrProfileRepository.countDistinctClientsByOrganizationId(organizationId);
+        long itrTotalClients = accessibleClientIds == null
+                ? itrProfileRepository.countDistinctClientsByOrganizationId(organizationId)
+                : allItr.stream().map(ItrReturnEntity::getClientId).filter(java.util.Objects::nonNull).distinct().count();
         long itrPending = allItr.stream().filter(r -> r.getStatus() == ItrStatus.DOCUMENTS_PENDING).count();
         long itrPreparation = allItr.stream().filter(r -> r.getStatus() == ItrStatus.DATA_ENTRY || r.getStatus() == ItrStatus.READY_TO_FILE).count();
         long itrReview = allItr.stream().filter(r -> r.getStatus() == ItrStatus.UNDER_REVIEW).count();
@@ -248,6 +263,9 @@ public class ReportServiceImpl implements ReportService {
 
         // 3. TDS Returns
         List<TdsReturnEntity> allTds = tdsReturnRepository.findAllByOrganizationId(organizationId);
+        if (accessibleClientIds != null) {
+            allTds = allTds.stream().filter(t -> accessibleClientIds.contains(t.getClientId())).toList();
+        }
         if (StringUtils.hasText(financialYear)) {
             allTds = allTds.stream().filter(t -> financialYear.equalsIgnoreCase(t.getFinancialYear())).toList();
         }
@@ -255,7 +273,9 @@ public class ReportServiceImpl implements ReportService {
             allTds = allTds.stream().filter(t -> t.getQuarter() != null && quarter.equalsIgnoreCase(t.getQuarter().name())).toList();
         }
 
-        long tdsTotalClients = tdsProfileRepository.countDistinctClientsByOrganizationId(organizationId);
+        long tdsTotalClients = accessibleClientIds == null
+                ? tdsProfileRepository.countDistinctClientsByOrganizationId(organizationId)
+                : allTds.stream().map(TdsReturnEntity::getClientId).filter(java.util.Objects::nonNull).distinct().count();
         long tdsPending = allTds.stream().filter(r -> r.getFilingStatus() == TdsFilingStatus.PENDING || r.getFilingStatus() == TdsFilingStatus.DRAFT).count();
         long tdsChallansAttached = allTds.stream().filter(r -> r.getFilingStatus() == TdsFilingStatus.CHALLANS_ATTACHED).count();
         long tdsReview = allTds.stream().filter(r -> r.getFilingStatus() == TdsFilingStatus.UNDER_REVIEW).count();
@@ -278,6 +298,9 @@ public class ReportServiceImpl implements ReportService {
                 fromDate != null ? fromDate : today.minusYears(1),
                 toDate != null ? toDate : today.plusYears(1)
         );
+        if (accessibleClientIds != null) {
+            obligations = obligations.stream().filter(o -> accessibleClientIds.contains(o.getClientId())).toList();
+        }
 
         long complianceTotal = obligations.size();
         long complianceDueToday = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && today.equals(o.getDueDate())).count();
@@ -360,7 +383,18 @@ public class ReportServiceImpl implements ReportService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         LocalDate today = LocalDate.now();
 
-        List<ClientEntity> allClients = clientRepository.findAllByOrganizationId(organizationId);
+        // Tenant/RBAC scope: non-firm-admin roles only see clients they are assigned to or have active tasks for.
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = scope.isFirmAdmin() ? null : securityScopeEvaluator.getAccessibleClientIds(scope);
+
+        List<ClientEntity> allClients;
+        if (accessibleClientIds == null) {
+            allClients = clientRepository.findAllByOrganizationId(organizationId);
+        } else if (accessibleClientIds.isEmpty()) {
+            allClients = Collections.emptyList();
+        } else {
+            allClients = clientRepository.findAllById(accessibleClientIds);
+        }
         long totalClients = allClients.size();
         long activeClients = allClients.stream().filter(c -> c.getStatus() == ClientStatus.ACTIVE).count();
         long inactiveClients = totalClients - activeClients;
@@ -370,6 +404,11 @@ public class ReportServiceImpl implements ReportService {
         List<DocumentRequestEntity> docRequests = documentRequestRepository.findAllByOrganizationId(organizationId, org.springframework.data.domain.Pageable.unpaged()).getContent();
         List<ComplianceObligationEntity> obligations = complianceObligationRepository.findAllByOrganizationIdAndDueDateBetween(
                 organizationId, today.minusYears(1), today.plusYears(1));
+        if (accessibleClientIds != null) {
+            tasks = tasks.stream().filter(t -> accessibleClientIds.contains(t.getClientId())).toList();
+            docRequests = docRequests.stream().filter(d -> accessibleClientIds.contains(d.getClientId())).toList();
+            obligations = obligations.stream().filter(o -> accessibleClientIds.contains(o.getClientId())).toList();
+        }
 
         Set<UUID> clientsWithOpenTasks = tasks.stream()
                 .filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED && t.getClientId() != null)
@@ -398,10 +437,28 @@ public class ReportServiceImpl implements ReportService {
 
         // Document Requests Item Pipeline
         long totalDocRequests = docRequests.size();
-        long docRequestsAwaitingUpload = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.PENDING);
-        long docRequestsUploaded = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.UPLOADED);
-        long docRequestsAccepted = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.ACCEPTED);
-        long docRequestsRejected = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.REJECTED);
+        long docRequestsAwaitingUpload;
+        long docRequestsUploaded;
+        long docRequestsAccepted;
+        long docRequestsRejected;
+        if (accessibleClientIds == null) {
+            docRequestsAwaitingUpload = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.PENDING);
+            docRequestsUploaded = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.UPLOADED);
+            docRequestsAccepted = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.ACCEPTED);
+            docRequestsRejected = documentRequestItemRepository.countByOrganizationIdAndStatus(organizationId, ItemStatus.REJECTED);
+        } else if (accessibleClientIds.isEmpty()) {
+            docRequestsAwaitingUpload = 0;
+            docRequestsUploaded = 0;
+            docRequestsAccepted = 0;
+            docRequestsRejected = 0;
+        } else {
+            List<com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity> scopedItems =
+                    documentRequestItemRepository.findAllByOrganizationIdAndClientIdIn(organizationId, accessibleClientIds);
+            docRequestsAwaitingUpload = scopedItems.stream().filter(i -> i.getStatus() == ItemStatus.PENDING).count();
+            docRequestsUploaded = scopedItems.stream().filter(i -> i.getStatus() == ItemStatus.UPLOADED).count();
+            docRequestsAccepted = scopedItems.stream().filter(i -> i.getStatus() == ItemStatus.ACCEPTED).count();
+            docRequestsRejected = scopedItems.stream().filter(i -> i.getStatus() == ItemStatus.REJECTED).count();
+        }
 
         // Build Attention Items list
         List<ClientAttentionItemDto> attentionItems = new ArrayList<>();
@@ -465,7 +522,18 @@ public class ReportServiceImpl implements ReportService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         LocalDate today = LocalDate.now();
 
+        // Tenant/RBAC scope: staff only see their own workload; managers see their department;
+        // firm admins see the whole practice. This also prevents individual-level employee
+        // surveillance by junior staff (see Section 12/34 of the Reports spec).
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleAssigneeIds = scope.isFirmAdmin() ? null : scope.getAccessibleAssigneeIds();
+
         List<TaskEntity> tasks = taskRepository.findAllByOrganizationId(organizationId, org.springframework.data.domain.Pageable.unpaged()).getContent();
+        if (accessibleAssigneeIds != null) {
+            tasks = tasks.stream()
+                    .filter(t -> t.getAssignedTo() != null && accessibleAssigneeIds.contains(t.getAssignedTo()))
+                    .toList();
+        }
         if (fromDate != null && toDate != null) {
             tasks = tasks.stream()
                     .filter(t -> t.getDueDate() == null || (!t.getDueDate().isBefore(fromDate) && !t.getDueDate().isAfter(toDate)))
@@ -493,6 +561,12 @@ public class ReportServiceImpl implements ReportService {
 
         // Employee Productivity Breakdown
         List<EmployeeEntity> employees = employeeRepository.findAllByOrganizationId(organizationId);
+        if (accessibleAssigneeIds != null) {
+            employees = employees.stream()
+                    .filter(e -> accessibleAssigneeIds.contains(e.getId())
+                            || (e.getUserId() != null && accessibleAssigneeIds.contains(e.getUserId())))
+                    .toList();
+        }
         List<EmployeeProductivityDto> productivityList = new ArrayList<>();
 
         for (EmployeeEntity emp : employees) {
