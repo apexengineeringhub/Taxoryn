@@ -305,6 +305,20 @@ public class TaskServiceImpl implements TaskService {
         TaskEntity task = taskRepository.findByIdAndOrganizationId(taskId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", "id", taskId));
 
+        // SECURITY: this endpoint is reachable by non-admin STAFF/PRACTITIONER/ARTICLE_ASSISTANT
+        // roles (see TaskController @PreAuthorize). Without this check, any such user could
+        // modify (reassign, change status/priority, clear blocked reason on) ANY task in the
+        // organization, not just tasks within their own department/assigned workload - the
+        // same ABAC scope that is already enforced for reads in getTaskById()/getTasks().
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            Set<UUID> accessibleIds = scope.getAccessibleAssigneeIds();
+            if (task.getAssignedTo() != null && (accessibleIds == null || !accessibleIds.contains(task.getAssignedTo()))) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission to modify tasks outside your department or assigned workload.");
+            }
+        }
+
         UUID previousAssignee = task.getAssignedTo();
         TaskStatus previousStatus = task.getStatus();
 

@@ -195,4 +195,51 @@ class DocumentServiceTest {
         assertEquals(DocumentStatus.DELETED, document.getStatus());
         verify(documentRepository).save(document);
     }
+
+    @Test
+    @DisplayName("SECURITY: firm admin can view a client's document vault")
+    void testGetClientDocumentsAllowedForFirmAdmin() {
+        ClientEntity client = new ClientEntity();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(documentRepository.findAllByOrganizationIdAndClientIdAndStatus(tenantId, clientId, DocumentStatus.ACTIVE))
+                .thenReturn(java.util.List.of());
+
+        // setUp() already stubs securityScopeEvaluator.evaluateCurrentScope() -> firmAdmin
+        documentService.getClientDocuments(clientId);
+
+        verify(documentRepository).findAllByOrganizationIdAndClientIdAndStatus(tenantId, clientId, DocumentStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("SECURITY: restricted staff cannot view another employee's client document vault (same org)")
+    void testGetClientDocumentsDeniedForOutOfScopeStaff() {
+        ClientEntity client = new ClientEntity();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        UUID restrictedUserId = UUID.randomUUID();
+        UUID restrictedEmployeeId = UUID.randomUUID();
+        // Staff scope whose accessible client set does NOT include this clientId
+        // (e.g. clientId belongs to a colleague's portfolio in the same organization).
+        com.taxoryn.core.security.PracticeSecurityScope restrictedScope =
+                com.taxoryn.core.security.PracticeSecurityScope.staffIndividual(
+                        restrictedUserId, restrictedEmployeeId, Set.of(UUID.randomUUID()));
+
+        org.mockito.Mockito.reset(securityScopeEvaluator);
+        when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(restrictedScope);
+        when(securityScopeEvaluator.getAccessibleClientIds(restrictedScope)).thenReturn(Set.of());
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.security.access.AccessDeniedException.class,
+                () -> documentService.getClientDocuments(clientId),
+                "A restricted employee must not be able to pull another employee's client document vault " +
+                "just because both clients belong to the same organization.");
+
+        org.mockito.Mockito.verify(documentRepository, org.mockito.Mockito.never())
+                .findAllByOrganizationIdAndClientIdAndStatus(any(), any(), any());
+    }
 }

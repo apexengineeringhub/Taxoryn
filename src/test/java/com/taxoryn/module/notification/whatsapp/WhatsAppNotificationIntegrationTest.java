@@ -302,4 +302,78 @@ class WhatsAppNotificationIntegrationTest {
         assertThat(updated.getStatus()).isEqualTo(WhatsAppMessageStatus.DELIVERED);
         assertThat(updated.getDeliveredAt()).isNotNull();
     }
+
+    @Test
+    @DisplayName("SECURITY: rejects webhook payload with invalid X-Hub-Signature-256 when app secret is configured")
+    void testWebhookRejectsInvalidSignature() {
+        whatsAppProperties.setAppSecret("test-meta-app-secret");
+        try {
+            WhatsAppMessageEntity entity = WhatsAppMessageEntity.builder()
+                    .organizationId(testOrg.getId())
+                    .recipientPhone("919876543210")
+                    .templateType("INVOICE_ISSUED")
+                    .templateName("invoice_issued")
+                    .messageContent("Invoice test")
+                    .provider("META")
+                    .providerMessageId("wamid.SIGTEST01")
+                    .status(WhatsAppMessageStatus.SENT)
+                    .build();
+            entity = messageRepository.saveAndFlush(entity);
+
+            String webhookPayload = """
+                    {"entry":[{"changes":[{"value":{"statuses":[
+                      {"id":"wamid.SIGTEST01","status":"delivered","timestamp":"1724930000"}
+                    ]}}]}]}
+                    """;
+
+            // Forged/mismatched signature - must be rejected, message status must NOT change.
+            whatsAppNotificationService.processWebhookPayload(webhookPayload, "sha256=deadbeef00112233");
+
+            entityManager.clear();
+            WhatsAppMessageEntity unchanged = messageRepository.findById(entity.getId()).orElseThrow();
+            assertThat(unchanged.getStatus()).isEqualTo(WhatsAppMessageStatus.SENT);
+        } finally {
+            whatsAppProperties.setAppSecret(null);
+        }
+    }
+
+    @Test
+    @DisplayName("SECURITY: accepts webhook payload with a correctly computed HMAC-SHA256 signature")
+    void testWebhookAcceptsValidSignature() throws Exception {
+        String appSecret = "test-meta-app-secret";
+        whatsAppProperties.setAppSecret(appSecret);
+        try {
+            WhatsAppMessageEntity entity = WhatsAppMessageEntity.builder()
+                    .organizationId(testOrg.getId())
+                    .recipientPhone("919876543210")
+                    .templateType("INVOICE_ISSUED")
+                    .templateName("invoice_issued")
+                    .messageContent("Invoice test")
+                    .provider("META")
+                    .providerMessageId("wamid.SIGTEST02")
+                    .status(WhatsAppMessageStatus.SENT)
+                    .build();
+            entity = messageRepository.saveAndFlush(entity);
+
+            String webhookPayload = "{\"entry\":[{\"changes\":[{\"value\":{\"statuses\":[" +
+                    "{\"id\":\"wamid.SIGTEST02\",\"status\":\"delivered\",\"timestamp\":\"1724930000\"}" +
+                    "]}}]}]}";
+
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(
+                    appSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] raw = mac.doFinal(webhookPayload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : raw) hex.append(String.format("%02x", b));
+            String validSignature = "sha256=" + hex;
+
+            whatsAppNotificationService.processWebhookPayload(webhookPayload, validSignature);
+
+            entityManager.clear();
+            WhatsAppMessageEntity updated = messageRepository.findById(entity.getId()).orElseThrow();
+            assertThat(updated.getStatus()).isEqualTo(WhatsAppMessageStatus.DELIVERED);
+        } finally {
+            whatsAppProperties.setAppSecret(null);
+        }
+    }
 }

@@ -323,6 +323,24 @@ public class WhatsAppNotificationServiceImpl implements WhatsAppNotificationServ
             return;
         }
 
+        // SECURITY (Section 38 - Webhook Security): this endpoint is publicly reachable
+        // (permitAll in SecurityConfig) since Meta cannot authenticate with our JWTs. Without
+        // verifying the X-Hub-Signature-256 HMAC, ANY caller can post arbitrary payloads that
+        // get parsed and used to mutate WhatsAppMessageEntity delivery status records.
+        if (StringUtils.hasText(properties.getAppSecret())) {
+            if (!isValidMetaSignature(payload, signature, properties.getAppSecret())) {
+                log.warn("Rejected WhatsApp webhook payload: X-Hub-Signature-256 missing or invalid.");
+                return;
+            }
+        } else {
+            // No app secret configured - this is a production misconfiguration. We still
+            // process (to avoid breaking existing deployments that haven't wired this up yet)
+            // but this must be treated as a finding: the webhook is currently unauthenticated.
+            log.warn("SECURITY: taxoryn.whatsapp.app-secret is not configured - processing WhatsApp " +
+                    "webhook payload WITHOUT signature verification. Configure the Meta App Secret " +
+                    "to prevent spoofed webhook deliveries.");
+        }
+
         try {
             JsonNode root = objectMapper.readTree(payload);
             if (!root.has("entry") || !root.get("entry").isArray()) {
@@ -349,6 +367,46 @@ public class WhatsAppNotificationServiceImpl implements WhatsAppNotificationServ
             }
         } catch (Exception ex) {
             log.error("Error parsing Meta WhatsApp webhook payload: {}", ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Verifies the Meta "X-Hub-Signature-256" header: {@code sha256=<hex-hmac>} computed over
+     * the raw request body using the App Secret as the HMAC-SHA256 key. Uses a constant-time
+     * comparison to avoid leaking timing information about the expected signature.
+     */
+    private boolean isValidMetaSignature(String payload, String signatureHeader, String appSecret) {
+        if (!StringUtils.hasText(signatureHeader) || !signatureHeader.startsWith("sha256=")) {
+            return false;
+        }
+        try {
+            String expectedHex = signatureHeader.substring("sha256=".length()).trim();
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(
+                    appSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] computed = mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] expected = hexToBytes(expectedHex);
+            return expected != null && java.security.MessageDigest.isEqual(computed, expected);
+        } catch (Exception ex) {
+            log.error("Error computing WhatsApp webhook HMAC signature: {}", ex.getMessage(), ex);
+            return false;
+        }
+    }
+
+    private byte[] hexToBytes(String hex) {
+        if (hex == null || hex.length() % 2 != 0) {
+            return null;
+        }
+        try {
+            int len = hex.length();
+            byte[] out = new byte[len / 2];
+            for (int i = 0; i < len; i += 2) {
+                out[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                        + Character.digit(hex.charAt(i + 1), 16));
+            }
+            return out;
+        } catch (Exception ex) {
+            return null;
         }
     }
 

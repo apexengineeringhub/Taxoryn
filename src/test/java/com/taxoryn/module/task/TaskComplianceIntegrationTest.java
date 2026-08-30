@@ -84,7 +84,9 @@ public class TaskComplianceIntegrationTest {
     private OrganizationEntity testOrg;
     private UserEntity adminUser;
     private UserEntity staffUser;
+    private UserEntity staffUser2;
     private EmployeeEntity staffEmployee;
+    private EmployeeEntity staffEmployee2;
     private EmployeeEntity adminEmployee;
     private ClientEntity testClient;
 
@@ -147,6 +149,28 @@ public class TaskComplianceIntegrationTest {
                 .build();
         staffEmp.setOrganizationId(testOrg.getId());
         staffEmployee = employeeRepository.save(staffEmp);
+
+        staffUser2 = userRepository.save(UserEntity.builder()
+                .email("staff2-" + UUID.randomUUID() + "@apextax.in")
+                .passwordHash("$2a$10$dummyHashStaff223456789012345678901234567890")
+                .firstName("Priya")
+                .lastName("Nair")
+                .roles(new HashSet<>(Set.of(staffRole)))
+                .status(UserEntity.UserStatus.ACTIVE)
+                .organizationId(testOrg.getId())
+                .build());
+
+        EmployeeEntity staffEmp2 = EmployeeEntity.builder()
+                .userId(staffUser2.getId())
+                .employeeCode("EMP-STF2-" + UUID.randomUUID().toString().substring(0, 5))
+                .firstName("Priya")
+                .lastName("Nair")
+                .email(staffUser2.getEmail())
+                .designation("Associate")
+                .status(EmployeeEntity.EmployeeStatus.ACTIVE)
+                .build();
+        staffEmp2.setOrganizationId(testOrg.getId());
+        staffEmployee2 = employeeRepository.save(staffEmp2);
 
         ClientEntity clientEntity = ClientEntity.builder()
                 .displayName("ABC Manufacturing Pvt Ltd")
@@ -491,5 +515,54 @@ public class TaskComplianceIntegrationTest {
         assertThat(task.getDueDate()).isEqualTo(internalDeadline);
         assertThat(task.getStatutoryDueDate()).isEqualTo(statutoryDeadline);
         assertThat(task.getDueDate()).isBefore(task.getStatutoryDueDate());
+    }
+
+    @Test
+    @DisplayName("7. SECURITY: Staff cannot update a colleague's task outside their own workload")
+    void testStaffCannotUpdateOutOfScopeTask() {
+        // Admin creates a task assigned to staffEmployee2 (Priya), not staffEmployee (Rahul).
+        setAuthContext(adminUser, "ORG_ADMIN", "TASK_VIEW", "TASK_CREATE", "TASK_UPDATE");
+        TaskDto colleagueTask = taskService.createTask(CreateTaskRequest.builder()
+                .clientId(testClient.getId())
+                .assignedTo(staffEmployee2.getId())
+                .title("Priya's GSTR-1 Filing")
+                .dueDate(LocalDate.now().plusDays(3))
+                .build());
+
+        // staffUser (Rahul) - a restricted STAFF user with no reportees and a different
+        // employee record - attempts to update Priya's task directly by ID.
+        setAuthContext(staffUser, "STAFF", "TASK_VIEW", "TASK_UPDATE");
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.security.access.AccessDeniedException.class,
+                () -> taskService.updateTask(colleagueTask.getId(), UpdateTaskRequest.builder()
+                        .status(TaskStatus.CANCELLED)
+                        .build()),
+                "A restricted STAFF user must not be able to modify a task assigned to a " +
+                "different employee, even within the same organization.");
+
+        // Sanity check: the task was left untouched.
+        setAuthContext(adminUser, "ORG_ADMIN", "TASK_VIEW");
+        TaskDto unchanged = taskService.getTaskById(colleagueTask.getId());
+        assertThat(unchanged.getStatus()).isNotEqualTo(TaskStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("8. SECURITY: Staff CAN update their own assigned task")
+    void testStaffCanUpdateOwnTask() {
+        setAuthContext(adminUser, "ORG_ADMIN", "TASK_VIEW", "TASK_CREATE", "TASK_UPDATE");
+        TaskDto ownTask = taskService.createTask(CreateTaskRequest.builder()
+                .clientId(testClient.getId())
+                .assignedTo(staffEmployee.getId())
+                .title("Rahul's Own Task")
+                .dueDate(LocalDate.now().plusDays(3))
+                .build());
+
+        setAuthContext(staffUser, "STAFF", "TASK_VIEW", "TASK_UPDATE");
+        TaskDto updated = taskService.updateTask(ownTask.getId(), UpdateTaskRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build());
+
+        assertThat(updated.getStatus()).isEqualTo(TaskStatus.IN_PROGRESS);
     }
 }

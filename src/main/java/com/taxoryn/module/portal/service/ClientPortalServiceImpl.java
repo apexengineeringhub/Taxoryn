@@ -541,6 +541,20 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        // SECURITY: this endpoint is reachable by CLIENT_ADMIN (a client-portal user), not just
+        // internal staff (see ClientPortalController @PreAuthorize). Without this check, a
+        // Client Admin for Client A could pass another client's ID in the path and enumerate
+        // that other client's portal users' names/emails/roles - a cross-client data leak
+        // within the same organization (portal users must only ever see their own client).
+        if (SecurityUtils.isClientPortalUser()) {
+            UUID callerClientId = SecurityUtils.getCurrentClientId().orElse(null);
+            if (!Objects.equals(callerClientId, clientId)) {
+                log.warn("Unauthorized attempt by client portal user (clientId={}) to list portal users of foreign client {}",
+                        callerClientId, clientId);
+                throw new ForbiddenException("Access denied: You can only view users for your own account");
+            }
+        }
+
         return userRepository.findAllByOrganizationIdAndClientId(organizationId, clientId).stream()
                 .map(user -> ClientPortalUserDto.builder()
                         .userId(user.getId())
