@@ -579,10 +579,19 @@ public class ReportServiceImpl implements ReportService {
             long open = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.TODO).count();
             long inProg = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).count();
             long review = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.UNDER_REVIEW).count();
+            long blocked = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.BLOCKED).count();
             long overdue = empTasks.stream().filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED && t.getDueDate() != null && t.getDueDate().isBefore(today)).count();
             long done = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.COMPLETED).count();
+            long cancelled = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.CANCELLED).count();
+            // Pending = every non-terminal status, not just Assigned - Completed (Reports spec item 6):
+            // this correctly excludes CANCELLED (terminal, not open work) and correctly includes
+            // BLOCKED (open work, just stuck) so assigned = pending + completed + cancelled always holds.
+            long pending = open + inProg + review + blocked;
 
-            double rate = assigned > 0 ? ((double) done / (double) assigned) * 100.0 : 100.0;
+            // Completion Rate = Completed / Assigned * 100 (Reports spec item 8). An employee with
+            // zero assigned tasks has no completion to report, so this must read 0%, never 100% —
+            // 100% would misleadingly read as "fully productive" for someone with no work at all.
+            double rate = assigned > 0 ? ((double) done / (double) assigned) * 100.0 : 0.0;
             rate = BigDecimal.valueOf(rate).setScale(1, RoundingMode.HALF_UP).doubleValue();
 
             // On-Time Completion: only meaningful for completed tasks that had a due date.
@@ -637,8 +646,11 @@ public class ReportServiceImpl implements ReportService {
                     .openTasks(open)
                     .inProgressTasks(inProg)
                     .underReviewTasks(review)
+                    .blockedTasks(blocked)
+                    .pendingTasks(pending)
                     .overdueTasks(overdue)
                     .completedTasks(done)
+                    .cancelledTasks(cancelled)
                     .completionRate(rate)
                     .completedWithDueDate(completedWithDueDate)
                     .onTimeCompletedTasks(onTime)
@@ -662,7 +674,7 @@ public class ReportServiceImpl implements ReportService {
                 .filter(e -> e.getAssignedTasks() > 0)
                 .toList();
         double avgPending = withWork.isEmpty() ? 0 : withWork.stream()
-                .mapToLong(e -> e.getOpenTasks() + e.getInProgressTasks() + e.getUnderReviewTasks())
+                .mapToLong(EmployeeProductivityDto::getPendingTasks)
                 .average()
                 .orElse(0);
         for (EmployeeProductivityDto e : productivityList) {
@@ -677,7 +689,7 @@ public class ReportServiceImpl implements ReportService {
         }
         if (withWork.size() >= 2 && avgPending > 0) {
             for (EmployeeProductivityDto e : withWork) {
-                long pending = e.getOpenTasks() + e.getInProgressTasks() + e.getUnderReviewTasks();
+                long pending = e.getPendingTasks();
                 if (pending >= avgPending * 1.5 && pending >= 5) {
                     attentionItems.add(WorkManagementReportDto.AttentionItemDto.builder()
                             .employeeId(e.getEmployeeId())

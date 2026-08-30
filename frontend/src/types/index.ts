@@ -2885,8 +2885,11 @@ export interface EmployeeProductivity {
   openTasks: number;
   inProgressTasks: number;
   underReviewTasks: number;
+  blockedTasks: number;
+  pendingTasks: number;
   overdueTasks: number;
   completedTasks: number;
+  cancelledTasks: number;
   completionRate: number;
   completedWithDueDate: number;
   onTimeCompletedTasks: number;

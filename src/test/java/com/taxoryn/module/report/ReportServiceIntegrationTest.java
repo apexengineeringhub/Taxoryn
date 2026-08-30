@@ -509,6 +509,88 @@ public class ReportServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Work Management Report reconciles assigned = pending + completed + cancelled, including BLOCKED tasks in pending")
+    void testGetWorkManagementReport_pendingReconciliation() {
+        LocalDate today = LocalDate.now();
+
+        TaskEntity open = TaskEntity.builder()
+                .clientId(client1.getId()).title("Open").status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM).taskCategory(TaskCategory.GST)
+                .assignedTo(employee1.getId()).build();
+        open.setOrganizationId(org1.getId());
+        taskRepository.save(open);
+
+        TaskEntity blocked = TaskEntity.builder()
+                .clientId(client1.getId()).title("Blocked").status(TaskStatus.BLOCKED)
+                .priority(TaskPriority.MEDIUM).taskCategory(TaskCategory.GST)
+                .assignedTo(employee1.getId()).build();
+        blocked.setOrganizationId(org1.getId());
+        taskRepository.save(blocked);
+
+        TaskEntity cancelled = TaskEntity.builder()
+                .clientId(client1.getId()).title("Cancelled").status(TaskStatus.CANCELLED)
+                .priority(TaskPriority.MEDIUM).taskCategory(TaskCategory.GST)
+                .dueDate(today.minusDays(5))
+                .assignedTo(employee1.getId()).build();
+        cancelled.setOrganizationId(org1.getId());
+        taskRepository.save(cancelled);
+
+        TaskEntity completed = TaskEntity.builder()
+                .clientId(client1.getId()).title("Completed").status(TaskStatus.COMPLETED)
+                .priority(TaskPriority.MEDIUM).taskCategory(TaskCategory.GST)
+                .assignedTo(employee1.getId()).build();
+        completed.setOrganizationId(org1.getId());
+        taskRepository.save(completed);
+
+        WorkManagementReportDto report = reportService.getWorkManagementReport(null, null);
+        var empMetric = report.getEmployeeProductivity().stream()
+                .filter(e -> employee1.getId().equals(e.getEmployeeId()))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(empMetric).isNotNull();
+        assertThat(empMetric.getAssignedTasks()).isEqualTo(4);
+        assertThat(empMetric.getBlockedTasks()).isEqualTo(1);
+        assertThat(empMetric.getCancelledTasks()).isEqualTo(1);
+        assertThat(empMetric.getCompletedTasks()).isEqualTo(1);
+        // Pending must include the BLOCKED task (open work, just stuck) and exclude the
+        // CANCELLED one (terminal, not open work) — see Reports spec item 6.
+        assertThat(empMetric.getPendingTasks()).isEqualTo(2);
+        // The core reconciliation invariant from Reports spec item 21: every number must be
+        // derivable from the same dataset, so these three buckets must sum back to assigned.
+        assertThat(empMetric.getPendingTasks() + empMetric.getCompletedTasks() + empMetric.getCancelledTasks())
+                .isEqualTo(empMetric.getAssignedTasks());
+        // A cancelled task with a past due date must never surface as overdue.
+        assertThat(empMetric.getOverdueTasks()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Work Management Report shows 0% completion rate, not 100%, for an employee with zero assigned tasks")
+    void testGetWorkManagementReport_zeroAssignedCompletionRate() {
+        EmployeeEntity idleEmployee = EmployeeEntity.builder()
+                .employeeCode("EMP-IDLE-" + UUID.randomUUID().toString().substring(0, 6))
+                .firstName("Idle").lastName("Employee")
+                .email("idle" + UUID.randomUUID().toString().substring(0, 6) + "@example.com")
+                .department("Direct Tax").designation("Associate")
+                .status(EmployeeStatus.ACTIVE)
+                .build();
+        idleEmployee.setOrganizationId(org1.getId());
+        idleEmployee = employeeRepository.save(idleEmployee);
+
+        WorkManagementReportDto report = reportService.getWorkManagementReport(null, null);
+        final EmployeeEntity idleRef = idleEmployee;
+        var empMetric = report.getEmployeeProductivity().stream()
+                .filter(e -> idleRef.getId().equals(e.getEmployeeId()))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(empMetric).isNotNull();
+        assertThat(empMetric.getAssignedTasks()).isEqualTo(0);
+        assertThat(empMetric.getPendingTasks()).isEqualTo(0);
+        assertThat(empMetric.getCompletionRate()).isEqualTo(0.0);
+    }
+
+    @Test
     @DisplayName("Work Management Report computes on-time completion rate correctly")
     void testGetWorkManagementReport_onTimeCompletion() {
         LocalDate today = LocalDate.now();

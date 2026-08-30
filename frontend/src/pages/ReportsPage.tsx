@@ -50,6 +50,12 @@ export const ReportsPage: React.FC = () => {
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
 
+  // Employee Productivity tab filters (Reports spec items 18/19: Employee + Tax Type).
+  // Applied client-side over the already RBAC/tenant-scoped employeeProductivity list
+  // returned by the backend — no new API surface, no new data exposure.
+  const [productivityEmployeeFilter, setProductivityEmployeeFilter] = useState<string>('all');
+  const [productivityTaxFilter, setProductivityTaxFilter] = useState<string>('all');
+
   // Data States
   const [overviewData, setOverviewData] = useState<PracticeOverviewReport | null>(null);
   const [taxWorkData, setTaxWorkData] = useState<TaxWorkReport | null>(null);
@@ -70,6 +76,24 @@ export const ReportsPage: React.FC = () => {
   // Build a drill-down link into the existing Task Worklist (Reports item 27).
   // scope=TEAM_WORK is required whenever we target a specific employee other than
   // the viewer, since the worklist's own MY_WORK scope ignores assignedTo entirely.
+  // Employee Productivity table/export filtered by the selected staff member and/or tax
+  // type. Tax-type filtering keeps only employees who actually have assigned work in that
+  // category (Reports spec item 19) — never string-matches task names, uses the same
+  // taxCategoryBreakdown keys the backend derives from the TaskCategory enum.
+  const filteredEmployeeProductivity = useMemo(() => {
+    if (!workData) return [];
+    return workData.employeeProductivity.filter((emp) => {
+      if (productivityEmployeeFilter !== 'all' && emp.employeeId !== productivityEmployeeFilter) {
+        return false;
+      }
+      if (productivityTaxFilter !== 'all') {
+        const cat = emp.taxCategoryBreakdown?.[productivityTaxFilter];
+        if (!cat || cat.assigned === 0) return false;
+      }
+      return true;
+    });
+  }, [workData, productivityEmployeeFilter, productivityTaxFilter]);
+
   const worklistLink = (opts: { bucket?: string; assignedTo?: string; category?: string }) => {
     const params = new URLSearchParams();
     params.set('tab', 'WORKLIST');
@@ -245,10 +269,12 @@ export const ReportsPage: React.FC = () => {
         ])
       );
     } else if (activeTab === 'work' && workData) {
+      // Export respects the active Employee/Tax Type filters (Reports spec item 26) —
+      // the RBAC/tenant scoping already happened server-side before this data arrived.
       exportToCsv(
         'Taxoryn_Employee_Productivity_Report',
-        ['Employee Code', 'Staff Name', 'Department', 'Designation', 'Assigned Tasks', 'Open', 'In Progress', 'Under Review', 'Overdue', 'Completed', 'Completion Rate (%)', 'On-Time Completion Rate (%)'],
-        workData.employeeProductivity.map((e) => [
+        ['Employee Code', 'Staff Name', 'Department', 'Designation', 'Assigned Tasks', 'Open', 'In Progress', 'Under Review', 'Blocked', 'Pending (Total)', 'Overdue', 'Completed', 'Cancelled', 'Completion Rate (%)', 'On-Time Completion Rate (%)'],
+        filteredEmployeeProductivity.map((e) => [
           e.employeeCode,
           e.employeeName,
           e.department || 'N/A',
@@ -257,8 +283,11 @@ export const ReportsPage: React.FC = () => {
           e.openTasks,
           e.inProgressTasks,
           e.underReviewTasks,
+          e.blockedTasks,
+          e.pendingTasks,
           e.overdueTasks,
           e.completedTasks,
+          e.cancelledTasks,
           `${e.completionRate}%`,
           e.onTimeCompletionRate === null ? 'N/A' : `${e.onTimeCompletionRate}%`,
         ])
@@ -1196,16 +1225,44 @@ export const ReportsPage: React.FC = () => {
 
               {/* Employee Productivity Matrix Table */}
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-                <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+                <div className="p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">Staff Workload & Task Completion Productivity</h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Individual workload distribution, in-progress deliverables, and performance completion rates.
+                      Individual workload distribution, in-progress deliverables, and completion rates.
                     </p>
                   </div>
-                  <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
-                    {workData.employeeProductivity.length} Team Members
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={productivityEmployeeFilter}
+                      onChange={(e) => setProductivityEmployeeFilter(e.target.value)}
+                      className="text-xs font-semibold border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700"
+                    >
+                      <option value="all">All Employees</option>
+                      {workData.employeeProductivity.map((emp) => (
+                        <option key={emp.employeeId} value={emp.employeeId}>
+                          {emp.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={productivityTaxFilter}
+                      onChange={(e) => setProductivityTaxFilter(e.target.value)}
+                      className="text-xs font-semibold border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700"
+                    >
+                      <option value="all">All Tax Types</option>
+                      <option value="GST">GST</option>
+                      <option value="ITR">ITR</option>
+                      <option value="TDS">TDS</option>
+                      <option value="AUDIT">Audit</option>
+                      <option value="COMPLIANCE">Compliance</option>
+                      <option value="BILLING">Billing</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                    <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg whitespace-nowrap">
+                      {filteredEmployeeProductivity.length} Team Members
+                    </span>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1218,6 +1275,8 @@ export const ReportsPage: React.FC = () => {
                         <th className="py-3.5 px-4 text-blue-700">Open</th>
                         <th className="py-3.5 px-4 text-amber-700">In Progress</th>
                         <th className="py-3.5 px-4 text-indigo-700">Review</th>
+                        <th className="py-3.5 px-4 text-slate-500">Blocked</th>
+                        <th className="py-3.5 px-4 text-slate-700">Pending (Total)</th>
                         <th className="py-3.5 px-4 text-rose-700">Overdue</th>
                         <th className="py-3.5 px-4 text-emerald-700">Completed</th>
                         <th className="py-3.5 px-4 text-right">Completion Rate</th>
@@ -1225,17 +1284,42 @@ export const ReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {workData.employeeProductivity.map((emp) => (
+                      {filteredEmployeeProductivity.length === 0 && (
+                        <tr>
+                          <td colSpan={12} className="py-8 text-center text-slate-400 font-semibold">
+                            {workData.employeeProductivity.length === 0
+                              ? 'No employees with tracked tasks yet.'
+                              : 'No employees match the selected filters.'}
+                          </td>
+                        </tr>
+                      )}
+                      {filteredEmployeeProductivity.map((emp) => (
                         <tr key={emp.employeeId} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-4 px-5">
-                            <p className="font-bold text-slate-900">{emp.employeeName}</p>
+                            <Link
+                              to={worklistLink({ bucket: 'ALL', assignedTo: emp.employeeId })}
+                              className="font-bold text-slate-900 hover:text-indigo-700 hover:underline"
+                              title="View all tasks assigned to this employee"
+                            >
+                              {emp.employeeName}
+                            </Link>
+                            <br />
                             <span className="text-[11px] font-mono text-slate-400">{emp.employeeCode} &bull; {emp.designation || 'Staff'}</span>
                           </td>
                           <td className="py-4 px-4 text-slate-600 font-semibold">{emp.department || 'Direct Tax'}</td>
-                          <td className="py-4 px-4 font-black text-slate-900">{emp.assignedTasks}</td>
+                          <td className="py-4 px-4 font-black text-slate-900">
+                            <Link
+                              to={worklistLink({ bucket: 'ALL', assignedTo: emp.employeeId })}
+                              className="hover:underline"
+                            >
+                              {emp.assignedTasks}
+                            </Link>
+                          </td>
                           <td className="py-4 px-4 font-bold text-blue-700">{emp.openTasks}</td>
                           <td className="py-4 px-4 font-bold text-amber-700">{emp.inProgressTasks}</td>
                           <td className="py-4 px-4 font-bold text-indigo-700">{emp.underReviewTasks}</td>
+                          <td className="py-4 px-4 font-bold text-slate-500">{emp.blockedTasks}</td>
+                          <td className="py-4 px-4 font-bold text-slate-700">{emp.pendingTasks}</td>
                           <td className="py-4 px-4 font-bold text-rose-700">
                             {emp.overdueTasks > 0 ? (
                               <Link
@@ -1317,7 +1401,16 @@ export const ReportsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {workData.employeeProductivity.map((emp) => {
+                      {filteredEmployeeProductivity.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400 font-semibold">
+                            {workData.employeeProductivity.length === 0
+                              ? 'No employees with tracked tasks yet.'
+                              : 'No employees match the selected filters.'}
+                          </td>
+                        </tr>
+                      )}
+                      {filteredEmployeeProductivity.map((emp) => {
                         const cat = (name: string) => emp.taxCategoryBreakdown?.[name];
                         const cell = (name: string) => {
                           const c = cat(name);

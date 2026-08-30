@@ -81,8 +81,13 @@ public class WorkManagementReportDto {
         private long openTasks;
         private long inProgressTasks;
         private long underReviewTasks;
+        private long blockedTasks;
+        @Schema(description = "Currently open/non-terminal work: open + in-progress + under-review + blocked. Excludes completed and cancelled tasks. Overdue tasks are a subset of this, not counted separately.")
+        private long pendingTasks;
         private long overdueTasks;
         private long completedTasks;
+        @Schema(description = "Tasks assigned but cancelled — terminal, excluded from pending/completion-rate math. Shown so assignedTasks reconciles: assigned = pending + completed + cancelled.")
+        private long cancelledTasks;
         @Schema(description = "Task completion rate percentage (0-100)", example = "87.5")
         private double completionRate;
         @Schema(description = "Completed tasks that had a due date, used as the denominator for on-time rate")
