@@ -33,6 +33,19 @@ public class TaskDto {
     private TaskStatus status;
     private TaskPriority priority;
     private LocalDate dueDate;
+    private UUID complianceId;
+    private String complianceTitle;
+    private LocalDate statutoryDueDate;
+    private UUID documentRequestId;
+    private String documentRequestNumber;
+    private String documentRequestStatus;
+    private Integer documentRequestItemsCount;
+    private Integer documentRequestReceivedCount;
+    private String blockedReason;
+    private Boolean isOverdue;
+    private Boolean isDueToday;
+    private Boolean isDueThisWeek;
+    private Instant completedAt;
     private Instant createdAt;
     private Instant updatedAt;
 }

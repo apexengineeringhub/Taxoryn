@@ -14,6 +14,7 @@ import {
   Calendar,
   Layers,
   MapPin,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { customerTaxRequirementApi } from '../api/endpoints';
@@ -22,9 +23,11 @@ import {
   CustomerTaxRequirement,
   TaxRequirementStatus,
 } from '../types';
+import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 
 export const CustomerTaxRequirementsListPage: React.FC = () => {
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   const [requirements, setRequirements] = useState<CustomerTaxRequirementSummary[]>([]);
@@ -159,6 +162,15 @@ export const CustomerTaxRequirementsListPage: React.FC = () => {
             >
               <Plus className="w-4 h-4 mr-1.5" />
               Tell Us Your Tax Need
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => logout()}
+              className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 flex items-center gap-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
             </Button>
           </div>
         </div>

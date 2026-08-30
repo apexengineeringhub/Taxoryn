@@ -21,6 +21,12 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
 
     long countByOrganizationIdAndClientIdAndIsReadFalse(UUID organizationId, UUID clientId);
 
+    boolean existsByOrganizationIdAndEntityTypeAndEntityIdAndNotificationTypeAndCreatedAtGreaterThanEqual(
+            UUID organizationId, String entityType, String entityId, NotificationEntity.NotificationType notificationType, Instant createdAt);
+
+    boolean existsByOrganizationIdAndClientIdAndNotificationTypeAndCreatedAtGreaterThanEqual(
+            UUID organizationId, UUID clientId, NotificationEntity.NotificationType notificationType, Instant createdAt);
+
     @Modifying
     @Query("UPDATE NotificationEntity n SET n.isRead = true, n.readAt = :readAt " +
             "WHERE n.organizationId = :organizationId AND n.userId = :userId AND n.isRead = false")

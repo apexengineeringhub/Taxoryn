@@ -47,11 +47,18 @@ out/
 # 6. Environment & Secrets
 .env
 .env.*
+.env.local
 !.env.example
+*.local.yml
+*.local.properties
 application-local.yml
 application-local.properties
 application-secret.yml
 application-secret.properties
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml
+**/application-secret.properties
 *.key
 *.pem
 *.pfx

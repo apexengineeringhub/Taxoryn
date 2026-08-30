@@ -71,6 +71,15 @@ public class ItrReturnDto {
     @Schema(description = "Assigned practitioner full name", example = "Vikram Sharma")
     private String assignedEmployeeName;
 
+    @Schema(description = "Linked Statutory Compliance Obligation ID")
+    private UUID complianceId;
+
+    @Schema(description = "Linked Practice Task ID")
+    private UUID taskId;
+
+    @Schema(description = "Linked Multi-Item Document Request ID")
+    private UUID documentRequestId;
+
     @Schema(description = "Practitioner internal notes & remarks")
     private String notes;
 

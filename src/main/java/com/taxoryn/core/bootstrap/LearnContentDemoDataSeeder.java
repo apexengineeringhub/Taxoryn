@@ -32,7 +32,7 @@ import java.util.*;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Profile({"dev", "demo"})
+@Profile({"dev", "demo", "test"})
 @Order(3)
 public class LearnContentDemoDataSeeder implements CommandLineRunner {
 
@@ -43,31 +43,55 @@ public class LearnContentDemoDataSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
 
     @Override
-    @Transactional
     public void run(String... args) {
-        try {
-            seedLearnContent();
-        } catch (Exception ex) {
-            log.error("Failed seeding Taxoryn Learn demo content", ex);
-        }
+        seedLearnContent();
+    }
+
+    private TaxServiceCategoryEntity ensureCategory(String code, String name, String description, int sortOrder) {
+        return categoryRepository.findByCodeIgnoreCase(code)
+                .orElseGet(() -> categoryRepository.save(
+                        TaxServiceCategoryEntity.builder()
+                                .code(code)
+                                .name(name)
+                                .description(description)
+                                .icon("FileText")
+                                .sortOrder(sortOrder)
+                                .isActive(true)
+                                .build()
+                ));
+    }
+
+    private TaxServiceEntity ensureService(TaxServiceCategoryEntity category, String code, String name, String description, int sortOrder) {
+        return taxServiceRepository.findByCodeIgnoreCase(code)
+                .orElseGet(() -> taxServiceRepository.save(
+                        TaxServiceEntity.builder()
+                                .categoryId(category != null ? category.getId() : null)
+                                .category(category)
+                                .code(code)
+                                .name(name)
+                                .description(description)
+                                .sortOrder(sortOrder)
+                                .isActive(true)
+                                .build()
+                ));
     }
 
     private void seedLearnContent() {
-        // Resolve categories
-        TaxServiceCategoryEntity incomeTaxCat = categoryRepository.findByCodeIgnoreCase("INCOME_TAX").orElse(null);
-        TaxServiceCategoryEntity gstCat = categoryRepository.findByCodeIgnoreCase("GST").orElse(null);
-        TaxServiceCategoryEntity tdsCat = categoryRepository.findByCodeIgnoreCase("TDS").orElse(null);
+        // Ensure categories exist
+        TaxServiceCategoryEntity incomeTaxCat = ensureCategory("INCOME_TAX", "Income Tax", "Individual and business income tax services", 1);
+        TaxServiceCategoryEntity gstCat = ensureCategory("GST", "GST", "Goods & Services Tax registration, filing and advisory", 2);
+        TaxServiceCategoryEntity tdsCat = ensureCategory("TDS", "TDS", "Tax Deducted at Source compliance and filing", 3);
 
-        // Resolve tax services
-        TaxServiceEntity itrFiling = taxServiceRepository.findByCodeIgnoreCase("ITR_FILING").orElse(null);
-        TaxServiceEntity itrPlanning = taxServiceRepository.findByCodeIgnoreCase("ITR_PLANNING").orElse(null);
-        TaxServiceEntity itrNotice = taxServiceRepository.findByCodeIgnoreCase("ITR_NOTICE_ASSISTANCE").orElse(null);
-        TaxServiceEntity itrRefund = taxServiceRepository.findByCodeIgnoreCase("ITR_REFUND_ASSISTANCE").orElse(null);
-        TaxServiceEntity gstReg = taxServiceRepository.findByCodeIgnoreCase("GST_REGISTRATION").orElse(null);
-        TaxServiceEntity gstFiling = taxServiceRepository.findByCodeIgnoreCase("GST_RETURN_FILING").orElse(null);
-        TaxServiceEntity gstAdvisory = taxServiceRepository.findByCodeIgnoreCase("GST_ADVISORY").orElse(null);
-        TaxServiceEntity tdsFiling = taxServiceRepository.findByCodeIgnoreCase("TDS_RETURN_FILING").orElse(null);
-        TaxServiceEntity tdsCompliance = taxServiceRepository.findByCodeIgnoreCase("TDS_COMPLIANCE").orElse(null);
+        // Ensure tax services exist
+        TaxServiceEntity itrFiling = ensureService(incomeTaxCat, "ITR_FILING", "ITR Filing & Computation", "Income tax return preparation, computation and e-filing for individuals and businesses.", 1);
+        TaxServiceEntity itrPlanning = ensureService(incomeTaxCat, "ITR_PLANNING", "Tax Planning & Advisory", "Comprehensive tax planning, old vs new regime comparison, and investment advisory.", 2);
+        TaxServiceEntity itrNotice = ensureService(incomeTaxCat, "ITR_NOTICE_ASSISTANCE", "ITR Notice & Scrutiny", "Handling Section 143(1), 142(1), 148 notices and rectification requests.", 3);
+        TaxServiceEntity itrRefund = ensureService(incomeTaxCat, "ITR_REFUND_ASSISTANCE", "ITR Refund Reissue Assistance", "Resolving failed refunds, bank account re-validation, and refund tracking.", 4);
+        TaxServiceEntity gstReg = ensureService(gstCat, "GST_REGISTRATION", "New GST Registration", "New GSTIN application, amendments, and ARN tracking for businesses and freelancers.", 1);
+        TaxServiceEntity gstFiling = ensureService(gstCat, "GST_RETURN_FILING", "Monthly & Quarterly GST Filing", "Filing GSTR-1, GSTR-3B, GSTR-4, and reconciliations for regular and composition dealers.", 2);
+        TaxServiceEntity gstAdvisory = ensureService(gstCat, "GST_ADVISORY", "GST Advisory & Notice Management", "Handling GST DRC notices, ASMT-10 scrutiny, and input tax credit reconciliations.", 3);
+        TaxServiceEntity tdsFiling = ensureService(tdsCat, "TDS_RETURN_FILING", "Quarterly TDS Return Filing", "Preparing and filing Form 24Q, 26Q, 27Q, generating Form 16/16A.", 1);
+        TaxServiceEntity tdsCompliance = ensureService(tdsCat, "TDS_COMPLIANCE", "TDS Compliance & 26AS/AIS Reconciliation", "Reconciliation of tax credits across 26AS, AIS, and TIS, challan verification.", 2);
 
         // Resolve author
         UserEntity author = userRepository.findAll().stream().findFirst().orElse(null);

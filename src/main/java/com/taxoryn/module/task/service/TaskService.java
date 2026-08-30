@@ -25,4 +25,8 @@ public interface TaskService {
     com.taxoryn.module.task.dto.BulkTaskImportResultDto generateBulkTasks(com.taxoryn.module.task.dto.BulkTaskCreateRequest request);
 
     com.taxoryn.module.task.dto.BulkTaskImportResultDto bulkCreateTasks(java.util.List<CreateTaskRequest> requests);
+
+    PagedResponse<TaskDto> getWorklist(com.taxoryn.module.task.dto.TaskWorklistFilterRequest filterRequest);
+
+    com.taxoryn.module.task.dto.WorklistSummaryDto getWorklistSummary();
 }

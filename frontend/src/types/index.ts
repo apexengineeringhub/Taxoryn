@@ -160,10 +160,16 @@ export interface BulkImportError {
   rowNumber: number;
   clientName: string;
   pan: string;
+  field?: string;
+  invalidValue?: string;
   reason: string;
+  suggestedCorrection?: string;
+  duplicate?: boolean;
 }
 
 // 4. Task Management
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED';
+
 export interface Task {
   id: string;
   organizationId: string;
@@ -176,12 +182,54 @@ export interface Task {
   description?: string;
   category?: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  status: 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
+  status: TaskStatus;
   dueDate: string;
   completedDate?: string;
+  completedAt?: string;
   estimatedHours?: number;
   actualHours?: number;
   unassign?: boolean;
+
+  // Task & Compliance Enhancement V1.1
+  complianceId?: string;
+  complianceTitle?: string;
+  statutoryDueDate?: string;
+  documentRequestId?: string;
+  documentRequestNumber?: string;
+  documentRequestStatus?: string;
+  documentRequestItemsCount?: number;
+  documentRequestReceivedCount?: number;
+  blockedReason?: string;
+  isOverdue?: boolean;
+  isDueToday?: boolean;
+  isDueThisWeek?: boolean;
+}
+
+export interface WorklistSummary {
+  overdueCount: number;
+  dueTodayCount: number;
+  dueThisWeekCount: number;
+  inProgressCount: number;
+  blockedCount: number;
+  completedTodayCount: number;
+  documentsWaitingCount: number;
+  myTasksCount: number;
+  teamTasksCount: number;
+}
+
+export interface TaskWorklistParams {
+  scope?: 'MY_WORK' | 'TEAM_WORK';
+  bucket?: 'ALL' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'BLOCKED' | 'COMPLETED';
+  status?: TaskStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  category?: string;
+  clientId?: string;
+  assigneeId?: string;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
 }
 
 export interface BulkTaskCreateRequest {
@@ -200,6 +248,41 @@ export interface BulkTaskImportResult {
   totalFailed: number;
   createdTasks: Task[];
   errors: string[];
+}
+
+export interface ComplianceObligation {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  pan?: string;
+  gstin?: string;
+  ruleId?: string;
+  title: string;
+  complianceType: 'GST' | 'ITR' | 'TDS' | 'ROC_MCA' | 'ADVANCE_TAX' | 'AUDIT' | 'OTHER';
+  period: string;
+  dueDate: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'WAIVED' | 'CANCELLED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  taskId?: string;
+  completedAt?: string;
+  completedBy?: string;
+  notes?: string;
+  daysRemaining?: number;
+  isOverdue?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceDashboardStats {
+  dueTodayCount: number;
+  dueThisWeekCount: number;
+  overdueCount: number;
+  completedCount: number;
+  totalActiveCount: number;
+  byTypeCounts?: Record<string, number>;
 }
 
 // 5. GST Compliance
@@ -237,6 +320,22 @@ export interface GstReturnFiling {
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   notes?: string;
+
+  // Workflow linkages
+  complianceId?: string;
+  complianceTitle?: string;
+  taskId?: string;
+  taskTitle?: string;
+  taskStatus?: string;
+  documentRequestId?: string;
+  documentRequestNumber?: string;
+  documentRequestStatus?: string;
+  documentRequestItemsCount?: number;
+  documentRequestReceivedCount?: number;
+  documentsCount?: number;
+  createTask?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BulkGstImportResult {
@@ -286,6 +385,9 @@ export interface ItrReturn {
   status: 'DOCUMENTS_PENDING' | 'DATA_ENTRY' | 'UNDER_REVIEW' | 'READY_TO_FILE' | 'FILED' | 'VERIFICATION_PENDING' | 'COMPLETED' | 'CANCELLED';
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
+  complianceId?: string;
+  taskId?: string;
+  documentRequestId?: string;
   notes?: string;
 }
 
@@ -541,6 +643,79 @@ export interface ClientDocumentRequest {
   uploadedDocumentName?: string;
 }
 
+// Multi-Item Document Requests V1
+export interface DocumentRequestItem {
+  id: string;
+  requestId: string;
+  clientId: string;
+  documentType: string;
+  title: string;
+  description?: string;
+  required: boolean;
+  status: 'PENDING' | 'UPLOADED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED';
+  uploadedDocumentId?: string;
+  uploadedDocumentName?: string;
+  uploadedDocumentSize?: number;
+  uploadedDocumentContentType?: string;
+  uploadedAt?: string;
+  reviewedByUserId?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface DocumentRequest {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName: string;
+  clientPan?: string;
+  requestNumber: string;
+  purpose: string;
+  dueDate?: string;
+  message?: string;
+  status: 'DRAFT' | 'SENT' | 'PARTIALLY_COMPLETED' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE';
+  financialYear?: string;
+  assessmentYear?: string;
+  requestedByUserId?: string;
+  requestedByName?: string;
+  sentAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  totalItems: number;
+  uploadedItems: number;
+  acceptedItems: number;
+  pendingItems: number;
+  rejectedItems: number;
+  isOverdue: boolean;
+  items: DocumentRequestItem[];
+}
+
+export interface CreateDocumentRequestItem {
+  documentType?: string;
+  title: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface CreateDocumentRequest {
+  clientId: string;
+  purpose: string;
+  dueDate?: string;
+  message?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  items: CreateDocumentRequestItem[];
+}
+
+export interface DocumentRequestSummary {
+  totalRequests: number;
+  pendingRequests: number;
+  partiallyCompletedRequests: number;
+  completedRequests: number;
+  overdueRequests: number;
+}
+
 export interface ClientPortalUser {
   userId: string;
   clientId: string;
@@ -595,6 +770,7 @@ export interface ClientPortalDashboard {
   assignedPractitionerPhone?: string;
   pendingDocumentsCount: number;
   pendingTasksCount: number;
+  pendingActionItemsCount?: number;
   activeGstReturnsCount: number;
   activeItrReturnsCount: number;
   unpaidInvoicesCount: number;
@@ -602,6 +778,7 @@ export interface ClientPortalDashboard {
   latestGstFilings: ClientGstStatus[];
   latestItrReturns: ClientItrStatus[];
   pendingDocumentRequests: ClientDocumentRequest[];
+  activeMultiItemRequests?: DocumentRequest[];
   pendingTasks: any[];
   recentNotifications: any[];
   latestInvoices: Invoice[];
@@ -657,6 +834,9 @@ export interface TdsReturn {
   totalPenalty?: number;
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
+  complianceId?: string;
+  taskId?: string;
+  documentRequestId?: string;
   fvuValidationStatus: 'NOT_VALIDATED' | 'VALIDATED' | 'FAILED';
   notes?: string;
   createdAt?: string;
@@ -2498,6 +2678,290 @@ export interface ContentDashboardStats {
   needsAttention: ContentAttentionItem[];
   recentActivity: ContentActivityItem[];
 }
+
+export interface WhatsAppMessageRecord {
+  id: string;
+  organizationId?: string;
+  userId?: string;
+  recipientPhone: string;
+  templateType: string;
+  templateName: string;
+  messageContent: string;
+  provider: string;
+  providerMessageId?: string;
+  status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
+  errorMessage?: string;
+  sentAt?: string;
+  deliveredAt?: string;
+  readAt?: string;
+  mediaUrl?: string;
+  createdAt: string;
+}
+
+export interface WhatsAppIntegrationStatus {
+  enabled: boolean;
+  provider: string;
+  baseUrl: string;
+  phoneNumberIdConfigured: boolean;
+  accessTokenConfigured: boolean;
+  totalMessagesSent: number;
+  totalMessagesFailed: number;
+  totalMessagesPending: number;
+}
+
+// 45. Notification Center V1
+export type NotificationSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'ACTION_REQUIRED';
+
+export type NotificationCategory = 'CLIENT' | 'DOCUMENT' | 'TASK' | 'COMPLIANCE' | 'ACCOUNT' | 'BILLING' | 'SYSTEM';
+
+export type NotificationType =
+  | 'CLIENT_REGISTERED'
+  | 'DOCUMENT_REQUEST_CREATED'
+  | 'DOCUMENT_UPLOADED'
+  | 'DOCUMENT_REJECTED'
+  | 'DOCUMENT_ACCEPTED'
+  | 'DOCUMENT_REQUEST_COMPLETED'
+  | 'DOCUMENT_REQUIRED'
+  | 'TASK_ASSIGNED'
+  | 'TASK_DUE'
+  | 'TASK_OVERDUE'
+  | 'COMPLIANCE_DUE'
+  | 'COMPLIANCE_OVERDUE'
+  | 'GST_DUE'
+  | 'ITR_DUE'
+  | 'PAYMENT_DUE'
+  | 'PAYMENT_RECEIVED'
+  | 'INVOICE_ISSUED'
+  | 'PASSWORD_CHANGED'
+  | 'PASSWORD_RESET_COMPLETED'
+  | 'SYSTEM_NOTIFICATION'
+  | 'GENERAL';
+
+export interface NotificationItem {
+  id: string;
+  organizationId: string;
+  userId?: string;
+  clientId?: string;
+  recipientName?: string;
+  notificationType: NotificationType;
+  severity: NotificationSeverity;
+  category: NotificationCategory;
+  entityType?: string;
+  entityId?: string;
+  title: string;
+  message: string;
+  channels: string[];
+  isRead: boolean;
+  read?: boolean;
+  readAt?: string;
+  expiresAt?: string;
+  actionUrl?: string;
+  metadata?: string;
+  emailStatus?: 'NOT_REQUESTED' | 'PENDING' | 'SENT' | 'FAILED';
+  smsStatus?: 'NOT_REQUESTED' | 'PENDING' | 'SENT' | 'FAILED';
+  whatsappStatus?: 'NOT_REQUESTED' | 'PENDING' | 'SENT' | 'FAILED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UnreadCountResponse {
+  unreadCount: number;
+}
+
+export interface NotificationFilterParams {
+  page?: number;
+  size?: number;
+  isRead?: boolean;
+  category?: NotificationCategory;
+  severity?: NotificationSeverity;
+  notificationType?: NotificationType;
+}
+
+// ==============================================================================
+// 30. Central Reports Interfaces
+// ==============================================================================
+
+export interface PracticeOverviewReport {
+  totalClients: number;
+  activeClients: number;
+  inactiveClients: number;
+  activeTaxJobs: number;
+  openTasks: number;
+  reviewTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  complianceDueToday: number;
+  complianceDueThisWeek: number;
+  complianceOverdue: number;
+  complianceCompleted: number;
+  documentRequestsPending: number;
+  documentRequestsOpen: number;
+  totalInvoiced?: number;
+  totalCollected?: number;
+  totalOutstanding?: number;
+  hasBillingAccess: boolean;
+}
+
+export interface TaxTypeSummary {
+  taxType: string;
+  pending: number;
+  review: number;
+  filed: number;
+  overdue: number;
+  total: number;
+}
+
+export interface TaxWorkReport {
+  taxWorkSummary: TaxTypeSummary[];
+  gstTotalClients: number;
+  gstPending: number;
+  gstReview: number;
+  gstFiled: number;
+  gstOverdue: number;
+  gstByReturnType: Record<string, number>;
+  itrTotalClients: number;
+  itrPending: number;
+  itrPreparation: number;
+  itrReview: number;
+  itrFiled: number;
+  itrCompleted: number;
+  itrOverdue: number;
+  itrByFormType: Record<string, number>;
+  tdsTotalClients: number;
+  tdsPending: number;
+  tdsChallansAttached: number;
+  tdsReview: number;
+  tdsFiled: number;
+  tdsOverdue: number;
+  tdsByQuarter: Record<string, number>;
+  tdsByFormType: Record<string, number>;
+  complianceTotal: number;
+  complianceDueToday: number;
+  complianceDueThisWeek: number;
+  complianceUpcoming: number;
+  complianceOverdue: number;
+  complianceCompleted: number;
+  complianceByType: Record<string, number>;
+}
+
+export interface ClientAttentionItem {
+  clientId: string;
+  displayName: string;
+  pan: string;
+  clientType: string;
+  assignedStaffName: string;
+  openTasks: number;
+  overdueTasks: number;
+  pendingDocRequests: number;
+  hasOverdueCompliance: boolean;
+}
+
+export interface ClientReport {
+  totalClients: number;
+  activeClients: number;
+  inactiveClients: number;
+  clientsWithPendingWork: number;
+  clientsWithOverdueWork: number;
+  clientsWithPendingDocs: number;
+  pendingClientActions: number;
+  clientActionsDueToday: number;
+  clientActionsOverdue: number;
+  totalDocRequests: number;
+  docRequestsAwaitingUpload: number;
+  docRequestsUploaded: number;
+  docRequestsAccepted: number;
+  docRequestsRejected: number;
+  clientsRequiringAttention: ClientAttentionItem[];
+}
+
+export interface EmployeeProductivity {
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  email: string;
+  department?: string;
+  designation?: string;
+  assignedTasks: number;
+  openTasks: number;
+  inProgressTasks: number;
+  underReviewTasks: number;
+  blockedTasks: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  cancelledTasks: number;
+  completionRate: number;
+  completedWithDueDate: number;
+  onTimeCompletedTasks: number;
+  onTimeCompletionRate: number | null;
+  taxCategoryBreakdown: Record<string, TaxCategoryProductivity>;
+}
+
+export interface TaxCategoryProductivity {
+  assigned: number;
+  completed: number;
+  pending: number;
+  overdue: number;
+}
+
+export interface WorkManagementReport {
+  totalTasks: number;
+  openTasks: number;
+  inProgressTasks: number;
+  underReviewTasks: number;
+  blockedTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  tasksByCategory: Record<string, number>;
+  tasksByPriority: Record<string, number>;
+  employeeProductivity: EmployeeProductivity[];
+  attentionRequired: AttentionItem[];
+}
+
+export interface AttentionItem {
+  employeeId: string;
+  employeeName: string;
+  reason: 'OVERDUE' | 'HIGH_WORKLOAD';
+  count: number;
+}
+
+export interface OutstandingInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  clientId: string;
+  clientName: string;
+  invoiceDate?: string;
+  dueDate?: string;
+  totalAmount: number;
+  paidAmount: number;
+  balanceDue: number;
+  status: string;
+  daysDueOrOverdue: number;
+  isOverdue: boolean;
+}
+
+export interface FinancialReport {
+  hasBillingAccess: boolean;
+  totalInvoiced: number;
+  totalCollected: number;
+  totalOutstanding: number;
+  outstandingDueSoon: number;
+  outstandingOverdue: number;
+  totalInvoices: number;
+  draftInvoices: number;
+  issuedInvoices: number;
+  partiallyPaidInvoices: number;
+  paidInvoices: number;
+  overdueInvoices: number;
+  cancelledInvoices: number;
+  invoicesByStatus: Record<string, number>;
+  totalPaymentsCount: number;
+  collectedThisMonth: number;
+  collectedThisQuarter: number;
+  outstandingInvoices: OutstandingInvoice[];
+}
+
+
 
 
 

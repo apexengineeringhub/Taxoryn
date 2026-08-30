@@ -44,9 +44,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -483,81 +488,278 @@ public class ClientServiceImpl implements ClientService {
             return result;
         }
 
+        // 1. Preload existing PANs and GSTINs for this organization to eliminate N+1 DB roundtrips
+        List<ClientEntity> existingClients = clientRepository.findAllByOrganizationId(organizationId);
+        Set<String> existingPans = existingClients.stream()
+                .map(ClientEntity::getPan)
+                .filter(StringUtils::hasText)
+                .map(p -> p.toUpperCase().trim())
+                .collect(Collectors.toSet());
+        Set<String> existingGstins = existingClients.stream()
+                .map(ClientEntity::getGstin)
+                .filter(StringUtils::hasText)
+                .map(g -> g.toUpperCase().trim())
+                .collect(Collectors.toSet());
+
+        // In-file duplicate tracking sets
+        Set<String> seenPansInFile = new HashSet<>();
+        Set<String> seenGstinsInFile = new HashSet<>();
+
+        // Regex patterns
+        final Pattern panPattern = Pattern.compile("^[A-Z]{5}[0-9]{4}[A-Z]{1}$");
+        final Pattern gstinPattern = Pattern.compile("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$");
+        final Pattern emailPattern = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+        final Pattern phonePattern = Pattern.compile("^[6-9][0-9]{9}$");
+        final Pattern pincodePattern = Pattern.compile("^[1-9][0-9]{5}$");
+
         int rowNum = 1;
         for (CreateClientRequest req : requests) {
             rowNum++;
-            if (!StringUtils.hasText(req.getDisplayName())) {
+
+            // Normalization
+            String displayName = req.getDisplayName() != null ? req.getDisplayName().trim() : null;
+            String legalName = StringUtils.hasText(req.getLegalName()) ? req.getLegalName().trim() : null;
+            String tradeName = StringUtils.hasText(req.getTradeName()) ? req.getTradeName().trim() : null;
+            String pan = StringUtils.hasText(req.getPan()) ? req.getPan().toUpperCase().trim() : null;
+            String gstin = StringUtils.hasText(req.getGstin()) ? req.getGstin().toUpperCase().trim() : null;
+            String email = StringUtils.hasText(req.getEmail()) ? req.getEmail().toLowerCase().trim() : null;
+            String rawPhone = req.getPhone();
+            String phone = normalizeIndianMobile(rawPhone);
+            String rawPincode = req.getPincode();
+            String pincode = normalizePincode(rawPincode);
+            String city = StringUtils.hasText(req.getCity()) ? req.getCity().trim() : null;
+            String state = StringUtils.hasText(req.getState()) ? req.getState().trim() : null;
+            String addressLine1 = StringUtils.hasText(req.getAddressLine1()) ? req.getAddressLine1().trim() : null;
+            String addressLine2 = StringUtils.hasText(req.getAddressLine2()) ? req.getAddressLine2().trim() : null;
+            String contactPerson = StringUtils.hasText(req.getContactPersonName()) ? req.getContactPersonName().trim() : null;
+            String notes = StringUtils.hasText(req.getNotes()) ? req.getNotes().trim() : null;
+
+            // Determine client type
+            ClientEntity.ClientType clientType = req.getClientType();
+            if (clientType == null) {
+                clientType = StringUtils.hasText(gstin) ? ClientEntity.ClientType.PRIVATE_LIMITED : ClientEntity.ClientType.INDIVIDUAL;
+            }
+
+            // 2. Validate Client Name (Required)
+            if (!StringUtils.hasText(displayName)) {
                 result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
                         .rowNumber(rowNum)
                         .clientName("Unknown")
-                        .pan(req.getPan())
+                        .pan(pan != null ? pan : "MISSING")
+                        .field("Client Name")
+                        .invalidValue("")
                         .reason("Display name / Business name is required")
+                        .suggestedCorrection("Provide a valid client display name or entity name")
+                        .duplicate(false)
                         .build());
                 result.setTotalFailed(result.getTotalFailed() + 1);
                 continue;
             }
 
-            if (!StringUtils.hasText(req.getPan())) {
+            // 3. Validate PAN (Required for Indian tax practice client onboarding)
+            if (!StringUtils.hasText(pan)) {
                 result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
                         .rowNumber(rowNum)
-                        .clientName(req.getDisplayName())
+                        .clientName(displayName)
                         .pan("MISSING")
-                        .reason("PAN number is required")
+                        .field("PAN")
+                        .invalidValue("")
+                        .reason("PAN number is required for client onboarding")
+                        .suggestedCorrection("Enter 10-character alphanumeric PAN (e.g., ABCDE1234F)")
+                        .duplicate(false)
                         .build());
                 result.setTotalFailed(result.getTotalFailed() + 1);
                 continue;
             }
 
-            String pan = req.getPan().toUpperCase().trim();
-            if (!pan.matches("^[A-Z]{5}[0-9]{4}[A-Z]{1}$")) {
+            if (!panPattern.matcher(pan).matches()) {
                 result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
                         .rowNumber(rowNum)
-                        .clientName(req.getDisplayName())
+                        .clientName(displayName)
                         .pan(pan)
+                        .field("PAN")
+                        .invalidValue(pan)
                         .reason("Invalid PAN format (expected 5 letters, 4 digits, 1 letter)")
+                        .suggestedCorrection("Verify PAN format: 5 uppercase letters, 4 digits, 1 uppercase letter (e.g. ABCDE1234F)")
+                        .duplicate(false)
                         .build());
                 result.setTotalFailed(result.getTotalFailed() + 1);
                 continue;
             }
 
-            if (clientRepository.existsByOrganizationIdAndPan(organizationId, pan)) {
+            // 4. In-File Duplicate PAN Check
+            if (seenPansInFile.contains(pan)) {
                 result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
                         .rowNumber(rowNum)
-                        .clientName(req.getDisplayName())
+                        .clientName(displayName)
                         .pan(pan)
-                        .reason("Duplicate client with PAN " + pan + " already exists")
+                        .field("PAN")
+                        .invalidValue(pan)
+                        .reason("Duplicate PAN detected within the uploaded spreadsheet file")
+                        .suggestedCorrection("Remove or combine duplicate row from the spreadsheet")
+                        .duplicate(true)
                         .build());
                 result.setTotalSkipped(result.getTotalSkipped() + 1);
                 continue;
             }
 
-            String gstin = StringUtils.hasText(req.getGstin()) ? req.getGstin().toUpperCase().trim() : null;
-            if (gstin != null && !gstin.matches("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$")) {
+            // 5. Existing Practice DB Duplicate PAN Check
+            if (existingPans.contains(pan)) {
                 result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
                         .rowNumber(rowNum)
-                        .clientName(req.getDisplayName())
+                        .clientName(displayName)
                         .pan(pan)
-                        .reason("Invalid GSTIN format: " + gstin)
+                        .field("PAN")
+                        .invalidValue(pan)
+                        .reason("Duplicate client with PAN " + pan + " already exists in practice")
+                        .suggestedCorrection("Client already registered. Review existing profile in Clients Directory")
+                        .duplicate(true)
+                        .build());
+                result.setTotalSkipped(result.getTotalSkipped() + 1);
+                continue;
+            }
+
+            // 6. Validate GSTIN (Optional, but if provided must be valid and match PAN)
+            if (gstin != null) {
+                if (!gstinPattern.matcher(gstin).matches()) {
+                    result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                            .rowNumber(rowNum)
+                            .clientName(displayName)
+                            .pan(pan)
+                            .field("GSTIN")
+                            .invalidValue(gstin)
+                            .reason("Invalid GSTIN format: " + gstin)
+                            .suggestedCorrection("Ensure 15-character GSTIN format (e.g., 27ABCDE1234F1Z5)")
+                            .duplicate(false)
+                            .build());
+                    result.setTotalFailed(result.getTotalFailed() + 1);
+                    continue;
+                }
+
+                // PAN-GSTIN Consistency: Characters 3-12 of GSTIN must equal the client's PAN
+                String gstinPan = gstin.substring(2, 12);
+                if (!gstinPan.equals(pan)) {
+                    result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                            .rowNumber(rowNum)
+                            .clientName(displayName)
+                            .pan(pan)
+                            .field("GSTIN / PAN")
+                            .invalidValue(gstin)
+                            .reason("GSTIN embedded PAN (" + gstinPan + ") does not match client PAN (" + pan + ")")
+                            .suggestedCorrection("Ensure GSTIN belongs to the client with PAN " + pan)
+                            .duplicate(false)
+                            .build());
+                    result.setTotalFailed(result.getTotalFailed() + 1);
+                    continue;
+                }
+
+                // In-File Duplicate GSTIN Check
+                if (seenGstinsInFile.contains(gstin)) {
+                    result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                            .rowNumber(rowNum)
+                            .clientName(displayName)
+                            .pan(pan)
+                            .field("GSTIN")
+                            .invalidValue(gstin)
+                            .reason("Duplicate GSTIN detected within the uploaded spreadsheet file")
+                            .suggestedCorrection("Ensure unique GSTIN per row in the spreadsheet")
+                            .duplicate(true)
+                            .build());
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+
+                // Existing Practice DB Duplicate GSTIN Check
+                if (existingGstins.contains(gstin)) {
+                    result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                            .rowNumber(rowNum)
+                            .clientName(displayName)
+                            .pan(pan)
+                            .field("GSTIN")
+                            .invalidValue(gstin)
+                            .reason("Duplicate client with GSTIN " + gstin + " already exists in practice")
+                            .suggestedCorrection("GSTIN already registered. Review existing profile in Clients Directory")
+                            .duplicate(true)
+                            .build());
+                    result.setTotalSkipped(result.getTotalSkipped() + 1);
+                    continue;
+                }
+            }
+
+            // 7. Validate Email (if provided)
+            if (email != null && !emailPattern.matcher(email).matches()) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(displayName)
+                        .pan(pan)
+                        .field("Email")
+                        .invalidValue(email)
+                        .reason("Invalid email address format: " + email)
+                        .suggestedCorrection("Provide a valid email address (e.g. contact@example.com)")
+                        .duplicate(false)
                         .build());
                 result.setTotalFailed(result.getTotalFailed() + 1);
                 continue;
             }
 
+            // 8. Validate Mobile Phone (if provided)
+            if (phone != null && !phonePattern.matcher(phone).matches()) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(displayName)
+                        .pan(pan)
+                        .field("Mobile Phone")
+                        .invalidValue(rawPhone)
+                        .reason("Invalid Indian mobile number: " + rawPhone)
+                        .suggestedCorrection("Provide a 10-digit Indian mobile number starting with 6, 7, 8, or 9")
+                        .duplicate(false)
+                        .build());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+                continue;
+            }
+
+            // 9. Validate Pincode (if provided)
+            if (pincode != null && !pincodePattern.matcher(pincode).matches()) {
+                result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
+                        .rowNumber(rowNum)
+                        .clientName(displayName)
+                        .pan(pan)
+                        .field("Pincode")
+                        .invalidValue(rawPincode)
+                        .reason("Invalid Indian postal PIN code: " + rawPincode)
+                        .suggestedCorrection("Provide a 6-digit Indian PIN code (e.g. 400001)")
+                        .duplicate(false)
+                        .build());
+                result.setTotalFailed(result.getTotalFailed() + 1);
+                continue;
+            }
+
+            // 10. Persist Valid Client
             try {
                 subscriptionService.checkClientLimit(organizationId);
 
                 ClientEntity client = ClientEntity.builder()
-                        .clientType(req.getClientType() != null ? req.getClientType() : ClientEntity.ClientType.PRIVATE_LIMITED)
-                        .displayName(req.getDisplayName().trim())
-                        .legalName(StringUtils.hasText(req.getLegalName()) ? req.getLegalName().trim() : null)
-                        .tradeName(StringUtils.hasText(req.getTradeName()) ? req.getTradeName().trim() : null)
+                        .clientType(clientType)
+                        .displayName(displayName)
+                        .legalName(legalName)
+                        .tradeName(tradeName != null ? tradeName : displayName)
                         .pan(pan)
                         .gstin(gstin)
-                        .email(StringUtils.hasText(req.getEmail()) ? req.getEmail().trim() : null)
-                        .phone(StringUtils.hasText(req.getPhone()) ? req.getPhone().trim() : null)
-                        .city(StringUtils.hasText(req.getCity()) ? req.getCity().trim() : null)
-                        .state(StringUtils.hasText(req.getState()) ? req.getState().trim() : null)
-                        .pincode(StringUtils.hasText(req.getPincode()) ? req.getPincode().trim() : null)
+                        .tan(StringUtils.hasText(req.getTan()) ? req.getTan().toUpperCase().trim() : null)
+                        .cin(StringUtils.hasText(req.getCin()) ? req.getCin().toUpperCase().trim() : null)
+                        .dateOfIncorporation(req.getDateOfIncorporation())
+                        .email(email)
+                        .phone(phone)
+                        .altPhone(StringUtils.hasText(req.getAltPhone()) ? req.getAltPhone().trim() : null)
+                        .contactPersonName(contactPerson)
+                        .contactPersonDesignation(StringUtils.hasText(req.getContactPersonDesignation()) ? req.getContactPersonDesignation().trim() : null)
+                        .addressLine1(addressLine1)
+                        .addressLine2(addressLine2)
+                        .city(city)
+                        .state(state)
+                        .country("India")
+                        .pincode(pincode)
+                        .notes(notes)
                         .status(ClientStatus.ACTIVE)
                         .build();
                 client.setOrganizationId(organizationId);
@@ -565,21 +767,60 @@ public class ClientServiceImpl implements ClientService {
                 ClientEntity saved = clientRepository.save(client);
                 result.getImportedClients().add(enrichDto(saved));
                 result.setTotalSuccess(result.getTotalSuccess() + 1);
+
+                // Track in seen sets and existing sets to avoid intra-batch collisions
+                seenPansInFile.add(pan);
+                existingPans.add(pan);
+                if (gstin != null) {
+                    seenGstinsInFile.add(gstin);
+                    existingGstins.add(gstin);
+                }
             } catch (Exception ex) {
                 result.getErrors().add(com.taxoryn.module.client.dto.BulkImportResultDto.BulkImportError.builder()
                         .rowNumber(rowNum)
-                        .clientName(req.getDisplayName())
+                        .clientName(displayName)
                         .pan(pan)
+                        .field("Persistence")
+                        .invalidValue("")
                         .reason(ex.getMessage())
+                        .suggestedCorrection("Check subscription limit or database connectivity")
+                        .duplicate(false)
                         .build());
                 result.setTotalFailed(result.getTotalFailed() + 1);
             }
         }
 
+        // Audit Logging
+        Map<String, Object> auditSummary = new HashMap<>();
+        auditSummary.put("totalProcessed", result.getTotalProcessed());
+        auditSummary.put("totalSuccess", result.getTotalSuccess());
+        auditSummary.put("totalSkipped", result.getTotalSkipped());
+        auditSummary.put("totalFailed", result.getTotalFailed());
+        auditService.logEvent("CLIENT_IMPORT_COMPLETED", "CLIENT", organizationId.toString(), null, auditSummary);
+
         log.info("Completed bulk client import for orgId={}: {} success, {} failed, {} skipped",
                 organizationId, result.getTotalSuccess(), result.getTotalFailed(), result.getTotalSkipped());
 
         return result;
+    }
+
+    private String normalizeIndianMobile(String phone) {
+        if (!StringUtils.hasText(phone)) return null;
+        String digitsOnly = phone.replaceAll("[^0-9]", "");
+        if (digitsOnly.length() == 12 && digitsOnly.startsWith("91")) {
+            return digitsOnly.substring(2);
+        } else if (digitsOnly.length() == 11 && digitsOnly.startsWith("0")) {
+            return digitsOnly.substring(1);
+        } else if (digitsOnly.length() == 10) {
+            return digitsOnly;
+        }
+        return digitsOnly;
+    }
+
+    private String normalizePincode(String pincode) {
+        if (!StringUtils.hasText(pincode)) return null;
+        String digitsOnly = pincode.replaceAll("[^0-9]", "");
+        return digitsOnly.length() == 6 ? digitsOnly : digitsOnly;
     }
 
     private ClientDto enrichDto(ClientEntity client) {

@@ -89,6 +89,15 @@ public class TdsReturnEntity extends TenantAuditableEntity {
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;
 
+    @Column(name = "compliance_id")
+    private UUID complianceId;
+
+    @Column(name = "task_id")
+    private UUID taskId;
+
+    @Column(name = "document_request_id")
+    private UUID documentRequestId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "fvu_validation_status", nullable = false, length = 50)
     @Builder.Default

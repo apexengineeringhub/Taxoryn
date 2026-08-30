@@ -107,6 +107,14 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success("Invoice issued successfully", invoice));
     }
 
+    @PostMapping("/{id}/reminder")
+    @PreAuthorize("hasAuthority('BILLING_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Send invoice reminder to client", description = "Dispatches WhatsApp and email payment reminder for outstanding invoice.")
+    public ResponseEntity<ApiResponse<Void>> sendInvoiceReminder(@PathVariable UUID id) {
+        invoiceService.sendInvoiceReminder(id);
+        return ResponseEntity.ok(ApiResponse.success("Invoice payment reminder sent successfully", null));
+    }
+
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAuthority('BILLING_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Cancel invoice", description = "Marks invoice as CANCELLED.")

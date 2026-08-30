@@ -26,6 +26,12 @@ taxoryn:
       max-page-size: 50
   rate-limit:
     enabled: false
+  whatsapp:
+    enabled: false
+    provider: MOCK
+  mail:
+    enabled: false
+    provider: LOG
 
 logging:
   level:

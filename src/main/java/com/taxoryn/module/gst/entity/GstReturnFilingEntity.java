@@ -78,6 +78,15 @@ public class GstReturnFilingEntity extends TenantAuditableEntity {
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;
 
+    @Column(name = "compliance_id")
+    private UUID complianceId;
+
+    @Column(name = "task_id")
+    private UUID taskId;
+
+    @Column(name = "document_request_id")
+    private UUID documentRequestId;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

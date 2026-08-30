@@ -21,4 +21,30 @@ public class UpdateItrStatusRequest {
 
     @Schema(description = "Optional workflow transition remarks or reason")
     private String notes;
+
+    public UpdateItrStatusRequest(ItrStatus status, String notes) {
+        this.status = status;
+        this.notes = notes;
+    }
+
+    @Schema(description = "Review comments or rework feedback if returning for changes")
+    private String reviewComments;
+
+    @Schema(description = "Acknowledgement Number if marking as FILED")
+    private String acknowledgementNumber;
+
+    @Schema(description = "Filing Date if marking as FILED")
+    private java.time.LocalDate filingDate;
+
+    @Schema(description = "Verification Date if marking as COMPLETED")
+    private java.time.LocalDate verificationDate;
+
+    @Schema(description = "Linked Task ID")
+    private java.util.UUID taskId;
+
+    @Schema(description = "Linked Compliance ID")
+    private java.util.UUID complianceId;
+
+    @Schema(description = "Linked Document Request ID")
+    private java.util.UUID documentRequestId;
 }

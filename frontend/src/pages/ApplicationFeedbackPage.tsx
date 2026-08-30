@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CheckCircle2, Lightbulb, MessageCircle, Star, Bug } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Lightbulb, MessageCircle, Star, Bug, LogOut } from 'lucide-react';
 import { applicationFeedbackApi } from '../api/endpoints';
 import { ApplicationFeedbackCategory, ApplicationFeedbackType, CreateApplicationFeedbackRequest } from '../types';
 import { Button } from '../components/common/Button';
@@ -54,7 +54,7 @@ const prompts: Record<ApplicationFeedbackType, string> = {
 };
 
 export const ApplicationFeedbackPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const roles = (user?.roles || []).map((role: any) => typeof role === 'string' ? role : role.code);
   const isCustomer = roles.includes('MARKETPLACE_CUSTOMER');
   const isPractitioner = !isCustomer && roles.some((role: string) => ['ORG_ADMIN', 'PARTNER', 'CA_PARTNER', 'PRACTITIONER'].includes(role));
@@ -115,9 +115,20 @@ export const ApplicationFeedbackPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12">
       <div className="max-w-3xl mx-auto space-y-5">
-        <Link to={backTo} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-brand-700">
-          <ArrowLeft className="w-4 h-4" /> Back to dashboard
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link to={backTo} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-brand-700">
+            <ArrowLeft className="w-4 h-4" /> Back to dashboard
+          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => logout()}
+            className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 flex items-center gap-1.5"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </Button>
+        </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-brand-600">Taxoryn feedback</p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900">{heading}</h1>

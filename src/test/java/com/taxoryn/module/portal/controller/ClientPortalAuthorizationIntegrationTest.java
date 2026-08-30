@@ -255,4 +255,23 @@ class ClientPortalAuthorizationIntegrationTest {
                         .header("Authorization", clientUserToken))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("8. SECURITY: Client Admin cannot enumerate another client's portal users by ID (cross-client IDOR)")
+    void testClientAdminCannotListAnotherClientsPortalUsers() throws Exception {
+        // clientAdminToken belongs to client1 (Alpha Tech). Attempting to list portal users
+        // for client2 (Beta Enterprises) - a different client in the SAME organization - must
+        // be rejected, even though CLIENT_ADMIN is an allowed role for this endpoint.
+        mockMvc.perform(get("/api/v1/portal/clients/" + client2.getId() + "/users")
+                        .header("Authorization", clientAdminToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("9. Client Admin CAN list portal users for their own client")
+    void testClientAdminCanListOwnClientsPortalUsers() throws Exception {
+        mockMvc.perform(get("/api/v1/portal/clients/" + client1.getId() + "/users")
+                        .header("Authorization", clientAdminToken))
+                .andExpect(status().isOk());
+    }
 }

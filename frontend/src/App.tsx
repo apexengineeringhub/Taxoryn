@@ -6,7 +6,10 @@ import { AppShell } from './components/layout/AppShell';
 
 // Pages
 import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { RegisterOrgPage } from './pages/RegisterOrgPage';
+import { AccountSecurityPage } from './pages/AccountSecurityPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { ClientMigrationHubPage } from './pages/ClientMigrationHubPage';
@@ -51,6 +54,9 @@ import { LearnLandingPage } from './pages/learn/LearnLandingPage';
 import { LearnContentBrowsePage } from './pages/learn/LearnContentBrowsePage';
 import { LearnContentDetailPage } from './pages/learn/LearnContentDetailPage';
 import { PlatformContentManagementPage } from './pages/PlatformContentManagementPage';
+import { WhatsAppMessagesPage } from './pages/WhatsAppMessagesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { ReportsPage } from './pages/ReportsPage';
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 
@@ -87,6 +93,8 @@ export const App: React.FC = () => {
           <Routes>
             {/* Public Auth & Discovery Routes */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<RegisterOrgPage />} />
             <Route path="/marketplace/register" element={<RegisterCustomerPage />} />
             <Route path="/marketplace" element={<MarketplaceExplorePage />} />
@@ -184,6 +192,8 @@ export const App: React.FC = () => {
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/billing" element={<BillingPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/marketplace/leads" element={<MarketplaceLeadsPage />} />
               <Route path="/marketplace/onboarding" element={<MarketplaceOnboardingHubPage />} />
               <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
@@ -258,7 +268,11 @@ export const App: React.FC = () => {
               />
               <Route path="/settings/branding" element={<PracticeBrandingPage />} />
               <Route path="/settings/marketplace" element={<PracticeMarketplaceProfilePage />} />
+              <Route path="/settings/whatsapp" element={<WhatsAppMessagesPage />} />
+              <Route path="/admin/whatsapp" element={<WhatsAppMessagesPage />} />
               <Route path="/settings/subscription" element={<SubscriptionsPage />} />
+              <Route path="/settings/security" element={<AccountSecurityPage />} />
+              <Route path="/profile/security" element={<AccountSecurityPage />} />
               <Route path="/feedback" element={<ApplicationFeedbackPage />} />
             </Route>
 

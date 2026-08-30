@@ -32,4 +32,21 @@ public class UpdateTdsReturnStatusRequest {
 
     @Schema(description = "Practitioner Notes")
     private String notes;
+
+    public UpdateTdsReturnStatusRequest(TdsFilingStatus filingStatus, String notes) {
+        this.filingStatus = filingStatus;
+        this.notes = notes;
+    }
+
+    @Schema(description = "Review comments or rework feedback if returning for changes")
+    private String reviewComments;
+
+    @Schema(description = "Linked Task ID")
+    private java.util.UUID taskId;
+
+    @Schema(description = "Linked Compliance ID")
+    private java.util.UUID complianceId;
+
+    @Schema(description = "Linked Document Request ID")
+    private java.util.UUID documentRequestId;
 }

@@ -16,7 +16,19 @@ public interface RoleRepository extends JpaRepository<RoleEntity, UUID> {
 
     Optional<RoleEntity> findByCodeAndOrganizationId(String code, UUID organizationId);
 
-    Optional<RoleEntity> findByCodeAndIsSystemRoleTrue(String code);
+    // NOTE: demo/test data seeding across the suite can end up inserting more than one
+    // system-role row sharing the same code (e.g. multiple non-transactional test classes
+    // each independently seeding "ORG_ADMIN" into the same shared test database). A plain
+    // derived findBy...() here would throw NonUniqueResultException in that situation, so
+    // this is implemented as a default method backed by an ordered list query that
+    // deterministically returns the oldest (canonical) matching row instead. Existing
+    // callers are unaffected - same method name, same Optional<RoleEntity> return type.
+    default Optional<RoleEntity> findByCodeAndIsSystemRoleTrue(String code) {
+        List<RoleEntity> matches = findAllByCodeAndIsSystemRoleTrueOrderByCreatedAtAsc(code);
+        return matches.isEmpty() ? Optional.empty() : Optional.of(matches.get(0));
+    }
+
+    List<RoleEntity> findAllByCodeAndIsSystemRoleTrueOrderByCreatedAtAsc(String code);
 
     Optional<RoleEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
 

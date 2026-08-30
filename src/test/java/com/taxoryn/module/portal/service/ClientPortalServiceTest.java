@@ -50,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -85,6 +86,14 @@ class ClientPortalServiceTest {
     private com.taxoryn.module.billing.mapper.InvoiceMapper invoiceMapper;
     @Mock
     private ClientPortalMapper mapper;
+    @Mock
+    private com.taxoryn.module.notification.service.NotificationService notificationService;
+    @Mock
+    private com.taxoryn.module.docrequest.service.DocumentRequestService multiItemDocRequestService;
+    @Mock
+    private com.taxoryn.module.docrequest.repository.DocumentRequestRepository multiItemDocRequestRepository;
+    @Mock
+    private com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository multiItemDocRequestItemRepository;
 
     @InjectMocks
     private ClientPortalServiceImpl portalService;
@@ -174,6 +183,8 @@ class ClientPortalServiceTest {
         client.setId(clientId);
 
         when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(multiItemDocRequestRepository.findAllByOrganizationIdAndClientIdAndStatusIn(eq(tenantId), eq(clientId), any()))
+                .thenReturn(List.of());
         when(gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(tenantId, clientId)).thenReturn(List.of());
         when(itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(tenantId, clientId)).thenReturn(List.of());
         when(taskRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());

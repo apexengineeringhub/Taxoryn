@@ -30,7 +30,10 @@ spring:
 # Hardened Security & Rate Limiting
 taxoryn:
   jwt:
-    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    # SECURITY: no default here on purpose. JWT_SECRET MUST be supplied via environment
+    # variable in production (256-bit+ random value). JwtTokenProvider fails fast at startup
+    # if this resolves to the known repository-default secret while running a non-local profile.
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
     issuer: ${JWT_ISSUER:taxoryn-platform}

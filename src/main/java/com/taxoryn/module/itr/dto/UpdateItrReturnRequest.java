@@ -36,6 +36,15 @@ public class UpdateItrReturnRequest {
     @Schema(description = "Assigned practitioner employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Linked Task ID")
+    private UUID taskId;
+
+    @Schema(description = "Linked Compliance ID")
+    private UUID complianceId;
+
+    @Schema(description = "Linked Document Request ID")
+    private UUID documentRequestId;
+
     @Schema(description = "Notes or remarks")
     private String notes;
 }

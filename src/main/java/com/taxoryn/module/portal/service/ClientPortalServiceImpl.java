@@ -82,6 +82,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final com.taxoryn.module.billing.mapper.InvoiceMapper invoiceMapper;
     private final ClientPortalMapper mapper;
     private final NotificationService notificationService;
+    private final com.taxoryn.module.docrequest.service.DocumentRequestService multiItemDocRequestService;
+    private final com.taxoryn.module.docrequest.repository.DocumentRequestRepository multiItemDocRequestRepository;
+    private final com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository multiItemDocRequestItemRepository;
 
     @Override
     @Transactional
@@ -165,7 +168,24 @@ public class ClientPortalServiceImpl implements ClientPortalService {
             }
         }
 
-        // Counts
+        // Multi-Item Document Requests
+        List<com.taxoryn.module.docrequest.dto.DocumentRequestDto> multiItemRequests = multiItemDocRequestRepository
+                .findAllByOrganizationIdAndClientIdAndStatusIn(organizationId, clientId,
+                        List.of(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT,
+                                com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.PARTIALLY_COMPLETED))
+                .stream().map(r -> multiItemDocRequestService.getClientPortalRequestById(r.getId())).toList();
+
+        long pendingDocItems = 0;
+        for (var req : multiItemRequests) {
+            if (req.getItems() != null) {
+                pendingDocItems += req.getItems().stream()
+                        .filter(i -> i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING
+                                || i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED)
+                        .count();
+            }
+        }
+
+        // Legacy Counts
         long pendingDocs = docRequestRepository.countByOrganizationIdAndClientIdAndStatus(organizationId, clientId, RequestStatus.PENDING);
         long pendingTasks = taskRepository.countByOrganizationIdAndClientIdAndStatusNot(organizationId, clientId, TaskStatus.COMPLETED);
 
@@ -177,7 +197,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         List<ClientItrStatusDto> itrList = itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(organizationId, clientId)
                 .stream().limit(10).map(this::mapItrReturn).toList();
 
-        // Pending Document Requests
+        // Pending Document Requests (Legacy)
         List<ClientDocumentRequestDto> docRequests = mapper.toDocRequestDtoList(
                 docRequestRepository.findAllByOrganizationIdAndClientIdAndStatus(organizationId, clientId, RequestStatus.PENDING));
 
@@ -212,6 +232,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                     return dto;
                 }).toList();
 
+        long pendingActionItems = pendingDocs + pendingDocItems + unpaidCount;
+
         return ClientPortalDashboardDto.builder()
                 .clientId(client.getId())
                 .displayName(client.getDisplayName())
@@ -223,8 +245,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .assignedPractitionerName(practitionerName)
                 .assignedPractitionerEmail(practitionerEmail)
                 .assignedPractitionerPhone(practitionerPhone)
-                .pendingDocumentsCount(pendingDocs)
+                .pendingDocumentsCount(pendingDocs + pendingDocItems)
                 .pendingTasksCount(pendingTasks)
+                .pendingActionItemsCount(pendingActionItems)
                 .activeGstReturnsCount(gstList.size())
                 .activeItrReturnsCount(itrList.size())
                 .unpaidInvoicesCount(unpaidCount)
@@ -232,6 +255,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .latestGstFilings(gstList)
                 .latestItrReturns(itrList)
                 .pendingDocumentRequests(docRequests)
+                .activeMultiItemRequests(multiItemRequests)
                 .pendingTasks(clientTasks)
                 .recentNotifications(notifications)
                 .latestInvoices(latestInvoices)
@@ -516,6 +540,20 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        // SECURITY: this endpoint is reachable by CLIENT_ADMIN (a client-portal user), not just
+        // internal staff (see ClientPortalController @PreAuthorize). Without this check, a
+        // Client Admin for Client A could pass another client's ID in the path and enumerate
+        // that other client's portal users' names/emails/roles - a cross-client data leak
+        // within the same organization (portal users must only ever see their own client).
+        if (SecurityUtils.isClientPortalUser()) {
+            UUID callerClientId = SecurityUtils.getCurrentClientId().orElse(null);
+            if (!Objects.equals(callerClientId, clientId)) {
+                log.warn("Unauthorized attempt by client portal user (clientId={}) to list portal users of foreign client {}",
+                        callerClientId, clientId);
+                throw new ForbiddenException("Access denied: You can only view users for your own account");
+            }
+        }
 
         return userRepository.findAllByOrganizationIdAndClientId(organizationId, clientId).stream()
                 .map(user -> ClientPortalUserDto.builder()

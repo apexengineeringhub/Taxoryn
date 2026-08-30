@@ -14,6 +14,7 @@ import {
   MapPin,
   ShieldCheck,
   AlertCircle,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -28,9 +29,11 @@ import {
   CustomerTaxRequirement,
   FinancialYearOption,
 } from '../types';
+import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 
 export const CustomerTaxRequirementWizardPage: React.FC = () => {
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -214,12 +217,23 @@ export const CustomerTaxRequirementWizardPage: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => navigate('/marketplace/customer/dashboard')}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-800"
-          >
-            Dashboard
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/marketplace/customer/dashboard')}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+            >
+              Dashboard
+            </button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => logout()}
+              className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 flex items-center gap-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </Button>
+          </div>
         </div>
 
         {/* Wizard Progress Stepper */}

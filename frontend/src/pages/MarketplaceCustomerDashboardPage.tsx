@@ -33,13 +33,17 @@ import {
   MessageSquare,
   CheckCircle,
   Send,
+  LogOut,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
+import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 
 export const MarketplaceCustomerDashboardPage: React.FC = () => {
+  const { logout } = useAuth();
   const [dashboard, setDashboard] = useState<CustomerDashboard | null>(null);
   const [enquiries, setEnquiries] = useState<EnquiryDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -200,8 +204,18 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+      {/* Top Brand Bar */}
+      <div className="bg-[#07152B] border-b border-white/10 px-4 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <TaxorynLogo variant="horizontal" theme="dark" size="sm" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[#00D1A3] bg-white/5 border border-[#00D1A3]/30 px-2 py-0.5 rounded-full">
+            Customer Portal
+          </span>
+        </div>
+      </div>
+
       {/* Customer Header */}
-      <div className="bg-slate-900 text-white border-b border-slate-800">
+      <div className="bg-gradient-to-r from-[#082E5B] to-[#07152B] text-white border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -246,6 +260,15 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                   Find Practitioners
                 </Button>
               </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => logout()}
+                className="text-xs text-rose-300 border-rose-900/60 bg-rose-950/30 hover:bg-rose-900/50 hover:text-white flex items-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </Button>
             </div>
           </div>
         </div>

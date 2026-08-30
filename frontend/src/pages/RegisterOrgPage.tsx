@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Building2, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
 import { Button } from '../components/common/Button';
+import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { authApi } from '../api/endpoints';
 
 export const RegisterOrgPage: React.FC = () => {
@@ -14,6 +15,7 @@ export const RegisterOrgPage: React.FC = () => {
     adminFirstName: '',
     adminLastName: '',
     adminEmail: '',
+    adminPhone: '',
     adminPassword: '',
   });
 
@@ -32,6 +34,7 @@ export const RegisterOrgPage: React.FC = () => {
       adminFirstName: 'Rajesh',
       adminLastName: 'Verma',
       adminEmail: `admin.${Date.now()}@apextax.com`,
+      adminPhone: '+919876543210',
       adminPassword: 'Password123!',
     });
     setFieldErrors({});
@@ -71,6 +74,7 @@ export const RegisterOrgPage: React.FC = () => {
         adminFirstName: formData.adminFirstName.trim(),
         adminLastName: formData.adminLastName ? formData.adminLastName.trim() : undefined,
         adminEmail: formData.adminEmail.trim(),
+        adminPhone: formData.adminPhone ? formData.adminPhone.trim() : undefined,
         adminPassword: formData.adminPassword,
       };
 
@@ -101,11 +105,9 @@ export const RegisterOrgPage: React.FC = () => {
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl p-8 border border-slate-100 z-10 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl mx-auto shadow-lg shadow-brand-500/30">
-            TX
-          </div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Onboard Your Tax Practice</h2>
+        <div className="flex flex-col items-center text-center space-y-2">
+          <TaxorynLogo variant="horizontal" theme="light" size="md" />
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight mt-2">Onboard Your Tax Practice</h2>
           <p className="text-xs text-slate-500">Create a dedicated multi-tenant practice environment on Taxoryn</p>
         </div>
 
@@ -215,6 +217,26 @@ export const RegisterOrgPage: React.FC = () => {
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
+          </div>
+
+          {/* Admin Mobile / WhatsApp Number */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              Admin Mobile / WhatsApp Number * <span className="text-[10px] text-slate-400 font-normal">(e.g. +919876543210)</span>
+            </label>
+            <input
+              type="tel"
+              required
+              placeholder="+919876543210"
+              value={formData.adminPhone}
+              onChange={(e) => setFormData({ ...formData, adminPhone: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                fieldErrors.adminPhone ? 'border-rose-400 focus:ring-rose-500/20 bg-rose-50/20' : 'border-slate-200 focus:ring-brand-500'
+              }`}
+            />
+            {fieldErrors.adminPhone && (
+              <p className="text-rose-600 text-[11px] font-medium mt-1">{fieldErrors.adminPhone}</p>
+            )}
           </div>
 
           {/* Admin Email */}

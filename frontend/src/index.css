@@ -1,10 +1,26 @@
+:root {
+  --taxoryn-navy: #082E5B;
+  --taxoryn-dark-navy: #07152B;
+  --taxoryn-obsidian: #070C1A;
+  --taxoryn-teal: #00D1A3;
+  --taxoryn-teal-dark: #00B388;
+  --taxoryn-emerald: #059669;
+  --taxoryn-cyan: #0EA5E9;
+  --taxoryn-cyan-light: #38BDF8;
+  --taxoryn-white: #FFFFFF;
+  --taxoryn-background: #F8FAFC;
+  --taxoryn-text: #0F172A;
+  --taxoryn-muted: #64748B;
+  --taxoryn-border: #E2E8F0;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased font-sans;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
@@ -26,5 +42,18 @@
 }
 
 .glass-header {
-  @apply backdrop-blur-md bg-white/90 border-b border-slate-200/80;
+  @apply backdrop-blur-md bg-white/95 border-b border-slate-200/80;
 }
+
+.taxoryn-gradient-navy {
+  background: linear-gradient(135deg, #082E5B 0%, #07152B 50%, #070C1A 100%);
+}
+
+.taxoryn-gradient-teal {
+  background: linear-gradient(135deg, #00D1A3 0%, #00B388 50%, #059669 100%);
+}
+
+.taxoryn-gradient-cyan {
+  background: linear-gradient(135deg, #00D1A3 0%, #0EA5E9 100%);
+}
+

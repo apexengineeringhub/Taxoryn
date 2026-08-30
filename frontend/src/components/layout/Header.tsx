@@ -1,12 +1,13 @@
 import React from 'react';
-import { Search, Bell, Plus, ShieldCheck, Server } from 'lucide-react';
+import { Search, Bell, Plus, ShieldCheck, Server, LogOut } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
+import { NotificationBellDropdown } from '../notification/NotificationBellDropdown';
 
 export const Header: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { currentTheme, getEmployeeAvatar } = useBranding();
 
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
@@ -75,14 +76,8 @@ export const Header: React.FC = () => {
           </button>
         )}
 
-        {/* Notifications Bell */}
-        <button
-          title="Notifications"
-          className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white"></span>
-        </button>
+        {/* Notifications Bell Dropdown */}
+        <NotificationBellDropdown />
 
         {/* Vertical Divider */}
         <div className="h-6 w-px bg-slate-200" />
@@ -136,6 +131,15 @@ export const Header: React.FC = () => {
             )}
             <span>{getHeaderRoleLabel()}</span>
           </div>
+
+          {/* Quick Sign Out Button */}
+          <button
+            onClick={() => logout()}
+            title="Sign Out"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-1"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>

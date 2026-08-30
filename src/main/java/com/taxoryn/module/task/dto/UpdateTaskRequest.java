@@ -32,4 +32,8 @@ public class UpdateTaskRequest {
     private TaskStatus status;
     private TaskPriority priority;
     private LocalDate dueDate;
+    private UUID complianceId;
+    private UUID documentRequestId;
+    private String blockedReason;
+    private Boolean clearBlockedReason;
 }

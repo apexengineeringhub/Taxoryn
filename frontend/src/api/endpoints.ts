@@ -27,6 +27,11 @@ import {
   ClientGstStatus,
   ClientItrStatus,
   ClientDocumentRequest,
+  DocumentRequest,
+  DocumentRequestItem,
+  CreateDocumentRequest,
+  CreateDocumentRequestItem,
+  DocumentRequestSummary,
   ClientPortalUser,
   RegisterClientPortalUserRequest,
   TdsProfile,
@@ -126,6 +131,20 @@ import {
   ContentDashboardStats,
   ContentVersion,
   MediaAsset,
+  WhatsAppMessageRecord,
+  WhatsAppIntegrationStatus,
+  NotificationItem,
+  NotificationFilterParams,
+  UnreadCountResponse,
+  WorklistSummary,
+  TaskWorklistParams,
+  ComplianceObligation,
+  ComplianceDashboardStats,
+  PracticeOverviewReport,
+  TaxWorkReport,
+  ClientReport,
+  WorkManagementReport,
+  FinancialReport,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -137,6 +156,24 @@ export const authApi = {
   registerOrg: async (payload: any) => {
     const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/register-organization', payload);
     return res.data.data;
+  },
+  logout: async (refreshToken?: string | null) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/logout', {
+      refreshToken: refreshToken || undefined,
+    });
+    return res.data;
+  },
+  changePassword: async (payload: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/change-password', payload);
+    return res.data;
+  },
+  forgotPassword: async (email: string) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/forgot-password', { email });
+    return res.data;
+  },
+  resetPassword: async (payload: { token: string; newPassword: string }) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/reset-password', payload);
+    return res.data;
   },
 };
 
@@ -232,6 +269,14 @@ export const taskApi = {
     const res = await apiClient.post<ApiResponse<any>>('/v1/tasks/bulk', tasks);
     return res.data.data;
   },
+  getWorklist: async (params?: TaskWorklistParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<Task>>>('/v1/tasks/worklist', { params: { size: 100, ...params } });
+    return res.data.data;
+  },
+  getWorklistSummary: async () => {
+    const res = await apiClient.get<ApiResponse<WorklistSummary>>('/v1/tasks/worklist/summary');
+    return res.data.data;
+  },
 };
 
 // --- 5. GST Compliance ---
@@ -277,6 +322,22 @@ export const gstApi = {
       return res.data.data;
     }
   },
+  getFilingById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}`);
+    return res.data.data;
+  },
+  createTaskForFiling: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<GstReturnFiling>>(`/v1/gst/filings/${id}/create-task`);
+    return res.data.data;
+  },
+  createDocumentRequestForFiling: async (id: string, payload?: any) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/gst/filings/${id}/document-requests`, payload || {});
+    return res.data.data;
+  },
+  getFilingDocuments: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/gst/filings/${id}/documents`);
+    return res.data.data;
+  },
   batchGenerateFilings: async (payload: { returnPeriod: string; returnType?: string; returnTypes?: string[]; financialYear: string; dueDate?: string; gstr1DueDate?: string; gstr3bDueDate?: string; cmp08DueDate?: string }) => {
     const res = await apiClient.post<ApiResponse<GstReturnFiling[]>>('/v1/gst/filings/batch-generate', payload);
     return res.data.data;
@@ -301,6 +362,10 @@ export const itrApi = {
   },
   createProfile: async (payload: Partial<ItrProfile>) => {
     const res = await apiClient.post<ApiResponse<ItrProfile>>('/v1/itr/profiles', payload);
+    return res.data.data;
+  },
+  updateProfile: async (id: string, payload: Partial<ItrProfile>) => {
+    const res = await apiClient.put<ApiResponse<ItrProfile>>(`/v1/itr/profiles/${id}`, payload);
     return res.data.data;
   },
   bulkImportProfiles: async (profiles: Partial<ItrProfile>[]) => {
@@ -337,6 +402,10 @@ export const itrApi = {
   },
   getReturns: async (params?: { assessmentYear?: string; status?: string; itrType?: string; clientId?: string; page?: number; size?: number; search?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ItrReturn>>>('/v1/itr/returns', { params });
+    return res.data.data;
+  },
+  getReturnById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}`);
     return res.data.data;
   },
   createReturn: async (payload: Partial<ItrReturn>) => {
@@ -423,6 +492,22 @@ export const itrApi = {
       });
       return res.data.data;
     }
+  },
+  assignEmployee: async (id: string, payload: { employeeId: string }) => {
+    const res = await apiClient.put<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}/assigned-employee`, payload);
+    return res.data.data;
+  },
+  createTaskForReturn: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}/create-task`);
+    return res.data.data;
+  },
+  createDocumentRequestForReturn: async (id: string, payload?: any) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/itr/returns/${id}/document-requests`, payload || {});
+    return res.data.data;
+  },
+  getReturnDocuments: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/itr/returns/${id}/documents`);
+    return res.data.data;
   },
   seedDemo: async () => {
     const res = await apiClient.post<ApiResponse<ItrReturn[]>>('/v1/itr/seed-demo');
@@ -518,6 +603,18 @@ export const tdsApi = {
   },
   assignEmployee: async (id: string, payload: { employeeId: string }) => {
     const res = await apiClient.put<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}/assigned-employee`, payload);
+    return res.data.data;
+  },
+  createTaskForReturn: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}/create-task`);
+    return res.data.data;
+  },
+  createDocumentRequestForReturn: async (id: string, payload?: any) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/tds/returns/${id}/document-requests`, payload || {});
+    return res.data.data;
+  },
+  getReturnDocuments: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/tds/returns/${id}/documents`);
     return res.data.data;
   },
   batchGenerateReturns: async (payload: { quarter: string; financialYear: string; formTypes?: string[]; assessmentYear?: string; dueDate?: string }) => {
@@ -643,6 +740,61 @@ export const calendarApi = {
   },
 };
 
+export const complianceApi = {
+  getCalendar: async (params?: {
+    fromDate?: string;
+    toDate?: string;
+    period?: string;
+    complianceType?: string;
+    status?: string;
+    clientId?: string;
+    assignedEmployeeId?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligation>>>('/v1/compliance/calendar', { params: { size: 100, ...params } });
+    return res.data.data;
+  },
+  getUpcoming: async (daysAhead: number = 30) => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/upcoming', { params: { daysAhead } });
+    return res.data.data;
+  },
+  getOverdue: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/overdue');
+    return res.data.data;
+  },
+  getDueToday: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/today');
+    return res.data.data;
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceDashboardStats>>('/v1/compliance/dashboard/stats');
+    return res.data.data;
+  },
+  getObligationById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}`);
+    return res.data.data;
+  },
+  createObligation: async (payload: Partial<ComplianceObligation>) => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligation>>('/v1/compliance/obligations', payload);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, payload: { status: string; completionNotes?: string }) => {
+    const res = await apiClient.patch<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/status`, payload);
+    return res.data.data;
+  },
+  assignEmployee: async (id: string, payload: { employeeId: string; remarks?: string }) => {
+    const res = await apiClient.put<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/assigned-employee`, payload);
+    return res.data.data;
+  },
+  createTaskForObligation: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/create-task`);
+    return res.data.data;
+  },
+};
+
 // --- 8. Documents ---
 export const documentApi = {
   getAll: async (params?: { clientId?: string; category?: string }) => {
@@ -656,6 +808,10 @@ export const documentApi = {
     return res.data.data;
   },
   downloadUrl: (id: string) => `/api/v1/documents/${id}/download`,
+  download: async (id: string) => {
+    const res = await apiClient.get(`/v1/documents/${id}/download`, { responseType: 'blob' });
+    return res.data as Blob;
+  },
 };
 
 // --- 9. Billing & Invoices ---
@@ -728,6 +884,10 @@ export const billingApi = {
   recordPayment: async (invoiceId: string, payload: { amount: number; paymentMode: string; referenceNumber?: string; paymentDate: string; notes?: string }) => {
     const res = await apiClient.post<ApiResponse<any>>(`/v1/invoices/${invoiceId}/payments`, payload);
     return res.data.data;
+  },
+  sendReminder: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/invoices/${id}/reminder`);
+    return res.data;
   },
   getDashboardStats: async () => {
     const res = await apiClient.get<ApiResponse<BillingDashboardStats>>('/v1/invoices/dashboard/stats');
@@ -881,6 +1041,74 @@ export const portalApi = {
   },
   requestDocument: async (payload: { clientId: string; title: string; description?: string; documentType: string; dueDate?: string }) => {
     const res = await apiClient.post<ApiResponse<ClientDocumentRequest>>('/v1/portal/document-requests', payload);
+    return res.data.data;
+  },
+};
+
+// --- 13. Multi-Item Document Requests V1 ---
+export const documentRequestApi = {
+  getAll: async (params?: { page?: number; size?: number; clientId?: string; status?: string; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<DocumentRequest>>>('/v1/document-requests', { params });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest>>(`/v1/document-requests/${id}`);
+    return res.data.data;
+  },
+  getByClient: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest[]>>(`/v1/document-requests/clients/${clientId}`);
+    return res.data.data;
+  },
+  create: async (payload: CreateDocumentRequest) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>('/v1/document-requests', payload);
+    return res.data.data;
+  },
+  acceptItem: async (itemId: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/items/${itemId}/accept`);
+    return res.data.data;
+  },
+  rejectItem: async (itemId: string, rejectionReason: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/items/${itemId}/reject`, {
+      rejectionReason,
+    });
+    return res.data.data;
+  },
+  uploadItem: async (itemId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/items/${itemId}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  sendReminder: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/document-requests/${id}/remind`);
+    return res.data;
+  },
+  cancel: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/${id}/cancel`);
+    return res.data.data;
+  },
+  getSummaryStats: async () => {
+    const res = await apiClient.get<ApiResponse<DocumentRequestSummary>>('/v1/document-requests/summary/stats');
+    return res.data.data;
+  },
+
+  // Client Portal Endpoints
+  getPortalRequests: async () => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest[]>>('/v1/portal/document-requests/v1');
+    return res.data.data;
+  },
+  getPortalRequestById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest>>(`/v1/portal/document-requests/v1/${id}`);
+    return res.data.data;
+  },
+  uploadPortalItem: async (itemId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/portal/document-requests/v1/items/${itemId}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data.data;
   },
 };
@@ -1720,6 +1948,79 @@ export const adminMediaApi = {
     return res.data.data;
   },
 };
+
+// --- 27. WhatsApp Integration API ---
+export const whatsappApi = {
+  getStatus: async () => {
+    const res = await apiClient.get<ApiResponse<WhatsAppIntegrationStatus>>('/v1/notifications/whatsapp/status');
+    return res.data.data;
+  },
+  getMessages: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<WhatsAppMessageRecord>>>('/v1/notifications/whatsapp/messages', { params });
+    return res.data.data;
+  },
+  resendMessage: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<WhatsAppMessageRecord>>(`/v1/notifications/whatsapp/messages/${id}/resend`);
+    return res.data.data;
+  },
+};
+
+// --- 28. Notification Center API ---
+export const notificationApi = {
+  getAll: async (params?: NotificationFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<NotificationItem>>>('/v1/notifications', { params });
+    return res.data.data;
+  },
+  getUnreadCount: async () => {
+    const res = await apiClient.get<ApiResponse<UnreadCountResponse>>('/v1/notifications/unread-count');
+    return res.data.data;
+  },
+  markAsRead: async (id: string) => {
+    const res = await apiClient.patch<ApiResponse<NotificationItem>>(`/v1/notifications/${id}/read`);
+    return res.data.data;
+  },
+  markAsUnread: async (id: string) => {
+    const res = await apiClient.patch<ApiResponse<NotificationItem>>(`/v1/notifications/${id}/unread`);
+    return res.data.data;
+  },
+  markAllAsRead: async () => {
+    const res = await apiClient.post<ApiResponse<{ updated: number }>>('/v1/notifications/mark-all-read');
+    return res.data.data;
+  },
+  dismiss: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/notifications/${id}`);
+    return res.data.data;
+  },
+  send: async (payload: Partial<NotificationItem>) => {
+    const res = await apiClient.post<ApiResponse<NotificationItem>>('/v1/notifications/send', payload);
+    return res.data.data;
+  },
+};
+
+// --- 29. Central Reports API ---
+export const reportsApi = {
+  getOverview: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<PracticeOverviewReport>>('/v1/reports/overview', { params });
+    return res.data.data;
+  },
+  getTaxWork: async (params?: { financialYear?: string; assessmentYear?: string; quarter?: string; fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<TaxWorkReport>>('/v1/reports/tax-work', { params });
+    return res.data.data;
+  },
+  getClients: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientReport>>('/v1/reports/clients', { params });
+    return res.data.data;
+  },
+  getWork: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<WorkManagementReport>>('/v1/reports/work', { params });
+    return res.data.data;
+  },
+  getFinancial: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<FinancialReport>>('/v1/reports/financial', { params });
+    return res.data.data;
+  },
+};
+
 
 
 

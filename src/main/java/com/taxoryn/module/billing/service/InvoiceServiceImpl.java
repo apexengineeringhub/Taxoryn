@@ -57,6 +57,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final ClientNotificationRepository notificationRepository;
     private final InvoiceMapper invoiceMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
 
     @Override
     @Transactional
@@ -274,6 +276,30 @@ public class InvoiceServiceImpl implements InvoiceService {
         log.info("Issued invoice: id={}, number={} for tenant={}", saved.getId(), saved.getInvoiceNumber(), organizationId);
         InvoiceDto result = enrichDto(saved);
         auditService.logEvent("INVOICE_STATUS_UPDATED", "INVOICE", saved.getId().toString(), "DRAFT", "ISSUED");
+
+        // Publish InvoiceIssuedEvent for WhatsApp & multi-channel notification
+        clientRepository.findByIdAndOrganizationId(invoice.getClientId(), organizationId).ifPresent(client -> {
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(com.taxoryn.module.organization.entity.OrganizationEntity::getName)
+                    .orElse("Tax Practice");
+
+            eventPublisher.publishEvent(com.taxoryn.module.notification.whatsapp.event.InvoiceIssuedEvent.builder()
+                    .organizationId(organizationId)
+                    .invoiceId(saved.getId())
+                    .clientId(client.getId())
+                    .clientName(client.getDisplayName())
+                    .clientPhone(client.getPhone())
+                    .clientEmail(client.getEmail())
+                    .organizationName(orgName)
+                    .invoiceNumber(saved.getInvoiceNumber())
+                    .totalAmount(saved.getTotal())
+                    .balanceAmount(saved.getBalanceDue())
+                    .currency("INR")
+                    .issueDate(saved.getInvoiceDate())
+                    .dueDate(saved.getDueDate())
+                    .build());
+        });
+
         return result;
     }
 
@@ -357,7 +383,72 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         InvoicePaymentDto paymentDto = invoiceMapper.toPaymentDto(savedPayment);
         auditService.logEvent("INVOICE_PAYMENT_RECORDED", "INVOICE", invoiceId.toString(), null, paymentDto);
+
+        // Publish PaymentReceivedEvent for WhatsApp confirmation
+        clientRepository.findByIdAndOrganizationId(invoice.getClientId(), organizationId).ifPresent(client -> {
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(com.taxoryn.module.organization.entity.OrganizationEntity::getName)
+                    .orElse("Tax Practice");
+
+            eventPublisher.publishEvent(com.taxoryn.module.notification.whatsapp.event.PaymentReceivedEvent.builder()
+                    .organizationId(organizationId)
+                    .invoiceId(invoice.getId())
+                    .paymentId(savedPayment.getId())
+                    .clientId(client.getId())
+                    .clientName(client.getDisplayName())
+                    .clientPhone(client.getPhone())
+                    .clientEmail(client.getEmail())
+                    .organizationName(orgName)
+                    .invoiceNumber(invoice.getInvoiceNumber())
+                    .paymentReference(savedPayment.getReferenceNumber())
+                    .amountPaid(savedPayment.getAmount())
+                    .remainingBalance(invoice.getBalanceDue())
+                    .currency("INR")
+                    .paymentDate(savedPayment.getPaymentDate())
+                    .paymentMethod(savedPayment.getPaymentMethod() != null ? savedPayment.getPaymentMethod().name() : "OTHER")
+                    .build());
+        });
+
         return paymentDto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void sendInvoiceReminder(UUID invoiceId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(invoiceId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", invoiceId));
+
+        if (invoice.getStatus() == InvoiceStatus.DRAFT || invoice.getStatus() == InvoiceStatus.CANCELLED || invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new BadRequestException("Reminders can only be sent for pending, issued, or overdue invoices");
+        }
+
+        clientRepository.findByIdAndOrganizationId(invoice.getClientId(), organizationId).ifPresent(client -> {
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(com.taxoryn.module.organization.entity.OrganizationEntity::getName)
+                    .orElse("Tax Practice");
+
+            int overdueDays = 0;
+            if (invoice.getDueDate() != null && invoice.getDueDate().isBefore(LocalDate.now())) {
+                overdueDays = (int) java.time.temporal.ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
+            }
+
+            eventPublisher.publishEvent(com.taxoryn.module.notification.whatsapp.event.InvoiceReminderEvent.builder()
+                    .organizationId(organizationId)
+                    .invoiceId(invoice.getId())
+                    .clientId(client.getId())
+                    .clientName(client.getDisplayName())
+                    .clientEmail(client.getEmail())
+                    .clientPhone(client.getPhone())
+                    .organizationName(orgName)
+                    .invoiceNumber(invoice.getInvoiceNumber())
+                    .totalAmount(invoice.getTotal())
+                    .balanceAmount(invoice.getBalanceDue())
+                    .currency("INR")
+                    .dueDate(invoice.getDueDate())
+                    .overdueDays(overdueDays)
+                    .build());
+        });
     }
 
     @Override

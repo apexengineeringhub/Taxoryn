@@ -2,7 +2,10 @@ spring:
   application:
     name: taxoryn
   profiles:
-    active: demo
+    active: dev
+  config:
+    import:
+      - "optional:classpath:application-local.yml"
   jpa:
     open-in-view: false
     hibernate:
@@ -44,6 +47,20 @@ taxoryn:
     allowed-headers: "*"
     allow-credentials: true
     max-age: 3600
+  whatsapp:
+    enabled: ${WHATSAPP_ENABLED:true}
+    provider: ${WHATSAPP_PROVIDER:LOG}
+    base-url: ${WHATSAPP_BASE_URL:https://graph.facebook.com/v19.0}
+    business-account-id: ${WHATSAPP_BUSINESS_ACCOUNT_ID:}
+    phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+    access-token: ${WHATSAPP_ACCESS_TOKEN:}
+    login-url: ${TAXORYN_LOGIN_URL:http://localhost:5173/login}
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    provider: ${MAIL_PROVIDER:LOG}
+    from-email: ${MAIL_FROM_EMAIL:notifications@taxoryn.com}
+    from-name: ${MAIL_FROM_NAME:Taxoryn}
+    login-url: ${TAXORYN_LOGIN_URL:http://localhost:5173/login}
 
 # OpenAPI / Swagger
 springdoc:

@@ -47,6 +47,18 @@ public class UpdateGstFilingStatusRequest {
     @Schema(description = "Tax paid via ITC")
     private BigDecimal taxPaidItc;
 
+    @Schema(description = "Optional linked task ID")
+    private java.util.UUID taskId;
+
+    @Schema(description = "Optional linked compliance obligation ID")
+    private java.util.UUID complianceId;
+
+    @Schema(description = "Optional linked document request ID")
+    private java.util.UUID documentRequestId;
+
+    @Schema(description = "Review comments or rework notes")
+    private String reviewComments;
+
     @Schema(description = "Practitioner notes")
     private String notes;
 }

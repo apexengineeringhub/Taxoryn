@@ -20,12 +20,17 @@ import {
   Store,
   Search,
   ShieldCheck,
+  MessageSquare,
   MessageSquarePlus,
   Server,
+  Lock,
+  Bell,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
+import { TaxorynLogo } from '../common/TaxorynLogo';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -87,7 +92,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent, visible: true },
     { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
     { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
+    { label: 'Notification Center', path: '/notifications', icon: Bell, visible: true },
     { label: 'Find CA / CS / Advocates', path: '/marketplace', icon: Search, visible: true },
+    { label: 'Security & Password', path: '/settings/security', icon: Lock, visible: true },
     { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];
 
@@ -102,6 +109,8 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
     { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
     { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
+    { label: 'Reports', path: '/reports', icon: BarChart3, visible: true },
+    { label: 'Notification Center', path: '/notifications', icon: Bell, visible: true },
     { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: isFirmAdmin },
     { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, visible: isFirmAdmin },
     { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: isFirmAdmin },
@@ -110,7 +119,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isFirmAdmin },
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
     { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
+    { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, visible: isFirmAdmin },
     { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
+    { label: 'Security & Password', path: '/settings/security', icon: Lock, visible: true },
     { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];
 
@@ -139,8 +150,8 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       >
         <div className="flex items-center gap-2.5 min-w-0">
           {isSuperAdmin ? (
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
-              TX
+            <div className="w-9 h-9 rounded-xl bg-[#082E5B] flex items-center justify-center p-1 shadow-xs shrink-0 border border-white/10">
+              <TaxorynLogo variant="symbol" theme="dark" size="xs" />
             </div>
           ) : practiceLogo ? (
             <img
@@ -152,11 +163,8 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               )}
             />
           ) : (
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white shadow-md font-black text-sm shrink-0 tracking-wider transition-colors"
-              style={{ backgroundColor: currentTheme.primaryColor }}
-            >
-              {practiceInitials}
+            <div className="w-9 h-9 rounded-xl bg-[#082E5B] flex items-center justify-center p-1 shadow-xs shrink-0 border border-white/10">
+              <TaxorynLogo variant="symbol" theme="dark" size="xs" />
             </div>
           )}
           <div className="min-w-0">
@@ -234,7 +242,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         <div
           className={clsx('flex items-center justify-between p-2 rounded-lg border', isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-white/5 border-white/5')}
         >
-          <div className="flex items-center gap-2.5 truncate">
+          <NavLink
+            to="/settings/security"
+            title="Account Security & Password Settings"
+            className="flex items-center gap-2.5 truncate hover:opacity-90 transition-opacity flex-1 min-w-0"
+          >
             {userAvatar ? (
               <img
                 src={userAvatar}
@@ -295,7 +307,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               </p>
               <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
             </div>
-          </div>
+          </NavLink>
           <button
             onClick={logout}
             title="Sign Out"

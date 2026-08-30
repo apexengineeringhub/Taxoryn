@@ -44,6 +44,22 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success("Tasks retrieved successfully", response));
     }
 
+    @GetMapping("/worklist")
+    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
+    @Operation(summary = "Get unified worklist with urgency buckets and sorting", description = "Retrieves actionable tasks categorized into buckets (OVERDUE, DUE_TODAY, DUE_THIS_WEEK, BLOCKED, COMPLETED, ALL).")
+    public ResponseEntity<ApiResponse<PagedResponse<TaskDto>>> getWorklist(@Valid @ModelAttribute com.taxoryn.module.task.dto.TaskWorklistFilterRequest filterRequest) {
+        PagedResponse<TaskDto> response = taskService.getWorklist(filterRequest);
+        return ResponseEntity.ok(ApiResponse.success("Worklist retrieved successfully", response));
+    }
+
+    @GetMapping("/worklist/summary")
+    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
+    @Operation(summary = "Get worklist summary metrics", description = "Calculates today's actionable work metrics (overdue, due today, due this week, blocked on docs, pending documents, team workload).")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.task.dto.WorklistSummaryDto>> getWorklistSummary() {
+        com.taxoryn.module.task.dto.WorklistSummaryDto summary = taskService.getWorklistSummary();
+        return ResponseEntity.ok(ApiResponse.success("Worklist summary metrics retrieved successfully", summary));
+    }
+
     @GetMapping("/{taskId}")
     @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
     @Operation(summary = "Get task by ID", description = "Retrieves task details within the authenticated tenant.")

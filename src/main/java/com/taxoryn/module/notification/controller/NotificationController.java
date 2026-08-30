@@ -61,10 +61,26 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("Notification marked as read", updated));
     }
 
+    @PatchMapping("/{notificationId}/unread")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Mark a notification as unread", description = "Marks a single notification owned by the current user or client as unread.")
+    public ResponseEntity<ApiResponse<NotificationDto>> markAsUnread(@PathVariable UUID notificationId) {
+        NotificationDto updated = notificationService.markAsUnread(notificationId);
+        return ResponseEntity.ok(ApiResponse.success("Notification marked as unread", updated));
+    }
+
     @PatchMapping("/read-all")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Mark all notifications as read", description = "Marks every unread notification owned by the current user or client as read.")
-    public ResponseEntity<ApiResponse<Map<String, Integer>>> markAllAsRead() {
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> markAllAsReadPatch() {
+        int updated = notificationService.markAllAsRead();
+        return ResponseEntity.ok(ApiResponse.success("All notifications marked as read", Map.of("updated", updated)));
+    }
+
+    @PostMapping("/mark-all-read")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Mark all notifications as read (POST)", description = "Marks every unread notification owned by the current user or client as read.")
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> markAllAsReadPost() {
         int updated = notificationService.markAllAsRead();
         return ResponseEntity.ok(ApiResponse.success("All notifications marked as read", Map.of("updated", updated)));
     }

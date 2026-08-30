@@ -52,6 +52,7 @@ import java.util.UUID;
 public class ClientPortalController {
 
     private final ClientPortalService clientPortalService;
+    private final com.taxoryn.module.docrequest.service.DocumentRequestService documentRequestService;
 
     // =========================================================================
     // 1. User Management & Onboarding
@@ -237,5 +238,36 @@ public class ClientPortalController {
         ClientDocumentRequestDto docRequest = clientPortalService.requestDocumentFromClient(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Document request created successfully", docRequest));
+    }
+
+    // =========================================================================
+    // 8. Client Portal Multi-Item Document Requests V1
+    // =========================================================================
+
+    @GetMapping("/document-requests/v1")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "List client document requests V1", description = "Retrieves all multi-item document requests for the authenticated client.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.docrequest.dto.DocumentRequestDto>>> getPortalDocumentRequests() {
+        List<com.taxoryn.module.docrequest.dto.DocumentRequestDto> list = documentRequestService.getClientPortalRequests();
+        return ResponseEntity.ok(ApiResponse.success("Document requests retrieved successfully", list));
+    }
+
+    @GetMapping("/document-requests/v1/{id}")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Get client document request detail V1", description = "Retrieves details and checklist items for a specific document request.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> getPortalDocumentRequestById(@PathVariable UUID id) {
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto req = documentRequestService.getClientPortalRequestById(id);
+        return ResponseEntity.ok(ApiResponse.success("Document request retrieved successfully", req));
+    }
+
+    @PostMapping(value = "/document-requests/v1/items/{itemId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_UPLOAD') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Upload document for request item via Client Portal", description = "Authenticated client uploads a document to fulfill a specific request checklist item.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> uploadPortalItemDocument(
+            @PathVariable UUID itemId,
+            @Parameter(description = "Binary file payload", required = true, content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(type = "string", format = "binary")))
+            @RequestPart("file") MultipartFile file) {
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto result = documentRequestService.uploadClientPortalItemDocument(itemId, file);
+        return ResponseEntity.ok(ApiResponse.success("Document uploaded successfully", result));
     }
 }

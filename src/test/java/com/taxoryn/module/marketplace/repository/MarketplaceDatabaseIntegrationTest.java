@@ -31,10 +31,37 @@ class MarketplaceDatabaseIntegrationTest {
     @Autowired
     private OrganizationRepository organizationRepository;
 
+    @Autowired
+    private com.taxoryn.module.marketplace.repository.PracticeServiceRepository practiceServiceRepository;
+
+    @Autowired
+    private com.taxoryn.module.marketplace.repository.PracticeLocationRepository practiceLocationRepository;
+
+    @Autowired
+    private com.taxoryn.module.marketplace.repository.MarketplaceReviewRepository marketplaceReviewRepository;
+
+    @Autowired
+    private com.taxoryn.module.marketplace.repository.MarketplaceLeadRepository marketplaceLeadRepository;
+
+    @Autowired
+    private com.taxoryn.module.marketplace.repository.MarketplaceProfileSlugRedirectRepository slugRedirectRepository;
+
     private OrganizationEntity org;
 
     @BeforeEach
     void setUp() {
+        // The H2 in-memory test database is shared across the whole test JVM run
+        // (see application-test.yml: DB_CLOSE_DELAY=-1). Some marketplace controller
+        // integration tests are not @Transactional and commit rows referencing
+        // marketplace_profiles (practice services, locations, reviews, leads, slug
+        // redirects). Those child rows must be cleared before profiles are deleted
+        // here, or the FK constraint on marketplace_practice_services (and similar)
+        // fails deleteAll() below.
+        marketplaceLeadRepository.deleteAll();
+        marketplaceReviewRepository.deleteAll();
+        practiceServiceRepository.deleteAll();
+        practiceLocationRepository.deleteAll();
+        slugRedirectRepository.deleteAll();
         marketplaceProfileRepository.deleteAll();
         organizationRepository.deleteAll();
 

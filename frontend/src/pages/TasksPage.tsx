@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   CheckSquare,
@@ -16,24 +16,57 @@ import {
   ChevronRight,
   UserCheck,
   Edit2,
+  AlertTriangle,
+  FileText,
+  ShieldAlert,
+  Flame,
+  Zap,
+  ExternalLink,
+  Eye,
+  XCircle,
+  HelpCircle,
 } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
-import { taskApi, clientApi, employeeApi } from '../api/endpoints';
-import { Task, Client, Employee } from '../types';
+import { taskApi, clientApi, employeeApi, complianceApi, documentRequestApi } from '../api/endpoints';
+import { Task, Client, Employee, WorklistSummary, TaskWorklistParams, TaskStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 
 export const TasksPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [activeTab, setActiveTab] = useState<'WORKLIST' | 'ALL_TASKS'>(
+    () => (searchParams.get('tab') as 'WORKLIST' | 'ALL_TASKS') || 'WORKLIST'
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Worklist specific state
+  const [worklistScope, setWorklistScope] = useState<'MY_WORK' | 'TEAM_WORK'>(
+    () => (searchParams.get('scope') as 'MY_WORK' | 'TEAM_WORK') || 'MY_WORK'
+  );
+  const [worklistBucket, setWorklistBucket] = useState<'ALL' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'BLOCKED' | 'COMPLETED'>(
+    () => (searchParams.get('bucket') as any) || 'ALL'
+  );
+  const [worklistAssignee, setWorklistAssignee] = useState<string>(() => searchParams.get('assignedTo') || '');
+  const [worklistCategory, setWorklistCategory] = useState<string>(() => searchParams.get('category') || '');
+  const [worklistSummary, setWorklistSummary] = useState<WorklistSummary | null>(null);
+
+  // Detail / Inspect Task Modal State
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Block Task Modal State
+  const [blockingTask, setBlockingTask] = useState<Task | null>(null);
+  const [blockReasonInput, setBlockReasonInput] = useState('');
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
 
   // Edit / Reassign Task State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -43,10 +76,13 @@ export const TasksPage: React.FC = () => {
     description: string;
     clientId: string;
     assignedTo: string;
-    taskCategory: 'GST' | 'ITR' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
+    taskCategory: 'GST' | 'ITR' | 'TDS' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-    status: 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
+    status: TaskStatus;
     dueDate: string;
+    blockedReason: string;
+    complianceId?: string;
+    documentRequestId?: string;
   }>({
     title: '',
     description: '',
@@ -56,13 +92,18 @@ export const TasksPage: React.FC = () => {
     priority: 'HIGH',
     status: 'TODO',
     dueDate: '',
+    blockedReason: '',
   });
 
-  // Filter States
-  const [taskScope, setTaskScope] = useState<'MY_TASKS' | 'ALL_TASKS'>('MY_TASKS');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'COMPLETED'>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
-  const [assigneeFilter, setAssigneeFilter] = useState<string>('ALL');
+  // Filter States for standard view
+  const [taskScope, setTaskScope] = useState<'MY_TASKS' | 'ALL_TASKS'>(
+    () => (searchParams.get('assignedTo') || searchParams.get('category') || searchParams.get('status') ? 'ALL_TASKS' : 'MY_TASKS')
+  );
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'BLOCKED' | 'COMPLETED'>(
+    () => (searchParams.get('status') as any) || 'ALL'
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string>(() => searchParams.get('category') || 'ALL');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(() => searchParams.get('assignedTo') || 'ALL');
 
   // Form State for creating task
   const [formData, setFormData] = useState<{
@@ -70,7 +111,7 @@ export const TasksPage: React.FC = () => {
     description: string;
     clientId: string;
     assignedTo: string;
-    taskCategory: 'GST' | 'ITR' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
+    taskCategory: 'GST' | 'ITR' | 'TDS' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
     dueDate: string;
   }>({
@@ -89,7 +130,7 @@ export const TasksPage: React.FC = () => {
 
   const { user } = useAuth();
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER', 'PRACTICE_OWNER', 'PRACTICE_ADMIN'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
 
   // Find linked employee for logged in user
@@ -105,7 +146,6 @@ export const TasksPage: React.FC = () => {
   const assigneeOptions = useMemo(() => {
     const list: Array<{ id: string; name: string; isMe: boolean; designation: string; department?: string }> = [];
 
-    // If current logged-in user is not matched to an employee record, include them at the top
     if (user && !currentEmployee) {
       const myName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
       list.push({
@@ -143,9 +183,50 @@ export const TasksPage: React.FC = () => {
   }, [currentEmployee, user]);
 
   useEffect(() => {
-    loadTasks();
+    if (activeTab === 'WORKLIST') {
+      loadWorklist();
+    } else {
+      loadTasks();
+    }
     loadClientsAndEmployees();
-  }, [taskScope, statusFilter, categoryFilter, assigneeFilter]);
+  }, [activeTab, worklistScope, worklistBucket, worklistAssignee, worklistCategory, taskScope, statusFilter, categoryFilter, assigneeFilter]);
+
+  const loadWorklist = async () => {
+    try {
+      setIsLoading(true);
+      const worklistParams: any = {
+        scope: worklistScope,
+        bucket: worklistBucket,
+        size: 100,
+      };
+      if (worklistAssignee) {
+        worklistParams.assignedTo = worklistAssignee;
+      }
+      if (worklistCategory) {
+        worklistParams.taskCategory = worklistCategory;
+      }
+      const [listRes, summaryRes] = await Promise.allSettled([
+        taskApi.getWorklist(worklistParams),
+        taskApi.getWorklistSummary(),
+      ]);
+
+      if (listRes.status === 'fulfilled' && listRes.value) {
+        const list = Array.isArray(listRes.value) ? listRes.value : (listRes.value?.content || []);
+        setTasks(list);
+      } else {
+        setTasks([]);
+      }
+
+      if (summaryRes.status === 'fulfilled' && summaryRes.value) {
+        setWorklistSummary(summaryRes.value);
+      }
+    } catch (err) {
+      console.error('Failed to load worklist', err);
+      setTasks([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadTasks = async () => {
     try {
@@ -194,18 +275,74 @@ export const TasksPage: React.FC = () => {
     }
   };
 
-  const handleUpdateStatus = async (taskId: string, newStatus: string) => {
+  const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus, blockedReason?: string) => {
     try {
-      await taskApi.updateStatus(taskId, newStatus);
-      await loadTasks();
+      if (newStatus === 'BLOCKED') {
+        await taskApi.update(taskId, { status: 'BLOCKED', blockedReason: blockedReason || 'Blocked on client information' });
+      } else {
+        await taskApi.update(taskId, { status: newStatus, unassign: false });
+      }
+      if (activeTab === 'WORKLIST') {
+        await loadWorklist();
+      } else {
+        await loadTasks();
+      }
     } catch (err) {
       console.error('Failed to update task status', err);
     }
   };
 
+  const handleOpenBlockModal = (task: Task) => {
+    setBlockingTask(task);
+    setBlockReasonInput(task.blockedReason || 'Waiting for Form 16 / Bank Statements from client');
+    setIsBlockModalOpen(true);
+  };
+
+  const handleConfirmBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockingTask) return;
+    if (!blockReasonInput.trim()) {
+      alert('Please specify a reason why this task is blocked.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      await taskApi.update(blockingTask.id, {
+        status: 'BLOCKED',
+        blockedReason: blockReasonInput.trim(),
+      });
+      setIsBlockModalOpen(false);
+      setBlockingTask(null);
+      if (activeTab === 'WORKLIST') {
+        await loadWorklist();
+      } else {
+        await loadTasks();
+      }
+    } catch (err: any) {
+      alert(`Failed to block task: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUnblock = async (task: Task) => {
+    try {
+      await taskApi.update(task.id, {
+        status: 'IN_PROGRESS',
+        unassign: false,
+      });
+      if (activeTab === 'WORKLIST') {
+        await loadWorklist();
+      } else {
+        await loadTasks();
+      }
+    } catch (err: any) {
+      alert(`Failed to unblock task: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
   const handleOpenEditModal = (task: Task) => {
     setEditingTask(task);
-    // Find matching employee ID
     let matchingEmpId = task.assignedTo || '';
     if (task.assignedTo) {
       const foundEmp = employees.find(
@@ -223,6 +360,9 @@ export const TasksPage: React.FC = () => {
       priority: task.priority || 'MEDIUM',
       status: task.status || 'TODO',
       dueDate: task.dueDate || '',
+      blockedReason: task.blockedReason || '',
+      complianceId: task.complianceId,
+      documentRequestId: task.documentRequestId,
     });
     setIsEditModalOpen(true);
   };
@@ -247,12 +387,17 @@ export const TasksPage: React.FC = () => {
         status: editFormData.status,
         priority: editFormData.priority,
         dueDate: editFormData.dueDate || undefined,
+        blockedReason: editFormData.status === 'BLOCKED' ? editFormData.blockedReason : undefined,
       });
 
-      alert('Task updated & assigned successfully!');
+      alert('Task updated & saved successfully!');
       setIsEditModalOpen(false);
       setEditingTask(null);
-      await loadTasks();
+      if (activeTab === 'WORKLIST') {
+        await loadWorklist();
+      } else {
+        await loadTasks();
+      }
     } catch (err: any) {
       alert(`Failed to update task: ${err.response?.data?.message || err.message}`);
     } finally {
@@ -290,7 +435,11 @@ export const TasksPage: React.FC = () => {
         priority: 'HIGH',
         dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       });
-      await loadTasks();
+      if (activeTab === 'WORKLIST') {
+        await loadWorklist();
+      } else {
+        await loadTasks();
+      }
     } catch (err: any) {
       alert(`Failed to create task: ${err.response?.data?.message || err.message}`);
     } finally {
@@ -298,30 +447,61 @@ export const TasksPage: React.FC = () => {
     }
   };
 
-  // KPI Calculations
-  const stats = useMemo(() => {
-    const total = tasks.length;
-    const todo = tasks.filter((t) => t.status === 'TODO').length;
-    const inProgress = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
-    const underReview = tasks.filter((t) => t.status === 'UNDER_REVIEW').length;
-    const completed = tasks.filter((t) => t.status === 'COMPLETED').length;
-    const overdue = tasks.filter((t) => t.status !== 'COMPLETED' && t.dueDate && new Date(t.dueDate) < new Date()).length;
-    return { total, todo, inProgress, underReview, completed, overdue };
-  }, [tasks]);
-
   const columns: Column<Task>[] = [
     {
       header: 'Task Title & Category',
       accessor: (row) => (
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.2 bg-slate-100 text-slate-700 text-[10px] font-bold rounded border font-mono uppercase">
+        <div className="flex flex-col max-w-md">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded border font-mono uppercase">
               {row.category || 'COMPLIANCE'}
             </span>
             <span className="font-bold text-slate-900 text-xs">{row.title}</span>
           </div>
+
+          {/* Blocked Warning Banner */}
+          {row.status === 'BLOCKED' && (
+            <div className="mt-1.5 px-2 py-1 bg-amber-50 border border-amber-300 rounded flex items-center gap-1.5 text-[11px] text-amber-900">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="font-semibold">Blocked:</span>
+              <span className="truncate">{row.blockedReason || 'Waiting for client submission'}</span>
+            </div>
+          )}
+
+          {/* Linked Statutory Obligation Badge */}
+          {row.complianceId && (
+            <div className="mt-1 flex items-center gap-1 text-[11px] text-indigo-700">
+              <span className="px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 rounded font-semibold text-[10px] inline-flex items-center gap-1">
+                🏛️ Statutory: {row.complianceTitle || 'Compliance Obligation'}
+              </span>
+              {row.statutoryDueDate && (
+                <span className="text-[10px] text-slate-500 font-mono">
+                  (Statutory Due: {row.statutoryDueDate})
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Linked Document Request Progress */}
+          {row.documentRequestId && (
+            <div className="mt-1 flex items-center gap-1 text-[11px] text-blue-700">
+              <span className="px-1.5 py-0.2 bg-blue-50 border border-blue-200 rounded font-semibold text-[10px] inline-flex items-center gap-1">
+                📄 Doc Req {row.documentRequestNumber || ''}:{' '}
+                <span className="font-bold text-blue-900">
+                  {row.documentRequestReceivedCount || 0}/{row.documentRequestItemsCount || 0} docs received
+                </span>
+              </span>
+              <Link
+                to="/documents/requests"
+                className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-0.5 ml-1"
+              >
+                View <ExternalLink className="w-2.5 h-2.5" />
+              </Link>
+            </div>
+          )}
+
           {row.description && (
-            <span className="text-[11px] text-slate-500 mt-0.5 line-clamp-1 max-w-md">{row.description}</span>
+            <span className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{row.description}</span>
           )}
         </div>
       ),
@@ -369,13 +549,24 @@ export const TasksPage: React.FC = () => {
       },
     },
     {
-      header: 'Due Date',
+      header: 'Deadlines',
       accessor: (row) => {
-        const isOverdue = row.dueDate && new Date(row.dueDate) < new Date() && row.status !== 'COMPLETED';
+        const isOverdue = Boolean(row.isOverdue || (row.dueDate && new Date(row.dueDate) < new Date() && row.status !== 'COMPLETED'));
+        const isDueToday = Boolean(row.isDueToday);
         return (
-          <div className="flex items-center gap-1 font-mono text-xs">
-            {isOverdue && <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
-            <span className={isOverdue ? 'text-rose-600 font-bold' : 'text-slate-700'}>{row.dueDate || 'No Due Date'}</span>
+          <div className="flex flex-col gap-0.5 font-mono text-xs">
+            <div className="flex items-center gap-1">
+              {isOverdue && <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+              {isDueToday && <Flame className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+              <span className={clsx('font-bold', isOverdue ? 'text-rose-600' : isDueToday ? 'text-amber-600' : 'text-slate-700')}>
+                Internal: {row.dueDate || 'No Due Date'}
+              </span>
+            </div>
+            {row.statutoryDueDate && (
+              <span className="text-[10px] text-slate-400">
+                Statutory: {row.statutoryDueDate}
+              </span>
+            )}
           </div>
         );
       },
@@ -389,42 +580,72 @@ export const TasksPage: React.FC = () => {
       header: 'Actions',
       align: 'right',
       cell: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+          <button
+            onClick={() => {
+              setSelectedTask(row);
+              setIsDetailModalOpen(true);
+            }}
+            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded"
+            title="Inspect Details"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={() => handleOpenEditModal(row)}
             className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-xs font-semibold inline-flex items-center gap-1"
             title="Edit & Reassign Task"
           >
-            <Edit2 className="w-3 h-3 text-slate-500" /> Assign / Edit
+            <Edit2 className="w-3 h-3 text-slate-500" /> Edit
           </button>
-          {row.status === 'TODO' && (
+          {row.status === 'BLOCKED' ? (
             <button
-              onClick={() => handleUpdateStatus(row.id, 'IN_PROGRESS')}
-              className="px-2 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 rounded text-xs font-semibold"
+              onClick={() => handleUnblock(row)}
+              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold shadow-2xs"
             >
-              Start Work
+              Unblock
             </button>
-          )}
-          {row.status === 'IN_PROGRESS' && (
-            <button
-              onClick={() => handleUpdateStatus(row.id, 'UNDER_REVIEW')}
-              className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded text-xs font-semibold"
-            >
-              Submit Review
-            </button>
-          )}
-          {row.status === 'UNDER_REVIEW' && (
-            <button
-              onClick={() => handleUpdateStatus(row.id, 'COMPLETED')}
-              className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-xs font-semibold inline-flex items-center gap-1"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Approve & Done
-            </button>
-          )}
-          {row.status === 'COMPLETED' && (
-            <span className="text-xs text-emerald-600 font-bold inline-flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Completed
-            </span>
+          ) : (
+            <>
+              {row.status === 'TODO' && (
+                <button
+                  onClick={() => handleUpdateStatus(row.id, 'IN_PROGRESS')}
+                  className="px-2 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 rounded text-xs font-semibold"
+                >
+                  Start
+                </button>
+              )}
+              {row.status === 'IN_PROGRESS' && (
+                <>
+                  <button
+                    onClick={() => handleUpdateStatus(row.id, 'UNDER_REVIEW')}
+                    className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded text-xs font-semibold"
+                  >
+                    Review
+                  </button>
+                  <button
+                    onClick={() => handleOpenBlockModal(row)}
+                    className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded text-xs font-semibold"
+                    title="Mark Blocked on Documents"
+                  >
+                    Block
+                  </button>
+                </>
+              )}
+              {row.status === 'UNDER_REVIEW' && (
+                <button
+                  onClick={() => handleUpdateStatus(row.id, 'COMPLETED')}
+                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-xs font-semibold inline-flex items-center gap-1"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                </button>
+              )}
+              {row.status === 'COMPLETED' && (
+                <span className="text-xs text-emerald-600 font-bold inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Done
+                </span>
+              )}
+            </>
           )}
         </div>
       ),
@@ -437,40 +658,44 @@ export const TasksPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black tracking-tight text-slate-900">Tasks & Workflows</h1>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900">Task & Compliance Hub</h1>
             {user?.email && (
               <span className="px-2.5 py-0.5 bg-brand-50 text-brand-700 text-xs font-bold rounded-full border border-brand-200">
-                Logged in as: {user.firstName || user.email.split('@')[0]}
+                {user.firstName || user.email.split('@')[0]}
               </span>
             )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Track operational tax deliverables, assign tasks to practice staff, and monitor statutory filing deadlines.
+            Real-time practitioner worklist: answers "What needs attention today?" across client deliverables, statutory deadlines, and document requests.
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* View Switcher */}
+          {/* Main Mode Tabs */}
           <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex items-center">
             <button
-              onClick={() => setViewMode('list')}
-              className={clsx('p-1.5 rounded-md text-xs font-medium transition-colors', viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500')}
-              title="List View"
+              onClick={() => setActiveTab('WORKLIST')}
+              className={clsx(
+                'px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5',
+                activeTab === 'WORKLIST' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              )}
             >
-              <List className="w-4 h-4" />
+              <Zap className="w-3.5 h-3.5 text-amber-500" /> Unified Worklist
             </button>
             <button
-              onClick={() => setViewMode('kanban')}
-              className={clsx('p-1.5 rounded-md text-xs font-medium transition-colors', viewMode === 'kanban' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500')}
-              title="Kanban Board"
+              onClick={() => setActiveTab('ALL_TASKS')}
+              className={clsx(
+                'px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5',
+                activeTab === 'ALL_TASKS' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              )}
             >
-              <LayoutGrid className="w-4 h-4" />
+              <Layers className="w-3.5 h-3.5 text-indigo-500" /> All Tasks & Kanban
             </button>
           </div>
 
           <Link to="/tasks/bulk">
             <Button variant="outline" leftIcon={<Sparkles className="w-4 h-4 text-brand-600" />}>
-              ⚡ Bulk Task Generator
+              ⚡ Bulk Tasks
             </Button>
           </Link>
 
@@ -480,102 +705,233 @@ export const TasksPage: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">Total Active</span>
-          <p className="text-xl font-black text-slate-900 mt-1">{stats.total}</p>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">To Do / Unstarted</span>
-          <p className="text-xl font-black text-blue-600 mt-1">{stats.todo}</p>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">In Progress</span>
-          <p className="text-xl font-black text-amber-600 mt-1">{stats.inProgress}</p>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">Under Review</span>
-          <p className="text-xl font-black text-purple-600 mt-1">{stats.underReview}</p>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 block">Completed</span>
-          <p className="text-xl font-black text-emerald-600 mt-1">{stats.completed}</p>
-        </div>
-      </div>
-
-      {/* Primary Scope & Filter Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setTaskScope('MY_TASKS')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              taskScope === 'MY_TASKS'
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+      {/* =========================================================================
+          WORKLIST SUMMARY METRIC CARDS
+          ========================================================================= */}
+      {activeTab === 'WORKLIST' && worklistSummary && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div
+            onClick={() => setWorklistBucket('OVERDUE')}
+            className={clsx(
+              'p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs',
+              worklistBucket === 'OVERDUE' ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-400' : 'bg-white border-slate-200 hover:border-rose-200'
+            )}
           >
-            <UserCheck className="w-3.5 h-3.5" /> 🎯 {isStaff ? 'My Assigned Deliverables' : 'My Assigned Tasks'}
-          </button>
+            <div className="flex items-center justify-between text-rose-600">
+              <span className="text-[11px] font-bold uppercase">🚨 Overdue</span>
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <p className="text-2xl font-black text-rose-700 mt-1">{worklistSummary.overdueCount}</p>
+          </div>
 
-          {!isStaff && (
+          <div
+            onClick={() => setWorklistBucket('DUE_TODAY')}
+            className={clsx(
+              'p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs',
+              worklistBucket === 'DUE_TODAY' ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400' : 'bg-white border-slate-200 hover:border-amber-200'
+            )}
+          >
+            <div className="flex items-center justify-between text-amber-600">
+              <span className="text-[11px] font-bold uppercase">📅 Due Today</span>
+              <Flame className="w-4 h-4" />
+            </div>
+            <p className="text-2xl font-black text-amber-700 mt-1">{worklistSummary.dueTodayCount}</p>
+          </div>
+
+          <div
+            onClick={() => setWorklistBucket('DUE_THIS_WEEK')}
+            className={clsx(
+              'p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs',
+              worklistBucket === 'DUE_THIS_WEEK' ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-400' : 'bg-white border-slate-200 hover:border-blue-200'
+            )}
+          >
+            <div className="flex items-center justify-between text-blue-600">
+              <span className="text-[11px] font-bold uppercase">⏳ Due This Week</span>
+              <Clock className="w-4 h-4" />
+            </div>
+            <p className="text-2xl font-black text-blue-700 mt-1">{worklistSummary.dueThisWeekCount}</p>
+          </div>
+
+          <div
+            onClick={() => setWorklistBucket('BLOCKED')}
+            className={clsx(
+              'p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs',
+              worklistBucket === 'BLOCKED' ? 'bg-orange-50 border-orange-300 ring-2 ring-orange-400' : 'bg-white border-slate-200 hover:border-orange-200'
+            )}
+          >
+            <div className="flex items-center justify-between text-orange-600">
+              <span className="text-[11px] font-bold uppercase">🛑 Blocked on Docs</span>
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <p className="text-2xl font-black text-orange-700 mt-1">{worklistSummary.blockedCount}</p>
+          </div>
+
+          <div className="p-3.5 rounded-xl border bg-white border-slate-200 shadow-2xs">
+            <div className="flex items-center justify-between text-purple-600">
+              <span className="text-[11px] font-bold uppercase">⚙️ In Progress</span>
+              <Layers className="w-4 h-4" />
+            </div>
+            <p className="text-2xl font-black text-purple-700 mt-1">{worklistSummary.inProgressCount}</p>
+          </div>
+
+          <div className="p-3.5 rounded-xl border bg-white border-slate-200 shadow-2xs">
+            <div className="flex items-center justify-between text-emerald-600">
+              <span className="text-[11px] font-bold uppercase">📄 Docs Awaiting</span>
+              <FileText className="w-4 h-4" />
+            </div>
+            <p className="text-2xl font-black text-emerald-700 mt-1">{worklistSummary.documentsWaitingCount}</p>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          WORKLIST CONTROLS & BUCKETS
+          ========================================================================= */}
+      {activeTab === 'WORKLIST' ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 flex-wrap">
+          {/* Scope Toggle */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setTaskScope('ALL_TASKS')}
+              onClick={() => setWorklistScope('MY_WORK')}
+              className={clsx(
+                'px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5',
+                worklistScope === 'MY_WORK'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              )}
+            >
+              <UserCheck className="w-3.5 h-3.5 text-emerald-400" /> My Worklist ({worklistSummary?.myTasksCount || 0})
+            </button>
+
+            {!isStaff && (
+              <button
+                onClick={() => setWorklistScope('TEAM_WORK')}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5',
+                  worklistScope === 'TEAM_WORK'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                )}
+              >
+                <Building className="w-3.5 h-3.5 text-indigo-400" /> Entire Practice Worklist ({worklistSummary?.teamTasksCount || 0})
+              </button>
+            )}
+          </div>
+
+          {/* Bucket Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {[
+              { id: 'ALL', label: 'All Active' },
+              { id: 'OVERDUE', label: '🚨 Overdue' },
+              { id: 'DUE_TODAY', label: '📅 Due Today' },
+              { id: 'DUE_THIS_WEEK', label: '⏳ Due This Week' },
+              { id: 'BLOCKED', label: '🛑 Blocked' },
+              { id: 'COMPLETED', label: '✅ Completed' },
+            ].map((bucket) => (
+              <button
+                key={bucket.id}
+                onClick={() => setWorklistBucket(bucket.id as any)}
+                className={clsx(
+                  'px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors whitespace-nowrap',
+                  worklistBucket === bucket.id
+                    ? 'bg-brand-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                )}
+              >
+                {bucket.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* Standard View Filters */
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setTaskScope('MY_TASKS')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                taskScope === 'ALL_TASKS'
+                taskScope === 'MY_TASKS'
                   ? 'bg-brand-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              <Building className="w-3.5 h-3.5" /> 🏢 All Practice Tasks
+              <UserCheck className="w-3.5 h-3.5" /> 🎯 {isStaff ? 'My Assigned Deliverables' : 'My Assigned Tasks'}
             </button>
-          )}
 
-          {/* Filter by Specific Assignee (for Admins & Managers) */}
-          {!isStaff && assigneeOptions.length > 0 && (
-            <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
-              <span className="text-[11px] font-semibold text-slate-500">Staff:</span>
-              <select
-                value={assigneeFilter}
-                onChange={(e) => setAssigneeFilter(e.target.value)}
-                className="text-xs px-2 py-1 border border-slate-300 rounded-lg bg-white font-medium text-slate-700"
+            {!isStaff && (
+              <button
+                onClick={() => setTaskScope('ALL_TASKS')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  taskScope === 'ALL_TASKS'
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
               >
-                <option value="ALL">All Staff & Assignees</option>
-                {assigneeOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.name} {opt.isMe ? '⭐ (You)' : ''} ({opt.designation})
-                  </option>
-                ))}
-              </select>
+                <Building className="w-3.5 h-3.5" /> 🏢 All Practice Tasks
+              </button>
+            )}
+
+            {!isStaff && assigneeOptions.length > 0 && (
+              <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
+                <span className="text-[11px] font-semibold text-slate-500">Staff:</span>
+                <select
+                  value={assigneeFilter}
+                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="text-xs px-2 py-1 border border-slate-300 rounded-lg bg-white font-medium text-slate-700"
+                >
+                  <option value="ALL">All Staff & Assignees</option>
+                  {assigneeOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name} {opt.isMe ? '⭐ (You)' : ''} ({opt.designation})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex items-center">
+              <button
+                onClick={() => setViewMode('list')}
+                className={clsx('p-1 rounded text-xs font-medium', viewMode === 'list' ? 'bg-white shadow-xs' : 'text-slate-500')}
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={clsx('p-1 rounded text-xs font-medium', viewMode === 'kanban' ? 'bg-white shadow-xs' : 'text-slate-500')}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          {['ALL', 'ITR', 'GST', 'AUDIT', 'COMPLIANCE', 'BILLING'].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                categoryFilter === cat
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              {['ALL', 'ITR', 'GST', 'TDS', 'AUDIT', 'COMPLIANCE', 'BILLING'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                    categoryFilter === cat
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* List or Kanban View */}
-      {viewMode === 'list' ? (
+      {/* Main Table or Kanban */}
+      {viewMode === 'list' || activeTab === 'WORKLIST' ? (
         <DataTable
           columns={columns}
           data={tasks}
           isLoading={isLoading}
-          searchPlaceholder="Search tasks by title, description, client, assignee..."
+          searchPlaceholder="Search worklist by client, task title, statutory obligation, doc request..."
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -606,8 +962,10 @@ export const TasksPage: React.FC = () => {
                       </div>
 
                       <p className="text-xs font-bold text-slate-900 leading-snug">{task.title}</p>
-                      {task.description && (
-                        <p className="text-[11px] text-slate-500 line-clamp-2">{task.description}</p>
+                      {task.status === 'BLOCKED' && (
+                        <p className="text-[10px] text-amber-700 font-semibold bg-amber-50 p-1 rounded border border-amber-200">
+                          🛑 {task.blockedReason || 'Blocked'}
+                        </p>
                       )}
 
                       <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
@@ -626,28 +984,192 @@ export const TasksPage: React.FC = () => {
                         </button>
                         <select
                           value={task.status}
-                          onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
+                          onChange={(e) => handleUpdateStatus(task.id, e.target.value as TaskStatus)}
                           className="bg-slate-50 border border-slate-200 rounded text-[11px] px-2 py-1 font-semibold text-slate-700 cursor-pointer"
                         >
                           <option value="TODO">To Do</option>
                           <option value="IN_PROGRESS">In Progress</option>
                           <option value="UNDER_REVIEW">Under Review</option>
+                          <option value="BLOCKED">Blocked</option>
                           <option value="COMPLETED">Completed</option>
                         </select>
                       </div>
                     </div>
                   ))}
-                  {colTasks.length === 0 && (
-                    <div className="h-32 flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-lg">
-                      No tasks in this column
-                    </div>
-                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* =========================================================================
+          TASK DETAIL MODAL (CLIENT -> COMPLIANCE -> TASK -> DOC REQUEST)
+          ========================================================================= */}
+      {selectedTask && (
+        <Modal
+          isOpen={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setSelectedTask(null);
+          }}
+          title={selectedTask.title}
+          subtitle={`Task Ref: ${selectedTask.id.substring(0, 8)}`}
+          maxWidth="lg"
+        >
+          <div className="space-y-4 text-xs">
+            {/* Relationship Chain Banner */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Workflow Traceability Chain
+              </span>
+              <div className="flex items-center gap-2 flex-wrap text-slate-700 font-semibold">
+                <span className="px-2 py-1 bg-white border border-slate-300 rounded shadow-2xs inline-flex items-center gap-1">
+                  🏢 {selectedTask.clientName || 'General Practice'}
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                <span className="px-2 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded shadow-2xs inline-flex items-center gap-1">
+                  🏛️ {selectedTask.complianceTitle || selectedTask.category || 'Compliance'}
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                <span className="px-2 py-1 bg-brand-50 border border-brand-200 text-brand-800 rounded shadow-2xs inline-flex items-center gap-1">
+                  ⚡ Task: {selectedTask.status}
+                </span>
+                {selectedTask.documentRequestNumber && (
+                  <>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="px-2 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded shadow-2xs inline-flex items-center gap-1">
+                      📄 Req: {selectedTask.documentRequestNumber}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Blocked Alert */}
+            {selectedTask.status === 'BLOCKED' && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-900">Task Currently Blocked</span>
+                  <p className="text-amber-800 mt-0.5">{selectedTask.blockedReason || 'Awaiting client documents or responses.'}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-white border border-slate-200 rounded-lg">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Internal Work Deadline</span>
+                <span className="text-sm font-black text-slate-900 mt-1 block font-mono">{selectedTask.dueDate || 'None'}</span>
+              </div>
+              <div className="p-3 bg-white border border-slate-200 rounded-lg">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Statutory Due Date</span>
+                <span className="text-sm font-black text-indigo-700 mt-1 block font-mono">
+                  {selectedTask.statutoryDueDate || 'Standard internal task'}
+                </span>
+              </div>
+            </div>
+
+            {/* Document Request Checklist Progress */}
+            {selectedTask.documentRequestId && (
+              <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-900 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-blue-600" /> Linked Document Request #{selectedTask.documentRequestNumber}
+                  </span>
+                  <Link
+                    to="/documents/requests"
+                    className="text-xs text-blue-700 hover:text-blue-900 font-bold underline inline-flex items-center gap-1"
+                  >
+                    Open in Document Center <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-blue-800 font-medium">
+                  <span>Total Items: {selectedTask.documentRequestItemsCount || 0}</span>
+                  <span>•</span>
+                  <span>Received: {selectedTask.documentRequestReceivedCount || 0}</span>
+                  <span>•</span>
+                  <span>Status: {selectedTask.documentRequestStatus || 'SENT'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Description */}
+            {selectedTask.description && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block mb-1">Instructions / Description</span>
+                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedTask.description}</p>
+              </div>
+            )}
+
+            <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  setSelectedTask(null);
+                }}
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  handleOpenEditModal(selectedTask);
+                }}
+              >
+                Edit & Reassign
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* =========================================================================
+          BLOCK TASK REASON MODAL
+          ========================================================================= */}
+      <Modal
+        isOpen={isBlockModalOpen}
+        onClose={() => {
+          setIsBlockModalOpen(false);
+          setBlockingTask(null);
+        }}
+        title="Mark Task as Blocked"
+        subtitle="Explain what documentation or information is pending from the client"
+        maxWidth="md"
+      >
+        <form onSubmit={handleConfirmBlock} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Blocked Reason *</label>
+            <textarea
+              rows={3}
+              required
+              placeholder="e.g. Waiting for Form 16 Part B, 12-month ICICI bank statement PDF, and investment receipts from client"
+              value={blockReasonInput}
+              onChange={(e) => setBlockReasonInput(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Marking this task as blocked will notify the client relationship manager and highlight the blockage on the Unified Worklist.
+          </p>
+          <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsBlockModalOpen(false);
+                setBlockingTask(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting} variant="danger">
+              Confirm & Block Task
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* =========================================================================
           CREATE TASK MODAL
@@ -714,11 +1236,6 @@ export const TasksPage: React.FC = () => {
                   </option>
                 ))}
               </select>
-              {assigneeOptions.length === 0 && (
-                <p className="text-[10px] text-amber-600 mt-1">
-                  Loading team members or no staff members registered yet.
-                </p>
-              )}
             </div>
           </div>
 
@@ -732,8 +1249,9 @@ export const TasksPage: React.FC = () => {
               >
                 <option value="ITR">Income Tax (ITR)</option>
                 <option value="GST">GST Compliance</option>
+                <option value="TDS">TDS Return</option>
                 <option value="AUDIT">Tax Audit / 3CD</option>
-                <option value="COMPLIANCE">TDS / ROC Compliance</option>
+                <option value="COMPLIANCE">ROC / Other Compliance</option>
                 <option value="BILLING">Billing & Fees</option>
                 <option value="OTHER">Other Assignment</option>
               </select>
@@ -866,8 +1384,9 @@ export const TasksPage: React.FC = () => {
               >
                 <option value="ITR">Income Tax (ITR)</option>
                 <option value="GST">GST Compliance</option>
+                <option value="TDS">TDS Return</option>
                 <option value="AUDIT">Tax Audit / 3CD</option>
-                <option value="COMPLIANCE">TDS / ROC Compliance</option>
+                <option value="COMPLIANCE">ROC / Other Compliance</option>
                 <option value="BILLING">Billing & Fees</option>
                 <option value="OTHER">Other Assignment</option>
               </select>
@@ -892,18 +1411,19 @@ export const TasksPage: React.FC = () => {
               <select
                 value={editFormData.status}
                 onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as any })}
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white font-semibold"
               >
                 <option value="TODO">To Do</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="UNDER_REVIEW">Under Review</option>
+                <option value="BLOCKED">🛑 Blocked on Docs</option>
                 <option value="COMPLETED">Completed</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Due Date</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Internal Due Date</label>
               <input
                 type="date"
                 value={editFormData.dueDate}
@@ -912,6 +1432,19 @@ export const TasksPage: React.FC = () => {
               />
             </div>
           </div>
+
+          {editFormData.status === 'BLOCKED' && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
+              <label className="block text-xs font-bold text-amber-900 mb-1">Blocked Reason *</label>
+              <input
+                type="text"
+                placeholder="e.g. Waiting for Form 16 and AIS statement from client"
+                value={editFormData.blockedReason}
+                onChange={(e) => setEditFormData({ ...editFormData, blockedReason: e.target.value })}
+                className="w-full text-xs px-3 py-2 border border-amber-300 rounded-lg bg-white"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Description / Instructions</label>

@@ -38,4 +38,7 @@ public class CreateTaskRequest {
     private TaskPriority priority = TaskPriority.MEDIUM;
 
     private LocalDate dueDate;
+    private UUID complianceId;
+    private UUID documentRequestId;
+    private String blockedReason;
 }

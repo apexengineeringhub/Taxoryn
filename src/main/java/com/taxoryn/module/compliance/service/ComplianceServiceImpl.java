@@ -375,6 +375,7 @@ public class ComplianceServiceImpl implements ComplianceService {
                 .taskCategory(category)
                 .priority(priority)
                 .dueDate(obligation.getDueDate())
+                .complianceId(obligation.getId())
                 .status(TaskStatus.TODO)
                 .build();
         task.setOrganizationId(organizationId);

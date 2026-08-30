@@ -25,6 +25,7 @@ import { Drawer } from '../components/common/Drawer';
 import { clientApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { Client } from '../types';
+import { ClientDocumentRequestsTab } from '../components/docrequest/ClientDocumentRequestsTab';
 import clsx from 'clsx';
 
 export const ClientsPage: React.FC = () => {
@@ -34,6 +35,7 @@ export const ClientsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'doc_requests'>('overview');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
@@ -584,21 +586,60 @@ export const ClientsPage: React.FC = () => {
       {/* Client 360° Drawer */}
       <Drawer
         isOpen={!!selectedClient}
-        onClose={() => setSelectedClient(null)}
+        onClose={() => {
+          setSelectedClient(null);
+          setDrawerTab('overview');
+        }}
         title={selectedClient?.displayName}
         subtitle={`Client PAN: ${selectedClient?.pan} • ${selectedClient?.clientType}`}
       >
         {selectedClient && (
           <div className="space-y-6">
-            {/* Lifecycle Status Management Card */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Account Lifecycle Status</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Control practice filing access & account state</p>
-                </div>
-                <StatusBadge status={selectedClient.status} size="md" />
-              </div>
+            {/* Drawer Tab Switcher */}
+            <div className="flex border-b border-slate-200">
+              <button
+                onClick={() => setDrawerTab('overview')}
+                className={clsx(
+                  'px-4 py-2 text-xs font-bold border-b-2 transition-all',
+                  drawerTab === 'overview'
+                    ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                )}
+              >
+                Overview & Status
+              </button>
+              <button
+                onClick={() => setDrawerTab('doc_requests')}
+                className={clsx(
+                  'px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5',
+                  drawerTab === 'doc_requests'
+                    ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <span>Document Requests</span>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                  V1
+                </span>
+              </button>
+            </div>
+
+            {drawerTab === 'doc_requests' ? (
+              <ClientDocumentRequestsTab
+                clientId={selectedClient.id}
+                clientName={selectedClient.displayName}
+              />
+            ) : (
+              <div className="space-y-6">
+                {/* Lifecycle Status Management Card */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Account Lifecycle Status</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Control practice filing access & account state</p>
+                    </div>
+                    <StatusBadge status={selectedClient.status} size="md" />
+                  </div>
 
               {/* Status Actions Bar */}
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
@@ -695,7 +736,9 @@ export const ClientsPage: React.FC = () => {
             </div>
           </div>
         )}
-      </Drawer>
-    </div>
-  );
+      </div>
+    )}
+  </Drawer>
+</div>
+);
 };

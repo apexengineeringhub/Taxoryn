@@ -79,6 +79,9 @@ class AuthServiceTest {
     @Mock
     private com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private AuthServiceImpl authService;
 

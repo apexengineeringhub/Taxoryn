@@ -36,9 +36,9 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({ videoId, title, cl
             rel="noopener noreferrer"
           >
             <Button
-              variant="primary"
+              variant="danger"
               size="sm"
-              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 rounded-xl px-5"
+              className="font-bold text-xs gap-1.5 rounded-xl px-5"
             >
               <span>Watch on YouTube</span>
               <ExternalLink className="w-3.5 h-3.5" />

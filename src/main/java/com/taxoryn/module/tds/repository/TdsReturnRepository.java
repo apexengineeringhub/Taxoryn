@@ -41,6 +41,13 @@ public interface TdsReturnRepository extends JpaRepository<TdsReturnEntity, UUID
             String financialYear
     );
 
+    List<TdsReturnEntity> findAllByOrganizationIdAndDueDateBetweenAndFilingStatusNotIn(
+            UUID organizationId,
+            LocalDate from,
+            LocalDate to,
+            java.util.Collection<TdsFilingStatus> filingStatuses
+    );
+
     @Query("SELECT r FROM TdsReturnEntity r WHERE r.organizationId = :organizationId " +
            "AND (:clientId IS NULL OR r.clientId = :clientId) " +
            "AND (:tdsProfileId IS NULL OR r.tdsProfileId = :tdsProfileId) " +

@@ -18,6 +18,40 @@ export interface ThemeTemplate {
 }
 
 export const THEME_TEMPLATES: ThemeTemplate[] = [
+  // --- Taxoryn Signature Brand Themes ---
+  {
+    id: 'taxoryn-signature-light',
+    name: 'Taxoryn Signature Light (Navy & Teal)',
+    category: 'Official Brand Theme',
+    mode: 'light',
+    primaryColor: '#00D1A3',
+    primaryHover: '#00B388',
+    sidebarBg: '#FFFFFF',
+    sidebarHeaderBg: '#082E5B',
+    sidebarBorder: '#E2E8F0',
+    sidebarText: '#334155',
+    sidebarTextActive: '#FFFFFF',
+    sidebarItemHoverBg: '#F1F5F9',
+    accentColor: '#082E5B',
+    previewColors: ['#082E5B', '#00D1A3', '#F8FAFC'],
+  },
+  {
+    id: 'taxoryn-signature-dark',
+    name: 'Taxoryn Signature Dark (Navy & Emerald)',
+    category: 'Official Brand Theme',
+    mode: 'dark',
+    primaryColor: '#00D1A3',
+    primaryHover: '#00B388',
+    sidebarBg: '#07152B',
+    sidebarHeaderBg: '#082E5B',
+    sidebarBorder: 'rgba(255, 255, 255, 0.1)',
+    sidebarText: '#94A3B8',
+    sidebarTextActive: '#FFFFFF',
+    sidebarItemHoverBg: 'rgba(255, 255, 255, 0.08)',
+    accentColor: '#00D1A3',
+    previewColors: ['#082E5B', '#07152B', '#00D1A3'],
+  },
+
   // --- Professional Light Themes ---
   {
     id: 'light-nordic',
@@ -182,7 +216,7 @@ interface BrandingContextType {
 const BrandingContext = createContext<BrandingContextType | undefined>(undefined);
 
 export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [themeId, setThemeId] = useState<string>('light-nordic');
+  const [themeId, setThemeId] = useState<string>('taxoryn-signature-light');
   const [activeTabFilter, setActiveTabFilter] = useState<'ALL' | 'LIGHT' | 'DARK'>('ALL');
   const [practiceLogo, setPracticeLogoState] = useState<string | null>(null);
   const [employeeAvatars, setEmployeeAvatars] = useState<Record<string, string>>({});
