@@ -2,7 +2,7 @@ import React from 'react';
 import clsx from 'clsx';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost' | 'navy' | 'teal';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost' | 'navy' | 'teal' | 'rose';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
@@ -29,6 +29,7 @@ export const Button: React.FC<ButtonProps> = ({
     teal: 'bg-[#00D1A3] hover:bg-[#00B388] text-slate-950 shadow-xs focus:ring-[#00D1A3]/40 active:bg-[#059669]',
     outline: 'border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs focus:ring-[#00D1A3]/40',
     danger: 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs focus:ring-rose-500 active:bg-rose-800',
+    rose: 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-xs focus:ring-rose-400/40',
     ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:ring-slate-400',
   };
 

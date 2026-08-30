@@ -316,9 +316,9 @@ export const LearnContentDetailPage: React.FC = () => {
                   rel="noopener noreferrer"
                 >
                   <Button
-                    variant="secondary"
+                    variant="rose"
                     size="sm"
-                    className="text-xs font-bold gap-1.5 rounded-xl border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
+                    className="text-xs font-bold gap-1.5 rounded-xl"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Watch on YouTube</span>

@@ -964,7 +964,7 @@ export const PlatformContentManagementPage: React.FC = () => {
           {/* Data Table */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
+              <table className="w-full min-w-[1080px] text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Content</th>
@@ -972,7 +972,9 @@ export const PlatformContentManagementPage: React.FC = () => {
                     <th className="py-3 px-4">Status & Version</th>
                     <th className="py-3 px-4">Author</th>
                     <th className="py-3 px-4">Updated</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4 text-right sticky right-0 bg-slate-50 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -990,7 +992,7 @@ export const PlatformContentManagementPage: React.FC = () => {
                     </tr>
                   ) : (
                     contentList.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <tr key={item.id} className="group hover:bg-slate-50 transition-colors">
                         {/* Title & Type */}
                         <td className="py-3 px-4">
                           <div className="flex items-start gap-3 max-w-sm">
@@ -1065,7 +1067,7 @@ export const PlatformContentManagementPage: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4 text-right sticky right-0 bg-white group-hover:bg-slate-50 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] transition-colors">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => handleOpenPreview(item.id)}

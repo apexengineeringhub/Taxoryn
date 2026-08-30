@@ -12,9 +12,9 @@ public final class YouTubeUtils {
 
     private YouTubeUtils() {}
 
-    // Regex matching standard watch, short URL, embed, shorts, and raw 11-char ID
+    // Regex matching standard watch, short URL, embed, shorts, live, and raw 11-char ID
     private static final Pattern YOUTUBE_URL_PATTERN = Pattern.compile(
-            "^(?:https?:\\/\\/)?(?:www\\.|m\\.)?(?:youtube\\.com\\/(?:watch\\?(?:.*&)?v=|embed\\/|v\\/|shorts\\/)|youtu\\.be\\/)([a-zA-Z0-9_-]{11})(?:[?&].*)?$"
+            "^(?:https?:\\/\\/)?(?:www\\.|m\\.)?(?:youtube\\.com\\/(?:watch\\?(?:.*&)?v=|embed\\/|v\\/|shorts\\/|live\\/)|youtu\\.be\\/)([a-zA-Z0-9_-]{11})(?:[?&].*)?$"
     );
 
     private static final Pattern RAW_ID_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{11}$");
