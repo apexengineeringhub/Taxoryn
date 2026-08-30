@@ -32,6 +32,9 @@ public class DocumentEntity extends TenantAuditableEntity {
     @Column(name = "itr_return_id")
     private UUID itrReturnId;
 
+    @Column(name = "tds_return_id")
+    private UUID tdsReturnId;
+
     @Column(name = "task_id")
     private UUID taskId;
 

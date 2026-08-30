@@ -140,6 +140,11 @@ import {
   TaskWorklistParams,
   ComplianceObligation,
   ComplianceDashboardStats,
+  PracticeOverviewReport,
+  TaxWorkReport,
+  ClientReport,
+  WorkManagementReport,
+  FinancialReport,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -359,6 +364,10 @@ export const itrApi = {
     const res = await apiClient.post<ApiResponse<ItrProfile>>('/v1/itr/profiles', payload);
     return res.data.data;
   },
+  updateProfile: async (id: string, payload: Partial<ItrProfile>) => {
+    const res = await apiClient.put<ApiResponse<ItrProfile>>(`/v1/itr/profiles/${id}`, payload);
+    return res.data.data;
+  },
   bulkImportProfiles: async (profiles: Partial<ItrProfile>[]) => {
     try {
       const res = await apiClient.post<ApiResponse<BulkItrImportResult>>('/v1/itr/profiles/bulk', profiles);
@@ -393,6 +402,10 @@ export const itrApi = {
   },
   getReturns: async (params?: { assessmentYear?: string; status?: string; itrType?: string; clientId?: string; page?: number; size?: number; search?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ItrReturn>>>('/v1/itr/returns', { params });
+    return res.data.data;
+  },
+  getReturnById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}`);
     return res.data.data;
   },
   createReturn: async (payload: Partial<ItrReturn>) => {
@@ -479,6 +492,22 @@ export const itrApi = {
       });
       return res.data.data;
     }
+  },
+  assignEmployee: async (id: string, payload: { employeeId: string }) => {
+    const res = await apiClient.put<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}/assigned-employee`, payload);
+    return res.data.data;
+  },
+  createTaskForReturn: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<ItrReturn>>(`/v1/itr/returns/${id}/create-task`);
+    return res.data.data;
+  },
+  createDocumentRequestForReturn: async (id: string, payload?: any) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/itr/returns/${id}/document-requests`, payload || {});
+    return res.data.data;
+  },
+  getReturnDocuments: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/itr/returns/${id}/documents`);
+    return res.data.data;
   },
   seedDemo: async () => {
     const res = await apiClient.post<ApiResponse<ItrReturn[]>>('/v1/itr/seed-demo');
@@ -574,6 +603,18 @@ export const tdsApi = {
   },
   assignEmployee: async (id: string, payload: { employeeId: string }) => {
     const res = await apiClient.put<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}/assigned-employee`, payload);
+    return res.data.data;
+  },
+  createTaskForReturn: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<TdsReturn>>(`/v1/tds/returns/${id}/create-task`);
+    return res.data.data;
+  },
+  createDocumentRequestForReturn: async (id: string, payload?: any) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/tds/returns/${id}/document-requests`, payload || {});
+    return res.data.data;
+  },
+  getReturnDocuments: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/tds/returns/${id}/documents`);
     return res.data.data;
   },
   batchGenerateReturns: async (payload: { quarter: string; financialYear: string; formTypes?: string[]; assessmentYear?: string; dueDate?: string }) => {
@@ -1955,6 +1996,31 @@ export const notificationApi = {
     return res.data.data;
   },
 };
+
+// --- 29. Central Reports API ---
+export const reportsApi = {
+  getOverview: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<PracticeOverviewReport>>('/v1/reports/overview', { params });
+    return res.data.data;
+  },
+  getTaxWork: async (params?: { financialYear?: string; assessmentYear?: string; quarter?: string; fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<TaxWorkReport>>('/v1/reports/tax-work', { params });
+    return res.data.data;
+  },
+  getClients: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientReport>>('/v1/reports/clients', { params });
+    return res.data.data;
+  },
+  getWork: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<WorkManagementReport>>('/v1/reports/work', { params });
+    return res.data.data;
+  },
+  getFinancial: async (params?: { fromDate?: string; toDate?: string }) => {
+    const res = await apiClient.get<ApiResponse<FinancialReport>>('/v1/reports/financial', { params });
+    return res.data.data;
+  },
+};
+
 
 
 

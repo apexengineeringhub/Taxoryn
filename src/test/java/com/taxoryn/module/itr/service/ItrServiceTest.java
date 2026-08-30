@@ -62,6 +62,33 @@ class ItrServiceTest {
     private EmployeeRepository employeeRepository;
 
     @Mock
+    private com.taxoryn.module.user.repository.UserRepository userRepository;
+
+    @Mock
+    private com.taxoryn.module.compliance.repository.ComplianceObligationRepository complianceObligationRepository;
+
+    @Mock
+    private com.taxoryn.module.compliance.repository.ComplianceRuleRepository complianceRuleRepository;
+
+    @Mock
+    private com.taxoryn.module.task.repository.TaskRepository taskRepository;
+
+    @Mock
+    private com.taxoryn.module.docrequest.repository.DocumentRequestRepository documentRequestRepository;
+
+    @Mock
+    private com.taxoryn.module.docrequest.service.DocumentRequestService documentRequestService;
+
+    @Mock
+    private com.taxoryn.module.document.repository.DocumentRepository documentRepository;
+
+    @Mock
+    private com.taxoryn.module.document.mapper.DocumentMapper documentMapper;
+
+    @Mock
+    private com.taxoryn.module.notification.service.NotificationService notificationService;
+
+    @Mock
     private ItrMapper itrMapper;
 
     @Mock
@@ -204,6 +231,15 @@ class ItrServiceTest {
                 .assessmentYear("2026-27")
                 .status(ItrStatus.DOCUMENTS_PENDING)
                 .build());
+
+        // request.getCreateTask() defaults to true (see CreateItrReturnRequest#createTask),
+        // so createReturn() will also create a linked workflow task.
+        com.taxoryn.module.task.entity.TaskEntity savedTask = com.taxoryn.module.task.entity.TaskEntity.builder()
+                .clientId(clientId)
+                .build();
+        savedTask.setId(java.util.UUID.randomUUID());
+        savedTask.setOrganizationId(tenantId);
+        when(taskRepository.save(any(com.taxoryn.module.task.entity.TaskEntity.class))).thenReturn(savedTask);
 
         ItrReturnDto result = itrService.createReturn(request);
 

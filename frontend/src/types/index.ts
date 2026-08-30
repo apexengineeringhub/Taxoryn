@@ -2777,6 +2777,169 @@ export interface NotificationFilterParams {
   notificationType?: NotificationType;
 }
 
+// ==============================================================================
+// 30. Central Reports Interfaces
+// ==============================================================================
+
+export interface PracticeOverviewReport {
+  totalClients: number;
+  activeClients: number;
+  inactiveClients: number;
+  activeTaxJobs: number;
+  openTasks: number;
+  reviewTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  complianceDueToday: number;
+  complianceDueThisWeek: number;
+  complianceOverdue: number;
+  complianceCompleted: number;
+  documentRequestsPending: number;
+  documentRequestsOpen: number;
+  totalInvoiced?: number;
+  totalCollected?: number;
+  totalOutstanding?: number;
+  hasBillingAccess: boolean;
+}
+
+export interface TaxTypeSummary {
+  taxType: string;
+  pending: number;
+  review: number;
+  filed: number;
+  overdue: number;
+  total: number;
+}
+
+export interface TaxWorkReport {
+  taxWorkSummary: TaxTypeSummary[];
+  gstTotalClients: number;
+  gstPending: number;
+  gstReview: number;
+  gstFiled: number;
+  gstOverdue: number;
+  gstByReturnType: Record<string, number>;
+  itrTotalClients: number;
+  itrPending: number;
+  itrPreparation: number;
+  itrReview: number;
+  itrFiled: number;
+  itrCompleted: number;
+  itrOverdue: number;
+  itrByFormType: Record<string, number>;
+  tdsTotalClients: number;
+  tdsPending: number;
+  tdsChallansAttached: number;
+  tdsReview: number;
+  tdsFiled: number;
+  tdsOverdue: number;
+  tdsByQuarter: Record<string, number>;
+  tdsByFormType: Record<string, number>;
+  complianceTotal: number;
+  complianceDueToday: number;
+  complianceDueThisWeek: number;
+  complianceUpcoming: number;
+  complianceOverdue: number;
+  complianceCompleted: number;
+  complianceByType: Record<string, number>;
+}
+
+export interface ClientAttentionItem {
+  clientId: string;
+  displayName: string;
+  pan: string;
+  clientType: string;
+  assignedStaffName: string;
+  openTasks: number;
+  overdueTasks: number;
+  pendingDocRequests: number;
+  hasOverdueCompliance: boolean;
+}
+
+export interface ClientReport {
+  totalClients: number;
+  activeClients: number;
+  inactiveClients: number;
+  clientsWithPendingWork: number;
+  clientsWithOverdueWork: number;
+  clientsWithPendingDocs: number;
+  pendingClientActions: number;
+  clientActionsDueToday: number;
+  clientActionsOverdue: number;
+  totalDocRequests: number;
+  docRequestsAwaitingUpload: number;
+  docRequestsUploaded: number;
+  docRequestsAccepted: number;
+  docRequestsRejected: number;
+  clientsRequiringAttention: ClientAttentionItem[];
+}
+
+export interface EmployeeProductivity {
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  email: string;
+  department?: string;
+  designation?: string;
+  assignedTasks: number;
+  openTasks: number;
+  inProgressTasks: number;
+  underReviewTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  completionRate: number;
+}
+
+export interface WorkManagementReport {
+  totalTasks: number;
+  openTasks: number;
+  inProgressTasks: number;
+  underReviewTasks: number;
+  blockedTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  tasksByCategory: Record<string, number>;
+  tasksByPriority: Record<string, number>;
+  employeeProductivity: EmployeeProductivity[];
+}
+
+export interface OutstandingInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  clientId: string;
+  clientName: string;
+  invoiceDate?: string;
+  dueDate?: string;
+  totalAmount: number;
+  paidAmount: number;
+  balanceDue: number;
+  status: string;
+  daysDueOrOverdue: number;
+  isOverdue: boolean;
+}
+
+export interface FinancialReport {
+  hasBillingAccess: boolean;
+  totalInvoiced: number;
+  totalCollected: number;
+  totalOutstanding: number;
+  outstandingDueSoon: number;
+  outstandingOverdue: number;
+  totalInvoices: number;
+  draftInvoices: number;
+  issuedInvoices: number;
+  partiallyPaidInvoices: number;
+  paidInvoices: number;
+  overdueInvoices: number;
+  cancelledInvoices: number;
+  invoicesByStatus: Record<string, number>;
+  totalPaymentsCount: number;
+  collectedThisMonth: number;
+  collectedThisQuarter: number;
+  outstandingInvoices: OutstandingInvoice[];
+}
+
+
 
 
 

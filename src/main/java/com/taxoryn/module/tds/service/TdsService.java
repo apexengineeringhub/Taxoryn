@@ -36,6 +36,14 @@ public interface TdsService {
 
     TdsReturnDto assignEmployee(UUID id, AssignTdsEmployeeRequest request);
 
+    // Task Workflow (reuses Task module)
+    TdsReturnDto createTaskForReturn(UUID id);
+
+    // Document Workflow (reuses Document Request module)
+    com.taxoryn.module.docrequest.dto.DocumentRequestDto createDocumentRequestForReturn(UUID id, com.taxoryn.module.docrequest.dto.CreateDocumentRequest request);
+
+    java.util.List<com.taxoryn.module.document.dto.DocumentDto> getReturnDocuments(UUID id);
+
     List<TdsReturnDto> batchGenerateReturns(BatchGenerateTdsReturnsRequest request);
 
     BulkTdsReturnImportResultDto bulkCreateReturns(List<CreateTdsReturnRequest> requests);

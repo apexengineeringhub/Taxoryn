@@ -1021,10 +1021,14 @@ public class GstServiceImpl implements GstService {
 
     private void notifyReviewReady(UUID organizationId, GstReturnFilingEntity filing) {
         try {
+            UUID assigneeUserId = resolveAssigneeUserId(filing.getAssignedEmployeeId(), organizationId);
+            if (assigneeUserId == null && filing.getClientId() == null) {
+                return;
+            }
             notificationService.notify(
                     organizationId,
-                    null,
-                    null,
+                    assigneeUserId,
+                    assigneeUserId == null ? filing.getClientId() : null,
                     NotificationType.GST_FILING_READY_FOR_REVIEW,
                     "GST Return Ready for Review",
                     "GST return " + filing.getReturnType() + " for period " + filing.getReturnPeriod() + " has been prepared and is awaiting partner review.",
@@ -1039,10 +1043,13 @@ public class GstServiceImpl implements GstService {
 
     private void notifyFilingCompleted(UUID organizationId, GstReturnFilingEntity filing) {
         try {
+            if (filing.getClientId() == null) {
+                return;
+            }
             notificationService.notify(
                     organizationId,
                     null,
-                    null,
+                    filing.getClientId(),
                     NotificationType.GST_FILING_COMPLETED,
                     "GST Return Filed Successfully",
                     "GST return " + filing.getReturnType() + " for period " + filing.getReturnPeriod() + " was filed. ARN: " + filing.getAcknowledgementNumber(),

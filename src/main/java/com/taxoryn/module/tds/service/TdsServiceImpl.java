@@ -27,6 +27,10 @@ import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
 import com.taxoryn.module.compliance.repository.ComplianceRuleRepository;
 import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
 import com.taxoryn.module.docrequest.service.DocumentRequestService;
+import com.taxoryn.module.document.dto.DocumentDto;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentStatus;
+import com.taxoryn.module.document.mapper.DocumentMapper;
+import com.taxoryn.module.document.repository.DocumentRepository;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
 import com.taxoryn.module.notification.service.NotificationService;
@@ -67,6 +71,8 @@ public class TdsServiceImpl implements TdsService {
     private final TaskRepository taskRepository;
     private final DocumentRequestRepository documentRequestRepository;
     private final DocumentRequestService documentRequestService;
+    private final DocumentRepository documentRepository;
+    private final DocumentMapper documentMapper;
     private final NotificationService notificationService;
     private final TdsMapper tdsMapper;
     private final TdsCalculatorService tdsCalculatorService;
@@ -499,6 +505,89 @@ public class TdsServiceImpl implements TdsService {
         auditService.logEvent("TDS_EMPLOYEE_ASSIGNED", "TDS_RETURN", updated.getId().toString(), null, "Assigned employee " + employee.getFullName() + " to TDS return");
 
         return enrichReturnEntity(updated);
+    }
+
+    @Override
+    @Transactional
+    public TdsReturnDto createTaskForReturn(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+
+        if (entity.getTaskId() == null) {
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client", "id", entity.getClientId()));
+            createTaskForReturnInternal(entity, client, organizationId);
+            auditService.logEvent("TDS_TASK_CREATED", "TASK", entity.getTaskId().toString(), null, "Linked to TDS Return " + entity.getId());
+        }
+
+        log.info("Created task for TDS return: id={}, taskId={} for tenant={}", entity.getId(), entity.getTaskId(), organizationId);
+        return enrichReturnEntity(entity);
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.docrequest.dto.DocumentRequestDto createDocumentRequestForReturn(UUID id, com.taxoryn.module.docrequest.dto.CreateDocumentRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+
+        request.setClientId(entity.getClientId());
+        request.setTaskId(entity.getTaskId());
+        request.setComplianceId(entity.getComplianceId());
+        if (request.getFinancialYear() == null) {
+            request.setFinancialYear(entity.getFinancialYear());
+        }
+        if (!StringUtils.hasText(request.getPurpose())) {
+            request.setPurpose("TDS " + entity.getFormType() + " " + entity.getQuarter() + " (FY " + entity.getFinancialYear() + ") Supporting Documents");
+        }
+        if (request.getDueDate() == null && entity.getDueDate() != null) {
+            request.setDueDate(entity.getDueDate().minusDays(5));
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            List<com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem> defaultItems = new ArrayList<>();
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Salary / Contractor Payment Register").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.OTHER).required(true).build());
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Challan 281 Payment Receipts").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.CHALLAN_RECEIPT).required(true).build());
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Deductee PAN Details").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.PAN_CARD).required(true).build());
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Previous Quarter FVU / Justification Report").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.OTHER).required(false).build());
+            request.setItems(defaultItems);
+        }
+
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto createdReq = documentRequestService.createAndSendRequest(request);
+
+        // Link back to the TDS return
+        entity.setDocumentRequestId(createdReq.getId());
+        tdsReturnRepository.save(entity);
+
+        // If a task exists, keep it in sync
+        if (entity.getTaskId() != null) {
+            taskRepository.findByIdAndOrganizationId(entity.getTaskId(), organizationId)
+                    .ifPresent(task -> {
+                        task.setDocumentRequestId(createdReq.getId());
+                        taskRepository.save(task);
+                    });
+        }
+
+        // Tag the DocumentRequest itself with the TDS return linkage
+        documentRequestRepository.findByIdAndOrganizationId(createdReq.getId(), organizationId)
+                .ifPresent(docReq -> {
+                    docReq.setTdsReturnId(entity.getId());
+                    documentRequestRepository.save(docReq);
+                });
+
+        auditService.logEvent("TDS_DOCUMENT_REQUEST_CREATED", "DOCUMENT_REQUEST", createdReq.getId().toString(), null, "Linked to TDS Return " + entity.getId());
+        return createdReq;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getReturnDocuments(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+
+        return documentRepository.findAllByOrganizationIdAndTdsReturnIdAndStatus(organizationId, id, DocumentStatus.ACTIVE)
+                .stream().map(documentMapper::toDto).toList();
     }
 
     @Override

@@ -140,6 +140,36 @@ public class TdsController {
         return ResponseEntity.ok(ApiResponse.success("Employee assigned to TDS return successfully", tdsReturn));
     }
 
+    @PostMapping("/returns/{id}/create-task")
+    @PreAuthorize("hasAuthority('TDS_UPDATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Generate linked task for TDS return", description = "Generates and assigns an operational preparation task in the Task Management module.")
+    public ResponseEntity<ApiResponse<TdsReturnDto>> createTaskForReturn(@PathVariable UUID id) {
+        TdsReturnDto tdsReturn = tdsService.createTaskForReturn(id);
+        return ResponseEntity.ok(ApiResponse.success("Task generated and linked to TDS return successfully", tdsReturn));
+    }
+
+    @PostMapping("/returns/{id}/document-requests")
+    @PreAuthorize("hasAuthority('TDS_UPDATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Request supporting documents for TDS return", description = "Creates a document checklist request sent to the client portal (challans, deductee PANs, payment register, etc.).")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> createDocumentRequestForReturn(
+            @PathVariable UUID id,
+            @RequestBody(required = false) com.taxoryn.module.docrequest.dto.CreateDocumentRequest request) {
+        if (request == null) {
+            request = new com.taxoryn.module.docrequest.dto.CreateDocumentRequest();
+        }
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto docReq = tdsService.createDocumentRequestForReturn(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Document request created and sent to client successfully", docReq));
+    }
+
+    @GetMapping("/returns/{id}/documents")
+    @PreAuthorize("hasAuthority('TDS_VIEW') or hasAuthority('TDS_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List attached documents for TDS return", description = "Retrieves all active documents in the vault linked to this TDS return.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.document.dto.DocumentDto>>> getReturnDocuments(@PathVariable UUID id) {
+        List<com.taxoryn.module.document.dto.DocumentDto> documents = tdsService.getReturnDocuments(id);
+        return ResponseEntity.ok(ApiResponse.success("Return documents retrieved successfully", documents));
+    }
+
     @PostMapping("/returns/batch-generate")
     @PreAuthorize("hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Batch generate quarterly returns", description = "Auto-generates Form 24Q and Form 26Q return records for all active TAN clients for a target quarter.")

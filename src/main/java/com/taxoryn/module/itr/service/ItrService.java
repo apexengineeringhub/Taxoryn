@@ -50,6 +50,14 @@ public interface ItrService {
 
     ItrReturnDto assignEmployee(UUID id, AssignItrEmployeeRequest request);
 
+    // 2a. ITR Task Workflow (reuses Task module)
+    ItrReturnDto createTaskForReturn(UUID id);
+
+    // 2b. ITR Document Workflow (reuses Document Request module)
+    com.taxoryn.module.docrequest.dto.DocumentRequestDto createDocumentRequestForReturn(UUID id, com.taxoryn.module.docrequest.dto.CreateDocumentRequest request);
+
+    List<com.taxoryn.module.document.dto.DocumentDto> getReturnDocuments(UUID id);
+
     // 3. Upcoming, Overdue, History & Workload
     List<ItrReturnDto> getUpcomingReturns(int daysAhead);
 

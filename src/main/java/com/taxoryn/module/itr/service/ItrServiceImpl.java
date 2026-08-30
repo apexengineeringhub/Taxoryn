@@ -56,6 +56,10 @@ import com.taxoryn.module.compliance.entity.ComplianceRuleEntity.ComplianceType;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
 import com.taxoryn.module.compliance.repository.ComplianceRuleRepository;
 import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
+import com.taxoryn.module.document.dto.DocumentDto;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentStatus;
+import com.taxoryn.module.document.mapper.DocumentMapper;
+import com.taxoryn.module.document.repository.DocumentRepository;
 import com.taxoryn.module.docrequest.service.DocumentRequestService;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
@@ -83,6 +87,8 @@ public class ItrServiceImpl implements ItrService {
     private final TaskRepository taskRepository;
     private final DocumentRequestRepository documentRequestRepository;
     private final DocumentRequestService documentRequestService;
+    private final DocumentRepository documentRepository;
+    private final DocumentMapper documentMapper;
     private final NotificationService notificationService;
     private final ItrMapper itrMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
@@ -747,6 +753,93 @@ public class ItrServiceImpl implements ItrService {
         ItrReturnEntity saved = itrReturnRepository.save(entity);
         log.info("Assigned employee {} to ITR return {} for tenant {}", request.getEmployeeId(), id, organizationId);
         return enrichReturnDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public ItrReturnDto createTaskForReturn(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+
+        if (entity.getTaskId() == null) {
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client", "id", entity.getClientId()));
+            createTaskForReturnInternal(entity, client, organizationId);
+            auditService.logEvent("ITR_TASK_CREATED", "TASK", entity.getTaskId().toString(), null, "Linked to ITR Return " + entity.getId());
+        }
+
+        log.info("Created task for ITR return: id={}, taskId={} for tenant={}", entity.getId(), entity.getTaskId(), organizationId);
+        return enrichReturnDto(entity);
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.docrequest.dto.DocumentRequestDto createDocumentRequestForReturn(UUID id, com.taxoryn.module.docrequest.dto.CreateDocumentRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+
+        request.setClientId(entity.getClientId());
+        request.setTaskId(entity.getTaskId());
+        request.setComplianceId(entity.getComplianceId());
+        if (request.getAssessmentYear() == null) {
+            request.setAssessmentYear(entity.getAssessmentYear());
+        }
+        if (request.getFinancialYear() == null) {
+            request.setFinancialYear(entity.getFinancialYear());
+        }
+        if (!StringUtils.hasText(request.getPurpose())) {
+            request.setPurpose("ITR " + entity.getItrType() + " (AY " + entity.getAssessmentYear() + ") Supporting Documents");
+        }
+        if (request.getDueDate() == null && entity.getDueDate() != null) {
+            request.setDueDate(entity.getDueDate().minusDays(7));
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            List<com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem> defaultItems = new java.util.ArrayList<>();
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("PAN Card").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.PAN_CARD).required(true).build());
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Form 16 (Part A & B)").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.FORM_16).required(true).build());
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Form 26AS / AIS / TIS").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.FORM_26AS).required(true).build());
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Bank Statements for FY " + entity.getFinancialYear()).documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.BANK_STATEMENT).required(true).build());
+            defaultItems.add(com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder().title("Investment / Deduction Proofs (80C, 80D, etc.)").documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.OTHER).required(false).build());
+            request.setItems(defaultItems);
+        }
+
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto createdReq = documentRequestService.createAndSendRequest(request);
+
+        // Link back to the ITR return
+        entity.setDocumentRequestId(createdReq.getId());
+        itrReturnRepository.save(entity);
+
+        // If a task exists, keep it in sync
+        if (entity.getTaskId() != null) {
+            taskRepository.findByIdAndOrganizationId(entity.getTaskId(), organizationId)
+                    .ifPresent(task -> {
+                        task.setDocumentRequestId(createdReq.getId());
+                        taskRepository.save(task);
+                    });
+        }
+
+        // Tag the DocumentRequest itself with the ITR return linkage
+        documentRequestRepository.findByIdAndOrganizationId(createdReq.getId(), organizationId)
+                .ifPresent(docReq -> {
+                    docReq.setItrReturnId(entity.getId());
+                    documentRequestRepository.save(docReq);
+                });
+
+        auditService.logEvent("ITR_DOCUMENT_REQUEST_CREATED", "DOCUMENT_REQUEST", createdReq.getId().toString(), null, "Linked to ITR Return " + entity.getId());
+        return createdReq;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getReturnDocuments(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+
+        return documentRepository.findAllByOrganizationIdAndItrReturnIdAndStatus(organizationId, id, DocumentStatus.ACTIVE)
+                .stream().map(documentMapper::toDto).toList();
     }
 
     // =========================================================================

@@ -67,7 +67,7 @@ export const TasksPage: React.FC = () => {
     description: string;
     clientId: string;
     assignedTo: string;
-    taskCategory: 'GST' | 'ITR' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
+    taskCategory: 'GST' | 'ITR' | 'TDS' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
     status: TaskStatus;
     dueDate: string;
@@ -98,7 +98,7 @@ export const TasksPage: React.FC = () => {
     description: string;
     clientId: string;
     assignedTo: string;
-    taskCategory: 'GST' | 'ITR' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
+    taskCategory: 'GST' | 'ITR' | 'TDS' | 'AUDIT' | 'COMPLIANCE' | 'BILLING' | 'OTHER';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
     dueDate: string;
   }>({
@@ -887,7 +887,7 @@ export const TasksPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-              {['ALL', 'ITR', 'GST', 'AUDIT', 'COMPLIANCE', 'BILLING'].map((cat) => (
+              {['ALL', 'ITR', 'GST', 'TDS', 'AUDIT', 'COMPLIANCE', 'BILLING'].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
@@ -1229,8 +1229,9 @@ export const TasksPage: React.FC = () => {
               >
                 <option value="ITR">Income Tax (ITR)</option>
                 <option value="GST">GST Compliance</option>
+                <option value="TDS">TDS Return</option>
                 <option value="AUDIT">Tax Audit / 3CD</option>
-                <option value="COMPLIANCE">TDS / ROC Compliance</option>
+                <option value="COMPLIANCE">ROC / Other Compliance</option>
                 <option value="BILLING">Billing & Fees</option>
                 <option value="OTHER">Other Assignment</option>
               </select>
@@ -1363,8 +1364,9 @@ export const TasksPage: React.FC = () => {
               >
                 <option value="ITR">Income Tax (ITR)</option>
                 <option value="GST">GST Compliance</option>
+                <option value="TDS">TDS Return</option>
                 <option value="AUDIT">Tax Audit / 3CD</option>
-                <option value="COMPLIANCE">TDS / ROC Compliance</option>
+                <option value="COMPLIANCE">ROC / Other Compliance</option>
                 <option value="BILLING">Billing & Fees</option>
                 <option value="OTHER">Other Assignment</option>
               </select>

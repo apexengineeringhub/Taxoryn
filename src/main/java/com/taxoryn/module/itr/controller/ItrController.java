@@ -178,6 +178,36 @@ public class ItrController {
         return ResponseEntity.ok(ApiResponse.success("Employee assigned to ITR return successfully", itrReturn));
     }
 
+    @PostMapping("/returns/{id}/create-task")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Generate linked task for ITR return", description = "Generates and assigns an operational preparation task in the Task Management module.")
+    public ResponseEntity<ApiResponse<ItrReturnDto>> createTaskForReturn(@PathVariable UUID id) {
+        ItrReturnDto itrReturn = itrService.createTaskForReturn(id);
+        return ResponseEntity.ok(ApiResponse.success("Task generated and linked to ITR return successfully", itrReturn));
+    }
+
+    @PostMapping("/returns/{id}/document-requests")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Request supporting documents for ITR return", description = "Creates a document checklist request sent to the client portal (PAN, Form 16, 26AS, bank statements, etc.).")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> createDocumentRequestForReturn(
+            @PathVariable UUID id,
+            @RequestBody(required = false) com.taxoryn.module.docrequest.dto.CreateDocumentRequest request) {
+        if (request == null) {
+            request = new com.taxoryn.module.docrequest.dto.CreateDocumentRequest();
+        }
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto docReq = itrService.createDocumentRequestForReturn(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Document request created and sent to client successfully", docReq));
+    }
+
+    @GetMapping("/returns/{id}/documents")
+    @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List attached documents for ITR return", description = "Retrieves all active documents in the vault linked to this ITR return.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.document.dto.DocumentDto>>> getReturnDocuments(@PathVariable UUID id) {
+        List<com.taxoryn.module.document.dto.DocumentDto> documents = itrService.getReturnDocuments(id);
+        return ResponseEntity.ok(ApiResponse.success("Return documents retrieved successfully", documents));
+    }
+
     // =========================================================================
     // 3. Upcoming, Overdue, History & Workload Dashboard
     // =========================================================================
