@@ -2888,6 +2888,17 @@ export interface EmployeeProductivity {
   overdueTasks: number;
   completedTasks: number;
   completionRate: number;
+  completedWithDueDate: number;
+  onTimeCompletedTasks: number;
+  onTimeCompletionRate: number | null;
+  taxCategoryBreakdown: Record<string, TaxCategoryProductivity>;
+}
+
+export interface TaxCategoryProductivity {
+  assigned: number;
+  completed: number;
+  pending: number;
+  overdue: number;
 }
 
 export interface WorkManagementReport {
@@ -2901,6 +2912,14 @@ export interface WorkManagementReport {
   tasksByCategory: Record<string, number>;
   tasksByPriority: Record<string, number>;
   employeeProductivity: EmployeeProductivity[];
+  attentionRequired: AttentionItem[];
+}
+
+export interface AttentionItem {
+  employeeId: string;
+  employeeName: string;
+  reason: 'OVERDUE' | 'HIGH_WORKLOAD';
+  count: number;
 }
 
 export interface OutstandingInvoice {

@@ -55,6 +55,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -584,6 +585,47 @@ public class ReportServiceImpl implements ReportService {
             double rate = assigned > 0 ? ((double) done / (double) assigned) * 100.0 : 100.0;
             rate = BigDecimal.valueOf(rate).setScale(1, RoundingMode.HALF_UP).doubleValue();
 
+            // On-Time Completion: only meaningful for completed tasks that had a due date.
+            // A task completed without a due date can't be judged "on time" against nothing,
+            // so it is excluded from both numerator and denominator (never fabricate the metric).
+            List<TaskEntity> completedWithDue = empTasks.stream()
+                    .filter(t -> t.getStatus() == TaskStatus.COMPLETED)
+                    .filter(t -> t.getDueDate() != null && t.getCompletedAt() != null)
+                    .toList();
+            long completedWithDueDate = completedWithDue.size();
+            long onTime = completedWithDue.stream()
+                    .filter(t -> !t.getCompletedAt().atZone(ZoneId.systemDefault()).toLocalDate().isAfter(t.getDueDate()))
+                    .count();
+            Double onTimeRate = completedWithDueDate > 0
+                    ? BigDecimal.valueOf(((double) onTime / (double) completedWithDueDate) * 100.0)
+                            .setScale(1, RoundingMode.HALF_UP).doubleValue()
+                    : null;
+
+            // Tax-wise workload: grouped by the existing TaskCategory enum (GST/ITR/TDS/AUDIT/
+            // COMPLIANCE/BILLING/OTHER) — never inferred from task title/description strings.
+            // "Pending" here matches the same not-terminal convention used for overdue above.
+            Map<String, WorkManagementReportDto.TaxCategoryProductivityDto> taxBreakdown = new LinkedHashMap<>();
+            Map<TaskEntity.TaskCategory, List<TaskEntity>> byCategory = empTasks.stream()
+                    .collect(Collectors.groupingBy(TaskEntity::getTaskCategory));
+            for (Map.Entry<TaskEntity.TaskCategory, List<TaskEntity>> entry : byCategory.entrySet()) {
+                List<TaskEntity> catTasks = entry.getValue();
+                long catAssigned = catTasks.size();
+                long catCompleted = catTasks.stream().filter(t -> t.getStatus() == TaskStatus.COMPLETED).count();
+                long catPending = catTasks.stream()
+                        .filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED)
+                        .count();
+                long catOverdue = catTasks.stream()
+                        .filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED
+                                && t.getDueDate() != null && t.getDueDate().isBefore(today))
+                        .count();
+                taxBreakdown.put(entry.getKey().name(), WorkManagementReportDto.TaxCategoryProductivityDto.builder()
+                        .assigned(catAssigned)
+                        .completed(catCompleted)
+                        .pending(catPending)
+                        .overdue(catOverdue)
+                        .build());
+            }
+
             productivityList.add(EmployeeProductivityDto.builder()
                     .employeeId(emp.getId())
                     .employeeCode(emp.getEmployeeCode())
@@ -598,10 +640,55 @@ public class ReportServiceImpl implements ReportService {
                     .overdueTasks(overdue)
                     .completedTasks(done)
                     .completionRate(rate)
+                    .completedWithDueDate(completedWithDueDate)
+                    .onTimeCompletedTasks(onTime)
+                    .onTimeCompletionRate(onTimeRate)
+                    .taxCategoryBreakdown(taxBreakdown)
                     .build());
         }
 
         productivityList.sort((a, b) -> Long.compare(b.getAssignedTasks(), a.getAssignedTasks()));
+
+        // Attention Required (spec item 25): purely operational signals for workload balancing
+        // and deadline management — never a performance score (item 8/26). Two transparent,
+        // stated rules only:
+        //   1) OVERDUE: employee has at least one overdue task.
+        //   2) HIGH_WORKLOAD: employee's current pending load (open + in-progress + under-review)
+        //      is at least 1.5x the team's average pending load, computed only across employees
+        //      who have any assigned work (so idle employees don't skew the average), and only
+        //      flagged once the team has enough people for "average" to be meaningful.
+        List<WorkManagementReportDto.AttentionItemDto> attentionItems = new ArrayList<>();
+        List<EmployeeProductivityDto> withWork = productivityList.stream()
+                .filter(e -> e.getAssignedTasks() > 0)
+                .toList();
+        double avgPending = withWork.isEmpty() ? 0 : withWork.stream()
+                .mapToLong(e -> e.getOpenTasks() + e.getInProgressTasks() + e.getUnderReviewTasks())
+                .average()
+                .orElse(0);
+        for (EmployeeProductivityDto e : productivityList) {
+            if (e.getOverdueTasks() > 0) {
+                attentionItems.add(WorkManagementReportDto.AttentionItemDto.builder()
+                        .employeeId(e.getEmployeeId())
+                        .employeeName(e.getEmployeeName())
+                        .reason("OVERDUE")
+                        .count(e.getOverdueTasks())
+                        .build());
+            }
+        }
+        if (withWork.size() >= 2 && avgPending > 0) {
+            for (EmployeeProductivityDto e : withWork) {
+                long pending = e.getOpenTasks() + e.getInProgressTasks() + e.getUnderReviewTasks();
+                if (pending >= avgPending * 1.5 && pending >= 5) {
+                    attentionItems.add(WorkManagementReportDto.AttentionItemDto.builder()
+                            .employeeId(e.getEmployeeId())
+                            .employeeName(e.getEmployeeName())
+                            .reason("HIGH_WORKLOAD")
+                            .count(pending)
+                            .build());
+                }
+            }
+        }
+        attentionItems.sort((a, b) -> Long.compare(b.getCount(), a.getCount()));
 
         return WorkManagementReportDto.builder()
                 .totalTasks(totalTasks)
@@ -614,6 +701,7 @@ public class ReportServiceImpl implements ReportService {
                 .tasksByCategory(tasksByCategory)
                 .tasksByPriority(tasksByPriority)
                 .employeeProductivity(productivityList)
+                .attentionRequired(attentionItems)
                 .build();
     }
 

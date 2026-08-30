@@ -509,6 +509,274 @@ public class ReportServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Work Management Report computes on-time completion rate correctly")
+    void testGetWorkManagementReport_onTimeCompletion() {
+        LocalDate today = LocalDate.now();
+
+        // Completed before due date -> on time
+        TaskEntity early = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("Completed Early")
+                .status(TaskStatus.COMPLETED)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.GST)
+                .assignedTo(employee1.getId())
+                .dueDate(today.plusDays(2))
+                .completedAt(today.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
+                .build();
+        early.setOrganizationId(org1.getId());
+        taskRepository.save(early);
+
+        // Completed exactly on due date -> on time
+        TaskEntity onDueDate = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("Completed On Due Date")
+                .status(TaskStatus.COMPLETED)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.ITR)
+                .assignedTo(employee1.getId())
+                .dueDate(today)
+                .completedAt(today.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
+                .build();
+        onDueDate.setOrganizationId(org1.getId());
+        taskRepository.save(onDueDate);
+
+        // Completed after due date -> late
+        TaskEntity late = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("Completed Late")
+                .status(TaskStatus.COMPLETED)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.TDS)
+                .assignedTo(employee1.getId())
+                .dueDate(today.minusDays(5))
+                .completedAt(today.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
+                .build();
+        late.setOrganizationId(org1.getId());
+        taskRepository.save(late);
+
+        // Completed with no due date -> excluded from on-time denominator entirely
+        TaskEntity noDueDate = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("Completed No Due Date")
+                .status(TaskStatus.COMPLETED)
+                .priority(TaskPriority.LOW)
+                .taskCategory(TaskCategory.OTHER)
+                .assignedTo(employee1.getId())
+                .completedAt(today.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
+                .build();
+        noDueDate.setOrganizationId(org1.getId());
+        taskRepository.save(noDueDate);
+
+        WorkManagementReportDto report = reportService.getWorkManagementReport(null, null);
+
+        var empMetric = report.getEmployeeProductivity().stream()
+                .filter(e -> employee1.getId().equals(e.getEmployeeId()))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(empMetric).isNotNull();
+        // Only the 3 due-dated completed tasks count toward the denominator
+        assertThat(empMetric.getCompletedWithDueDate()).isEqualTo(3);
+        // early + onDueDate are on time, late is not
+        assertThat(empMetric.getOnTimeCompletedTasks()).isEqualTo(2);
+        assertThat(empMetric.getOnTimeCompletionRate()).isEqualTo(66.7);
+    }
+
+    @Test
+    @DisplayName("Work Management Report leaves on-time rate null when no completed task has a due date")
+    void testGetWorkManagementReport_onTimeCompletionNullWhenNoData() {
+        LocalDate today = LocalDate.now();
+
+        TaskEntity onlyOpenTask = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("Open Task No Completion")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.LOW)
+                .taskCategory(TaskCategory.OTHER)
+                .assignedTo(employee1.getId())
+                .dueDate(today.plusDays(10))
+                .build();
+        onlyOpenTask.setOrganizationId(org1.getId());
+        taskRepository.save(onlyOpenTask);
+
+        WorkManagementReportDto report = reportService.getWorkManagementReport(null, null);
+
+        var empMetric = report.getEmployeeProductivity().stream()
+                .filter(e -> employee1.getId().equals(e.getEmployeeId()))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(empMetric).isNotNull();
+        assertThat(empMetric.getCompletedWithDueDate()).isEqualTo(0);
+        assertThat(empMetric.getOnTimeCompletionRate()).isNull();
+    }
+
+    @Test
+    @DisplayName("Work Management Report groups employee workload by tax category without string matching")
+    void testGetWorkManagementReport_taxCategoryBreakdown() {
+        LocalDate today = LocalDate.now();
+
+        // 2 GST tasks (1 completed, 1 overdue open), 1 ITR task (pending, not overdue)
+        TaskEntity gstDone = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("GST Filing Q1")
+                .status(TaskStatus.COMPLETED)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.GST)
+                .assignedTo(employee1.getId())
+                .dueDate(today.minusDays(1))
+                .completedAt(today.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
+                .build();
+        gstDone.setOrganizationId(org1.getId());
+        taskRepository.save(gstDone);
+
+        TaskEntity gstOverdue = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("GST Filing Q2")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.HIGH)
+                .taskCategory(TaskCategory.GST)
+                .assignedTo(employee1.getId())
+                .dueDate(today.minusDays(3))
+                .build();
+        gstOverdue.setOrganizationId(org1.getId());
+        taskRepository.save(gstOverdue);
+
+        TaskEntity itrPending = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("ITR Filing")
+                .status(TaskStatus.IN_PROGRESS)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.ITR)
+                .assignedTo(employee1.getId())
+                .dueDate(today.plusDays(5))
+                .build();
+        itrPending.setOrganizationId(org1.getId());
+        taskRepository.save(itrPending);
+
+        WorkManagementReportDto report = reportService.getWorkManagementReport(null, null);
+
+        var empMetric = report.getEmployeeProductivity().stream()
+                .filter(e -> employee1.getId().equals(e.getEmployeeId()))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(empMetric).isNotNull();
+        var breakdown = empMetric.getTaxCategoryBreakdown();
+        assertThat(breakdown).isNotNull();
+
+        var gst = breakdown.get("GST");
+        assertThat(gst).isNotNull();
+        assertThat(gst.getAssigned()).isEqualTo(2);
+        assertThat(gst.getCompleted()).isEqualTo(1);
+        assertThat(gst.getPending()).isEqualTo(1);
+        assertThat(gst.getOverdue()).isEqualTo(1);
+
+        var itr = breakdown.get("ITR");
+        assertThat(itr).isNotNull();
+        assertThat(itr.getAssigned()).isEqualTo(1);
+        assertThat(itr.getPending()).isEqualTo(1);
+        assertThat(itr.getOverdue()).isEqualTo(0);
+
+        // No TDS tasks assigned to this employee -> category absent entirely, never fabricated
+        assertThat(breakdown.containsKey("TDS")).isFalse();
+    }
+
+    @Test
+    @DisplayName("Work Management Report flags overdue and high-workload employees in Attention Required, never scoring performance")
+    void testGetWorkManagementReport_attentionRequired() {
+        LocalDate today = LocalDate.now();
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+
+        // Second employee with a heavy, mostly-open workload and no overdue tasks
+        RoleEntity staffRole = roleRepository.findByCodeAndIsSystemRoleTrue("STAFF")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder().name("Staff").code("STAFF").isSystemRole(true).build()));
+        UserEntity staffUser2 = userRepository.save(UserEntity.builder()
+                .organizationId(org1.getId())
+                .email("attn-staff2-" + suffix + "@example.com")
+                .passwordHash("$2a$10$abcdefghijklmnopqrstuvwxyzABCDE")
+                .firstName("Overloaded")
+                .lastName("Staff")
+                .roles(new HashSet<>(Set.of(staffRole)))
+                .build());
+        EmployeeEntity emp2 = EmployeeEntity.builder()
+                .userId(staffUser2.getId())
+                .employeeCode("EMP-ATTN-" + suffix)
+                .firstName("Overloaded")
+                .lastName("Staff")
+                .email(staffUser2.getEmail())
+                .department("Indirect Tax")
+                .designation("Associate")
+                .status(EmployeeStatus.ACTIVE)
+                .build();
+        emp2.setOrganizationId(org1.getId());
+        EmployeeEntity employee2 = employeeRepository.save(emp2);
+
+        // employee1: light workload, 1 open task, 2 overdue tasks -> should appear as OVERDUE only
+        TaskEntity e1Open = TaskEntity.builder()
+                .clientId(client1.getId())
+                .title("E1 Open")
+                .status(TaskStatus.TODO)
+                .priority(TaskPriority.MEDIUM)
+                .taskCategory(TaskCategory.OTHER)
+                .assignedTo(employee1.getId())
+                .dueDate(today.plusDays(5))
+                .build();
+        e1Open.setOrganizationId(org1.getId());
+        taskRepository.save(e1Open);
+
+        for (int i = 0; i < 2; i++) {
+            TaskEntity overdue = TaskEntity.builder()
+                    .clientId(client1.getId())
+                    .title("E1 Overdue " + i)
+                    .status(TaskStatus.TODO)
+                    .priority(TaskPriority.HIGH)
+                    .taskCategory(TaskCategory.GST)
+                    .assignedTo(employee1.getId())
+                    .dueDate(today.minusDays(2))
+                    .build();
+            overdue.setOrganizationId(org1.getId());
+            taskRepository.save(overdue);
+        }
+
+        // employee2: 10 open tasks, none overdue -> should appear as HIGH_WORKLOAD only
+        // (10 is well above employee1's pending load of 3, satisfying the 1.5x-average and
+        // minimum-5 thresholds without needing an overdue task)
+        for (int i = 0; i < 10; i++) {
+            TaskEntity heavy = TaskEntity.builder()
+                    .clientId(client1.getId())
+                    .title("E2 Open " + i)
+                    .status(TaskStatus.TODO)
+                    .priority(TaskPriority.MEDIUM)
+                    .taskCategory(TaskCategory.ITR)
+                    .assignedTo(employee2.getId())
+                    .dueDate(today.plusDays(10))
+                    .build();
+            heavy.setOrganizationId(org1.getId());
+            taskRepository.save(heavy);
+        }
+
+        WorkManagementReportDto report = reportService.getWorkManagementReport(null, null);
+
+        var attention = report.getAttentionRequired();
+        assertThat(attention).isNotNull();
+
+        var employee1Items = attention.stream().filter(a -> employee1.getId().equals(a.getEmployeeId())).toList();
+        assertThat(employee1Items).hasSize(1);
+        assertThat(employee1Items.get(0).getReason()).isEqualTo("OVERDUE");
+        assertThat(employee1Items.get(0).getCount()).isEqualTo(2);
+
+        var employee2Items = attention.stream().filter(a -> employee2.getId().equals(a.getEmployeeId())).toList();
+        assertThat(employee2Items).hasSize(1);
+        assertThat(employee2Items.get(0).getReason()).isEqualTo("HIGH_WORKLOAD");
+        assertThat(employee2Items.get(0).getCount()).isEqualTo(10);
+
+        // Never a generic performance score/label anywhere in the payload
+        attention.forEach(a -> assertThat(a.getReason()).isIn("OVERDUE", "HIGH_WORKLOAD"));
+    }
+
+    @Test
     @DisplayName("Financial Report calculates outstanding invoices and protects staff view")
     void testGetFinancialReport() {
         LocalDate today = LocalDate.now();

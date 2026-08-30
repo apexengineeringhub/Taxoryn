@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   CheckSquare,
@@ -36,18 +36,27 @@ import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 
 export const TasksPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
-  const [activeTab, setActiveTab] = useState<'WORKLIST' | 'ALL_TASKS'>('WORKLIST');
+  const [activeTab, setActiveTab] = useState<'WORKLIST' | 'ALL_TASKS'>(
+    () => (searchParams.get('tab') as 'WORKLIST' | 'ALL_TASKS') || 'WORKLIST'
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Worklist specific state
-  const [worklistScope, setWorklistScope] = useState<'MY_WORK' | 'TEAM_WORK'>('MY_WORK');
-  const [worklistBucket, setWorklistBucket] = useState<'ALL' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'BLOCKED' | 'COMPLETED'>('ALL');
+  const [worklistScope, setWorklistScope] = useState<'MY_WORK' | 'TEAM_WORK'>(
+    () => (searchParams.get('scope') as 'MY_WORK' | 'TEAM_WORK') || 'MY_WORK'
+  );
+  const [worklistBucket, setWorklistBucket] = useState<'ALL' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'BLOCKED' | 'COMPLETED'>(
+    () => (searchParams.get('bucket') as any) || 'ALL'
+  );
+  const [worklistAssignee, setWorklistAssignee] = useState<string>(() => searchParams.get('assignedTo') || '');
+  const [worklistCategory, setWorklistCategory] = useState<string>(() => searchParams.get('category') || '');
   const [worklistSummary, setWorklistSummary] = useState<WorklistSummary | null>(null);
 
   // Detail / Inspect Task Modal State
@@ -87,10 +96,14 @@ export const TasksPage: React.FC = () => {
   });
 
   // Filter States for standard view
-  const [taskScope, setTaskScope] = useState<'MY_TASKS' | 'ALL_TASKS'>('MY_TASKS');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'BLOCKED' | 'COMPLETED'>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
-  const [assigneeFilter, setAssigneeFilter] = useState<string>('ALL');
+  const [taskScope, setTaskScope] = useState<'MY_TASKS' | 'ALL_TASKS'>(
+    () => (searchParams.get('assignedTo') || searchParams.get('category') || searchParams.get('status') ? 'ALL_TASKS' : 'MY_TASKS')
+  );
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'BLOCKED' | 'COMPLETED'>(
+    () => (searchParams.get('status') as any) || 'ALL'
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string>(() => searchParams.get('category') || 'ALL');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(() => searchParams.get('assignedTo') || 'ALL');
 
   // Form State for creating task
   const [formData, setFormData] = useState<{
@@ -176,17 +189,24 @@ export const TasksPage: React.FC = () => {
       loadTasks();
     }
     loadClientsAndEmployees();
-  }, [activeTab, worklistScope, worklistBucket, taskScope, statusFilter, categoryFilter, assigneeFilter]);
+  }, [activeTab, worklistScope, worklistBucket, worklistAssignee, worklistCategory, taskScope, statusFilter, categoryFilter, assigneeFilter]);
 
   const loadWorklist = async () => {
     try {
       setIsLoading(true);
+      const worklistParams: any = {
+        scope: worklistScope,
+        bucket: worklistBucket,
+        size: 100,
+      };
+      if (worklistAssignee) {
+        worklistParams.assignedTo = worklistAssignee;
+      }
+      if (worklistCategory) {
+        worklistParams.taskCategory = worklistCategory;
+      }
       const [listRes, summaryRes] = await Promise.allSettled([
-        taskApi.getWorklist({
-          scope: worklistScope,
-          bucket: worklistBucket,
-          size: 100,
-        }),
+        taskApi.getWorklist(worklistParams),
         taskApi.getWorklistSummary(),
       ]);
 

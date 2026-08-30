@@ -34,6 +34,7 @@ import {
   WorkManagementReport,
   FinancialReport,
 } from '../types';
+import clsx from 'clsx';
 
 type ReportTab = 'overview' | 'tax-work' | 'clients' | 'work' | 'financial';
 
@@ -65,6 +66,19 @@ export const ReportsPage: React.FC = () => {
   const isFirmAdmin = userRoles.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'SUPER_ADMIN'].includes(r));
   const userPermissions = user?.permissions || [];
   const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
+
+  // Build a drill-down link into the existing Task Worklist (Reports item 27).
+  // scope=TEAM_WORK is required whenever we target a specific employee other than
+  // the viewer, since the worklist's own MY_WORK scope ignores assignedTo entirely.
+  const worklistLink = (opts: { bucket?: string; assignedTo?: string; category?: string }) => {
+    const params = new URLSearchParams();
+    params.set('tab', 'WORKLIST');
+    params.set('scope', 'TEAM_WORK');
+    if (opts.bucket) params.set('bucket', opts.bucket);
+    if (opts.assignedTo) params.set('assignedTo', opts.assignedTo);
+    if (opts.category) params.set('category', opts.category);
+    return `/tasks?${params.toString()}`;
+  };
 
   const setTab = (tab: ReportTab) => {
     setSearchParams({ tab });
@@ -233,7 +247,7 @@ export const ReportsPage: React.FC = () => {
     } else if (activeTab === 'work' && workData) {
       exportToCsv(
         'Taxoryn_Employee_Productivity_Report',
-        ['Employee Code', 'Staff Name', 'Department', 'Designation', 'Assigned Tasks', 'Open', 'In Progress', 'Under Review', 'Overdue', 'Completed', 'Completion Rate (%)'],
+        ['Employee Code', 'Staff Name', 'Department', 'Designation', 'Assigned Tasks', 'Open', 'In Progress', 'Under Review', 'Overdue', 'Completed', 'Completion Rate (%)', 'On-Time Completion Rate (%)'],
         workData.employeeProductivity.map((e) => [
           e.employeeCode,
           e.employeeName,
@@ -246,6 +260,7 @@ export const ReportsPage: React.FC = () => {
           e.overdueTasks,
           e.completedTasks,
           `${e.completionRate}%`,
+          e.onTimeCompletionRate === null ? 'N/A' : `${e.onTimeCompletionRate}%`,
         ])
       );
     } else if (activeTab === 'financial' && financialData) {
@@ -1126,15 +1141,58 @@ export const ReportsPage: React.FC = () => {
                   <span className="text-indigo-600 text-xs font-semibold">Under Review</span>
                   <p className="text-2xl font-black text-indigo-700 mt-1">{workData.underReviewTasks}</p>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs text-center">
+                <Link
+                  to={worklistLink({ bucket: 'OVERDUE' })}
+                  className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs text-center hover:border-rose-300 hover:shadow-sm transition-all cursor-pointer"
+                >
                   <span className="text-rose-600 text-xs font-semibold">Overdue</span>
                   <p className="text-2xl font-black text-rose-700 mt-1">{workData.overdueTasks}</p>
-                </div>
+                </Link>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs text-center">
                   <span className="text-emerald-600 text-xs font-semibold">Completed</span>
                   <p className="text-2xl font-black text-emerald-700 mt-1">{workData.completedTasks}</p>
                 </div>
               </div>
+
+              {/* Attention Required */}
+              {workData.attentionRequired && workData.attentionRequired.length > 0 && (
+                <div className="bg-white rounded-2xl border border-amber-200 shadow-xs overflow-hidden">
+                  <div className="p-5 border-b border-amber-100 bg-amber-50/50">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      Attention Required
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Overdue deadlines and workload imbalance that may need manager intervention or resource planning.
+                    </p>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {workData.attentionRequired.map((item, idx) => (
+                      <Link
+                        key={`${item.employeeId}-${item.reason}-${idx}`}
+                        to={
+                          item.reason === 'OVERDUE'
+                            ? worklistLink({ bucket: 'OVERDUE', assignedTo: item.employeeId })
+                            : worklistLink({ bucket: 'ALL', assignedTo: item.employeeId })
+                        }
+                        className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/80 transition-colors"
+                      >
+                        <span className="font-bold text-slate-900 text-sm">{item.employeeName}</span>
+                        <span
+                          className={clsx(
+                            'text-xs font-semibold px-2.5 py-1 rounded-lg',
+                            item.reason === 'OVERDUE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                          )}
+                        >
+                          {item.reason === 'OVERDUE'
+                            ? `${item.count} overdue task${item.count === 1 ? '' : 's'}`
+                            : `${item.count} open tasks`}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Employee Productivity Matrix Table */}
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
@@ -1162,7 +1220,8 @@ export const ReportsPage: React.FC = () => {
                         <th className="py-3.5 px-4 text-indigo-700">Review</th>
                         <th className="py-3.5 px-4 text-rose-700">Overdue</th>
                         <th className="py-3.5 px-4 text-emerald-700">Completed</th>
-                        <th className="py-3.5 px-5 text-right">Completion Rate</th>
+                        <th className="py-3.5 px-4 text-right">Completion Rate</th>
+                        <th className="py-3.5 px-5 text-right">On-Time Rate</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
@@ -1177,9 +1236,20 @@ export const ReportsPage: React.FC = () => {
                           <td className="py-4 px-4 font-bold text-blue-700">{emp.openTasks}</td>
                           <td className="py-4 px-4 font-bold text-amber-700">{emp.inProgressTasks}</td>
                           <td className="py-4 px-4 font-bold text-indigo-700">{emp.underReviewTasks}</td>
-                          <td className="py-4 px-4 font-bold text-rose-700">{emp.overdueTasks}</td>
+                          <td className="py-4 px-4 font-bold text-rose-700">
+                            {emp.overdueTasks > 0 ? (
+                              <Link
+                                to={worklistLink({ bucket: 'OVERDUE', assignedTo: emp.employeeId })}
+                                className="underline decoration-dotted hover:text-rose-900"
+                              >
+                                {emp.overdueTasks}
+                              </Link>
+                            ) : (
+                              emp.overdueTasks
+                            )}
+                          </td>
                           <td className="py-4 px-4 font-bold text-emerald-700">{emp.completedTasks}</td>
-                          <td className="py-4 px-5 text-right">
+                          <td className="py-4 px-4 text-right">
                             <div className="inline-flex items-center gap-2">
                               <div className="w-20 bg-slate-100 rounded-full h-2 overflow-hidden">
                                 <div
@@ -1196,8 +1266,93 @@ export const ReportsPage: React.FC = () => {
                               <span className="font-bold text-slate-900 text-xs">{emp.completionRate}%</span>
                             </div>
                           </td>
+                          <td className="py-4 px-5 text-right">
+                            {emp.onTimeCompletionRate === null ? (
+                              <span className="text-[11px] text-slate-400 font-semibold">N/A</span>
+                            ) : (
+                              <div className="inline-flex items-center gap-2" title={`${emp.onTimeCompletedTasks} of ${emp.completedWithDueDate} due-dated tasks completed on time`}>
+                                <div className="w-20 bg-slate-100 rounded-full h-2 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      emp.onTimeCompletionRate >= 80
+                                        ? 'bg-emerald-500'
+                                        : emp.onTimeCompletionRate >= 50
+                                        ? 'bg-amber-500'
+                                        : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${Math.min(100, emp.onTimeCompletionRate)}%` }}
+                                  ></div>
+                                </div>
+                                <span className="font-bold text-slate-900 text-xs">{emp.onTimeCompletionRate}%</span>
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Tax-Wise Workload by Employee */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+                <div className="p-5 border-b border-slate-200">
+                  <h3 className="text-sm font-bold text-slate-900">Tax-Wise Workload</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Assigned work per employee by tax type, based on each task&apos;s recorded category.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3.5 px-5">Staff Member</th>
+                        <th className="py-3.5 px-4 text-center">GST</th>
+                        <th className="py-3.5 px-4 text-center">ITR</th>
+                        <th className="py-3.5 px-4 text-center">TDS</th>
+                        <th className="py-3.5 px-4 text-center">Audit</th>
+                        <th className="py-3.5 px-4 text-center">Compliance</th>
+                        <th className="py-3.5 px-4 text-center">Billing</th>
+                        <th className="py-3.5 px-4 text-center">Other</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {workData.employeeProductivity.map((emp) => {
+                        const cat = (name: string) => emp.taxCategoryBreakdown?.[name];
+                        const cell = (name: string) => {
+                          const c = cat(name);
+                          if (!c || c.assigned === 0) {
+                            return <span className="text-slate-300">—</span>;
+                          }
+                          return (
+                            <Link
+                              to={worklistLink({ assignedTo: emp.employeeId, category: name })}
+                              title={`${c.completed} completed, ${c.pending} pending, ${c.overdue} overdue`}
+                              className="hover:underline"
+                            >
+                              <span className="font-black text-slate-900">{c.assigned}</span>
+                              {c.overdue > 0 && (
+                                <span className="ml-1 text-[10px] font-bold text-rose-600">({c.overdue} od)</span>
+                              )}
+                            </Link>
+                          );
+                        };
+                        return (
+                          <tr key={emp.employeeId} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-4 px-5">
+                              <p className="font-bold text-slate-900">{emp.employeeName}</p>
+                              <span className="text-[11px] font-mono text-slate-400">{emp.employeeCode}</span>
+                            </td>
+                            <td className="py-4 px-4 text-center">{cell('GST')}</td>
+                            <td className="py-4 px-4 text-center">{cell('ITR')}</td>
+                            <td className="py-4 px-4 text-center">{cell('TDS')}</td>
+                            <td className="py-4 px-4 text-center">{cell('AUDIT')}</td>
+                            <td className="py-4 px-4 text-center">{cell('COMPLIANCE')}</td>
+                            <td className="py-4 px-4 text-center">{cell('BILLING')}</td>
+                            <td className="py-4 px-4 text-center">{cell('OTHER')}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
