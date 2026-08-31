@@ -26,6 +26,14 @@ services:
       CORS_ALLOWED_ORIGINS: ${DEMO_CORS_ALLOWED_ORIGINS:-http://localhost:5174,http://localhost:8089}
       STORAGE_PROVIDER: ${DEMO_STORAGE_PROVIDER:-LOCAL}
       STORAGE_LOCAL_BASE_DIR: /app/data/documents
+      # Real SMTP so welcome/notification emails actually send in demo — leave
+      # DEMO_SMTP_HOST unset to keep the old LOG-only (no real email) behavior.
+      MAIL_PROVIDER: ${DEMO_MAIL_PROVIDER:-SMTP}
+      MAIL_FROM_EMAIL: ${DEMO_MAIL_FROM_EMAIL:-notifications@taxoryn.com}
+      SMTP_HOST: ${DEMO_SMTP_HOST:-}
+      SMTP_PORT: ${DEMO_SMTP_PORT:-587}
+      SMTP_USERNAME: ${DEMO_SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${DEMO_SMTP_PASSWORD:-}
     volumes:
       - taxoryn_demo_documents:/app/data/documents
       - taxoryn_demo_logs:/app/logs

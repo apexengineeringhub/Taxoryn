@@ -155,15 +155,25 @@ public class DemoDataSeeder implements CommandLineRunner {
                 "PLATFORM_SETTINGS_VIEW", "PLATFORM_SETTINGS_MANAGE"
         );
 
-        for (String code : permissionCodes) {
-            if (permissionRepository.findByCode(code).isEmpty()) {
-                permissionRepository.save(PermissionEntity.builder()
+        // Batch existence check instead of one SELECT per code: on a warm restart this
+        // turns ~70 individual round-trips into a single query (plus 0 inserts once the
+        // permission set is stable).
+        Set<String> existingCodes = permissionRepository.findByCodeIn(new HashSet<>(permissionCodes)).stream()
+                .map(PermissionEntity::getCode)
+                .collect(Collectors.toSet());
+
+        List<PermissionEntity> newPermissions = permissionCodes.stream()
+                .filter(code -> !existingCodes.contains(code))
+                .map(code -> PermissionEntity.builder()
                         .code(code)
                         .name(code.replace("_", " "))
                         .module(code.split("_")[0])
                         .description("Permission to " + code.toLowerCase().replace("_", " "))
-                        .build());
-            }
+                        .build())
+                .collect(Collectors.toList());
+
+        if (!newPermissions.isEmpty()) {
+            permissionRepository.saveAll(newPermissions);
         }
 
         List<PermissionEntity> allPermissions = permissionRepository.findAll();
@@ -530,27 +540,35 @@ public class DemoDataSeeder implements CommandLineRunner {
                         .build();
                 user.setOrganizationId(org.getId());
                 userRepository.save(user);
-                log.info("Platform user seeded: {} ({}) with password Password123!", seed.email(), seed.roleCode());
+                log.info("Platform user seeded: {} ({}) — see README for demo credentials", seed.email(), seed.roleCode());
             } else {
                 user = existingUser.get();
+                Set<RoleEntity> expectedRoles = new HashSet<>(Set.of(role));
+                if ("TAXORYN_SUPERADMIN".equals(seed.roleCode())) {
+                    roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN").ifPresent(expectedRoles::add);
+                }
+
+                boolean alreadyCorrect = user.getStatus() == UserStatus.ACTIVE
+                        && org.getId().equals(user.getOrganizationId())
+                        && expectedRoles.equals(user.getRoles());
+
+                if (alreadyCorrect) {
+                    // Nothing to fix — skip the BCrypt re-hash and write on every restart.
+                    continue;
+                }
+
                 user.setStatus(UserStatus.ACTIVE);
                 user.setOrganizationId(org.getId());
                 user.setPasswordHash(passwordEncoder.encode("Password123!"));
-                if (user.getRoles() == null) {
-                    user.setRoles(new HashSet<>());
-                }
-                user.getRoles().clear();
-                user.getRoles().add(role);
-                if ("TAXORYN_SUPERADMIN".equals(seed.roleCode())) {
-                    roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN").ifPresent(user.getRoles()::add);
-                }
+                user.setRoles(expectedRoles);
                 userRepository.save(user);
-                log.info("Platform user verified & updated: {} ({})", seed.email(), seed.roleCode());
+                log.info("Platform user repaired: {} ({})", seed.email(), seed.roleCode());
             }
         }
     }
 
     private void seedDemoOrganizationAndStaff(String orgEmail, String orgName, String pan, String adminEmail, String firstName, String lastName) {
+        boolean orgAlreadyExisted = organizationRepository.existsByEmailIgnoreCase(orgEmail);
         OrganizationEntity org = organizationRepository.findByEmailIgnoreCase(orgEmail)
                 .orElseGet(() -> organizationRepository.save(OrganizationEntity.builder()
                         .name(orgName)
@@ -559,6 +577,16 @@ public class DemoDataSeeder implements CommandLineRunner {
                         .status(OrganizationStatus.ACTIVE)
                         .subscriptionPlan(SubscriptionPlan.ENTERPRISE)
                         .build()));
+
+        // Fast-path for warm restarts: the marketplace profile is the last artifact this
+        // cascade produces (via seedDemoMarketplaceProfile below), so its presence means
+        // clients/employees/portal-users/marketplace data were already fully seeded on a
+        // prior run. Skip re-walking every ensure-check in the cascade (dozens of
+        // individual SELECTs per organization) and just confirm the admin user is active.
+        if (orgAlreadyExisted && marketplaceProfileRepository.findByOrganizationId(org.getId()).isPresent()) {
+            log.info("Demo organization '{}' already fully seeded — skipping re-seed cascade.", orgName);
+            return;
+        }
 
         RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN").orElseThrow();
         RoleEntity practitionerRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER").orElse(orgAdminRole);
@@ -578,7 +606,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                     .build();
             adminUser.setOrganizationId(org.getId());
             adminUser = userRepository.save(adminUser);
-            log.info("Demo user seeded: {} ({}) with password Password123!", adminEmail, orgName);
+            log.info("Demo user seeded: {} ({}) — see README for demo credentials", adminEmail, orgName);
         } else {
             adminUser = existingUser.get();
             adminUser.setStatus(UserStatus.ACTIVE);
@@ -684,7 +712,7 @@ public class DemoDataSeeder implements CommandLineRunner {
             employee.setStatus(EmployeeStatus.ACTIVE);
             employee.setUserId(user.getId());
             EmployeeEntity savedEmp = employeeRepository.save(employee);
-            log.info("Seeded employee login: {} ({}) with password Password123!", d.email(), d.designation());
+            log.info("Seeded employee login: {} ({}) — see README for demo credentials", d.email(), d.designation());
 
             // Assign clients according to department
             if (d.email().contains("pooja.joshi")) {

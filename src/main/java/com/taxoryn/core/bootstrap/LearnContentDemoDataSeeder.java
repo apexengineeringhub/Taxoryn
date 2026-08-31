@@ -44,6 +44,14 @@ public class LearnContentDemoDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // Fast-path for warm restarts: content items are the last artifact this seeder
+        // produces, so their presence means categories/services/tags were already fully
+        // seeded on a prior run. Skip re-walking every ensure-check (dozens of individual
+        // SELECTs for categories, services, tags, and each article/video).
+        if (contentRepository.count() > 0) {
+            log.info("Learn content already seeded — skipping re-seed pass.");
+            return;
+        }
         seedLearnContent();
     }
 

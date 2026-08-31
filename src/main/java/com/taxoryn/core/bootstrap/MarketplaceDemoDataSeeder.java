@@ -86,6 +86,14 @@ public class MarketplaceDemoDataSeeder implements CommandLineRunner {
             log.error("Failed seeding controlled tax service master", ex);
         }
 
+        // Fast-path for warm restarts: verifications and leads are the last artifacts
+        // each of these two cascades produces. If both already exist, every ensure-check
+        // inside them would be a no-op anyway, so skip re-walking them entirely.
+        if (verificationRepository.count() > 0 && leadRepository.count() > 0) {
+            log.info("Marketplace demo journey already seeded — skipping re-verification pass.");
+            return;
+        }
+
         try {
             seedPracticeLocationsServicesAndVerification();
         } catch (Exception ex) {
@@ -483,7 +491,7 @@ public class MarketplaceDemoDataSeeder implements CommandLineRunner {
                         .status(CustomerProfileStatus.ACTIVE)
                         .build());
 
-        log.info("Seeded demo customer account: {} (password: {})", email, DEMO_PASSWORD);
+        log.info("Seeded demo customer account: {} — see README for demo credentials", email);
         return profile;
     }
 }

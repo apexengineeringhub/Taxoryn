@@ -25,6 +25,33 @@ spring:
           batch_size: 50
           order_inserts: true
           order_updates: true
+  # Real SMTP transport for demo welcome/notification emails. Host/username/password
+  # are intentionally blank by default (never hardcode real mailbox credentials in a
+  # committed file) — set SMTP_HOST/SMTP_USERNAME/SMTP_PASSWORD as Render env vars.
+  # Use a dedicated demo mailbox, not a personal inbox, since this is public-facing.
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:true}
+          starttls:
+            enable: ${SMTP_STARTTLS:true}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+# Sized to match the Hikari pool above (max 5 connections), not Tomcat's 200-thread
+# default. Without this, request threads vastly outnumber available DB connections
+# and pile up waiting on the Hikari connection-timeout under any real concurrency.
+server:
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 5
 
 # Demo-mode flags — surfaced to the frontend via /api/config or a dedicated
 # endpoint so the UI can render a persistent "DEMO ENVIRONMENT" banner.
@@ -33,6 +60,18 @@ taxoryn:
   demo:
     enabled: true
     banner-text: "DEMO ENVIRONMENT — Synthetic data only. Not for real tax filings."
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    # Defaults to SMTP (not the base LOG default) so welcome/notification emails are
+    # actually delivered in demo. IMPORTANT: this only works once SMTP_HOST/USERNAME/
+    # PASSWORD are set as real Render env vars (see application-demo.yml spring.mail
+    # below) — without them this will attempt a real SMTP connection and fail loudly
+    # in the logs (WELCOME_EMAIL_FAILED audit entries) rather than silently no-op.
+    # Set MAIL_PROVIDER=LOG explicitly to go back to the old log-only behavior.
+    provider: ${MAIL_PROVIDER:SMTP}
+    from-email: ${MAIL_FROM_EMAIL:notifications@taxoryn.com}
+    from-name: ${MAIL_FROM_NAME:Taxoryn}
+    login-url: ${TAXORYN_LOGIN_URL:https://taxoryn-7x7f.vercel.app/login}
   jwt:
     # SECURITY: no default here on purpose - see application-prod.yml note. The demo
     # environment is public-facing, so it must not fall back to the known repo default either.

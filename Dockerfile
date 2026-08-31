@@ -39,9 +39,13 @@ COPY --from=builder --chown=taxoryn:taxoryn /build/target/taxoryn-core-*.jar /ap
 USER taxoryn:taxoryn
 
 # Set JVM and Application Environment Defaults
+# MaxRAMPercentage bounds the heap; MaxMetaspaceSize caps the previously-unbounded
+# Metaspace so a leak/growth there throws a catchable OutOfMemoryError (visible in
+# logs via ExitOnOutOfMemoryError) instead of silently growing until the container's
+# cgroup memory limit kills the whole JVM with an untraceable SIGKILL (exit 137).
 ENV SPRING_PROFILES_ACTIVE=demo \
     SERVER_PORT=8088 \
-    JAVA_OPTS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
+    JAVA_OPTS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
 
 EXPOSE 8088
 
