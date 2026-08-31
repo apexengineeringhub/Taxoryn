@@ -7,8 +7,8 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:taxoryn_secret}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 15
-      minimum-idle: 5
+      maximum-pool-size: 5
+      minimum-idle: 2
       idle-timeout: 300000
       connection-timeout: 20000
       max-lifetime: 1200000
