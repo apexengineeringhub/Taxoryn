@@ -1,7 +1,7 @@
 import React from 'react';
 import clsx from 'clsx';
 
-export type LogoVariant = 'full' | 'horizontal' | 'symbol' | 'compact';
+export type LogoVariant = 'full' | 'horizontal' | 'symbol' | 'compact' | 'app-icon';
 export type LogoTheme = 'light' | 'dark' | 'auto';
 export type LogoSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'custom';
 
@@ -9,6 +9,7 @@ interface TaxorynLogoProps {
   variant?: LogoVariant;
   theme?: LogoTheme;
   size?: LogoSize;
+  framed?: boolean;
   className?: string;
   showMotto?: boolean;
   onClick?: () => void;
@@ -18,163 +19,179 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
   variant = 'horizontal',
   theme = 'auto',
   size = 'md',
+  framed = true,
   className,
   showMotto = true,
   onClick,
 }) => {
   // Size mappings
   const sizeMap: Record<LogoSize, { symbol: number; height: string; textClass: string; mottoClass: string }> = {
-    xs: { symbol: 24, height: 'h-6', textClass: 'text-sm tracking-wide', mottoClass: 'text-[7px]' },
-    sm: { symbol: 32, height: 'h-8', textClass: 'text-base tracking-wide', mottoClass: 'text-[8px]' },
-    md: { symbol: 40, height: 'h-10', textClass: 'text-xl tracking-wider', mottoClass: 'text-[9px]' },
-    lg: { symbol: 52, height: 'h-13', textClass: 'text-2xl tracking-wider', mottoClass: 'text-[10px]' },
-    xl: { symbol: 64, height: 'h-16', textClass: 'text-3xl tracking-widest', mottoClass: 'text-xs' },
-    '2xl': { symbol: 88, height: 'h-22', textClass: 'text-4xl tracking-widest', mottoClass: 'text-sm' },
-    custom: { symbol: 40, height: '', textClass: 'text-xl', mottoClass: 'text-[9px]' },
+    xs: { symbol: 28, height: 'h-7', textClass: 'text-sm tracking-wide', mottoClass: 'text-[7px]' },
+    sm: { symbol: 34, height: 'h-8', textClass: 'text-base tracking-wide', mottoClass: 'text-[8px]' },
+    md: { symbol: 44, height: 'h-11', textClass: 'text-xl tracking-wider', mottoClass: 'text-[9px]' },
+    lg: { symbol: 56, height: 'h-14', textClass: 'text-2xl tracking-wider', mottoClass: 'text-[10px]' },
+    xl: { symbol: 70, height: 'h-17', textClass: 'text-3xl tracking-widest', mottoClass: 'text-xs' },
+    '2xl': { symbol: 96, height: 'h-24', textClass: 'text-4xl tracking-widest', mottoClass: 'text-sm' },
+    custom: { symbol: 44, height: '', textClass: 'text-xl', mottoClass: 'text-[9px]' },
   };
 
   const currentSize = sizeMap[size];
+  const isFramed = framed || variant === 'app-icon';
 
   // Theme color resolutions
-  const isLightTheme = theme === 'light';
   const textColor = theme === 'dark' ? '#FFFFFF' : theme === 'light' ? '#07152B' : 'currentColor';
   const subtextColor = theme === 'dark' ? '#94A3B8' : theme === 'light' ? '#64748B' : 'currentColor';
 
-  // Dynamic T-gradient colors based on background theme
-  const tGradId = isLightTheme ? 'taxoryn_t_grad_light' : 'taxoryn_t_grad_dark';
-  const tStartColor = isLightTheme ? '#082E5B' : '#FFFFFF';
-  const tMidColor = isLightTheme ? '#07152B' : '#F8FAFC';
-  const tEndColor = isLightTheme ? '#061A38' : '#E2E8F0';
-  const tStroke = isLightTheme ? '#082E5B' : '#FFFFFF';
-
-  // Master SVG TR Symbol with Tax Document, Checkmark, Growth Bars & Swoosh
-  const renderSymbol = (dimension: number) => (
-    <svg
-      width={dimension}
-      height={dimension}
-      viewBox="0 0 100 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="shrink-0 drop-shadow-sm select-none"
-      aria-label="Taxoryn Symbol"
-    >
-      <defs>
-        {/* T-Letter Gradient (Crisp Brilliant White on Dark, Deep Navy on Light) */}
-        <linearGradient id={tGradId} x1="20" y1="12" x2="75" y2="60" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={tStartColor} />
-          <stop offset="60%" stopColor={tMidColor} />
-          <stop offset="100%" stopColor={tEndColor} />
-        </linearGradient>
-
-        {/* T-Letter 3D Drop Shadow */}
-        <filter id="taxoryn_t_shadow" x="12" y="10" width="74" height="58" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="1" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity={isLightTheme ? "0.18" : "0.38"} />
-        </filter>
-
-        {/* R-Letter & Accents Gradient (Vivid Emerald Teal) */}
-        <linearGradient id="taxoryn_teal_grad" x1="45" y1="20" x2="85" y2="85" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#00E5B3" />
-          <stop offset="45%" stopColor="#00D1A3" />
-          <stop offset="100%" stopColor="#009E77" />
-        </linearGradient>
-
-        {/* Dynamic Encircling Swoosh Gradient */}
-        <linearGradient id="taxoryn_swoosh_grad" x1="15" y1="35" x2="85" y2="85" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#38BDF8" />
-          <stop offset="50%" stopColor="#00D1A3" />
-          <stop offset="100%" stopColor="#00E5B3" />
-        </linearGradient>
-
-        {/* Document Shadow */}
-        <filter id="taxoryn_doc_shadow" x="40" y="28" width="38" height="48" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000000" floodOpacity={isLightTheme ? "0.15" : "0.25"} />
-        </filter>
-      </defs>
-
-      {/* 1. Dynamic Encircling Swoosh (Base Arc) */}
-      <path
-        d="M 19 36 C 10 56, 16 82, 42 88 C 64 92, 78 82, 86 68"
-        stroke="url(#taxoryn_swoosh_grad)"
-        strokeWidth="4.5"
-        strokeLinecap="round"
+  // Master Architectural SVG TR Symbol: Deep Differentiated Emerald R, Bright Cyan Swoop Arrow & Sharp TAX Document
+  const renderSymbol = (dimension: number) => {
+    return (
+      <svg
+        width={dimension}
+        height={dimension}
+        viewBox="0 0 100 100"
         fill="none"
-        opacity="0.95"
-      />
+        xmlns="http://www.w3.org/2000/svg"
+        className="shrink-0 drop-shadow-md select-none"
+        aria-label="Taxoryn Symbol"
+      >
+        <defs>
+          {/* Deep Rich Emerald Gradient for Letter 'R' (Deep, Distinct & Differentiable) */}
+          <linearGradient id="tax_r_deep_grad" x1="45" y1="20" x2="88" y2="85" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#00C495" />
+            <stop offset="40%" stopColor="#009E77" />
+            <stop offset="100%" stopColor="#046A4E" />
+          </linearGradient>
 
-      {/* 2. Stylized 'R' Arch & Leg */}
-      <path
-        d="M 48 24 H 65 C 77 24, 85 30, 85 41 C 85 51, 75 57, 61 57 H 49 M 61 57 L 80 80"
-        stroke="url(#taxoryn_teal_grad)"
-        strokeWidth="11"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
+          {/* Bright Electric Cyan/Mint Gradient for Dynamic Swooping Arrow */}
+          <linearGradient id="tax_arrow_grad" x1="16" y1="36" x2="84" y2="84" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#38BDF8" />
+            <stop offset="45%" stopColor="#00FFC2" />
+            <stop offset="100%" stopColor="#00E5B3" />
+          </linearGradient>
 
-      {/* 3. Bold Geometric 'T' Top Bar & Stem (Prominent, High-Contrast & Sharp) */}
-      <g filter="url(#taxoryn_t_shadow)">
+          {/* Growth Bars Gradient */}
+          <linearGradient id="tax_bars_grad" x1="18" y1="46" x2="38" y2="80" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#00FFC2" />
+            <stop offset="100%" stopColor="#00B388" />
+          </linearGradient>
+
+          {/* Deep Midnight Obsidian Squircle Background */}
+          <linearGradient id="tax_squircle_3d" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0E274D" />
+            <stop offset="50%" stopColor="#07152B" />
+            <stop offset="100%" stopColor="#030914" />
+          </linearGradient>
+
+          {/* 3D Drop Shadow for T (Casts shadow onto R and background) */}
+          <filter id="tax_t_3d_shadow" x="8" y="8" width="65" height="60" filterUnits="userSpaceOnUse">
+            <feDropShadow dx="2" dy="4" stdDeviation="3" floodColor="#000000" floodOpacity="0.55" />
+          </filter>
+
+          {/* 3D Drop Shadow for TAX Document (Casts realistic shadow in foreground) */}
+          <filter id="tax_doc_3d_shadow" x="36" y="16" width="50" height="65" filterUnits="userSpaceOnUse">
+            <feDropShadow dx="0" dy="5" stdDeviation="3.5" floodColor="#000000" floodOpacity="0.55" />
+          </filter>
+
+          {/* Ambient Shadow for R */}
+          <filter id="tax_r_3d_shadow" x="42" y="16" width="52" height="74" filterUnits="userSpaceOnUse">
+            <feDropShadow dx="1.5" dy="2.5" stdDeviation="2.5" floodColor="#000000" floodOpacity="0.35" />
+          </filter>
+        </defs>
+
+        {/* LAYER 0: Squircle Background Container */}
+        {isFramed && (
+          <rect
+            width="100"
+            height="100"
+            rx="22"
+            fill="url(#tax_squircle_3d)"
+            stroke="rgba(255, 255, 255, 0.16)"
+            strokeWidth="1.2"
+          />
+        )}
+
+        {/* LAYER 1: Dynamic Encircling Swoop Arrow Arc (Aligned from Left curving under and up to Right) */}
         <path
-          d="M 22 14 L 78 14 L 72 23 L 53 23 L 41 52 L 27 60 L 37 23 L 17 23 Z"
-          fill={`url(#${tGradId})`}
-          stroke={tStroke}
-          strokeWidth="0.5"
-          strokeLinejoin="round"
-        />
-      </g>
-
-      {/* 4. Ascending Growth Bars (Analytics / Reconciliation) */}
-      <rect x="24" y="66" width="4.5" height="12" rx="2" fill="url(#taxoryn_teal_grad)" />
-      <rect x="31" y="56" width="4.5" height="22" rx="2" fill="url(#taxoryn_teal_grad)" />
-      <rect x="38" y="46" width="4.5" height="32" rx="2" fill="url(#taxoryn_teal_grad)" />
-
-      {/* 5. Center Tax Document (Folded Corner + Form Lines + Checkmark Badge) */}
-      <g filter="url(#taxoryn_doc_shadow)">
-        <path
-          d="M 44 32 H 72 V 64 L 66 70 H 44 Z"
-          fill="#FFFFFF"
-          stroke="#CBD5E1"
-          strokeWidth="1.2"
-        />
-        <path
-          d="M 66 64 H 72 L 66 70 Z"
-          fill="#94A3B8"
-        />
-
-        {/* Document Header "TAX" */}
-        <text
-          x="56"
-          y="43"
-          textAnchor="middle"
-          fill="#07152B"
-          fontSize="8"
-          fontWeight="900"
-          fontFamily="system-ui, sans-serif"
-          letterSpacing="0.8"
-        >
-          TAX
-        </text>
-
-        {/* Document Form Lines */}
-        <line x1="48" y1="48" x2="68" y2="48" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="48" y1="52" x2="68" y2="52" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="48" y1="56" x2="62" y2="56" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-
-        {/* Circular Checkmark Badge */}
-        <circle cx="56" cy="62" r="5" fill="#00D1A3" />
-        <path
-          d="M 53.5 62 L 55.2 63.7 L 58.7 60.2"
-          stroke="#FFFFFF"
-          strokeWidth="1.6"
+          d="M 18 36 C 10 54, 14 82, 42 88 C 58 91, 70 84, 76 74"
+          stroke="url(#tax_arrow_grad)"
+          strokeWidth="4.5"
           strokeLinecap="round"
-          strokeLinejoin="round"
           fill="none"
         />
-      </g>
-    </svg>
-  );
+        <polygon points="71,66 84,72 75,82" fill="#00FFC2" />
+
+        {/* LAYER 2: Deep Emerald Letter 'R' (Deep, Rich, Clearly Differentiated) */}
+        <g filter="url(#tax_r_3d_shadow)">
+          <path
+            d="M 50 23 H 68 C 80 23, 88 30, 88 41 C 88 51, 79 57, 65 57 H 52 M 65 57 L 83 83"
+            stroke="url(#tax_r_deep_grad)"
+            strokeWidth="11.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </g>
+
+        {/* LAYER 3: Ascending Growth Chart Bars */}
+        <rect x="20" y="66" width="5" height="14" rx="2" fill="url(#tax_bars_grad)" />
+        <rect x="27.5" y="56" width="5" height="24" rx="2" fill="url(#tax_bars_grad)" />
+        <rect x="35" y="46" width="5" height="34" rx="2" fill="url(#tax_bars_grad)" />
+
+        {/* LAYER 4: Bold & Sharp Modern 'T' (Solid Crisp Pure White on Top with 3D Depth) */}
+        <g filter="url(#tax_t_3d_shadow)">
+          <path
+            d="M 14 14 L 64 14 L 58 26 L 43 26 L 33 58 L 18 58 L 28 26 L 14 26 Z"
+            fill="#FFFFFF"
+            stroke="#FFFFFF"
+            strokeWidth="0.6"
+            strokeLinejoin="round"
+          />
+          <line x1="14" y1="14" x2="64" y2="14" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" opacity="0.9" />
+        </g>
+
+        {/* LAYER 5: Ultra-Sharp Razor-Crisp 'TAX' Document with Checkmark Badge */}
+        <g filter="url(#tax_doc_3d_shadow)">
+          {/* Document Sheet Card */}
+          <path
+            d="M 44 24 H 67 L 76 33 V 66 C 76 68.8 73.8 71 71 71 H 49 C 46.2 71 44 68.8 44 66 Z"
+            fill="#FFFFFF"
+            stroke="#CBD5E1"
+            strokeWidth="1.2"
+          />
+          {/* Shaded Dog-Ear Fold */}
+          <path
+            d="M 67 24 V 33 H 76 Z"
+            fill="#94A3B8"
+          />
+
+          {/* RAZOR-SHARP GEOMETRIC VECTOR "TAX" GLYPHS */}
+          <g fill="#07152B">
+            <path d="M 49.2 32.5 H 55.4 V 34.7 H 53.4 V 42.5 H 51.2 V 34.7 H 49.2 Z" />
+            <path d="M 59.2 32.5 H 60.8 L 63.8 42.5 H 61.6 L 61.0 40.3 H 59.0 L 58.4 42.5 H 56.2 Z M 59.5 38.5 H 60.5 L 60.0 35.3 Z" />
+            <path d="M 64.5 32.5 H 66.7 L 68.2 36.0 L 69.7 32.5 H 71.9 L 69.3 37.5 L 72.0 42.5 H 69.8 L 68.2 38.9 L 66.6 42.5 H 64.4 L 67.1 37.5 Z" />
+          </g>
+
+          {/* Clean Rounded Teal Accent Lines */}
+          <line x1="50" y1="46.5" x2="68" y2="46.5" stroke="#00D1A3" strokeWidth="2.2" strokeLinecap="round" />
+          <line x1="50" y1="51" x2="65" y2="51" stroke="#00D1A3" strokeWidth="2.2" strokeLinecap="round" />
+
+          {/* Circular Verified Checkmark Badge */}
+          <circle cx="59" cy="59.5" r="5.5" fill="#00D1A3" />
+          <path
+            d="M 56.2 59.5 L 58.2 61.5 L 62.2 57.5"
+            stroke="#FFFFFF"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </g>
+      </svg>
+    );
+  };
 
   // Symbol only or compact variant
-  if (variant === 'symbol' || variant === 'compact') {
+  if (variant === 'symbol' || variant === 'compact' || variant === 'app-icon') {
     return (
       <div
         onClick={onClick}
@@ -194,7 +211,7 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
     <div
       onClick={onClick}
       className={clsx(
-        'inline-flex items-center gap-3 shrink-0 select-none',
+        'inline-flex items-center gap-3.5 shrink-0 select-none',
         variant === 'full' ? 'flex-col items-center text-center' : 'flex-row items-center',
         onClick && 'cursor-pointer hover:opacity-95 transition-opacity',
         className
@@ -204,7 +221,7 @@ export const TaxorynLogo: React.FC<TaxorynLogoProps> = ({
       {renderSymbol(currentSize.symbol)}
 
       {/* Brand Text Block */}
-      <div className={clsx('flex flex-col min-w-0', variant === 'full' ? 'items-center text-center' : 'items-start text-left')}>
+      <div className={clsx('flex flex-col min-w-0 justify-center', variant === 'full' ? 'items-center text-center' : 'items-start text-left')}>
         {/* Wordmark: TAXORYN */}
         <div className="flex items-center tracking-wider leading-none">
           <span
