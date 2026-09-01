@@ -292,7 +292,7 @@ export const CustomerOnboardingPortalPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4 bg-primary-50 p-4 rounded-xl border border-primary-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-primary-50 p-4 rounded-xl border border-primary-100">
                 <div>
                   <span className="text-xs text-primary-700 block font-medium">Proposed Professional Fee</span>
                   <span className="text-2xl font-black text-primary-900">₹{proposal.feeAmount.toLocaleString('en-IN')}</span>
@@ -306,7 +306,7 @@ export const CustomerOnboardingPortalPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-4 border-t flex items-center justify-between">
+            <div className="pt-4 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <span className="text-xs text-gray-400">
                 Valid until {proposal.validUntil ? new Date(proposal.validUntil).toLocaleDateString() : '14 Days'}
               </span>
@@ -315,7 +315,7 @@ export const CustomerOnboardingPortalPage: React.FC = () => {
                 size="lg"
                 onClick={handleAcceptProposal}
                 disabled={actionLoading}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
               >
                 {actionLoading ? 'Accepting...' : 'Accept Proposal & Begin Onboarding'} <ArrowRight className="w-4 h-4" />
               </Button>
@@ -443,10 +443,10 @@ export const CustomerOnboardingPortalPage: React.FC = () => {
               {onboarding?.documents?.map((doc) => (
                 <div
                   key={doc.id}
-                  className="p-4 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between"
+                  className="p-4 rounded-xl border border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-3">
-                    <FileText className="w-6 h-6 text-primary-600" />
+                    <FileText className="w-6 h-6 text-primary-600 shrink-0" />
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900">{doc.documentName}</h4>
                       <div className="text-xs text-gray-500">
@@ -459,13 +459,13 @@ export const CustomerOnboardingPortalPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  <div>
+                  <div className="w-full sm:w-auto flex justify-end">
                     <Button
                       size="sm"
                       variant={doc.filePath ? 'secondary' : 'primary'}
                       disabled={uploadLoading}
                       onClick={() => handleFileUpload(doc.documentType, doc.documentName)}
-                      className="flex items-center gap-1.5"
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       {doc.filePath ? 'Re-upload' : 'Upload File'}

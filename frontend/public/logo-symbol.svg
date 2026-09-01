@@ -1,52 +1,113 @@
 <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="sym_t" x1="20" y1="12" x2="75" y2="60" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#FFFFFF" />
-      <stop offset="60%" stopColor="#F8FAFC" />
-      <stop offset="100%" stopColor="#E2E8F0" />
+    <!-- Deep Rich Emerald Gradient for Letter 'R' -->
+    <linearGradient id="sym_r_deep_grad" x1="45" y1="20" x2="88" y2="85" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#00C495" />
+      <stop offset="40%" stopColor="#009E77" />
+      <stop offset="100%" stopColor="#046A4E" />
     </linearGradient>
 
-    <filter id="sym_t_shadow" x="12" y="10" width="74" height="58" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="1" dy="2.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.35" />
-    </filter>
-
-    <linearGradient id="sym_teal" x1="45" y1="20" x2="85" y2="85" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#00E5B3" />
-      <stop offset="45%" stopColor="#00D1A3" />
-      <stop offset="100%" stopColor="#009E77" />
-    </linearGradient>
-
-    <linearGradient id="sym_swoosh" x1="15" y1="35" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+    <!-- Bright Electric Cyan/Mint Gradient for Dynamic Swooping Arrow -->
+    <linearGradient id="sym_arrow_grad" x1="16" y1="36" x2="84" y2="84" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stopColor="#38BDF8" />
-      <stop offset="50%" stopColor="#00D1A3" />
+      <stop offset="45%" stopColor="#00FFC2" />
       <stop offset="100%" stopColor="#00E5B3" />
     </linearGradient>
 
-    <filter id="sym_doc_shadow" x="40" y="28" width="38" height="48" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000000" floodOpacity="0.22" />
+    <!-- Growth Bars Gradient -->
+    <linearGradient id="sym_bars_grad" x1="18" y1="46" x2="38" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#00FFC2" />
+      <stop offset="100%" stopColor="#00B388" />
+    </linearGradient>
+
+    <!-- 3D Drop Shadow for T -->
+    <filter id="sym_t_3d_shadow" x="8" y="8" width="65" height="60" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="2" dy="4" stdDeviation="3" floodColor="#000000" floodOpacity="0.55" />
+    </filter>
+
+    <!-- 3D Drop Shadow for TAX Document -->
+    <filter id="sym_doc_3d_shadow" x="36" y="16" width="50" height="65" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="5" stdDeviation="3.5" floodColor="#000000" floodOpacity="0.55" />
+    </filter>
+
+    <!-- Ambient Shadow for R -->
+    <filter id="sym_r_3d_shadow" x="42" y="16" width="52" height="74" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="1.5" dy="2.5" stdDeviation="2.5" floodColor="#000000" floodOpacity="0.35" />
     </filter>
   </defs>
 
-  <path d="M 19 36 C 10 56, 16 82, 42 88 C 64 92, 78 82, 86 68" stroke="url(#sym_swoosh)" strokeWidth="4.5" strokeLinecap="round" fill="none" opacity="0.95" />
+  <!-- LAYER 1: Dynamic Encircling Swoop Arrow Arc -->
+  <path
+    d="M 18 36 C 10 54, 14 82, 42 88 C 58 91, 70 84, 76 74"
+    stroke="url(#sym_arrow_grad)"
+    strokeWidth="4.5"
+    strokeLinecap="round"
+    fill="none"
+  />
+  <polygon points="71,66 84,72 75,82" fill="#00FFC2" />
 
-  <path d="M 48 24 H 65 C 77 24, 85 30, 85 41 C 85 51, 75 57, 61 57 H 49 M 61 57 L 80 80" stroke="url(#sym_teal)" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-
-  <g filter="url(#sym_t_shadow)">
-    <path d="M 22 14 L 78 14 L 72 23 L 53 23 L 41 52 L 27 60 L 37 23 L 17 23 Z" fill="url(#sym_t)" stroke="#FFFFFF" strokeWidth="0.5" strokeLinejoin="round" />
+  <!-- LAYER 2: Deep Emerald Letter 'R' (Distinct & Differentiable) -->
+  <g filter="url(#sym_r_3d_shadow)">
+    <path
+      d="M 50 23 H 68 C 80 23, 88 30, 88 41 C 88 51, 79 57, 65 57 H 52 M 65 57 L 83 83"
+      stroke="url(#sym_r_deep_grad)"
+      strokeWidth="11.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
   </g>
 
-  <rect x="24" y="66" width="4.5" height="12" rx="2" fill="url(#sym_teal)" />
-  <rect x="31" y="56" width="4.5" height="22" rx="2" fill="url(#sym_teal)" />
-  <rect x="38" y="46" width="4.5" height="32" rx="2" fill="url(#sym_teal)" />
+  <!-- LAYER 3: Ascending Growth Bars -->
+  <rect x="20" y="66" width="5" height="14" rx="2" fill="url(#sym_bars_grad)" />
+  <rect x="27.5" y="56" width="5" height="24" rx="2" fill="url(#sym_bars_grad)" />
+  <rect x="35" y="46" width="5" height="34" rx="2" fill="url(#sym_bars_grad)" />
 
-  <g filter="url(#sym_doc_shadow)">
-    <path d="M 44 32 H 72 V 64 L 66 70 H 44 Z" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="1.2" />
-    <path d="M 66 64 H 72 L 66 70 Z" fill="#94A3B8" />
-    <text x="56" y="43" textAnchor="middle" fill="#07152B" fontSize="8" fontWeight="900" fontFamily="system-ui, sans-serif" letterSpacing="0.8">TAX</text>
-    <line x1="48" y1="48" x2="68" y2="48" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="48" y1="52" x2="68" y2="52" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="48" y1="56" x2="62" y2="56" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="56" cy="62" r="5" fill="#00D1A3" />
-    <path d="M 53.5 62 L 55.2 63.7 L 58.7 60.2" stroke="#FFFFFF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  <!-- LAYER 4: Bold & Sharp Modern 'T' (Solid Pure White) -->
+  <g filter="url(#sym_t_3d_shadow)">
+    <path
+      d="M 14 14 L 64 14 L 58 26 L 43 26 L 33 58 L 18 58 L 28 26 L 14 26 Z"
+      fill="#FFFFFF"
+      stroke="#FFFFFF"
+      strokeWidth="0.6"
+      strokeLinejoin="round"
+    />
+    <line x1="14" y1="14" x2="64" y2="14" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" opacity="0.9" />
+  </g>
+
+  <!-- LAYER 5: Ultra-Sharp Razor-Crisp 'TAX' Document with Checkmark Badge -->
+  <g filter="url(#sym_doc_3d_shadow)">
+    <path
+      d="M 44 24 H 67 L 76 33 V 66 C 76 68.8 73.8 71 71 71 H 49 C 46.2 71 44 68.8 44 66 Z"
+      fill="#FFFFFF"
+      stroke="#CBD5E1"
+      strokeWidth="1.2"
+    />
+    <path
+      d="M 67 24 V 33 H 76 Z"
+      fill="#94A3B8"
+    />
+
+    <!-- Precision Vector TAX Glyphs -->
+    <g fill="#07152B">
+      <path d="M 49.2 32.5 H 55.4 V 34.7 H 53.4 V 42.5 H 51.2 V 34.7 H 49.2 Z" />
+      <path d="M 59.2 32.5 H 60.8 L 63.8 42.5 H 61.6 L 61.0 40.3 H 59.0 L 58.4 42.5 H 56.2 Z M 59.5 38.5 H 60.5 L 60.0 35.3 Z" />
+      <path d="M 64.5 32.5 H 66.7 L 68.2 36.0 L 69.7 32.5 H 71.9 L 69.3 37.5 L 72.0 42.5 H 69.8 L 68.2 38.9 L 66.6 42.5 H 64.4 L 67.1 37.5 Z" />
+    </g>
+
+    <!-- Clean Form Accent Lines -->
+    <line x1="50" y1="46.5" x2="68" y2="46.5" stroke="#00D1A3" strokeWidth="2.2" strokeLinecap="round" />
+    <line x1="50" y1="51" x2="65" y2="51" stroke="#00D1A3" strokeWidth="2.2" strokeLinecap="round" />
+
+    <!-- Circular Verified Checkmark Badge -->
+    <circle cx="59" cy="59.5" r="5.5" fill="#00D1A3" />
+    <path
+      d="M 56.2 59.5 L 58.2 61.5 L 62.2 57.5"
+      stroke="#FFFFFF"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
   </g>
 </svg>

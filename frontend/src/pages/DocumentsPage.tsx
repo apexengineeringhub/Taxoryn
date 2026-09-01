@@ -300,9 +300,9 @@ export const DocumentsPage: React.FC = () => {
           <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
             <FileText className="w-4 h-4" />
           </div>
-          <div>
-            <span className="font-bold text-slate-900 block">{row.originalFilename}</span>
-            <span className="text-[10px] text-slate-400 block">{row.clientName || 'General Document'}</span>
+          <div className="min-w-0">
+            <span className="font-bold text-slate-900 block break-all">{row.originalFilename}</span>
+            <span className="text-[10px] text-slate-400 block truncate">{row.clientName || 'General Document'}</span>
           </div>
         </div>
       ),
