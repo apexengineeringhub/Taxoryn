@@ -769,7 +769,7 @@ export const TdsCompliancePage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Deductee Type</label>
                   <select
@@ -816,7 +816,7 @@ export const TdsCompliancePage: React.FC = () => {
                 </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Payment Date</label>
                   <input
@@ -837,7 +837,7 @@ export const TdsCompliancePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Filing Due Date</label>
                   <input
@@ -992,7 +992,7 @@ export const TdsCompliancePage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-medium text-slate-700 dark:text-slate-300 block mb-1">Filing Date *</label>
               <input
@@ -1094,7 +1094,7 @@ export const TdsCompliancePage: React.FC = () => {
             Auto-generate Form 24Q (Salary) and Form 26Q (Domestic Non-Salary) quarterly return schedules for all active TAN clients.
           </p>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-medium text-slate-700 dark:text-slate-300 block mb-1">Quarter</label>
               <select
@@ -1168,7 +1168,7 @@ export const TdsCompliancePage: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-medium text-slate-700 dark:text-slate-300 block mb-1">10-Digit TAN *</label>
               <input
@@ -1199,7 +1199,7 @@ export const TdsCompliancePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-medium text-slate-700 dark:text-slate-300 block mb-1">Responsible Person Name</label>
               <input
@@ -1224,7 +1224,7 @@ export const TdsCompliancePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-medium text-slate-700 dark:text-slate-300 block mb-1">Designation</label>
               <input
@@ -1283,7 +1283,7 @@ export const TdsCompliancePage: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="font-medium text-slate-700 dark:text-slate-300 block mb-1">7-Digit BSR Code *</label>
               <input
@@ -1318,7 +1318,7 @@ export const TdsCompliancePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-medium text-slate-700 dark:text-slate-300 block mb-1">Section Code *</label>
               <select

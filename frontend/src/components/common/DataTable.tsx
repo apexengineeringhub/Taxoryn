@@ -75,6 +75,21 @@ export function DataTable<T extends { id?: string | number }>({
     });
   }, [data, searchQuery, onSearch]);
 
+  const renderCellContent = (col: Column<T>, row: T): React.ReactNode => {
+    if (col.cell) return col.cell(row);
+    if (typeof col.accessor === 'function') return col.accessor(row);
+    if (col.accessor) return row[col.accessor] as React.ReactNode;
+    return null;
+  };
+
+  // Heuristic split for the mobile card layout: whichever column is literally
+  // labeled "Actions" renders as a full-width row at the bottom of the card
+  // (so buttons stay comfortably tappable); the first remaining column becomes
+  // the card's title; everything else renders as label/value rows.
+  const actionsColumn = columns.find((c) => c.header.trim().toLowerCase() === 'actions');
+  const bodyColumns = columns.filter((c) => c !== actionsColumn);
+  const [titleColumn, ...detailColumns] = bodyColumns;
+
   return (
     <div className="bg-white border border-slate-200/90 rounded-xl shadow-card overflow-hidden flex flex-col">
       {/* Table Toolbar */}
@@ -103,8 +118,8 @@ export function DataTable<T extends { id?: string | number }>({
         </div>
       </div>
 
-      {/* Table Container */}
-      <div className="overflow-x-auto min-h-[250px]">
+      {/* Table Container — desktop/tablet (md and up): full table with horizontal scroll fallback */}
+      <div className="hidden md:block overflow-x-auto min-h-[250px]">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider select-none">
@@ -170,13 +185,7 @@ export function DataTable<T extends { id?: string | number }>({
                         col.align === 'right' && 'text-right'
                       )}
                     >
-                      {col.cell
-                        ? col.cell(row)
-                        : typeof col.accessor === 'function'
-                        ? col.accessor(row)
-                        : col.accessor
-                        ? (row[col.accessor] as React.ReactNode)
-                        : null}
+                      {renderCellContent(col, row)}
                     </td>
                   ))}
                 </tr>
@@ -184,6 +193,54 @@ export function DataTable<T extends { id?: string | number }>({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Card list — mobile/small-tablet (below md): each row becomes a stacked card
+          instead of a horizontally-scrolling table, per the responsive table strategy. */}
+      <div className="md:hidden min-h-[150px]">
+        {isLoading ? (
+          <div className="px-4 py-12 flex items-center justify-center gap-2 text-slate-400 text-xs">
+            <svg className="animate-spin h-5 w-5 text-brand-600" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span>Loading records...</span>
+          </div>
+        ) : displayData.length === 0 ? (
+          <div className="px-4 py-12 text-center text-slate-400 font-medium text-xs">{emptyMessage}</div>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {displayData.map((row, rowIdx) => (
+              <li
+                key={row.id || rowIdx}
+                onClick={() => onRowClick && onRowClick(row)}
+                className={clsx('px-4 py-3.5 text-xs text-slate-700 space-y-1.5', onRowClick && 'cursor-pointer active:bg-slate-50')}
+              >
+                {titleColumn && (
+                  <div className="font-semibold text-sm text-slate-900">{renderCellContent(titleColumn, row)}</div>
+                )}
+                {detailColumns.map((col, colIdx) => {
+                  const value = renderCellContent(col, row);
+                  if (value === null || value === undefined || value === '') return null;
+                  return (
+                    <div key={colIdx} className="flex items-center justify-between gap-3">
+                      <span className="text-slate-400 shrink-0">{col.header}</span>
+                      <span className="text-right min-w-0 truncate">{value}</span>
+                    </div>
+                  );
+                })}
+                {actionsColumn && (
+                  <div
+                    className="pt-2 flex items-center gap-2 flex-wrap"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {renderCellContent(actionsColumn, row)}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Pagination Footer */}

@@ -1,12 +1,17 @@
 import React from 'react';
-import { Search, Bell, Plus, ShieldCheck, Server, LogOut } from 'lucide-react';
+import { Search, Bell, Plus, ShieldCheck, Server, LogOut, Menu } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { NotificationBellDropdown } from '../notification/NotificationBellDropdown';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  /** Shows a hamburger button (mobile/tablet only) that opens the sidebar drawer. */
+  onMenuClick?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
   const { currentTheme, getEmployeeAvatar } = useBranding();
 
@@ -41,10 +46,19 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="h-16 px-6 glass-header flex items-center justify-between gap-4 sticky top-0 z-30 select-none">
+    <header className="h-16 px-3 sm:px-6 glass-header flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-30 select-none">
       {/* Search Input (Global Search) */}
-      <div className="flex items-center gap-3">
-        <div className="relative w-64 md:w-80">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        {/* Hamburger — mobile/tablet only, opens the sidebar drawer */}
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden shrink-0 p-2 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+          aria-label="Open navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="relative w-full max-w-[11rem] sm:max-w-none sm:w-64 md:w-80 min-w-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -64,7 +78,7 @@ export const Header: React.FC = () => {
       </div>
 
       {/* Actions & Alerts */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Quick Action Button (Practice Staff Only) */}
         {!isClientUser && !isPlatformUser && (
           <button

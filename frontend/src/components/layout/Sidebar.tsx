@@ -26,6 +26,7 @@ import {
   Lock,
   Bell,
   BarChart3,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -35,9 +36,13 @@ import clsx from 'clsx';
 
 interface SidebarProps {
   collapsed?: boolean;
+  /** Mobile/tablet only: whether the slide-in drawer is open. Ignored at lg+ where the sidebar is always visible. */
+  isOpen?: boolean;
+  /** Mobile/tablet only: called when a nav link is tapped or the backdrop is clicked. */
+  onClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = () => {
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const { user, logout, practiceName, practiceInitials, subscriptionPlan } = useAuth();
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
 
@@ -132,7 +137,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   return (
     <aside
       className={clsx(
-        'w-64 border-r flex flex-col h-screen select-none shrink-0 transition-colors duration-300',
+        'w-64 border-r flex flex-col h-screen select-none shrink-0 transition-transform duration-300',
+        // Below lg: fixed slide-in drawer, off-screen unless isOpen. At lg+: always visible, static.
+        'fixed inset-y-0 left-0 z-50 lg:static lg:translate-x-0',
+        isOpen ? 'translate-x-0' : '-translate-x-full',
         isLight ? 'text-slate-700 shadow-xs' : 'text-slate-300'
       )}
       style={{
@@ -181,6 +189,16 @@ export const Sidebar: React.FC<SidebarProps> = () => {
             </span>
           </div>
         </div>
+        {/* Mobile-only close button for the drawer */}
+        <button
+          onClick={onClose}
+          className={clsx(
+            'lg:hidden p-1.5 rounded-md shrink-0 transition-colors',
+            isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-white/10'
+          )}
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Tenant Indicator */}
@@ -214,6 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={onClose}
             style={({ isActive }) =>
               isActive ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}
             }
