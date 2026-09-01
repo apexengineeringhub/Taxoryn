@@ -235,11 +235,11 @@ export const MarketplaceComparePage: React.FC = () => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800">
-                <th className="p-6 text-left text-xs font-bold text-slate-400 uppercase tracking-wider w-1/4 bg-slate-50/50 dark:bg-slate-800/30">
+                <th className="p-6 text-left text-xs font-bold text-slate-400 uppercase tracking-wider w-1/4 min-w-[180px] bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10">
                   Feature / Attribute
                 </th>
                 {profiles.map((p) => (
-                  <th key={p.id} className="p-6 text-left w-1/4 align-top">
+                  <th key={p.id} className="p-6 text-left w-1/4 min-w-[220px] align-top">
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-bold text-lg flex items-center justify-center shadow-md">
@@ -289,7 +289,7 @@ export const MarketplaceComparePage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
               {/* KYC Verification */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   KYC Verification Badge
                 </td>
                 {profiles.map((p) => (
@@ -308,7 +308,7 @@ export const MarketplaceComparePage: React.FC = () => {
 
               {/* Experience */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   Years of Experience
                 </td>
                 {profiles.map((p) => (
@@ -320,7 +320,7 @@ export const MarketplaceComparePage: React.FC = () => {
 
               {/* Location */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   Office Location
                 </td>
                 {profiles.map((p) => (
@@ -333,7 +333,7 @@ export const MarketplaceComparePage: React.FC = () => {
 
               {/* Client Rating */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   Average Rating & Reviews
                 </td>
                 {profiles.map((p) => (
@@ -349,7 +349,7 @@ export const MarketplaceComparePage: React.FC = () => {
 
               {/* Starting Package Fee */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   Starting Service Fee
                 </td>
                 {profiles.map((p) => (
@@ -361,7 +361,7 @@ export const MarketplaceComparePage: React.FC = () => {
 
               {/* Hourly Advisory Rate */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   Hourly Advisory Rate
                 </td>
                 {profiles.map((p) => (
@@ -373,7 +373,7 @@ export const MarketplaceComparePage: React.FC = () => {
 
               {/* Consultation Fee */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   30-Min Strategy Consultation
                 </td>
                 {profiles.map((p) => (
@@ -391,7 +391,7 @@ export const MarketplaceComparePage: React.FC = () => {
 
               {/* Specializations */}
               <tr>
-                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30">
+                <td className="p-4 font-bold text-slate-700 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 sticky left-0 z-10 min-w-[180px]">
                   Key Specializations
                 </td>
                 {profiles.map((p) => (
