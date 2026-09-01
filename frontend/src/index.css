@@ -45,6 +45,16 @@
   @apply backdrop-blur-md bg-white/95 border-b border-slate-200/80;
 }
 
+/* Hides scrollbar for horizontally-scrollable tab bars / chip rows on touch devices,
+   while keeping the element natively scrollable (used across filter tabs, wizard steps, etc). */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .taxoryn-gradient-navy {
   background: linear-gradient(135deg, #082E5B 0%, #07152B 50%, #070C1A 100%);
 }

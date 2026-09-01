@@ -31,9 +31,9 @@ export const WorkspacePageHeader: React.FC<WorkspacePageHeaderProps> = ({
   const workspaceLabel = customWorkspaceLabel || workspace?.roleTitle || 'Taxoryn Platform';
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-card">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-card">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className={clsx(
             'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider',
             sectionBadgeStyle || workspace?.badgeStyle || 'bg-purple-100 text-purple-800 border border-purple-200'
@@ -41,12 +41,12 @@ export const WorkspacePageHeader: React.FC<WorkspacePageHeaderProps> = ({
             {sectionBadge}
           </span>
           <span className="text-xs text-slate-400">•</span>
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider break-words">
             {workspaceLabel}
           </span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-2.5">
-          {TitleIcon && <TitleIcon className={clsx('w-7 h-7 sm:w-8 sm:h-8', titleIconColor)} />}
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 flex items-center gap-2.5 break-words">
+          {TitleIcon && <TitleIcon className={clsx('w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 shrink-0', titleIconColor)} />}
           {title}
         </h1>
         {description && (
@@ -55,7 +55,11 @@ export const WorkspacePageHeader: React.FC<WorkspacePageHeaderProps> = ({
           </p>
         )}
       </div>
-      {children && <div className="flex items-center gap-3">{children}</div>}
+      {children && (
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto [&>*]:min-w-0">
+          {children}
+        </div>
+      )}
     </div>
   );
 };

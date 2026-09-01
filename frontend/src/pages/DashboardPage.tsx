@@ -326,7 +326,7 @@ export const DashboardPage: React.FC = () => {
           className="lg:col-span-2"
           noPadding
         >
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 font-semibold text-slate-500 uppercase tracking-wider">
@@ -370,6 +370,40 @@ export const DashboardPage: React.FC = () => {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile card list — avoids forcing horizontal scroll to read workload figures */}
+          <div className="md:hidden">
+            {isLoading ? (
+              <div className="text-center py-8 text-slate-400 text-xs">Loading workload metrics...</div>
+            ) : !dashboard?.employeeWorkload?.length ? (
+              <div className="text-center py-8 text-slate-400 text-xs">No active team workload recorded</div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {dashboard.employeeWorkload.map((emp: any) => (
+                  <li key={emp.employeeId} className="px-4 py-3 text-xs space-y-2">
+                    <div>
+                      <p className="font-semibold text-slate-900">{emp.employeeName}</p>
+                      <p className="text-[10px] text-slate-400">{emp.employeeCode} • {emp.designation} • {emp.department || 'General Tax'}</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                        <p className="text-[10px] text-slate-500">Assigned</p>
+                        <p className="font-bold text-slate-800">{emp.assignedTasks}</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/50">
+                        <p className="text-[10px] text-amber-700">Pending</p>
+                        <p className="font-bold text-amber-800">{emp.pendingTasks}</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-rose-50/70 border border-rose-200/50">
+                        <p className="text-[10px] text-rose-700">Overdue</p>
+                        <p className="font-bold text-rose-800">{emp.overdueTasks}</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </Card>
       </div>
