@@ -19,9 +19,17 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    /* Defensive guard: a stray fixed-width element on any page should never be able
+       to push the whole viewport into horizontal scroll. Intentional horizontal
+       scrolling (wide tables, tab strips) still works via overflow-x-auto on the
+       specific container — this only stops it at the page/document level. */
+    overflow-x: hidden;
+  }
   body {
     @apply bg-slate-50 text-slate-900 antialiased font-sans;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    overflow-x: hidden;
   }
 
   /* Custom scrollbar */
