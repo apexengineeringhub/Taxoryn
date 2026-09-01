@@ -23,6 +23,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
+import { DataTable, Column } from '../components/common/DataTable';
 import { marketplaceAdminApi, marketplacePublicApi, taxServiceAdminApi } from '../api/endpoints';
 import {
   MarketplaceVerification,
@@ -302,6 +303,213 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
     }
   };
 
+  // Verifications Queue — mobile card priority: Organization (title) -> key
+  // identifiers -> Actions (Approve/Reject) as a full-width row at the card bottom.
+  const verificationColumns: Column<MarketplaceVerification>[] = [
+    {
+      header: 'Practice / Organization',
+      cell: (v) => (
+        <div>
+          <div className="font-bold text-slate-900 dark:text-white">{v.organizationName || 'Practice'}</div>
+          <div className="text-[11px] text-slate-400">{new Date(v.createdAt).toLocaleDateString('en-IN')}</div>
+        </div>
+      ),
+    },
+    { header: 'Statutory Body', cell: (v) => <span className="font-semibold text-slate-700 dark:text-slate-300">{v.professionalBody}</span> },
+    { header: 'Membership No. (MRN)', cell: (v) => <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{v.membershipNumber}</span> },
+    {
+      header: 'COP / FRN',
+      cell: (v) => (
+        <span className="text-slate-600 dark:text-slate-400">
+          {v.copNumber ? `COP: ${v.copNumber}` : ''} {v.firmRegistrationNumber ? `| FRN: ${v.firmRegistrationNumber}` : ''}
+        </span>
+      ),
+    },
+    {
+      header: 'Certificate Document',
+      cell: (v) =>
+        v.documentUrl ? (
+          <a
+            href={v.documentUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-indigo-600 hover:underline font-semibold"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>View Certificate</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <span className="text-slate-400">Self-attested</span>
+        ),
+    },
+    {
+      header: 'Actions',
+      align: 'right',
+      cell: (v) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={isProcessing}
+            onClick={() => handleApproveVerification(v)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+            Approve Verified Badge
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isProcessing}
+            onClick={() => setRejectingItem(v)}
+            className="text-rose-600 hover:bg-rose-50 rounded-xl text-xs"
+          >
+            <XCircle className="w-3.5 h-3.5 mr-1" />
+            Reject
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  // Directory Listings — no dedicated "Actions" header (Featured/Publish are inline
+  // toggle buttons), so the mobile card lists them as normal detail rows.
+  const listingColumns: Column<MarketplaceProfile>[] = [
+    {
+      header: 'Firm Profile',
+      cell: (p) => (
+        <div>
+          <div className="font-bold text-slate-900 dark:text-white">{p.displayName}</div>
+          <div className="text-[11px] text-slate-400">{p.slug}</div>
+        </div>
+      ),
+    },
+    { header: 'City / State', cell: (p) => <span className="text-slate-600 dark:text-slate-300">{p.city}, {p.state}</span> },
+    { header: 'Designation', cell: (p) => <span className="text-slate-600 dark:text-slate-300">{p.professionalType?.replace(/_/g, ' ')}</span> },
+    {
+      header: 'Rating',
+      cell: (p) => (
+        <span className="font-bold text-amber-500 inline-flex items-center gap-1">
+          <Star className="w-3.5 h-3.5 fill-current" />
+          <span>{p.averageRating}</span>
+        </span>
+      ),
+    },
+    {
+      header: 'Verified',
+      cell: (p) => (
+        <span
+          className={clsx(
+            'px-2 py-0.5 rounded text-[10px] font-bold',
+            p.verificationStatus === 'VERIFIED' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+          )}
+        >
+          {p.verificationStatus}
+        </span>
+      ),
+    },
+    {
+      header: 'Featured',
+      cell: (p) => (
+        <button
+          onClick={() => handleToggleFeatured(p.id, p.isFeatured)}
+          className={clsx(
+            'px-2.5 py-1.5 sm:py-1 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1',
+            p.isFeatured ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
+          )}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          {p.isFeatured ? 'Featured' : 'Standard'}
+        </button>
+      ),
+    },
+    {
+      header: 'Publish State',
+      cell: (p) => (
+        <button
+          onClick={() => handleTogglePublish(p.id, p.isPublished)}
+          className={clsx(
+            'px-2.5 py-1.5 sm:py-1 rounded-xl text-xs font-bold transition-all',
+            p.isPublished
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+          )}
+        >
+          {p.isPublished ? 'Published' : 'Hidden / Suspended'}
+        </button>
+      ),
+    },
+  ];
+
+  // Tax Services Master — title is the service name (more identifying than the raw
+  // code), with code, category, aliases and sort order as secondary detail rows.
+  const filteredServices = services
+    .filter((s) => selectedCatFilter === 'ALL' || s.categoryId === selectedCatFilter)
+    .filter((s) => {
+      if (!serviceSearch) return true;
+      const q = serviceSearch.toLowerCase();
+      return s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || (s.description && s.description.toLowerCase().includes(q));
+    });
+
+  const serviceColumns: Column<TaxService>[] = [
+    {
+      header: 'Service Title & Description',
+      cell: (s) => (
+        <div className="max-w-xs">
+          <div className="font-bold text-slate-900 dark:text-white">{s.name}</div>
+          {s.description && <div className="text-[11px] text-slate-500 line-clamp-1">{s.description}</div>}
+        </div>
+      ),
+    },
+    { header: 'Service Code', cell: (s) => <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{s.code}</span> },
+    {
+      header: 'Category',
+      cell: (s) => (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+          {s.categoryName || categories.find((c) => c.id === s.categoryId)?.name || 'Category'}
+        </span>
+      ),
+    },
+    {
+      header: 'Aliases',
+      cell: (s) => (
+        <button
+          onClick={() => handleOpenAliasesModal(s)}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition"
+        >
+          <Tag className="w-3 h-3" />
+          <span>Manage Aliases</span>
+        </button>
+      ),
+    },
+    { header: 'Sort', cell: (s) => <span className="font-mono text-slate-500 font-semibold">{s.sortOrder}</span> },
+    {
+      header: 'Status',
+      cell: (s) => (
+        <button
+          onClick={() => handleToggleServiceStatus(s)}
+          className={clsx(
+            'px-2.5 py-1.5 sm:py-1 rounded-xl text-xs font-bold transition-all',
+            s.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+          )}
+        >
+          {s.isActive ? 'Active' : 'Inactive'}
+        </button>
+      ),
+    },
+    {
+      header: 'Actions',
+      align: 'right',
+      cell: (s) => (
+        <Button variant="outline" size="sm" onClick={() => handleOpenEditService(s)} className="text-xs">
+          <Edit2 className="w-3.5 h-3.5 mr-1" />
+          Edit
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       {/* Platform Admin Header */}
@@ -356,11 +564,11 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
       </div>
 
       {/* Nav Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('VERIFICATIONS')}
           className={clsx(
-            'px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2',
+            'px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap shrink-0',
             activeTab === 'VERIFICATIONS'
               ? 'bg-indigo-600 text-white shadow-md'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -373,7 +581,7 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
         <button
           onClick={() => setActiveTab('LISTINGS')}
           className={clsx(
-            'px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2',
+            'px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap shrink-0',
             activeTab === 'LISTINGS'
               ? 'bg-indigo-600 text-white shadow-md'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -386,7 +594,7 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
         <button
           onClick={() => setActiveTab('TAX_SERVICES_MASTER')}
           className={clsx(
-            'px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2',
+            'px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap shrink-0',
             activeTab === 'TAX_SERVICES_MASTER'
               ? 'bg-indigo-600 text-white shadow-md'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -407,75 +615,11 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
               <p className="text-xs text-slate-500">All submitted practitioner credentials have been processed.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider">
-                    <th className="p-4">Practice / Organization</th>
-                    <th className="p-4">Statutory Body</th>
-                    <th className="p-4">Membership No. (MRN)</th>
-                    <th className="p-4">COP / FRN</th>
-                    <th className="p-4">Certificate Document</th>
-                    <th className="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {verifications.map((v) => (
-                    <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="p-4">
-                        <div className="font-bold text-slate-900 dark:text-white">{v.organizationName || 'Practice'}</div>
-                        <div className="text-[11px] text-slate-400">{new Date(v.createdAt).toLocaleDateString('en-IN')}</div>
-                      </td>
-                      <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">{v.professionalBody}</td>
-                      <td className="p-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">{v.membershipNumber}</td>
-                      <td className="p-4 text-slate-600 dark:text-slate-400">
-                        {v.copNumber ? `COP: ${v.copNumber}` : ''} {v.firmRegistrationNumber ? `| FRN: ${v.firmRegistrationNumber}` : ''}
-                      </td>
-                      <td className="p-4">
-                        {v.documentUrl ? (
-                          <a
-                            href={v.documentUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-indigo-600 hover:underline font-semibold"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>View Certificate</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        ) : (
-                          <span className="text-slate-400">Self-attested</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            disabled={isProcessing}
-                            onClick={() => handleApproveVerification(v)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                            Approve Verified Badge
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={isProcessing}
-                            onClick={() => setRejectingItem(v)}
-                            className="text-rose-600 hover:bg-rose-50 rounded-xl text-xs"
-                          >
-                            <XCircle className="w-3.5 h-3.5 mr-1" />
-                            Reject
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<MarketplaceVerification>
+              columns={verificationColumns}
+              data={verifications}
+              searchPlaceholder="Search practice, MRN, COP/FRN..."
+            />
           )}
         </div>
       )}
@@ -483,76 +627,11 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
       {/* Tab 2: Directory Listings & Featured Toggle */}
       {activeTab === 'LISTINGS' && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="p-4">Firm Profile</th>
-                  <th className="p-4">City / State</th>
-                  <th className="p-4">Designation</th>
-                  <th className="p-4">Rating</th>
-                  <th className="p-4">Verified</th>
-                  <th className="p-4">Featured</th>
-                  <th className="p-4">Publish State</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {profiles.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                    <td className="p-4">
-                      <div className="font-bold text-slate-900 dark:text-white">{p.displayName}</div>
-                      <div className="text-[11px] text-slate-400">{p.slug}</div>
-                    </td>
-                    <td className="p-4 text-slate-600 dark:text-slate-300">{p.city}, {p.state}</td>
-                    <td className="p-4 text-slate-600 dark:text-slate-300">{p.professionalType?.replace(/_/g, ' ')}</td>
-                    <td className="p-4 font-bold text-amber-500 flex items-center gap-1">
-                      <Star className="w-3.5 h-3.5 fill-current" />
-                      <span>{p.averageRating}</span>
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={clsx(
-                          'px-2 py-0.5 rounded text-[10px] font-bold',
-                          p.verificationStatus === 'VERIFIED'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-slate-100 text-slate-500'
-                        )}
-                      >
-                        {p.verificationStatus}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <button
-                        onClick={() => handleToggleFeatured(p.id, p.isFeatured)}
-                        className={clsx(
-                          'px-2.5 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1',
-                          p.isFeatured
-                            ? 'bg-amber-500 text-white shadow-sm'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
-                        )}
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {p.isFeatured ? 'Featured' : 'Standard'}
-                      </button>
-                    </td>
-                    <td className="p-4">
-                      <button
-                        onClick={() => handleTogglePublish(p.id, p.isPublished)}
-                        className={clsx(
-                          'px-2.5 py-1 rounded-xl text-xs font-bold transition-all',
-                          p.isPublished
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        )}
-                      >
-                        {p.isPublished ? 'Published' : 'Hidden / Suspended'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<MarketplaceProfile>
+            columns={listingColumns}
+            data={profiles}
+            searchPlaceholder="Search firm name, city..."
+          />
         </div>
       )}
 
@@ -670,85 +749,13 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Services Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider">
-                    <th className="p-3.5">Service Code</th>
-                    <th className="p-3.5">Service Title & Description</th>
-                    <th className="p-3.5">Category</th>
-                    <th className="p-3.5">Aliases</th>
-                    <th className="p-3.5">Sort</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {services
-                    .filter((s) => selectedCatFilter === 'ALL' || s.categoryId === selectedCatFilter)
-                    .filter((s) => {
-                      if (!serviceSearch) return true;
-                      const q = serviceSearch.toLowerCase();
-                      return s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || (s.description && s.description.toLowerCase().includes(q));
-                    })
-                    .map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                        <td className="p-3.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                          {s.code}
-                        </td>
-                        <td className="p-3.5 max-w-xs">
-                          <div className="font-bold text-slate-900 dark:text-white">{s.name}</div>
-                          {s.description && (
-                            <div className="text-[11px] text-slate-500 line-clamp-1">{s.description}</div>
-                          )}
-                        </td>
-                        <td className="p-3.5">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                            {s.categoryName || categories.find((c) => c.id === s.categoryId)?.name || 'Category'}
-                          </span>
-                        </td>
-                        <td className="p-3.5">
-                          <button
-                            onClick={() => handleOpenAliasesModal(s)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition"
-                          >
-                            <Tag className="w-3 h-3" />
-                            <span>Manage Aliases</span>
-                          </button>
-                        </td>
-                        <td className="p-3.5 font-mono text-slate-500 font-semibold">
-                          {s.sortOrder}
-                        </td>
-                        <td className="p-3.5">
-                          <button
-                            onClick={() => handleToggleServiceStatus(s)}
-                            className={clsx(
-                              'px-2.5 py-1 rounded-xl text-xs font-bold transition-all',
-                              s.isActive
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            )}
-                          >
-                            {s.isActive ? 'Active' : 'Inactive'}
-                          </button>
-                        </td>
-                        <td className="p-3.5 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenEditService(s)}
-                            className="text-xs"
-                          >
-                            <Edit2 className="w-3.5 h-3.5 mr-1" />
-                            Edit
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+            {/* Services Table — shared DataTable gives mobile-card layout;
+                filtering/search stays in the toolbar above (not duplicated here). */}
+            <DataTable<TaxService>
+              columns={serviceColumns}
+              data={filteredServices}
+              hideSearch
+            />
           </div>
         </div>
       )}
