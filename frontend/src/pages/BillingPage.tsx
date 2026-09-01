@@ -1320,9 +1320,10 @@ export const BillingPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Service Line Items Table */}
+              {/* Service Line Items Table — intentionally wide (invoice document preview); scrolls horizontally on narrow screens rather than clipping columns */}
               <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <table className="w-full border-collapse text-xs">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
                       <th className="p-2 text-center border-r border-slate-200 w-10">#</th>
@@ -1367,6 +1368,7 @@ export const BillingPage: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {/* Totals & Tax Calculation Breakdown */}

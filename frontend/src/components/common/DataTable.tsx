@@ -17,6 +17,9 @@ interface DataTableProps<T> {
   isLoading?: boolean;
   searchPlaceholder?: string;
   onSearch?: (query: string) => void;
+  /** Hide the built-in search box — use when the page already has its own
+      search/filter toolbar above the table, to avoid showing two search inputs. */
+  hideSearch?: boolean;
   actions?: React.ReactNode;
   totalElements?: number;
   pageSize?: number;
@@ -33,6 +36,7 @@ export function DataTable<T extends { id?: string | number }>({
   isLoading = false,
   searchPlaceholder = 'Search records...',
   onSearch,
+  hideSearch = false,
   actions,
   totalElements = 0,
   pageSize = 10,
@@ -94,16 +98,20 @@ export function DataTable<T extends { id?: string | number }>({
     <div className="bg-white border border-slate-200/90 rounded-xl shadow-card overflow-hidden flex flex-col">
       {/* Table Toolbar */}
       <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/40">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder={searchPlaceholder}
-            className="w-full pl-9 pr-4 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
-          />
-        </div>
+        {!hideSearch ? (
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder={searchPlaceholder}
+              className="w-full pl-9 pr-4 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+            />
+          </div>
+        ) : (
+          <div />
+        )}
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <button

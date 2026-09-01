@@ -1386,32 +1386,34 @@ export const PlatformContentManagementPage: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Service Code</th>
-                  <th className="py-3 px-4">Service Name</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Description</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {masterTaxServices.map((svc) => (
-                  <tr key={svc.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-mono text-xs text-slate-700 font-semibold">{svc.code}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">{svc.name}</td>
-                    <td className="py-3 px-4 text-xs text-slate-600">{svc.categoryName || svc.category}</td>
-                    <td className="py-3 px-4 text-xs text-slate-500 max-w-xs truncate">{svc.description}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                        ACTIVE
-                      </span>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Service Code</th>
+                    <th className="py-3 px-4">Service Name</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Description</th>
+                    <th className="py-3 px-4 text-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {masterTaxServices.map((svc) => (
+                    <tr key={svc.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-4 font-mono text-xs text-slate-700 font-semibold">{svc.code}</td>
+                      <td className="py-3 px-4 font-semibold text-slate-900">{svc.name}</td>
+                      <td className="py-3 px-4 text-xs text-slate-600">{svc.categoryName || svc.category}</td>
+                      <td className="py-3 px-4 text-xs text-slate-500 max-w-xs truncate">{svc.description}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                          ACTIVE
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

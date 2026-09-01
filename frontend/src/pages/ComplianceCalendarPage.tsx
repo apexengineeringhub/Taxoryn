@@ -244,10 +244,13 @@ export const ComplianceCalendarPage: React.FC = () => {
           className="lg:col-span-2"
           noPadding
         >
-          <div className="p-4 grid grid-cols-7 gap-px bg-slate-200 text-center text-xs font-semibold">
+          {/* Compact 7-column grid: cell height/padding/labels scale down on mobile
+              instead of squeezing full desktop cell content into ~45px-wide columns. */}
+          <div className="p-2 sm:p-4 grid grid-cols-7 gap-px bg-slate-200 text-center text-xs font-semibold">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-              <div key={d} className="bg-slate-50 py-2 text-slate-500 font-bold uppercase text-[10px]">
-                {d}
+              <div key={d} className="bg-slate-50 py-1.5 sm:py-2 text-slate-500 font-bold uppercase text-[8px] sm:text-[10px]">
+                <span className="sm:hidden">{d.charAt(0)}</span>
+                <span className="hidden sm:inline">{d}</span>
               </div>
             ))}
             {/* Days 1 to 31 */}
@@ -259,18 +262,23 @@ export const ComplianceCalendarPage: React.FC = () => {
               return (
                 <div
                   key={i}
+                  title={hasPreset ? `${hasPreset.title}: ${hasPreset.desc}` : undefined}
                   className={clsx(
-                    'bg-white min-h-[95px] p-2 text-left flex flex-col justify-between transition-colors hover:bg-slate-50/80',
+                    'bg-white min-h-[44px] sm:min-h-[95px] p-1 sm:p-2 text-left flex flex-col justify-between transition-colors hover:bg-slate-50/80',
                     !isCurrentMonth && 'bg-slate-50/40 text-slate-300'
                   )}
                 >
-                  <span className={clsx('text-xs font-bold', hasPreset ? 'text-brand-600' : 'text-slate-700')}>
+                  <span className={clsx('text-[10px] sm:text-xs font-bold', hasPreset ? 'text-brand-600' : 'text-slate-700')}>
                     {isCurrentMonth ? dayNum : ''}
                   </span>
                   {hasPreset && (
-                    <div className="p-1 rounded bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-900 truncate">
-                      {hasPreset.title}
-                    </div>
+                    <>
+                      {/* Mobile: dot indicator only, avoids clipped/illegible chip text at ~45px cell width */}
+                      <span className="sm:hidden self-start w-1.5 h-1.5 rounded-full bg-amber-500" aria-label={hasPreset.title} />
+                      <div className="hidden sm:block p-1 rounded bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-900 truncate">
+                        {hasPreset.title}
+                      </div>
+                    </>
                   )}
                 </div>
               );
