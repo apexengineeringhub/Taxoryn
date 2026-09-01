@@ -137,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   return (
     <aside
       className={clsx(
-        'w-64 border-r flex flex-col h-screen select-none shrink-0 transition-transform duration-300',
+        'w-64 border-r flex flex-col h-dvh select-none shrink-0 transition-transform duration-300',
         // Below lg: fixed slide-in drawer, off-screen unless isOpen. At lg+: always visible, static.
         'fixed inset-y-0 left-0 z-50 lg:static lg:translate-x-0',
         isOpen ? 'translate-x-0' : '-translate-x-full',
@@ -193,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         <button
           onClick={onClose}
           className={clsx(
-            'lg:hidden p-1.5 rounded-md shrink-0 transition-colors',
+            'lg:hidden p-2 -mr-1 rounded-md shrink-0 transition-colors',
             isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-white/10'
           )}
         >

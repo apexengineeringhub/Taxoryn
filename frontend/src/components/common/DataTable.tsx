@@ -270,7 +270,7 @@ export function DataTable<T extends { id?: string | number }>({
             <button
               disabled={pageNumber === 0}
               onClick={() => onPageChange && onPageChange(pageNumber - 1)}
-              className="p-1 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-2 sm:p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -280,7 +280,7 @@ export function DataTable<T extends { id?: string | number }>({
             <button
               disabled={pageNumber + 1 >= totalPages}
               onClick={() => onPageChange && onPageChange(pageNumber + 1)}
-              className="p-1 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-2 sm:p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

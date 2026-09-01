@@ -667,7 +667,7 @@ export const TdsCompliancePage: React.FC = () => {
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200 dark:border-slate-700">
                   <tr>
@@ -725,6 +725,60 @@ export const TdsCompliancePage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card representation — preserves the financial detail hierarchy instead of forcing horizontal scroll across 7 dense columns */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {challans.length === 0 ? (
+                <div className="py-8 text-center text-slate-500 text-sm px-4">
+                  No ITNS 281 Challans recorded yet for this period.
+                </div>
+              ) : (
+                challans.map((c) => (
+                  <div key={c.id} className="p-4 space-y-2.5 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono font-semibold text-slate-900 dark:text-white truncate">
+                          {c.cin || `${c.bsrCode}${c.challanDate.replace(/-/g, '')}${c.challanSerialNo}`}
+                        </p>
+                        <p className="text-slate-500 font-mono">BSR: {c.bsrCode} | Ser: {c.challanSerialNo}</p>
+                      </div>
+                      <span className={clsx(
+                        'shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded',
+                        c.challanStatus === 'FULLY_UTILIZED' ? 'bg-emerald-50 text-emerald-700' :
+                        c.challanStatus === 'PARTIALLY_UTILIZED' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                      )}>
+                        {c.challanStatus}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{c.clientName || 'Practice Client'}</span>
+                      <span className="font-mono text-slate-500">{c.tan}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Deposit Date</p>
+                        <p className="text-slate-700 dark:text-slate-300 font-medium">{c.challanDate}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Section</p>
+                        <span className="inline-block px-1.5 py-0.2 text-[10px] font-semibold rounded bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                          Sec {c.sectionCode}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Total Amount</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">₹{(c.totalAmount || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Utilized / Balance</p>
+                        <p className="text-emerald-600 font-medium">₹{(c.utilizedAmount || 0).toLocaleString('en-IN')} used</p>
+                        <p className="text-slate-500">₹{(c.balanceAmount || 0).toLocaleString('en-IN')} left</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -900,8 +954,8 @@ export const TdsCompliancePage: React.FC = () => {
               <p className="text-xs text-slate-500">Standard rates, exemption threshold limits, and form mappings under the Income Tax Act, 1961</p>
             </div>
 
-            <div className="overflow-y-auto max-h-[600px] border border-slate-200 dark:border-slate-700 rounded-xl">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto overflow-y-auto max-h-[600px] border border-slate-200 dark:border-slate-700 rounded-xl">
+              <table className="w-full min-w-[640px] text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 font-semibold text-slate-500 border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="py-2.5 px-3">Section</th>

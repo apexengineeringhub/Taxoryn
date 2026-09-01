@@ -215,7 +215,7 @@ export const NotificationBellDropdown: React.FC = () => {
 
       {/* Floating Popover Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-96 max-w-full sm:max-w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Header */}
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -332,7 +332,7 @@ export const NotificationBellDropdown: React.FC = () => {
                           type="button"
                           title="Mark as read"
                           onClick={(e) => handleMarkAsRead(notif.id, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 rounded text-slate-500 transition-opacity"
+                          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 hover:bg-slate-200 rounded text-slate-500 transition-opacity"
                         >
                           <Check className="w-3 h-3" />
                         </button>

@@ -302,13 +302,13 @@ export const ClientsPage: React.FC = () => {
           </p>
         </div>
         {!isStaff && (
-          <div className="flex items-center gap-2.5">
-            <Link to="/clients/migration">
-              <Button variant="outline" leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}>
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            <Link to="/clients/migration" className="w-full sm:w-auto">
+              <Button variant="outline" leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />} className="w-full sm:w-auto justify-center">
                 Migrate / Bulk Import
               </Button>
             </Link>
-            <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
+            <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
               Add New Client
             </Button>
           </div>
@@ -335,11 +335,11 @@ export const ClientsPage: React.FC = () => {
       )}
 
       {/* Lifecycle Status Filter Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl w-fit text-xs font-semibold">
+      <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl w-full sm:w-fit text-xs font-semibold overflow-x-auto no-scrollbar">
         <button
           onClick={() => setStatusFilter('ALL')}
           className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all',
+            'px-3 py-1.5 rounded-lg transition-all shrink-0',
             statusFilter === 'ALL' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
           )}
         >
@@ -348,7 +348,7 @@ export const ClientsPage: React.FC = () => {
         <button
           onClick={() => setStatusFilter('ACTIVE')}
           className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
             statusFilter === 'ACTIVE' ? 'bg-white text-emerald-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
           )}
         >
@@ -358,7 +358,7 @@ export const ClientsPage: React.FC = () => {
         <button
           onClick={() => setStatusFilter('INACTIVE')}
           className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
             statusFilter === 'INACTIVE' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
           )}
         >
@@ -368,7 +368,7 @@ export const ClientsPage: React.FC = () => {
         <button
           onClick={() => setStatusFilter('SUSPENDED')}
           className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
             statusFilter === 'SUSPENDED' ? 'bg-white text-rose-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
           )}
         >
@@ -378,7 +378,7 @@ export const ClientsPage: React.FC = () => {
         <button
           onClick={() => setStatusFilter('ARCHIVED')}
           className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5',
+            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
             statusFilter === 'ARCHIVED' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
           )}
         >

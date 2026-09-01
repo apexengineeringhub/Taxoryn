@@ -7,7 +7,7 @@ export const AppShell: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50">
+    <div className="flex h-dvh w-screen overflow-hidden bg-slate-50">
       {/* Mobile backdrop — click to close the sidebar drawer */}
       {sidebarOpen && (
         <div
