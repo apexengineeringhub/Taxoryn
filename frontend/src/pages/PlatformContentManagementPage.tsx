@@ -902,7 +902,7 @@ export const PlatformContentManagementPage: React.FC = () => {
         <div className="space-y-4">
           {/* Search & Filters */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[240px]">
+            <div className="relative flex-1 min-w-0 sm:min-w-[240px] w-full sm:w-auto">
               <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
