@@ -264,7 +264,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                     onboardings.map((onb) => (
                       <tr key={onb.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-semibold text-gray-900">{onb.clientName}</div>
+                          <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight">{onb.clientName}</div>
                           <div className="text-xs text-gray-500">{onb.clientEmail} • {onb.clientPhone}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -338,7 +338,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                   <div key={onb.id} className="p-4 space-y-2.5 text-xs hover:bg-gray-50/70 transition-colors">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-bold text-gray-900 text-sm">{onb.clientName}</div>
+                        <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight">{onb.clientName}</div>
                         <div className="text-[11px] text-gray-500 mt-0.5">{onb.clientEmail} • {onb.clientPhone}</div>
                       </div>
                       <div className="shrink-0">{getStatusBadge(onb.onboardingStatus)}</div>
@@ -415,7 +415,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                         <div className="text-xs text-gray-500">Timeline: {prop.estimatedTimelineDays} days</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{prop.clientName || 'Prospect'}</div>
+                        <div className="text-sm sm:text-base font-bold text-gray-900 leading-tight">{prop.clientName || 'Prospect'}</div>
                         <div className="text-xs text-gray-500">{prop.clientEmail}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

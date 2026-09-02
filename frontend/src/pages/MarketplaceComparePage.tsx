@@ -255,8 +255,8 @@ export const MarketplaceComparePage: React.FC = () => {
                         )}
                       </div>
                       <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white">{p.displayName}</h3>
-                        <p className="text-xs text-slate-500">{p.professionalType?.replace(/_/g, ' ')}</p>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight tracking-tight break-words">{p.displayName}</h3>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">{p.professionalType?.replace(/_/g, ' ')}</p>
                       </div>
 
                       {/* Header Conversion CTAs */}

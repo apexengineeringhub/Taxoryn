@@ -456,7 +456,7 @@ export const MarketplaceLeadsPage: React.FC = () => {
                             <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
                               {enquiry.referenceNumber}
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-white text-sm">{enquiry.clientName}</span>
+                            <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">{enquiry.clientName}</span>
                           </div>
                           <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
                             <span>{enquiry.clientEmail}</span>
@@ -656,7 +656,7 @@ export const MarketplaceLeadsPage: React.FC = () => {
                         <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
                           {enquiry.referenceNumber}
                         </span>
-                        <span className="font-bold text-slate-900 dark:text-white text-sm">{enquiry.clientName}</span>
+                        <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">{enquiry.clientName}</span>
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
                         {enquiry.clientEmail} • {enquiry.clientPhone} {enquiry.city ? `• ${enquiry.city}` : ''}

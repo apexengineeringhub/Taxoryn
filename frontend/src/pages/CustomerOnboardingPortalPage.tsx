@@ -221,7 +221,7 @@ export const CustomerOnboardingPortalPage: React.FC = () => {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
             <Lock className="w-3.5 h-3.5" /> 256-Bit Encrypted Client Onboarding
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight break-words leading-tight">
             {proposal?.practiceDisplayName || onboarding?.practiceDisplayName || 'Taxoryn Certified Practice'}
           </h1>
           <p className="text-sm text-gray-500">

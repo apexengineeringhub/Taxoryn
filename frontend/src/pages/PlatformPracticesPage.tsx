@@ -166,7 +166,7 @@ export const PlatformPracticesPage: React.FC = () => {
                 filteredPractices.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-5 py-3.5">
-                      <div className="font-bold text-slate-900 text-sm">{p.name}</div>
+                      <div className="font-bold text-slate-900 text-sm sm:text-base leading-tight">{p.name}</div>
                       <div className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {p.id.substring(0, 8)}...</div>
                     </td>
                     <td className="px-4 py-3.5">
@@ -240,7 +240,7 @@ export const PlatformPracticesPage: React.FC = () => {
               <div key={p.id} className="p-4 space-y-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h4 className="font-bold text-slate-900 text-sm">{p.name}</h4>
+                    <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">{p.name}</h4>
                     <div className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {p.id.substring(0, 8)}...</div>
                   </div>
                   <span className={clsx(

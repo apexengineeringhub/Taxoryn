@@ -247,13 +247,13 @@ export const MarketplaceProfileDetailPage: React.FC = () => {
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-extrabold text-3xl sm:text-4xl flex items-center justify-center shadow-xl shrink-0">
                 {profile.displayName.charAt(0)}
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0 flex-1">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight break-words leading-tight">
                     {profile.displayName}
                   </h1>
                   {profile.verificationStatus === 'VERIFIED' && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 shadow-sm shrink-0">
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
                       ICAI / ICSI Verified Practice
                     </span>

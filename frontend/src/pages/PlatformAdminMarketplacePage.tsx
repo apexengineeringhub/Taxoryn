@@ -380,7 +380,7 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
       header: 'Firm Profile',
       cell: (p) => (
         <div>
-          <div className="font-bold text-slate-900 dark:text-white">{p.displayName}</div>
+          <div className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">{p.displayName}</div>
           <div className="text-[11px] text-slate-400">{p.slug}</div>
         </div>
       ),

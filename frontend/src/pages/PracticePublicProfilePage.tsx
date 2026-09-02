@@ -450,29 +450,29 @@ export const PracticePublicProfilePage: React.FC = () => {
               </div>
 
               {/* Title & Trust Badges */}
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight break-words leading-tight">
                     {profile.displayName}
                   </h1>
                   {isVerified ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                       {isProfessionalRoute ? 'Verified Tax Professional' : 'Verified Practice'}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
                       Verification Pending
                     </span>
                   )}
                   {profile.isFeatured && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
                       <Sparkles className="w-3 h-3" /> Featured
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm sm:text-base text-slate-600 max-w-2xl font-normal">
+                <p className="text-sm sm:text-base text-slate-600 max-w-2xl font-normal leading-relaxed">
                   {profile.headline || 'Chartered Accountants & Certified Indian Tax Advisory Firm'}
                 </p>
 
