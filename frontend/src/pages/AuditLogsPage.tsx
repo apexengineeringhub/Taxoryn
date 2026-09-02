@@ -225,10 +225,11 @@ export const AuditLogsPage: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. Audit Records Table                                                    */}
+      {/* 3. Audit Records Table & Mobile Cards                                     */}
       {/* ========================================================================= */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop / Tablet Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80 font-bold text-slate-500 uppercase tracking-wider">
@@ -367,11 +368,101 @@ export const AuditLogsPage: React.FC = () => {
           </table>
         </div>
 
+        {/* Mobile Card Representation */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {isLoading ? (
+            <div className="py-12 text-center text-slate-400">
+              <RefreshCw className="w-5 h-5 animate-spin text-purple-600 mx-auto mb-2" />
+              <span className="font-semibold text-xs text-slate-500">Loading audit records...</span>
+            </div>
+          ) : errorMessage ? (
+            <div className="py-12 text-center text-slate-500 px-4">
+              <AlertCircle className="w-6 h-6 text-rose-500 mx-auto mb-2" />
+              <span className="font-bold text-xs text-slate-800">{errorMessage}</span>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="py-12 text-center text-slate-500 px-4">
+              <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                <Activity className="w-5 h-5" />
+              </div>
+              <span className="font-bold text-xs text-slate-800">No audit activity yet</span>
+              <p className="text-slate-400 text-[11px] max-w-xs mx-auto mt-1">
+                Platform activity will appear here when administrative or security actions occur.
+              </p>
+            </div>
+          ) : (
+            logs.map((logItem) => (
+              <div
+                key={logItem.id}
+                onClick={() => setSelectedLog(logItem)}
+                className="p-4 space-y-2.5 text-xs hover:bg-slate-50/70 transition-colors cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-900 truncate">
+                      {logItem.displayAction || formatDisplayAction(logItem)}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-slate-500 text-[11px]">
+                      <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>{formatDateTime(logItem.timestamp || logItem.createdAt)}</span>
+                    </div>
+                  </div>
+                  <span className={clsx(
+                    'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1',
+                    logItem.status === 'ALERT' || logItem.severity === 'WARNING' || logItem.severity === 'CRITICAL'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  )}>
+                    <span className={clsx(
+                      'w-1.5 h-1.5 rounded-full',
+                      logItem.status === 'ALERT' || logItem.severity === 'WARNING' || logItem.severity === 'CRITICAL'
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                    )}></span>
+                    {logItem.status || 'SUCCESS'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block font-medium uppercase text-[10px]">Actor</span>
+                    <span className="font-bold text-slate-800 truncate block">
+                      {logItem.actorName || logItem.actor || 'System'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-medium uppercase text-[10px]">Target / Practice</span>
+                    <span className="font-bold text-slate-800 truncate block">
+                      {logItem.practiceName || logItem.organizationName || logItem.targetDisplayName || 'Platform Global'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+                  <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 truncate">
+                    {logItem.action}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLog(logItem);
+                    }}
+                    className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-all"
+                  >
+                    <span>View Details</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
         {/* ========================================================================= */}
         {/* 4. Pagination Footer                                                     */}
         {/* ========================================================================= */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span>Rows per page:</span>
             <select
               value={pageSize}
@@ -425,7 +516,7 @@ export const AuditLogsPage: React.FC = () => {
         {selectedLog && (
           <div className="space-y-4 text-xs">
             {/* Meta Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Target / Practice</span>
                 <span className="font-bold text-slate-900 mt-0.5 block truncate">

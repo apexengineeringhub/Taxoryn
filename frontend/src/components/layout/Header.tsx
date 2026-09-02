@@ -58,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="relative w-full max-w-[8rem] xs:max-w-[10rem] sm:max-w-none sm:w-64 md:w-80 min-w-0">
+        <div className="relative w-full max-w-[9rem] sm:max-w-none sm:w-64 md:w-80 min-w-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
