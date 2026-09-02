@@ -90,7 +90,7 @@ export function getTenantSubdomain(hostname: string = typeof window !== 'undefin
 /**
  * Constructs a fully qualified practitioner tenant URL.
  * In production: https://{slug}.taxoryn.com{path}
- * In local/dev:  http://{slug}.localhost:5173{path} (or fallback to /practice/{slug}{path})
+ * In local/dev:  http://localhost:5173/?tenant={slug} or http://{slug}.localhost:5173{path}
  */
 export function buildTenantSubdomainUrl(slug?: string | null, path: string = ''): string {
   if (!slug) {
@@ -108,8 +108,15 @@ export function buildTenantSubdomainUrl(slug?: string | null, path: string = '')
   const protocol = window.location.protocol;
   const port = window.location.port ? `:${window.location.port}` : '';
 
-  // Local development
-  if (hostname.includes('localhost') || hostname === '127.0.0.1') {
+  // Local development: provide working link
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    if (normalizedPath && normalizedPath !== '/') {
+      return `${protocol}//${hostname}${port}${normalizedPath}?tenant=${cleanSlug}`;
+    }
+    return `${protocol}//${hostname}${port}/?tenant=${cleanSlug}`;
+  }
+
+  if (hostname.endsWith('.localhost')) {
     return `${protocol}//${cleanSlug}.localhost${port}${normalizedPath === '/' ? '' : normalizedPath}`;
   }
 
@@ -122,6 +129,17 @@ export function buildTenantSubdomainUrl(slug?: string | null, path: string = '')
 
   // Default Taxoryn Cloud URL
   return `https://${cleanSlug}.taxoryn.com${normalizedPath === '/' ? '' : normalizedPath}`;
+}
+
+/**
+ * Returns the exact production subdomain URL regardless of current environment.
+ * E.g. "https://apex.taxoryn.com"
+ */
+export function getProductionSubdomainUrl(slug?: string | null, path: string = ''): string {
+  if (!slug) return 'https://taxoryn.com';
+  const cleanSlug = slug.trim().toLowerCase();
+  const normalizedPath = path.startsWith('/') ? path : (path ? `/${path}` : '');
+  return `https://${cleanSlug}.taxoryn.com${normalizedPath}`;
 }
 
 /**
@@ -147,3 +165,4 @@ export function buildPracticePathUrl(slug?: string | null, queryParams?: Record<
   const sp = new URLSearchParams(queryParams);
   return `${target}?${sp.toString()}`;
 }
+
