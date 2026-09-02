@@ -10,7 +10,11 @@ import {
   Camera,
   Sun,
   Moon,
+  Globe,
+  Link as LinkIcon,
+  ExternalLink,
 } from 'lucide-react';
+import { formatTenantDisplayUrl, buildTenantSubdomainUrl } from '../utils/tenantUrl';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
@@ -226,6 +230,18 @@ export const PracticeBrandingPage: React.FC = () => {
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
               <span className="text-slate-500">Practice Entity:</span>
               <span className="font-bold text-slate-900 truncate max-w-[160px]">{practiceName}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between">
+              <span className="text-indigo-700 font-medium">Tenant Domain:</span>
+              <a
+                href={buildTenantSubdomainUrl(user?.organizationId ? 'apex' : 'practice')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono font-bold text-indigo-700 hover:text-indigo-900 truncate flex items-center gap-1"
+              >
+                <span>{formatTenantDisplayUrl(user?.organizationId ? 'apex' : 'practice')}</span>
+                <ExternalLink className="w-3 h-3 shrink-0" />
+              </a>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
               <span className="text-slate-500">Theme Mode:</span>

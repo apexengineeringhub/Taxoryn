@@ -36,8 +36,13 @@ import { MarketplaceProfile, MarketplaceService, MarketplaceReview, PublicTaxSer
 import { generatePracticeProfileSchema, generateBreadcrumbSchema } from '../utils/schemaGenerators';
 import clsx from 'clsx';
 
-export const PracticePublicProfilePage: React.FC = () => {
-  const { slug, id } = useParams<{ slug?: string; id?: string }>();
+interface PracticePublicProfilePageProps {
+  overrideSlug?: string;
+}
+
+export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps> = ({ overrideSlug }) => {
+  const { slug: routeSlug, id } = useParams<{ slug?: string; id?: string }>();
+  const slug = overrideSlug || routeSlug;
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
