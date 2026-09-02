@@ -233,7 +233,7 @@ export function DataTable<T extends { id?: string | number }>({
                   return (
                     <div key={colIdx} className="flex items-center justify-between gap-3">
                       <span className="text-slate-400 shrink-0">{col.header}</span>
-                      <span className="text-right min-w-0 truncate">{value}</span>
+                      <span className="text-right min-w-0 break-words">{value}</span>
                     </div>
                   );
                 })}

@@ -377,11 +377,11 @@ export const DocumentsPage: React.FC = () => {
       </div>
 
       {/* Main Switcher Tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar pb-1">
         <button
           onClick={() => setActiveMainTab('requests')}
           className={clsx(
-            'px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2',
+            'px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap',
             activeMainTab === 'requests'
               ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50 rounded-t-xl'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -399,7 +399,7 @@ export const DocumentsPage: React.FC = () => {
         <button
           onClick={() => setActiveMainTab('vault')}
           className={clsx(
-            'px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2',
+            'px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap',
             activeMainTab === 'vault'
               ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50 rounded-t-xl'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -449,8 +449,8 @@ export const DocumentsPage: React.FC = () => {
           )}
 
           {/* Status Filter Chips */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0">
               <Filter className="w-3.5 h-3.5" /> Filter:
             </span>
             {['ALL', 'SENT', 'PARTIALLY_COMPLETED', 'COMPLETED', 'CANCELLED'].map((st) => (
@@ -458,7 +458,7 @@ export const DocumentsPage: React.FC = () => {
                 key={st}
                 onClick={() => setStatusFilter(st)}
                 className={clsx(
-                  'px-3 py-1 text-xs font-bold rounded-lg transition-all',
+                  'px-3 py-1 text-xs font-bold rounded-lg transition-all shrink-0 whitespace-nowrap',
                   statusFilter === st
                     ? 'bg-slate-900 text-white shadow-2xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -483,13 +483,13 @@ export const DocumentsPage: React.FC = () => {
       {activeMainTab === 'vault' && (
         <div className="space-y-6">
           {/* Category Filter */}
-          <div className="border-b border-slate-200 flex items-center gap-2">
+          <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
             {['ALL', 'GST', 'ITR', 'FINANCIAL_STATEMENTS', 'KYC'].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setCategory(cat)}
                 className={clsx(
-                  'px-4 py-2.5 text-xs font-bold border-b-2 transition-all',
+                  'px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 whitespace-nowrap',
                   category === cat
                     ? 'border-brand-600 text-brand-600 bg-brand-50/50 rounded-t-lg'
                     : 'border-transparent text-slate-500 hover:text-slate-700'

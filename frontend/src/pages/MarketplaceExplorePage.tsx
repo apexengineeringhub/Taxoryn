@@ -1062,27 +1062,27 @@ export const MarketplaceExplorePage: React.FC = () => {
                       <div className="p-6 space-y-4">
                         {/* Header: Avatar, Name, Verified Badge */}
                         <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-3.5">
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white font-bold text-xl flex items-center justify-center shadow-md shrink-0">
                               {profile.displayName.charAt(0)}
                             </div>
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <h3
                                   onClick={() => navigate(buildPracticeUrl(profile))}
-                                  className="font-bold text-slate-900 dark:text-white text-base hover:text-indigo-600 transition-colors cursor-pointer"
+                                  className="font-bold text-slate-900 dark:text-white text-lg sm:text-xl leading-tight hover:text-indigo-600 transition-colors cursor-pointer tracking-tight break-words"
                                 >
                                   {profile.displayName}
                                 </h3>
                                 {profile.verificationStatus === 'VERIFIED' && (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 shrink-0">
                                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                                     Verified
                                   </span>
                                 )}
                               </div>
-                              <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                                <span className="font-medium text-slate-700 dark:text-slate-300">
+                              <div className="text-xs text-slate-500 flex items-center gap-2 mt-1 flex-wrap">
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">
                                   {profile.professionalType?.replace(/_/g, ' ')}
                                 </span>
                                 <span>•</span>
@@ -1241,8 +1241,8 @@ export const MarketplaceExplorePage: React.FC = () => {
       {/* 1. Quick Contact / Inquiry Modal (Creates Inbound Lead) */}
       {/* ========================================================================= */}
       {selectedProfileForContact && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
@@ -1259,7 +1259,7 @@ export const MarketplaceExplorePage: React.FC = () => {
             </div>
 
             <form onSubmit={handleContactSubmit} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Your Full Name *</label>
                   <input
@@ -1296,7 +1296,7 @@ export const MarketplaceExplorePage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tax Service Category</label>
                   <select
@@ -1355,8 +1355,8 @@ export const MarketplaceExplorePage: React.FC = () => {
       {/* 2. Book Consultation Modal (Creates Appointment & Lead) */}
       {/* ========================================================================= */}
       {selectedProfileForBooking && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
@@ -1373,7 +1373,7 @@ export const MarketplaceExplorePage: React.FC = () => {
             </div>
 
             <form onSubmit={handleBookingSubmit} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Your Full Name *</label>
                   <input
@@ -1478,8 +1478,8 @@ export const MarketplaceExplorePage: React.FC = () => {
       {/* 3. Action Success & Lead Tracking Confirmation Modal */}
       {/* ========================================================================= */}
       {actionSuccess && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl text-center">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl text-center max-h-[90dvh] overflow-y-auto">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center shadow-md">
               <CheckCircle2 className="w-8 h-8" />
             </div>

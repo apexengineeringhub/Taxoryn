@@ -234,9 +234,10 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Table of Onboarding records */}
+          {/* Table of Onboarding records & Mobile Cards */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -263,7 +264,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                     onboardings.map((onb) => (
                       <tr key={onb.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-semibold text-gray-900">{onb.clientName}</div>
+                          <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight">{onb.clientName}</div>
                           <div className="text-xs text-gray-500">{onb.clientEmail} • {onb.clientPhone}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -323,6 +324,65 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden divide-y divide-gray-200">
+              {loading ? (
+                <div className="p-8 text-center text-xs text-gray-500">Loading onboarding pipeline...</div>
+              ) : onboardings.length === 0 ? (
+                <div className="p-8 text-center text-xs text-gray-500">
+                  No active onboarding records found. Accept an inbound lead or send a proposal to initiate onboarding.
+                </div>
+              ) : (
+                onboardings.map((onb) => (
+                  <div key={onb.id} className="p-4 space-y-2.5 text-xs hover:bg-gray-50/70 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight">{onb.clientName}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">{onb.clientEmail} • {onb.clientPhone}</div>
+                      </div>
+                      <div className="shrink-0">{getStatusBadge(onb.onboardingStatus)}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-[11px]">
+                      <div>
+                        <span className="text-gray-400 block font-medium uppercase text-[10px]">Entity / PAN</span>
+                        <span className="font-medium text-gray-800">{onb.entityType}</span>
+                        <span className="font-mono text-gray-600 block">{onb.pan || 'Pending'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block font-medium uppercase text-[10px]">KYC Progress</span>
+                        <span className="text-gray-700 font-medium">
+                          {onb.documents?.filter((d) => d.verificationStatus === 'VERIFIED').length || 0} / {onb.documents?.length || 0} Docs Verified
+                        </span>
+                        <span className={clsx('block font-medium', onb.engagementLetterSigned ? 'text-green-600' : 'text-amber-600')}>
+                          {onb.engagementLetterSigned ? 'Signed' : 'Awaiting Sign'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                      <a
+                        href={`/marketplace/onboarding/${onb.accessToken}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary-600 hover:text-primary-800 inline-flex items-center gap-1 font-mono text-[11px]"
+                      >
+                        <span>Portal Link</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setSelectedOnboarding(onb)}
+                      >
+                        Review & Verify
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -330,7 +390,8 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
       {/* Proposals View */}
       {activeTab === 'proposals' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -354,7 +415,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                         <div className="text-xs text-gray-500">Timeline: {prop.estimatedTimelineDays} days</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{prop.clientName || 'Prospect'}</div>
+                        <div className="text-sm sm:text-base font-bold text-gray-900 leading-tight">{prop.clientName || 'Prospect'}</div>
                         <div className="text-xs text-gray-500">{prop.clientEmail}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -386,13 +447,62 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {proposals.length === 0 ? (
+              <div className="p-8 text-center text-xs text-gray-500">No proposals sent yet.</div>
+            ) : (
+              proposals.map((prop) => (
+                <div key={prop.id} className="p-4 space-y-2.5 text-xs hover:bg-gray-50/70 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-gray-900 text-sm">{prop.proposalTitle}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{prop.clientName || 'Prospect'} ({prop.clientEmail})</div>
+                    </div>
+                    <span className={clsx('px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0', {
+                      'bg-blue-100 text-blue-800': prop.proposalStatus === 'SENT',
+                      'bg-green-100 text-green-800': prop.proposalStatus === 'ACCEPTED',
+                      'bg-red-100 text-red-800': prop.proposalStatus === 'REJECTED',
+                    })}>
+                      {prop.proposalStatus}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-[11px]">
+                    <div>
+                      <span className="text-gray-400 block font-medium uppercase text-[10px]">Fee Structure</span>
+                      <span className="font-bold text-gray-900 text-xs">₹{prop.feeAmount.toLocaleString('en-IN')}</span>
+                      <span className="text-gray-500 block">{prop.pricingType}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block font-medium uppercase text-[10px]">Timeline</span>
+                      <span className="font-medium text-gray-700">{prop.estimatedTimelineDays} days</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100">
+                    <a
+                      href={`/marketplace/onboarding/${prop.accessToken}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-primary-600 hover:underline inline-flex items-center gap-1 font-mono"
+                    >
+                      <span>View Public Proposal</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 
       {/* Selected Onboarding Review & Document Verification Modal */}
       {selectedOnboarding && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl">
             <div className="flex items-center justify-between border-b pb-4">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
@@ -411,7 +521,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
             </div>
 
             {/* Profile Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl text-xs">
               <div>
                 <span className="text-gray-500 block">Entity Type:</span>
                 <span className="font-semibold text-gray-900">{selectedOnboarding.entityType}</span>
@@ -472,10 +582,10 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                 {selectedOnboarding.documents?.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 gap-2"
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-gray-400" />
+                      <FileText className="w-5 h-5 text-gray-400 shrink-0" />
                       <div>
                         <div className="text-sm font-medium text-gray-900">{doc.documentName}</div>
                         <div className="text-xs text-gray-500">
@@ -484,7 +594,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
                       <span className={clsx('px-2 py-0.5 text-xs rounded-full font-medium', {
                         'bg-amber-100 text-amber-800': doc.verificationStatus === 'PENDING',
                         'bg-green-100 text-green-800': doc.verificationStatus === 'VERIFIED',
@@ -520,7 +630,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
             </div>
 
             {/* Promotion Action */}
-            <div className="pt-4 border-t flex items-center justify-between">
+            <div className="pt-4 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div>
                 {selectedOnboarding.promotedClientId ? (
                   <span className="text-xs font-semibold text-green-600 flex items-center gap-1">
@@ -532,7 +642,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-end gap-3">
                 <Button variant="secondary" onClick={() => setSelectedOnboarding(null)}>
                   Close
                 </Button>
@@ -542,7 +652,7 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
                     onClick={() => setPromoteModalOpen(true)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
                   >
-                    <UserCheck className="w-4 h-4" /> Approve & Promote to Client Master
+                    <UserCheck className="w-4 h-4" /> Approve & Promote
                   </Button>
                 )}
               </div>
@@ -553,8 +663,8 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
 
       {/* Promote to Client Master Confirmation Modal */}
       {promoteModalOpen && selectedOnboarding && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center gap-3 text-emerald-600">
               <ShieldCheck className="w-8 h-8" />
               <div>
@@ -641,8 +751,8 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
 
       {/* Reject Document Modal */}
       {rejectDocModalOpen && selectedDocId && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <h3 className="text-base font-bold text-gray-900">Specify Rejection Reason</h3>
             <textarea
               rows={3}

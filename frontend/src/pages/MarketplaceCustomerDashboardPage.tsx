@@ -407,8 +407,8 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                           </span>
                           {getStatusBadge(enquiry.enquiryStatus)}
                         </div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
-                          <span>Practice: <strong>{enquiry.practiceName || 'Tax Practice'}</strong></span>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-1 flex-wrap">
+                          <span>Practice: <strong className="font-bold text-slate-900">{enquiry.practiceName || 'Tax Practice'}</strong></span>
                           {enquiry.practiceCity && <span>• {enquiry.practiceCity}</span>}
                           <span>• Submitted {new Date(enquiry.createdAt).toLocaleDateString()}</span>
                         </div>
@@ -630,7 +630,9 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                           {c.consultationStatus}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600">With {c.practiceDisplayName || 'Tax Practice'}</p>
+                      <p className="text-xs text-slate-600">
+                        With <strong className="font-bold text-slate-900">{c.practiceDisplayName || 'Tax Practice'}</strong>
+                      </p>
                       <div className="text-[10px] text-slate-400 flex items-center gap-2">
                         <Clock className="w-3 h-3" />
                         <span>
@@ -684,7 +686,9 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
                           {p.proposalStatus}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600">From {p.practiceDisplayName || 'Tax Practice'}</p>
+                      <p className="text-xs text-slate-600">
+                        From <strong className="font-bold text-slate-900">{p.practiceDisplayName || 'Tax Practice'}</strong>
+                      </p>
                       <div className="text-[10px] text-slate-400">
                         {p.scopeOfWork ? p.scopeOfWork.slice(0, 80) + '...' : ''}
                       </div>
@@ -718,8 +722,8 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
 
       {/* Cancel Enquiry Modal */}
       {cancelTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-rose-600" />
@@ -761,8 +765,8 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
 
       {/* Verified Review Modal */}
       {reviewTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
                 <Award className="w-5 h-5 text-amber-500" />
@@ -841,8 +845,8 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
 
       {/* Timeline Modal */}
       {timelineTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl border border-slate-200 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
@@ -906,8 +910,8 @@ export const MarketplaceCustomerDashboardPage: React.FC = () => {
 
       {/* Secure Messages Drawer Modal */}
       {selectedEnquiryForMessages && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-xl w-full flex flex-col max-h-[85vh] shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl border border-slate-200 max-w-xl w-full flex flex-col max-h-[85vh] shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-3">

@@ -434,222 +434,387 @@ export const MarketplaceLeadsPage: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="p-4">Reference & Client</th>
-                  <th className="p-4">Requested Tax Service</th>
-                  <th className="p-4">Status & Stage</th>
-                  <th className="p-4">Assigned Member</th>
-                  <th className="p-4 text-right">Lifecycle Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {enquiries.map((enquiry) => (
-                  <tr key={enquiry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="p-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
-                            {enquiry.referenceNumber}
-                          </span>
-                          <span className="font-bold text-slate-900 dark:text-white text-sm">{enquiry.clientName}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
-                          <span>{enquiry.clientEmail}</span>
-                          <span>•</span>
-                          <span>{enquiry.clientPhone}</span>
-                          {enquiry.city && <span>• {enquiry.city}</span>}
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="p-4 max-w-xs">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 px-2 py-0.5 rounded">
-                            {enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}
-                          </span>
-                          {enquiry.financialYear && (
-                            <span className="text-[10px] font-medium text-slate-500">FY: {enquiry.financialYear}</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
-                          {enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Tax service enquiry'}
-                        </p>
-                      </div>
-                    </td>
-
-                    <td className="p-4">
-                      <div className="space-y-1">
-                        {getStatusBadge(enquiry.enquiryStatus)}
-                        {enquiry.rejectionReason && (
-                          <div className="text-[10px] text-rose-600 font-semibold">
-                            Reason: {enquiry.rejectionReason.replace(/_/g, ' ')}
+          <div>
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/40 text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="p-4">Reference & Client</th>
+                    <th className="p-4">Requested Tax Service</th>
+                    <th className="p-4">Status & Stage</th>
+                    <th className="p-4">Assigned Member</th>
+                    <th className="p-4 text-right">Lifecycle Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {enquiries.map((enquiry) => (
+                    <tr key={enquiry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="p-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
+                              {enquiry.referenceNumber}
+                            </span>
+                            <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">{enquiry.clientName}</span>
                           </div>
-                        )}
-                        <button
-                          onClick={() => setSelectedEnquiryForTimeline(enquiry)}
-                          className="text-[10px] text-indigo-600 hover:underline flex items-center gap-0.5 font-bold pt-0.5"
-                        >
-                          <History className="w-3 h-3" />
-                          View Timeline
-                        </button>
-                      </div>
-                    </td>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
+                            <span>{enquiry.clientEmail}</span>
+                            <span>•</span>
+                            <span>{enquiry.clientPhone}</span>
+                            {enquiry.city && <span>• {enquiry.city}</span>}
+                          </div>
+                        </div>
+                      </td>
 
-                    <td className="p-4 text-slate-600 dark:text-slate-300">
-                      <div className="flex items-center gap-1.5">
-                        <UserCog className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="font-medium">{enquiry.assignedEmployeeName || 'Unassigned'}</span>
-                        <button
-                          onClick={() => {
-                            setAssignEnquiryTarget(enquiry);
-                            setAssignForm({ assignedEmployeeId: enquiry.assignedEmployeeId || '', assignmentNotes: '' });
-                          }}
-                          className="ml-1 text-[10px] text-brand-600 hover:underline"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    </td>
+                      <td className="p-4 max-w-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 px-2 py-0.5 rounded">
+                              {enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}
+                            </span>
+                            {enquiry.financialYear && (
+                              <span className="text-[10px] font-medium text-slate-500">FY: {enquiry.financialYear}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+                            {enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Tax service enquiry'}
+                          </p>
+                        </div>
+                      </td>
 
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        {/* Status = NEW or RECEIVED -> Accept or Reject */}
-                        {(enquiry.enquiryStatus === 'NEW' || enquiry.enquiryStatus === 'RECEIVED') && (
-                          <>
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          {getStatusBadge(enquiry.enquiryStatus)}
+                          {enquiry.rejectionReason && (
+                            <div className="text-[10px] text-rose-600 font-semibold">
+                              Reason: {enquiry.rejectionReason.replace(/_/g, ' ')}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => setSelectedEnquiryForTimeline(enquiry)}
+                            className="text-[10px] text-indigo-600 hover:underline flex items-center gap-0.5 font-bold pt-0.5"
+                          >
+                            <History className="w-3 h-3" />
+                            View Timeline
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="p-4 text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center gap-1.5">
+                          <UserCog className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="font-medium">{enquiry.assignedEmployeeName || 'Unassigned'}</span>
+                          <button
+                            onClick={() => {
+                              setAssignEnquiryTarget(enquiry);
+                              setAssignForm({ assignedEmployeeId: enquiry.assignedEmployeeId || '', assignmentNotes: '' });
+                            }}
+                            className="ml-1 text-[10px] text-brand-600 hover:underline"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {/* Status = NEW or RECEIVED -> Accept or Reject */}
+                          {(enquiry.enquiryStatus === 'NEW' || enquiry.enquiryStatus === 'RECEIVED') && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => {
+                                  setAcceptEnquiryTarget(enquiry);
+                                  setAcceptForm({ notes: '', estimatedDaysToComplete: 5 });
+                                }}
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setRejectEnquiryTarget(enquiry);
+                                  setRejectForm({ rejectionReason: 'SERVICE_NOT_AVAILABLE', rejectionNote: '' });
+                                }}
+                                className="text-xs text-rose-600 hover:bg-rose-50 border-rose-200"
+                              >
+                                <XCircle className="w-3.5 h-3.5 mr-1" />
+                                Decline
+                              </Button>
+                            </>
+                          )}
+
+                          {/* Status = ACCEPTED -> Start Work */}
+                          {enquiry.enquiryStatus === 'ACCEPTED' && (
                             <Button
                               size="sm"
                               variant="primary"
-                              onClick={() => {
-                                setAcceptEnquiryTarget(enquiry);
-                                setAcceptForm({ notes: '', estimatedDaysToComplete: 5 });
-                              }}
-                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                              onClick={() => handleStartWork(enquiry)}
+                              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                             >
-                              <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                              Accept
+                              <PlayCircle className="w-3.5 h-3.5 mr-1" />
+                              Start Work
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                setRejectEnquiryTarget(enquiry);
-                                setRejectForm({ rejectionReason: 'SERVICE_NOT_AVAILABLE', rejectionNote: '' });
-                              }}
-                              className="text-xs text-rose-600 hover:bg-rose-50 border-rose-200"
-                            >
-                              <XCircle className="w-3.5 h-3.5 mr-1" />
-                              Decline
-                            </Button>
-                          </>
-                        )}
+                          )}
 
-                        {/* Status = ACCEPTED -> Start Work */}
-                        {enquiry.enquiryStatus === 'ACCEPTED' && (
+                          {/* Status = IN_PROGRESS -> Mark Completed or Convert */}
+                          {enquiry.enquiryStatus === 'IN_PROGRESS' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => handleCompleteWork(enquiry)}
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                Mark Completed
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setSelectedLeadForConvert(enquiry);
+                                  setConvertForm({
+                                    clientType: 'INDIVIDUAL',
+                                    assignedEmployeeId: enquiry.assignedEmployeeId || '',
+                                    createOnboardingTask: true,
+                                    notes: `Converted from completed enquiry ${enquiry.referenceNumber}`,
+                                  });
+                                }}
+                                className="text-xs"
+                              >
+                                <UserPlus className="w-3.5 h-3.5 mr-1" />
+                                Add to CRM
+                              </Button>
+                            </>
+                          )}
+
+                          {/* Status = COMPLETED */}
+                          {enquiry.enquiryStatus === 'COMPLETED' && (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
+                              <CheckCircle2 className="w-4 h-4" />
+                              Completed
+                            </span>
+                          )}
+
+                          {/* Send Formal Proposal option */}
+                          {enquiry.enquiryStatus !== 'COMPLETED' &&
+                            enquiry.enquiryStatus !== 'REJECTED' &&
+                            enquiry.enquiryStatus !== 'CANCELLED' && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setSelectedLeadForProposal(enquiry);
+                                  setProposalForm({
+                                    leadId: enquiry.id,
+                                    proposalTitle: `Engagement for ${enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}`,
+                                    scopeOfWork: enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Statutory tax compliance, documentation and representation.',
+                                    deliverables: 'Filing acknowledgements, monthly reconciliations, and compliance reports.',
+                                    feeAmount: 3999,
+                                    pricingType: 'MONTHLY_RETAINER',
+                                    estimatedTimelineDays: 7,
+                                  });
+                                }}
+                                className="text-xs"
+                              >
+                                <FileText className="w-3.5 h-3.5 mr-1" />
+                                Proposal
+                              </Button>
+                            )}
+
+                          {/* Secure Messages Button */}
                           <Button
                             size="sm"
-                            variant="primary"
-                            onClick={() => handleStartWork(enquiry)}
-                            className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                            variant="secondary"
+                            onClick={() => openMessages(enquiry)}
+                            className="text-xs bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
                           >
-                            <PlayCircle className="w-3.5 h-3.5 mr-1" />
-                            Start Work
+                            <MessageSquare className="w-3.5 h-3.5 mr-1 text-indigo-600" />
+                            Messages
                           </Button>
-                        )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-                        {/* Status = IN_PROGRESS -> Mark Completed or Convert */}
-                        {enquiry.enquiryStatus === 'IN_PROGRESS' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              onClick={() => handleCompleteWork(enquiry)}
-                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                              Mark Completed
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                setSelectedLeadForConvert(enquiry);
-                                setConvertForm({
-                                  clientType: 'INDIVIDUAL',
-                                  assignedEmployeeId: enquiry.assignedEmployeeId || '',
-                                  createOnboardingTask: true,
-                                  notes: `Converted from completed enquiry ${enquiry.referenceNumber}`,
-                                });
-                              }}
-                              className="text-xs"
-                            >
-                              <UserPlus className="w-3.5 h-3.5 mr-1" />
-                              Add to CRM
-                            </Button>
-                          </>
-                        )}
+            {/* Mobile Cards */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {enquiries.map((enquiry) => (
+                <div key={enquiry.id} className="p-4 space-y-3 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
+                          {enquiry.referenceNumber}
+                        </span>
+                        <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">{enquiry.clientName}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        {enquiry.clientEmail} • {enquiry.clientPhone} {enquiry.city ? `• ${enquiry.city}` : ''}
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      {getStatusBadge(enquiry.enquiryStatus)}
+                    </div>
+                  </div>
 
-                        {/* Status = COMPLETED */}
-                        {enquiry.enquiryStatus === 'COMPLETED' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
-                            <CheckCircle2 className="w-4 h-4" />
-                            Completed
-                          </span>
-                        )}
+                  <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 px-2 py-0.5 rounded">
+                        {enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}
+                      </span>
+                      {enquiry.financialYear && (
+                        <span className="text-[10px] font-medium text-slate-500">FY: {enquiry.financialYear}</span>
+                      )}
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed line-clamp-3">
+                      {enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Tax service enquiry'}
+                    </p>
+                  </div>
 
-                        {/* Send Formal Proposal option */}
-                        {enquiry.enquiryStatus !== 'COMPLETED' &&
-                          enquiry.enquiryStatus !== 'REJECTED' &&
-                          enquiry.enquiryStatus !== 'CANCELLED' && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                setSelectedLeadForProposal(enquiry);
-                                setProposalForm({
-                                  leadId: enquiry.id,
-                                  proposalTitle: `Engagement for ${enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}`,
-                                  scopeOfWork: enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Statutory tax compliance, documentation and representation.',
-                                  deliverables: 'Filing acknowledgements, monthly reconciliations, and compliance reports.',
-                                  feeAmount: 3999,
-                                  pricingType: 'MONTHLY_RETAINER',
-                                  estimatedTimelineDays: 7,
-                                });
-                              }}
-                              className="text-xs"
-                            >
-                              <FileText className="w-3.5 h-3.5 mr-1" />
-                              Proposal
-                            </Button>
-                          )}
+                  <div className="flex items-center justify-between text-[11px] pt-1">
+                    <div className="flex items-center gap-1 text-slate-500">
+                      <UserCog className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{enquiry.assignedEmployeeName || 'Unassigned'}</span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedEnquiryForTimeline(enquiry)}
+                      className="text-[11px] text-indigo-600 hover:underline flex items-center gap-0.5 font-bold"
+                    >
+                      <History className="w-3 h-3" />
+                      Timeline
+                    </button>
+                  </div>
 
-                        {/* Secure Messages Button */}
+                  {/* Actions Toolbar */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-1.5 flex-wrap">
+                    {(enquiry.enquiryStatus === 'NEW' || enquiry.enquiryStatus === 'RECEIVED') && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => {
+                            setAcceptEnquiryTarget(enquiry);
+                            setAcceptForm({ notes: '', estimatedDaysToComplete: 5 });
+                          }}
+                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                          Accept
+                        </Button>
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => openMessages(enquiry)}
-                          className="text-xs bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                          onClick={() => {
+                            setRejectEnquiryTarget(enquiry);
+                            setRejectForm({ rejectionReason: 'SERVICE_NOT_AVAILABLE', rejectionNote: '' });
+                          }}
+                          className="text-xs text-rose-600 hover:bg-rose-50 border-rose-200"
                         >
-                          <MessageSquare className="w-3.5 h-3.5 mr-1 text-indigo-600" />
-                          Messages
+                          <XCircle className="w-3.5 h-3.5 mr-1" />
+                          Decline
                         </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </>
+                    )}
+
+                    {enquiry.enquiryStatus === 'ACCEPTED' && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => handleStartWork(enquiry)}
+                        className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                      >
+                        <PlayCircle className="w-3.5 h-3.5 mr-1" />
+                        Start Work
+                      </Button>
+                    )}
+
+                    {enquiry.enquiryStatus === 'IN_PROGRESS' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => handleCompleteWork(enquiry)}
+                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                          Complete
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setSelectedLeadForConvert(enquiry);
+                            setConvertForm({
+                              clientType: 'INDIVIDUAL',
+                              assignedEmployeeId: enquiry.assignedEmployeeId || '',
+                              createOnboardingTask: true,
+                              notes: `Converted from completed enquiry ${enquiry.referenceNumber}`,
+                            });
+                          }}
+                          className="text-xs"
+                        >
+                          <UserPlus className="w-3.5 h-3.5 mr-1" />
+                          Add to CRM
+                        </Button>
+                      </>
+                    )}
+
+                    {enquiry.enquiryStatus !== 'COMPLETED' &&
+                      enquiry.enquiryStatus !== 'REJECTED' &&
+                      enquiry.enquiryStatus !== 'CANCELLED' && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setSelectedLeadForProposal(enquiry);
+                            setProposalForm({
+                              leadId: enquiry.id,
+                              proposalTitle: `Engagement for ${enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}`,
+                              scopeOfWork: enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Statutory tax compliance, documentation and representation.',
+                              deliverables: 'Filing acknowledgements, monthly reconciliations, and compliance reports.',
+                              feeAmount: 3999,
+                              pricingType: 'MONTHLY_RETAINER',
+                              estimatedTimelineDays: 7,
+                            });
+                          }}
+                          className="text-xs"
+                        >
+                          <FileText className="w-3.5 h-3.5 mr-1" />
+                          Proposal
+                        </Button>
+                      )}
+
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => openMessages(enquiry)}
+                      className="text-xs bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 mr-1 text-indigo-600" />
+                      Messages
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
       {/* Timeline Drawer / Modal */}
       {selectedEnquiryForTimeline && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
@@ -716,8 +881,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
 
       {/* Accept Enquiry Modal */}
       {acceptEnquiryTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-600" />
@@ -772,8 +937,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
 
       {/* Reject Enquiry Modal */}
       {rejectEnquiryTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-rose-600" />
@@ -826,8 +991,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
 
       {/* Assign Team Member Modal */}
       {assignEnquiryTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
                 <UserCog className="w-5 h-5 text-indigo-600" />
@@ -882,8 +1047,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
 
       {/* Convert to CRM Client Modal */}
       {selectedLeadForConvert && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-emerald-600" />
@@ -954,8 +1119,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
 
       {/* Send Proposal Modal */}
       {selectedLeadForProposal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
@@ -994,7 +1159,7 @@ export const MarketplaceLeadsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Proposed Fee (₹) *</label>
                   <input
@@ -1033,8 +1198,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
 
       {/* Secure Messages Drawer Modal */}
       {selectedEnquiryForMessages && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-xl w-full flex flex-col max-h-[85vh] shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-xl w-full flex flex-col max-h-[85vh] shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
               <div className="flex items-center gap-3">

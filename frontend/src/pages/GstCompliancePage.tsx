@@ -476,20 +476,21 @@ export const GstCompliancePage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link to="/gst/migration">
-            <Button variant="outline" leftIcon={<Sparkles className="w-4 h-4 text-brand-600" />}>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <Link to="/gst/migration" className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full justify-center text-xs" leftIcon={<Sparkles className="w-4 h-4 text-brand-600" />}>
               📥 Bulk GST Migration
             </Button>
           </Link>
           <Button
             variant="outline"
             onClick={() => setIsBatchModalOpen(true)}
+            className="w-full sm:w-auto justify-center text-xs"
             leftIcon={<Clock className="w-4 h-4 text-indigo-600" />}
           >
             ⚡ Batch Schedule Filings
           </Button>
-          <Button onClick={() => setIsNewFilingModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
+          <Button onClick={() => setIsNewFilingModalOpen(true)} className="w-full sm:w-auto justify-center text-xs" leftIcon={<Plus className="w-4 h-4" />}>
             New Return Filing
           </Button>
         </div>
@@ -520,13 +521,13 @@ export const GstCompliancePage: React.FC = () => {
       </div>
 
       {/* Return Type Tab Filter */}
-      <div className="border-b border-slate-200 flex items-center gap-2">
+      <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
         {['ALL', 'GSTR1', 'GSTR3B', 'CMP08', 'GSTR9'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={clsx(
-              'px-4 py-2.5 text-xs font-bold border-b-2 transition-all',
+              'px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 whitespace-nowrap',
               activeTab === tab
                 ? 'border-brand-600 text-brand-600 bg-brand-50/50 rounded-t-lg'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -565,7 +566,7 @@ export const GstCompliancePage: React.FC = () => {
         {selectedFiling && (
           <div className="space-y-4 text-xs">
             {/* Modal Tabs */}
-            <div className="flex border-b border-slate-200 gap-2">
+            <div className="flex border-b border-slate-200 gap-2 overflow-x-auto no-scrollbar pb-1">
               {[
                 { id: 'WORKFLOW', label: 'Workflow & Actions' },
                 { id: 'OVERVIEW', label: 'Tax Computation' },
@@ -577,7 +578,7 @@ export const GstCompliancePage: React.FC = () => {
                   key={tab.id}
                   onClick={() => setDetailTab(tab.id as any)}
                   className={clsx(
-                    'px-3 py-2 text-xs font-bold border-b-2 transition-all',
+                    'px-3 py-2 text-xs font-bold border-b-2 transition-all shrink-0 whitespace-nowrap',
                     detailTab === tab.id
                       ? 'border-brand-600 text-brand-600'
                       : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -594,7 +595,7 @@ export const GstCompliancePage: React.FC = () => {
                 {/* Stepper */}
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <div className="text-[11px] font-bold text-slate-600 mb-2 uppercase tracking-wider">Filing Lifecycle Stage</div>
-                  <div className="flex items-center justify-between relative">
+                  <div className="flex items-center justify-between relative overflow-x-auto no-scrollbar pb-1 gap-2">
                     <div className="flex items-center gap-2">
                       <span className={clsx(
                         'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold',
@@ -1014,7 +1015,7 @@ export const GstCompliancePage: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Return Period (YYYY-MM)</label>
               <input
@@ -1086,7 +1087,7 @@ export const GstCompliancePage: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Return Type</label>
               <select
@@ -1112,7 +1113,7 @@ export const GstCompliancePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Financial Year</label>
               <input

@@ -255,8 +255,8 @@ export const MarketplaceComparePage: React.FC = () => {
                         )}
                       </div>
                       <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white">{p.displayName}</h3>
-                        <p className="text-xs text-slate-500">{p.professionalType?.replace(/_/g, ' ')}</p>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight tracking-tight break-words">{p.displayName}</h3>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">{p.professionalType?.replace(/_/g, ' ')}</p>
                       </div>
 
                       {/* Header Conversion CTAs */}
@@ -435,8 +435,8 @@ export const MarketplaceComparePage: React.FC = () => {
 
       {/* Quick Contact Modal */}
       {selectedProfileForContact && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
@@ -453,7 +453,7 @@ export const MarketplaceComparePage: React.FC = () => {
             </div>
 
             <form onSubmit={handleContactSubmit} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Your Full Name *</label>
                   <input
@@ -490,7 +490,7 @@ export const MarketplaceComparePage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tax Service Category</label>
                   <select
@@ -547,8 +547,8 @@ export const MarketplaceComparePage: React.FC = () => {
 
       {/* Book Consultation Modal */}
       {selectedProfileForBooking && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
@@ -565,7 +565,7 @@ export const MarketplaceComparePage: React.FC = () => {
             </div>
 
             <form onSubmit={handleBookingSubmit} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Your Full Name *</label>
                   <input
@@ -668,8 +668,8 @@ export const MarketplaceComparePage: React.FC = () => {
 
       {/* Action Success Modal */}
       {actionSuccess && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl text-center">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl text-center max-h-[90dvh] overflow-y-auto">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center shadow-md">
               <CheckCircle2 className="w-8 h-8" />
             </div>

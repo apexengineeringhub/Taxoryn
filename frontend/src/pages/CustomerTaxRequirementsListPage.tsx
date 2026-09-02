@@ -250,7 +250,7 @@ export const CustomerTaxRequirementsListPage: React.FC = () => {
                     {getStatusBadge(req.status)}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 pt-1">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Financial Year</span>
                       <span className="font-bold text-slate-800">{req.financialYearDisplay || 'N/A'}</span>
@@ -319,8 +319,8 @@ export const CustomerTaxRequirementsListPage: React.FC = () => {
 
       {/* Detail Modal */}
       {viewingItem && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl border border-slate-200 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -340,7 +340,7 @@ export const CustomerTaxRequirementsListPage: React.FC = () => {
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block">Financial Year</span>
                   <span className="font-bold text-slate-900">{viewingItem.financialYearDisplay || 'N/A'}</span>

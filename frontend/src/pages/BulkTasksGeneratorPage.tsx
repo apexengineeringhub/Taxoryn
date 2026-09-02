@@ -566,7 +566,7 @@ export const BulkTasksGeneratorPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Category</label>
                     <select
@@ -598,7 +598,7 @@ export const BulkTasksGeneratorPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Statutory Due Date</label>
                     <input

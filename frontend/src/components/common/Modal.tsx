@@ -41,10 +41,10 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-end sm:items-center justify-center p-0 sm:p-6 animate-fade-in">
       <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className={clsx('relative bg-white rounded-2xl shadow-modal w-full overflow-hidden z-10 flex flex-col max-h-[90vh]', maxWidthStyles[maxWidth])}>
-        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 flex items-start justify-between gap-3 bg-slate-50/50">
+      <div className={clsx('relative bg-white rounded-t-2xl sm:rounded-2xl shadow-modal w-full overflow-hidden z-10 flex flex-col max-h-[90dvh] sm:max-h-[90vh]', maxWidthStyles[maxWidth])}>
+        <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-start justify-between gap-3 bg-slate-50/50">
           <div className="min-w-0">
             <h3 className="text-base sm:text-lg font-bold text-slate-900 break-words">{title}</h3>
             {subtitle && <p className="text-xs text-slate-500 mt-0.5 break-words">{subtitle}</p>}

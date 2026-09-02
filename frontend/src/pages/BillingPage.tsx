@@ -1442,7 +1442,7 @@ export const BillingPage: React.FC = () => {
               )}
 
               {/* Terms and Signature Footer */}
-              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-300 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-300 text-xs">
                 <div className="space-y-1 text-[10px] text-slate-500">
                   <span className="font-bold uppercase text-slate-700 block">Terms & Conditions:</span>
                   <p>1. All payments should be made in favor of the firm via NEFT/RTGS/UPI.</p>
@@ -1450,7 +1450,7 @@ export const BillingPage: React.FC = () => {
                   <p>3. This is a computer-generated tax invoice issued in accordance with GST Rule 46.</p>
                 </div>
 
-                <div className="text-right flex flex-col justify-between items-end h-20">
+                <div className="sm:text-right flex flex-col justify-between sm:items-end h-20">
                   <span className="text-[11px] font-bold text-slate-800">
                     For {practiceName || 'MAA MUNDESHWARI TAX CONSULTANCY'}
                   </span>

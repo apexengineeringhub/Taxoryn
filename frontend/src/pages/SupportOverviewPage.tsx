@@ -328,7 +328,8 @@ export const SupportOverviewPage: React.FC = () => {
         subtitle="Chronological log of customer inquiries, ticket status changes, and communication events."
         noPadding
       >
-        <div className="overflow-x-auto">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 font-bold text-slate-500 uppercase tracking-wider">
@@ -390,6 +391,62 @@ export const SupportOverviewPage: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {isLoading ? (
+            <div className="text-center py-10 text-slate-400 font-medium text-xs">
+              Loading recent support activity...
+            </div>
+          ) : recentActivity.length === 0 ? (
+            <div className="text-center py-10 text-slate-400 font-medium text-xs px-4">
+              No recent support activities recorded.
+            </div>
+          ) : (
+            recentActivity.map((act, idx) => (
+              <div key={act.id || idx} className="p-4 space-y-2.5 text-xs hover:bg-slate-50/70 transition-colors">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-900">{act.title}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{act.description}</p>
+                  </div>
+                  <span className={clsx(
+                    'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1',
+                    act.status === 'RESOLVED' || act.status === 'CLOSED'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : act.status === 'UNDER_REVIEW' || act.status === 'IN_PROGRESS'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                  )}>
+                    {act.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block font-medium uppercase text-[10px]">Category</span>
+                    <span className="font-medium text-slate-700">{act.target}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-medium uppercase text-[10px]">Actor</span>
+                    <span className="font-mono text-slate-600 truncate block">{act.actor}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>{act.timestamp ? new Date(act.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Recent'}</span>
+                  <Link
+                    to={act.navigationTarget || '/admin/feedback'}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg text-xs inline-flex items-center gap-1 transition-colors"
+                  >
+                    <span>Details</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
     </div>

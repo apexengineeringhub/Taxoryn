@@ -606,7 +606,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
       </div>
 
       {/* Return Type Tab Filters */}
-      <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
+      <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
         {['ALL', 'ITR_1', 'ITR_2', 'ITR_3', 'ITR_4', 'ITR_5', 'ITR_6', 'ITR_7'].map((tab) => {
           const count = tab === 'ALL' ? allAyReturns.length : allAyReturns.filter((r) => r.itrType === tab).length;
           return (
@@ -614,7 +614,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={clsx(
-                'px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5',
+                'px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0',
                 activeTab === tab
                   ? 'border-purple-600 text-purple-700 bg-purple-50/50 rounded-t-lg'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -700,7 +700,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Date of Filing</label>
               <input
@@ -757,7 +757,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
         subtitle={`Auto-schedules return filing records for all active ITR client profiles in ${practiceName}`}
       >
         <div className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Assessment Year</label>
               <input
@@ -781,7 +781,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Non-Audit Due Date (Individuals/Firms)</label>
               <input
@@ -886,7 +886,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">ITR Form</label>
               <select

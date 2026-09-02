@@ -715,7 +715,7 @@ export const ClientsPage: React.FC = () => {
             {/* Practice Modules Grid */}
             <div className="border-t border-slate-200 pt-4">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Client Practice Modules</h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div className="p-3 border border-slate-200 rounded-lg hover:border-brand-500 cursor-pointer bg-white">
                   <p className="font-bold text-slate-800">GST Profiles</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">Manage GSTIN state filings</p>

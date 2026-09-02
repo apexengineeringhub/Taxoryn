@@ -545,8 +545,8 @@ export const NotificationsPage: React.FC = () => {
 
         {/* Server-side Pagination Footer */}
         {totalPages > 1 && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <div>
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-500">
+            <div className="text-center sm:text-left">
               Showing page <span className="font-semibold text-slate-800">{currentPage + 1}</span> of{' '}
               <span className="font-semibold text-slate-800">{totalPages}</span> ({totalElements} total notifications)
             </div>

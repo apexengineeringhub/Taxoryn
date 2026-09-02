@@ -329,7 +329,7 @@ export const PlatformUsersPage: React.FC = () => {
         </div>
 
         {/* Role Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-t border-slate-100 pt-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 border-t border-slate-100 pt-3">
           {[
             { label: 'All Users', value: 'ALL' },
             { label: 'SuperAdmin', value: 'SUPERADMIN' },
@@ -348,7 +348,7 @@ export const PlatformUsersPage: React.FC = () => {
               key={tab.value}
               onClick={() => setRoleFilter(tab.value)}
               className={clsx(
-                'px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all',
+                'px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all shrink-0',
                 roleFilter === tab.value
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -361,10 +361,11 @@ export const PlatformUsersPage: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. Users Table                                                           */}
+      {/* 3. Users Table & Mobile Cards                                             */}
       {/* ========================================================================= */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 font-bold text-slate-500 uppercase tracking-wider">
@@ -506,6 +507,107 @@ export const PlatformUsersPage: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cards View (md:hidden) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {isLoading ? (
+            <div className="text-center py-12 text-slate-400 text-xs font-bold">
+              Loading platform users...
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 text-xs font-bold">
+              No users found matching filter criteria
+            </div>
+          ) : (
+            users.map((u) => {
+              const roleObj = u.roles && u.roles.length > 0 ? u.roles[0] : null;
+              const roleCode = typeof roleObj === 'string' ? roleObj : roleObj?.code || 'USER';
+
+              return (
+                <div key={u.id} className="p-4 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-800 font-black text-xs flex items-center justify-center shrink-0 border border-purple-200">
+                        {(u.firstName || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-900 text-sm truncate">
+                          {u.firstName} {u.lastName}
+                        </p>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          ID: {u.id.substring(0, 8)}...
+                        </span>
+                      </div>
+                    </div>
+                    <span className={clsx(
+                      'px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 shrink-0',
+                      u.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      u.status === 'SUSPENDED' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                      'bg-slate-100 text-slate-600 border-slate-200'
+                    )}>
+                      {u.status || 'ACTIVE'}
+                    </span>
+                  </div>
+
+                  <div className="text-xs space-y-1 pt-1 border-t border-slate-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Email:</span>
+                      <span className="text-slate-700 font-medium truncate max-w-[180px]">{u.email}</span>
+                    </div>
+                    {u.phone && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Phone:</span>
+                        <span className="text-slate-700 font-medium">{u.phone}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <span className="text-slate-400 shrink-0">Role:</span>
+                      <div className="flex flex-wrap gap-1 justify-end">
+                        {u.roles?.map((r, idx) => {
+                          const code = typeof r === 'string' ? r : r.code;
+                          return (
+                            <span
+                              key={code || idx}
+                              className={clsx(
+                                'px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                                getRoleBadgeStyle(code)
+                              )}
+                            >
+                              {formatRoleDisplayName(code)}
+                            </span>
+                          );
+                        }) || <span className="text-slate-400">Standard User</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-50">
+                    <button
+                      onClick={() => {
+                        setSelectedUser(u);
+                        setTargetRoleCode(roleCode);
+                        setIsRoleModalOpen(true);
+                      }}
+                      className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <Edit2 className="w-3 h-3" /> Role
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedUser(u);
+                        setTargetStatus(u.status || 'ACTIVE');
+                        setIsStatusModalOpen(true);
+                      }}
+                      className="flex-1 py-1.5 bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 border border-slate-200 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1 transition-colors"
+                    >
+                      Status
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

@@ -176,8 +176,8 @@ export const RequestDocumentsModal: React.FC<RequestDocumentsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[90dvh] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-slate-800 to-[#082e5b] text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -219,7 +219,7 @@ export const RequestDocumentsModal: React.FC<RequestDocumentsModalProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
               Quick Tax Category Presets
             </label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
               {TEMPLATES.map((tmpl) => (
                 <button
                   type="button"
@@ -401,7 +401,7 @@ export const RequestDocumentsModal: React.FC<RequestDocumentsModalProps> = ({
         </form>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="text-xs text-slate-500 flex items-center gap-1.5">
             <CheckCircle className="w-4 h-4 text-emerald-600" />
             <span>Client will receive In-App alert & Taxoryn branded Email notification</span>

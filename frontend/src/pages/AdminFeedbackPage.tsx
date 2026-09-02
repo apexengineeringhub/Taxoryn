@@ -989,7 +989,7 @@ export const AdminFeedbackPage: React.FC = () => {
                     </div>
 
                     {/* Context Details */}
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-gray-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-gray-100">
                       <div>
                         <span className="text-gray-400">Page Context:</span>
                         <p className="font-mono text-gray-800 font-medium">
@@ -1010,7 +1010,7 @@ export const AdminFeedbackPage: React.FC = () => {
                     <h3 className="font-bold text-gray-800 flex items-center gap-1.5">
                       <User className="w-4 h-4 text-indigo-600" /> Reporter & Practice Profile
                     </h3>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       <div>
                         <span className="text-gray-400">Reporter:</span>
                         <p className="font-semibold text-gray-900">{selectedDetail.reporterName}</p>
@@ -1193,8 +1193,8 @@ export const AdminFeedbackPage: React.FC = () => {
 
       {/* 1. Assign Modal */}
       {activeModal === 'ASSIGN' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-purple-600" /> Assign Feedback
@@ -1269,8 +1269,8 @@ export const AdminFeedbackPage: React.FC = () => {
 
       {/* 2. Change Priority Modal */}
       {activeModal === 'PRIORITY' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Tag className="w-5 h-5 text-indigo-600" /> Update Feedback Priority
@@ -1328,8 +1328,8 @@ export const AdminFeedbackPage: React.FC = () => {
 
       {/* 3. Resolve Modal */}
       {activeModal === 'RESOLVE' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Resolve Feedback
@@ -1374,8 +1374,8 @@ export const AdminFeedbackPage: React.FC = () => {
 
       {/* 4. Escalate to Engineering Modal */}
       {activeModal === 'ESCALATE' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Flame className="w-5 h-5 text-red-600" /> Escalate to Engineering
@@ -1455,8 +1455,8 @@ export const AdminFeedbackPage: React.FC = () => {
 
       {/* 5. Mark Duplicate Modal */}
       {activeModal === 'DUPLICATE' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Copy className="w-5 h-5 text-slate-600" /> Mark as Duplicate
@@ -1512,8 +1512,8 @@ export const AdminFeedbackPage: React.FC = () => {
 
       {/* 6. Reject Modal */}
       {activeModal === 'REJECT' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <X className="w-5 h-5 text-rose-600" /> Reject Feedback
@@ -1558,8 +1558,8 @@ export const AdminFeedbackPage: React.FC = () => {
 
       {/* 7. Close Modal */}
       {activeModal === 'CLOSE' && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Check className="w-5 h-5 text-gray-800" /> Close Feedback

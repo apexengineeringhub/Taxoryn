@@ -58,16 +58,16 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="relative w-full max-w-[11rem] sm:max-w-none sm:w-64 md:w-80 min-w-0">
+        <div className="relative w-full max-w-[9rem] sm:max-w-none sm:w-64 md:w-80 min-w-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder={
               isPlatformUser
-                ? "Search practices, platform users, leads, subscriptions... (Ctrl+K)"
+                ? "Search... (Ctrl+K)"
                 : isClientUser
-                ? "Search filings, invoices, documents..."
-                : "Quick search clients, GSTIN, PAN... (Ctrl+K)"
+                ? "Search..."
+                : "Search... (Ctrl+K)"
             }
             className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-100/70 border border-slate-200/80 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400 placeholder:truncate"
           />

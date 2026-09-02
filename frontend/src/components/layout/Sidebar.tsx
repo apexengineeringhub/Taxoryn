@@ -134,6 +134,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     isSuperAdmin ? platformNavItems : isClientUser ? clientNavItems : practiceNavItems
   ).filter((item) => item.visible);
 
+  const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(
+    currentTheme.sidebarHeaderBg.toUpperCase()
+  );
+
   return (
     <aside
       className={clsx(
@@ -167,7 +171,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
               alt="Practice Logo"
               className={clsx(
                 'w-9 h-9 object-contain rounded-lg p-0.5 shrink-0 border',
-                isLight ? 'bg-white border-slate-200 shadow-2xs' : 'bg-white/10 border-white/10'
+                isDarkHeader ? 'bg-white/10 border-white/10' : 'bg-white border-slate-200 shadow-2xs'
               )}
             />
           ) : (
@@ -177,13 +181,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           )}
           <div className="min-w-0">
             <span
-              className={clsx('font-black text-xs tracking-tight block truncate', isLight ? 'text-slate-900' : 'text-white')}
+              className={clsx(
+                'font-extrabold text-xs sm:text-[13px] tracking-tight block truncate',
+                isDarkHeader ? 'text-white' : 'text-slate-900'
+              )}
               title={isSuperAdmin ? 'Taxoryn Platform Operations' : practiceName}
             >
               {isSuperAdmin ? 'Taxoryn Platform' : practiceName}
             </span>
             <span
-              className={clsx('text-[9px] font-bold tracking-wider uppercase block truncate', isLight ? 'text-slate-400' : 'text-slate-400')}
+              className={clsx(
+                'text-[9px] font-bold tracking-wider uppercase block truncate',
+                isDarkHeader ? 'text-emerald-400' : 'text-slate-500'
+              )}
             >
               {isSuperAdmin ? getPlatformSubtitle() : 'Tax Practice Platform'}
             </span>
@@ -194,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           onClick={onClose}
           className={clsx(
             'lg:hidden p-2 -mr-1 rounded-md shrink-0 transition-colors',
-            isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-white/10'
+            isDarkHeader ? 'text-slate-300 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
           )}
         >
           <X className="w-5 h-5" />

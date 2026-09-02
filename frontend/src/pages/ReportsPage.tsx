@@ -804,7 +804,8 @@ export const ReportsPage: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Desktop/Tablet Table */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
@@ -855,6 +856,65 @@ export const ReportsPage: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Cards (md:hidden) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {taxWorkData.taxWorkSummary.map((row) => (
+                    <div key={row.taxType} className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${
+                              row.taxType === 'GST'
+                                ? 'bg-emerald-500'
+                                : row.taxType === 'ITR'
+                                ? 'bg-blue-500'
+                                : 'bg-purple-500'
+                            }`}
+                          />
+                          <span>{row.taxType} Filings</span>
+                        </div>
+                        <span className="text-xs font-black bg-slate-100 text-slate-800 px-2 py-0.5 rounded">
+                          {row.total} Total
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/50">
+                          <p className="text-[10px] font-bold text-amber-800 uppercase">Pending</p>
+                          <p className="text-base font-black text-amber-900 mt-0.5">{row.pending}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-indigo-50/70 border border-indigo-200/50">
+                          <p className="text-[10px] font-bold text-indigo-800 uppercase">Under Review</p>
+                          <p className="text-base font-black text-indigo-900 mt-0.5">{row.review}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/50">
+                          <p className="text-[10px] font-bold text-emerald-800 uppercase">Filed / Done</p>
+                          <p className="text-base font-black text-emerald-900 mt-0.5">{row.filed}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-rose-50/70 border border-rose-200/50">
+                          <p className="text-[10px] font-bold text-rose-800 uppercase">Overdue</p>
+                          <p className="text-base font-black text-rose-900 mt-0.5">{row.overdue}</p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex justify-end">
+                        <Link
+                          to={
+                            row.taxType === 'GST'
+                              ? '/gst'
+                              : row.taxType === 'ITR'
+                              ? '/itr'
+                              : '/tds'
+                          }
+                          className="w-full text-center py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors inline-flex items-center justify-center gap-1"
+                        >
+                          Open {row.taxType} Hub <ArrowUpRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1081,7 +1141,8 @@ export const ReportsPage: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Desktop/Tablet Table */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
@@ -1142,6 +1203,69 @@ export const ReportsPage: React.FC = () => {
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Cards (md:hidden) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {clientData.clientsRequiringAttention.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs font-medium">
+                      No clients requiring urgent attention. All deliverables on track!
+                    </div>
+                  ) : (
+                    clientData.clientsRequiringAttention.map((client) => (
+                      <div key={client.clientId} className="p-4 space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-bold text-slate-900 text-sm">{client.displayName}</p>
+                            <span className="text-[11px] font-mono text-slate-400">PAN: {client.pan || 'N/A'}</span>
+                          </div>
+                          <span className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 rounded shrink-0">
+                            {client.clientType}
+                          </span>
+                        </div>
+
+                        <div className="text-xs space-y-1 pt-1 border-t border-slate-50">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Assigned Staff:</span>
+                            <span className="font-semibold text-slate-800">{client.assignedStaffName}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Open / Overdue Tasks:</span>
+                            <span className="font-semibold text-slate-800">
+                              {client.openTasks} open {client.overdueTasks > 0 && <span className="text-rose-600 font-bold">({client.overdueTasks} overdue)</span>}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Pending Docs:</span>
+                            <span className={client.pendingDocRequests > 0 ? 'text-teal-700 font-bold' : 'text-slate-500'}>
+                              {client.pendingDocRequests > 0 ? `${client.pendingDocRequests} Pending` : 'None'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Compliance:</span>
+                            {client.hasOverdueCompliance ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full">
+                                <AlertTriangle className="w-3 h-3" /> Overdue
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <CheckCircle2 className="w-3 h-3" /> On Track
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 flex justify-end">
+                          <Link
+                            to={`/clients`}
+                            className="w-full text-center py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors inline-flex items-center justify-center gap-1"
+                          >
+                            View Client 360° <ArrowUpRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -1265,7 +1389,8 @@ export const ReportsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Desktop/Tablet Table */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
@@ -1376,6 +1501,87 @@ export const ReportsPage: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile Cards (md:hidden) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {filteredEmployeeProductivity.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs font-semibold">
+                      {workData.employeeProductivity.length === 0
+                        ? 'No employees with tracked tasks yet.'
+                        : 'No employees match the selected filters.'}
+                    </div>
+                  ) : (
+                    filteredEmployeeProductivity.map((emp) => (
+                      <div key={emp.employeeId} className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <Link
+                              to={worklistLink({ bucket: 'ALL', assignedTo: emp.employeeId })}
+                              className="font-bold text-slate-900 text-sm hover:underline"
+                            >
+                              {emp.employeeName}
+                            </Link>
+                            <p className="text-[11px] font-mono text-slate-400">
+                              {emp.employeeCode} &bull; {emp.designation || 'Staff'} ({emp.department || 'Direct Tax'})
+                            </p>
+                          </div>
+                          <span className="px-2 py-0.5 text-xs font-black bg-slate-100 text-slate-800 rounded">
+                            {emp.assignedTasks} Tasks
+                          </span>
+                        </div>
+
+                        {/* Task metrics pills */}
+                        <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
+                          <div className="p-1.5 rounded bg-blue-50/80 border border-blue-100">
+                            <span className="text-[10px] text-blue-700 font-bold block">Open</span>
+                            <span className="font-black text-blue-900">{emp.openTasks}</span>
+                          </div>
+                          <div className="p-1.5 rounded bg-amber-50/80 border border-amber-100">
+                            <span className="text-[10px] text-amber-700 font-bold block">In Prog</span>
+                            <span className="font-black text-amber-900">{emp.inProgressTasks}</span>
+                          </div>
+                          <div className="p-1.5 rounded bg-rose-50/80 border border-rose-100">
+                            <span className="text-[10px] text-rose-700 font-bold block">Overdue</span>
+                            <span className="font-black text-rose-900">{emp.overdueTasks}</span>
+                          </div>
+                          <div className="p-1.5 rounded bg-emerald-50/80 border border-emerald-100">
+                            <span className="text-[10px] text-emerald-700 font-bold block">Done</span>
+                            <span className="font-black text-emerald-900">{emp.completedTasks}</span>
+                          </div>
+                        </div>
+
+                        {/* Progress bars */}
+                        <div className="space-y-1.5 pt-1 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 text-[11px]">Completion Rate:</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    emp.completionRate >= 80
+                                      ? 'bg-emerald-500'
+                                      : emp.completionRate >= 50
+                                      ? 'bg-amber-500'
+                                      : 'bg-rose-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, emp.completionRate)}%` }}
+                                />
+                              </div>
+                              <span className="font-bold text-slate-800 text-xs">{emp.completionRate}%</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 text-[11px]">On-Time Rate:</span>
+                            <span className="font-bold text-slate-800 text-xs">
+                              {emp.onTimeCompletionRate === null ? 'N/A' : `${emp.onTimeCompletionRate}%`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               {/* Tax-Wise Workload by Employee */}
@@ -1386,7 +1592,8 @@ export const ReportsPage: React.FC = () => {
                     Assigned work per employee by tax type, based on each task&apos;s recorded category.
                   </p>
                 </div>
-                <div className="overflow-x-auto">
+                {/* Desktop/Tablet Table */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                       <tr>
@@ -1448,6 +1655,60 @@ export const ReportsPage: React.FC = () => {
                       })}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Cards (md:hidden) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {filteredEmployeeProductivity.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs font-semibold">
+                      {workData.employeeProductivity.length === 0
+                        ? 'No employees with tracked tasks yet.'
+                        : 'No employees match the selected filters.'}
+                    </div>
+                  ) : (
+                    filteredEmployeeProductivity.map((emp) => {
+                      const categories = ['GST', 'ITR', 'TDS', 'AUDIT', 'COMPLIANCE', 'BILLING', 'OTHER'];
+                      const hasWorkload = categories.some((c) => (emp.taxCategoryBreakdown?.[c]?.assigned ?? 0) > 0);
+
+                      return (
+                        <div key={emp.employeeId} className="p-4 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-bold text-slate-900 text-sm">{emp.employeeName}</p>
+                              <span className="text-[11px] font-mono text-slate-400">{emp.employeeCode}</span>
+                            </div>
+                            <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                              {emp.assignedTasks} Total
+                            </span>
+                          </div>
+
+                          {!hasWorkload ? (
+                            <p className="text-xs text-slate-400 italic">No assigned workload across tax domains.</p>
+                          ) : (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
+                              {categories.map((catName) => {
+                                const c = emp.taxCategoryBreakdown?.[catName];
+                                if (!c || c.assigned === 0) return null;
+                                return (
+                                  <Link
+                                    key={catName}
+                                    to={worklistLink({ assignedTo: emp.employeeId, category: catName })}
+                                    className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/70 text-center transition-colors"
+                                  >
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">{catName}</span>
+                                    <span className="text-sm font-black text-slate-900">{c.assigned}</span>
+                                    {c.overdue > 0 && (
+                                      <span className="text-[10px] font-bold text-rose-600 block">({c.overdue} od)</span>
+                                    )}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -1534,7 +1795,8 @@ export const ReportsPage: React.FC = () => {
                       </Link>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop/Tablet Table */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                           <tr>
@@ -1590,6 +1852,63 @@ export const ReportsPage: React.FC = () => {
                           )}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile Cards (md:hidden) */}
+                    <div className="md:hidden divide-y divide-slate-100">
+                      {financialData.outstandingInvoices.length === 0 ? (
+                        <div className="p-6 text-center text-slate-400 text-xs font-medium">
+                          No outstanding invoices found. All bills are settled!
+                        </div>
+                      ) : (
+                        financialData.outstandingInvoices.map((inv) => (
+                          <div key={inv.invoiceId} className="p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="font-mono font-bold text-slate-900 text-xs">{inv.invoiceNumber}</p>
+                                <p className="font-semibold text-slate-800 text-sm mt-0.5">{inv.clientName}</p>
+                              </div>
+                              {inv.isOverdue ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full shrink-0">
+                                  <AlertCircle className="w-3 h-3" /> {inv.daysDueOrOverdue}d Overdue
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full shrink-0">
+                                  <Clock className="w-3 h-3" /> Due in {inv.daysDueOrOverdue}d
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                              <div>
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold">Total Amount</span>
+                                <p className="font-bold text-slate-900">{formatCurrency(inv.totalAmount)}</p>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold">Paid</span>
+                                <p className="font-bold text-emerald-700">{formatCurrency(inv.paidAmount)}</p>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold">Due Date</span>
+                                <p className="font-medium text-slate-700">{inv.dueDate || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold">Balance Due</span>
+                                <p className="font-black text-rose-700">{formatCurrency(inv.balanceDue)}</p>
+                              </div>
+                            </div>
+
+                            <div className="pt-1 flex justify-end">
+                              <Link
+                                to={`/billing`}
+                                className="w-full text-center py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors inline-flex items-center justify-center gap-1"
+                              >
+                                View Invoice Details <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </>

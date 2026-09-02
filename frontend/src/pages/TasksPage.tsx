@@ -104,6 +104,7 @@ export const TasksPage: React.FC = () => {
   );
   const [categoryFilter, setCategoryFilter] = useState<string>(() => searchParams.get('category') || 'ALL');
   const [assigneeFilter, setAssigneeFilter] = useState<string>(() => searchParams.get('assignedTo') || 'ALL');
+  const [mobileKanbanTab, setMobileKanbanTab] = useState<TaskStatus>('TODO');
 
   // Form State for creating task
   const [formData, setFormData] = useState<{
@@ -934,25 +935,59 @@ export const TasksPage: React.FC = () => {
           searchPlaceholder="Search worklist by client, task title, statutory obligation, doc request..."
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {(['TODO', 'IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETED'] as const).map((colStatus) => {
-            const colTasks = tasks.filter((t) => t.status === colStatus);
-            return (
-              <div key={colStatus} className="bg-slate-100/80 border border-slate-200 rounded-xl p-4 flex flex-col min-h-[480px]">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    {colStatus.replace('_', ' ')}
-                  </span>
-                  <span className="w-5 h-5 rounded-full bg-white border border-slate-200 text-slate-700 font-bold text-[10px] flex items-center justify-center">
-                    {colTasks.length}
-                  </span>
-                </div>
+        <>
+          {/* Mobile Kanban Status Selector Bar */}
+          <div className="md:hidden space-y-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              {(
+                [
+                  { id: 'TODO', label: 'To Do' },
+                  { id: 'IN_PROGRESS', label: 'In Progress' },
+                  { id: 'UNDER_REVIEW', label: 'Under Review' },
+                  { id: 'COMPLETED', label: 'Completed' },
+                ] as const
+              ).map((tab) => {
+                const count = tasks.filter((t) => t.status === tab.id).length;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setMobileKanbanTab(tab.id)}
+                    className={clsx(
+                      'px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0',
+                      mobileKanbanTab === tab.id
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    )}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={clsx(
+                        'px-1.5 py-0.2 text-[10px] rounded-full font-bold',
+                        mobileKanbanTab === tab.id
+                          ? 'bg-white/20 text-white'
+                          : 'bg-white text-slate-700 border border-slate-200'
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-                <div className="space-y-3 flex-1 overflow-y-auto">
-                  {colTasks.map((task) => (
+            {/* Mobile Active Column Tasks */}
+            <div className="bg-slate-100/80 border border-slate-200 rounded-xl p-3.5 space-y-3">
+              {tasks.filter((t) => t.status === mobileKanbanTab).length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                  No tasks in {mobileKanbanTab.replace('_', ' ').toLowerCase()}
+                </div>
+              ) : (
+                tasks
+                  .filter((t) => t.status === mobileKanbanTab)
+                  .map((task) => (
                     <div
                       key={task.id}
-                      className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-2.5"
+                      className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs space-y-2.5"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded uppercase font-mono">
@@ -969,8 +1004,8 @@ export const TasksPage: React.FC = () => {
                       )}
 
                       <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
-                        <span className="font-semibold truncate max-w-[120px]">{task.clientName || 'General'}</span>
-                        <span className="font-medium text-emerald-700 truncate max-w-[100px]">
+                        <span className="font-semibold truncate max-w-[140px]">{task.clientName || 'General'}</span>
+                        <span className="font-medium text-emerald-700 truncate max-w-[120px]">
                           {task.assigneeName || 'Assigned'}
                         </span>
                       </div>
@@ -995,12 +1030,80 @@ export const TasksPage: React.FC = () => {
                         </select>
                       </div>
                     </div>
-                  ))}
+                  ))
+              )}
+            </div>
+          </div>
+
+          {/* Desktop/Tablet 4-Column Grid */}
+          <div className="hidden md:grid md:grid-cols-4 gap-4">
+            {(['TODO', 'IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETED'] as const).map((colStatus) => {
+              const colTasks = tasks.filter((t) => t.status === colStatus);
+              return (
+                <div key={colStatus} className="bg-slate-100/80 border border-slate-200 rounded-xl p-4 flex flex-col min-h-[480px]">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      {colStatus.replace('_', ' ')}
+                    </span>
+                    <span className="w-5 h-5 rounded-full bg-white border border-slate-200 text-slate-700 font-bold text-[10px] flex items-center justify-center">
+                      {colTasks.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 flex-1 overflow-y-auto">
+                    {colTasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded uppercase font-mono">
+                            {task.category || 'TASK'}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">{task.dueDate}</span>
+                        </div>
+
+                        <p className="text-xs font-bold text-slate-900 leading-snug">{task.title}</p>
+                        {task.status === 'BLOCKED' && (
+                          <p className="text-[10px] text-amber-700 font-semibold bg-amber-50 p-1 rounded border border-amber-200">
+                            🛑 {task.blockedReason || 'Blocked'}
+                          </p>
+                        )}
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
+                          <span className="font-semibold truncate max-w-[120px]">{task.clientName || 'General'}</span>
+                          <span className="font-medium text-emerald-700 truncate max-w-[100px]">
+                            {task.assigneeName || 'Assigned'}
+                          </span>
+                        </div>
+
+                        <div className="pt-2 flex items-center justify-between gap-1 border-t border-slate-100">
+                          <button
+                            onClick={() => handleOpenEditModal(task)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium inline-flex items-center gap-1 border border-slate-200"
+                          >
+                            <Edit2 className="w-2.5 h-2.5" /> Reassign
+                          </button>
+                          <select
+                            value={task.status}
+                            onChange={(e) => handleUpdateStatus(task.id, e.target.value as TaskStatus)}
+                            className="bg-slate-50 border border-slate-200 rounded text-[11px] px-2 py-1 font-semibold text-slate-700 cursor-pointer"
+                          >
+                            <option value="TODO">To Do</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="UNDER_REVIEW">Under Review</option>
+                            <option value="BLOCKED">Blocked</option>
+                            <option value="COMPLETED">Completed</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* =========================================================================

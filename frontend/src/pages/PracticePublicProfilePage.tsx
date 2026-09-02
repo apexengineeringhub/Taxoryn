@@ -36,8 +36,13 @@ import { MarketplaceProfile, MarketplaceService, MarketplaceReview, PublicTaxSer
 import { generatePracticeProfileSchema, generateBreadcrumbSchema } from '../utils/schemaGenerators';
 import clsx from 'clsx';
 
-export const PracticePublicProfilePage: React.FC = () => {
-  const { slug, id } = useParams<{ slug?: string; id?: string }>();
+interface PracticePublicProfilePageProps {
+  overrideSlug?: string;
+}
+
+export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps> = ({ overrideSlug }) => {
+  const { slug: routeSlug, id } = useParams<{ slug?: string; id?: string }>();
+  const slug = overrideSlug || routeSlug;
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -450,29 +455,29 @@ export const PracticePublicProfilePage: React.FC = () => {
               </div>
 
               {/* Title & Trust Badges */}
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight break-words leading-tight">
                     {profile.displayName}
                   </h1>
                   {isVerified ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                       {isProfessionalRoute ? 'Verified Tax Professional' : 'Verified Practice'}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
                       Verification Pending
                     </span>
                   )}
                   {profile.isFeatured && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
                       <Sparkles className="w-3 h-3" /> Featured
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm sm:text-base text-slate-600 max-w-2xl font-normal">
+                <p className="text-sm sm:text-base text-slate-600 max-w-2xl font-normal leading-relaxed">
                   {profile.headline || 'Chartered Accountants & Certified Indian Tax Advisory Firm'}
                 </p>
 
@@ -922,8 +927,8 @@ export const PracticePublicProfilePage: React.FC = () => {
 
       {/* MODAL: SEND ENQUIRY */}
       {showInquiryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="space-y-0.5">
                 <h3 className="font-bold text-slate-900 text-lg">Send Enquiry</h3>
@@ -1032,8 +1037,8 @@ export const PracticePublicProfilePage: React.FC = () => {
 
       {/* MODAL: BOOK CONSULTATION */}
       {showBookingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="space-y-0.5">
                 <h3 className="font-bold text-slate-900 text-lg">Book Consultation Call</h3>
@@ -1132,8 +1137,8 @@ export const PracticePublicProfilePage: React.FC = () => {
 
       {/* MODAL: SUBMIT REVIEW */}
       {showReviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-lg">Submit Verified Review</h3>
               <button
@@ -1211,8 +1216,8 @@ export const PracticePublicProfilePage: React.FC = () => {
 
       {/* MODAL: REPORT PROFILE */}
       {showReportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
                 <Flag className="w-5 h-5 text-red-600" /> Report Profile

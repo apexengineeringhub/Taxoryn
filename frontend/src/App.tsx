@@ -59,6 +59,16 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { ReportsPage } from './pages/ReportsPage';
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
+import { getTenantSubdomain } from './utils/tenantUrl';
+
+// Dynamic Multi-Tenant Subdomain Resolver
+const TenantRootResolver: React.FC = () => {
+  const tenantSubdomain = getTenantSubdomain();
+  if (tenantSubdomain) {
+    return <PracticePublicProfilePage overrideSlug={tenantSubdomain} />;
+  }
+  return <Navigate to="/dashboard" replace />;
+};
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -91,6 +101,8 @@ export const App: React.FC = () => {
       <BrandingProvider>
         <BrowserRouter>
           <Routes>
+            {/* Root Route: Tenant Subdomain Resolution (e.g., https://apex.taxoryn.com) or Dashboard */}
+            <Route path="/" element={<TenantRootResolver />} />
             {/* Public Auth & Discovery Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
