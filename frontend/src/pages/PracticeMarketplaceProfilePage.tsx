@@ -43,7 +43,7 @@ import {
   PublicTaxServiceCategory,
   PracticeService,
 } from '../types';
-import { buildTenantSubdomainUrl, formatTenantDisplayUrl } from '../utils/tenantUrl';
+import { buildTenantSubdomainUrl, formatTenantDisplayUrl, getProductionSubdomainUrl } from '../utils/tenantUrl';
 import clsx from 'clsx';
 
 export const PracticeMarketplaceProfilePage: React.FC = () => {
@@ -407,11 +407,11 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     }
   };
 
-  // Copy public slug / tenant subdomain link
+  // Copy production tenant subdomain link (e.g. https://apex.taxoryn.com)
   const copyPublicUrl = () => {
     const slugVal = profile?.publicSlug || profile?.slug;
     if (!slugVal) return;
-    const url = buildTenantSubdomainUrl(slugVal);
+    const url = getProductionSubdomainUrl(slugVal);
     navigator.clipboard.writeText(url);
     setCopiedSlug(true);
     setTimeout(() => setCopiedSlug(false), 2500);
@@ -419,7 +419,9 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
 
   const activeSlug = profile?.publicSlug || profile?.slug || 'my-practice';
   const tenantUrl = buildTenantSubdomainUrl(activeSlug);
+  const productionUrl = getProductionSubdomainUrl(activeSlug);
   const tenantDisplayDomain = formatTenantDisplayUrl(activeSlug);
+  const isLocalDev = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   const handleToggleTaxService = (serviceId: string) => {
     setSelectedTaxServiceIds((prev) => {
@@ -509,7 +511,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs shadow-md transition-all"
             >
               <Eye className="w-3.5 h-3.5 text-indigo-600" />
-              Preview Branded Site ({tenantDisplayDomain})
+              Preview Branded Site
               <ArrowRight className="w-3 h-3 text-slate-400" />
             </a>
             <button
@@ -595,26 +597,27 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-xs shadow-xs transition"
               >
                 <Eye className="w-3.5 h-3.5" />
-                Visit Domain
+                Preview Site
               </a>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-indigo-100 text-xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-slate-400 font-medium">Direct Live URL:</span>
-              <a
-                href={tenantUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline truncate"
-              >
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="text-slate-400 font-medium">Production Domain:</span>
+              <span className="font-mono font-bold text-indigo-600 truncate">
                 https://{tenantDisplayDomain}
-              </a>
+              </span>
             </div>
-            <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
-              Active & Configured
-            </span>
+            {isLocalDev ? (
+              <span className="text-[11px] text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 shrink-0">
+                Local Dev Preview Active
+              </span>
+            ) : (
+              <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                Active & Configured
+              </span>
+            )}
           </div>
         </Card>
 

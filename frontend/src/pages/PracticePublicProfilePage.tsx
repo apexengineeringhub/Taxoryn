@@ -27,6 +27,7 @@ import {
   Search,
   ExternalLink,
   Users,
+  User,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { SeoHead } from '../components/common/SeoHead';
@@ -382,31 +383,30 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
         )}
 
         <div className="absolute top-4 left-4 md:left-8 z-10 flex items-center gap-2.5">
-          <Link to="/marketplace" className="p-1.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md transition-all flex items-center justify-center">
+          <div className="p-1.5 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center">
             <TaxorynLogo variant="symbol" size="xs" />
-          </Link>
-          <Link
-            to="/marketplace"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-md text-xs font-medium transition-all"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Marketplace
-          </Link>
-          {searchParams.get('contentSlug') ? (
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/45 text-white backdrop-blur-md text-xs font-bold border border-white/15">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="truncate max-w-[200px] sm:max-w-none">{profile.displayName} • Official Portal</span>
+          </div>
+
+          {searchParams.get('from') === 'marketplace' ? (
             <Link
-              to={`/learn/${searchParams.get('contentSlug')}`}
+              to="/marketplace"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-indigo-300" />
-              Back to Guide
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Marketplace
             </Link>
           ) : (
             <Link
-              to="/learn"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
+              to="/login"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
             >
-              <BookOpen className="w-3.5 h-3.5 text-indigo-300" />
-              Taxoryn Learn
+              <User className="w-3.5 h-3.5 text-indigo-300" />
+              Client Portal Login
             </Link>
           )}
         </div>
@@ -414,7 +414,7 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
         <div className="absolute top-4 right-4 md:right-8 z-10 flex items-center gap-2">
           <button
             onClick={handleShare}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-md text-xs font-medium transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black/45 text-white hover:bg-black/60 backdrop-blur-md text-xs font-semibold border border-white/15 transition-all shadow-sm"
             title="Share Profile"
           >
             <Share2 className="w-3.5 h-3.5" />
@@ -894,17 +894,24 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
                 <Send className="w-4 h-4 mr-2" /> Start Free Enquiry
               </Button>
 
-              {/* Find Similar Professionals Button */}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const serviceParam = offeredServicesList.length > 0 ? offeredServicesList[0].name : '';
-                  navigate(`/marketplace?service=${encodeURIComponent(serviceParam)}&city=${encodeURIComponent(profile.city || '')}`);
-                }}
-                className="w-full text-xs font-medium text-slate-600 hover:text-slate-900 border-slate-200"
-              >
-                <Search className="w-3.5 h-3.5 mr-2 text-slate-400" /> Find Similar Tax Professionals
-              </Button>
+              {/* Secondary Practice CTA Button */}
+              {profile.consultationEnabled ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBookingModal(true)}
+                  className="w-full text-xs font-bold text-indigo-700 hover:bg-indigo-50 border-indigo-200"
+                >
+                  <Video className="w-3.5 h-3.5 mr-2 text-indigo-600" /> Book Direct Consultation
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => setActiveTab('LOCATIONS')}
+                  className="w-full text-xs font-medium text-slate-700 hover:text-slate-900 border-slate-200"
+                >
+                  <MapPin className="w-3.5 h-3.5 mr-2 text-slate-500" /> View Office Locations & Hours
+                </Button>
+              )}
 
               {/* Trust Features Checklist */}
               <div className="pt-4 border-t border-slate-100 space-y-2.5">
