@@ -199,13 +199,15 @@ export const PlatformSubscriptionsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Tenant Subscriptions Table */}
+      {/* Tenant Subscriptions Table & Mobile Cards */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-900">Tenant Practice Subscription Registry</h3>
           <span className="text-xs text-slate-500">{practices.length} Practices Enrolled</span>
         </div>
-        <div className="overflow-x-auto">
+
+        {/* Desktop Table View (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase tracking-wider">
@@ -241,6 +243,41 @@ export const PlatformSubscriptionsPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cards View (md:hidden) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {practices.map((p) => (
+            <div key={p.id} className="p-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="font-bold text-slate-900 text-sm">{p.name}</h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase shrink-0">
+                  {p.subscriptionPlan || 'STARTER'}
+                </span>
+              </div>
+              <div className="text-xs space-y-1 pt-1 border-t border-slate-50">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Billing Cycle:</span>
+                  <span className="text-slate-700 font-medium">Monthly Auto-Renewal</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Status:</span>
+                  <span className={clsx(
+                    'px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                    p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                  )}>
+                    {p.status}
+                  </span>
+                </div>
+                {p.createdAt && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Enrolled:</span>
+                    <span className="text-slate-500">{new Date(p.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

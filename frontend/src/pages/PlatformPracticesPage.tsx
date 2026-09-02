@@ -119,13 +119,13 @@ export const PlatformPracticesPage: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1">
           {['ALL', 'ACTIVE', 'PENDING_VERIFICATION', 'SUSPENDED', 'INACTIVE'].map((st) => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
               className={clsx(
-                'px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors',
+                'px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors shrink-0',
                 statusFilter === st
                   ? 'bg-purple-600 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -137,9 +137,10 @@ export const PlatformPracticesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Practices Table */}
+      {/* Practices Table & Mobile Cards */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase tracking-wider">
@@ -227,12 +228,80 @@ export const PlatformPracticesPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Cards View (md:hidden) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {isLoading ? (
+            <div className="text-center py-10 text-slate-400 text-xs">Loading practices...</div>
+          ) : filteredPractices.length === 0 ? (
+            <div className="text-center py-10 text-slate-400 text-xs">No practices found matching criteria</div>
+          ) : (
+            filteredPractices.map((p) => (
+              <div key={p.id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">{p.name}</h4>
+                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {p.id.substring(0, 8)}...</div>
+                  </div>
+                  <span className={clsx(
+                    'px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide border shrink-0',
+                    p.subscriptionPlan === 'ENTERPRISE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                    p.subscriptionPlan === 'BUSINESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                    p.subscriptionPlan === 'PROFESSIONAL' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    'bg-slate-100 text-slate-700 border-slate-200'
+                  )}>
+                    {p.subscriptionPlan || 'STARTER'}
+                  </span>
+                </div>
+
+                <div className="text-xs space-y-1 pt-1 border-t border-slate-50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Contact:</span>
+                    <span className="text-slate-700 font-medium truncate max-w-[180px]">{p.email || 'N/A'}</span>
+                  </div>
+                  {p.city && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Location:</span>
+                      <span className="text-slate-700 font-medium">{p.city}, {p.state || 'IN'}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Status:</span>
+                    <span className={clsx(
+                      'px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                      p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      p.status === 'SUSPENDED' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                      'bg-amber-50 text-amber-700 border-amber-200'
+                    )}>
+                      {p.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end border-t border-slate-50">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setSelectedPractice(p);
+                      setTargetStatus(p.status || 'ACTIVE');
+                      setIsStatusModalOpen(true);
+                    }}
+                    className="w-full text-xs font-semibold justify-center"
+                  >
+                    Update Status
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Status Update Modal */}
       {isStatusModalOpen && selectedPractice && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-scale-up">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-scale-up max-h-[90dvh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-900 mb-1">
               Update Practice Lifecycle Status
             </h3>

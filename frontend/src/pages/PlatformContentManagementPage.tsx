@@ -662,7 +662,7 @@ export const PlatformContentManagementPage: React.FC = () => {
       </WorkspacePageHeader>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 bg-white rounded-t-xl px-4 gap-1 shadow-xs">
+      <div className="flex border-b border-slate-200 bg-white rounded-t-xl px-4 gap-1 shadow-xs overflow-x-auto no-scrollbar">
         <button
           onClick={() => setTab('dashboard')}
           className={clsx(
@@ -961,9 +961,10 @@ export const PlatformContentManagementPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Data Table */}
+          {/* Data Table & Mobile Cards */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Desktop Table View (hidden md:block) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[1080px] text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
                   <tr>
@@ -1160,6 +1161,163 @@ export const PlatformContentManagementPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Cards View (md:hidden) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {isLoading ? (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  Loading content items...
+                </div>
+              ) : contentList.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  No content found matching filter criteria.
+                </div>
+              ) : (
+                contentList.map((item) => (
+                  <div key={item.id} className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 shrink-0">{renderTypeIcon(item.contentType)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-bold text-slate-900 text-sm">{item.title}</h4>
+                          <span className="shrink-0">{renderStatusBadge(item.status)}</span>
+                        </div>
+                        <div className="text-xs text-slate-400 font-mono mt-0.5 break-all">/{item.slug}</div>
+                        {item.rejectionReason && (
+                          <div className="mt-1 text-xs text-rose-600 flex items-center gap-1 font-medium bg-rose-50 p-1.5 rounded">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Rejection: {item.rejectionReason}
+                          </div>
+                        )}
+                        {item.scheduledPublishAt && (
+                          <div className="mt-1 text-xs text-indigo-600 flex items-center gap-1 font-medium bg-indigo-50 p-1.5 rounded">
+                            <Calendar className="w-3.5 h-3.5 shrink-0" /> Scheduled: {new Date(item.scheduledPublishAt).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-xs space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Category:</span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                          {item.categoryName || 'Unassigned'}
+                        </span>
+                      </div>
+
+                      {item.taxServices && item.taxServices.length > 0 && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-400 shrink-0">Services:</span>
+                          <div className="flex flex-wrap gap-1 justify-end">
+                            {item.taxServices.map((s) => (
+                              <span
+                                key={s.id}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-purple-50 text-purple-700 border border-purple-200 font-medium"
+                              >
+                                {s.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Author / Updated:</span>
+                        <span className="text-slate-600 font-medium">
+                          {item.authorName || 'Admin'} • {new Date(item.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Version:</span>
+                        <button
+                          onClick={() => handleOpenVersionHistory(item)}
+                          className="text-xs text-teal-600 hover:underline font-semibold flex items-center gap-1"
+                        >
+                          <History className="w-3 h-3" /> v{item.versionNumber || 1}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Actions Toolbar on Mobile */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => handleOpenPreview(item.id)}
+                        className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-teal-700 bg-slate-100 rounded inline-flex items-center gap-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Preview
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(item)}
+                        className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-blue-700 bg-slate-100 rounded inline-flex items-center gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" /> Edit
+                      </button>
+
+                      {(item.status === 'DRAFT' || item.status === 'REJECTED') && (
+                        <button
+                          onClick={() => handleSubmitReview(item.id)}
+                          className="px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded inline-flex items-center gap-1"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Submit
+                        </button>
+                      )}
+
+                      {(item.status === 'SUBMITTED' || item.status === 'IN_REVIEW' || item.status === 'UNDER_REVIEW') && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(item.id)}
+                            className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded inline-flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                          </button>
+                          <button
+                            onClick={() => handleOpenRejectModal(item.id)}
+                            className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded inline-flex items-center gap-1"
+                          >
+                            <AlertCircle className="w-3.5 h-3.5" /> Reject
+                          </button>
+                        </>
+                      )}
+
+                      {item.status === 'APPROVED' && (
+                        <>
+                          <button
+                            onClick={() => handleOpenScheduleModal(item.id)}
+                            className="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded inline-flex items-center gap-1"
+                          >
+                            <Calendar className="w-3.5 h-3.5" /> Schedule
+                          </button>
+                          <button
+                            onClick={() => handlePublish(item.id)}
+                            className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded inline-flex items-center gap-1"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" /> Publish
+                          </button>
+                        </>
+                      )}
+
+                      {item.status === 'PUBLISHED' && (
+                        <button
+                          onClick={() => handleArchive(item.id)}
+                          className="px-2.5 py-1 text-xs font-medium text-slate-500 bg-slate-100 rounded inline-flex items-center gap-1"
+                        >
+                          <Archive className="w-3.5 h-3.5" /> Archive
+                        </button>
+                      )}
+
+                      {item.status === 'ARCHIVED' && (
+                        <button
+                          onClick={() => handleRestore(item.id)}
+                          className="px-2.5 py-1 text-xs font-medium text-teal-700 bg-teal-50 rounded inline-flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Restore
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Pagination */}
@@ -1386,7 +1544,7 @@ export const PlatformContentManagementPage: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[640px] text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
                   <tr>
@@ -1413,6 +1571,25 @@ export const PlatformContentManagementPage: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Cards View (md:hidden) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {masterTaxServices.map((svc) => (
+                <div key={svc.id} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded font-semibold">
+                      {svc.code}
+                    </span>
+                    <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                      ACTIVE
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm">{svc.name}</h4>
+                  <div className="text-xs text-slate-500 font-medium">{svc.categoryName || svc.category}</div>
+                  {svc.description && <p className="text-xs text-slate-600 leading-relaxed">{svc.description}</p>}
+                </div>
+              ))}
             </div>
           </div>
         </div>

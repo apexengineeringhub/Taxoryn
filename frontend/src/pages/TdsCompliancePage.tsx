@@ -505,7 +505,7 @@ export const TdsCompliancePage: React.FC = () => {
 
       {/* Main Navigation Tabs */}
       <div className="border-b border-slate-200 dark:border-slate-800">
-        <nav className="flex space-x-6 overflow-x-auto" aria-label="Tabs">
+        <nav className="flex space-x-6 overflow-x-auto no-scrollbar pb-1" aria-label="Tabs">
           {[
             { id: 'RETURNS', label: 'Quarterly Statements (24Q / 26Q / 27Q)', icon: FileSpreadsheet },
             { id: 'PROFILES', label: 'TAN Master Register', icon: Building2 },
@@ -520,7 +520,7 @@ export const TdsCompliancePage: React.FC = () => {
                 key={tab.id}
                 onClick={() => setActiveMainTab(tab.id as any)}
                 className={clsx(
-                  'flex items-center py-3.5 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors',
+                  'flex items-center py-3.5 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors shrink-0',
                   isActive
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
