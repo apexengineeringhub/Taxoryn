@@ -700,7 +700,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Date of Filing</label>
               <input
@@ -757,7 +757,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
         subtitle={`Auto-schedules return filing records for all active ITR client profiles in ${practiceName}`}
       >
         <div className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Assessment Year</label>
               <input
@@ -781,7 +781,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Non-Audit Due Date (Individuals/Firms)</label>
               <input
@@ -886,7 +886,7 @@ const DEMO_PRACTICE_TAXPAYERS = [
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">ITR Form</label>
               <select

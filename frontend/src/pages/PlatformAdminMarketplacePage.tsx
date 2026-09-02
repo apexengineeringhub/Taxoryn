@@ -762,8 +762,8 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
 
       {/* Rejection Modal */}
       {rejectingItem && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 dark:text-white">Reject Credential Verification</h3>
             <p className="text-xs text-slate-500">Provide reason for rejecting membership credentials for this firm.</p>
 
@@ -792,8 +792,8 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
 
       {/* 1. Create Tax Service Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 dark:text-white">Add Tax Service Category</h3>
             <p className="text-xs text-slate-500">Create a high-level category to organize Indian tax and compliance services.</p>
 
@@ -854,8 +854,8 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
 
       {/* 2. Create Master Tax Service Modal */}
       {isServiceModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 dark:text-white">Create Master Tax Service</h3>
             <p className="text-xs text-slate-500">
               Register a new standardized service. The service code will become immutable once created.
@@ -950,8 +950,8 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
 
       {/* 3. Edit Master Tax Service Modal */}
       {editingService && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Edit Master Tax Service</h3>
               <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
@@ -1029,8 +1029,8 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
 
       {/* 4. Manage Aliases Modal */}
       {aliasModalService && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 Search Aliases for {aliasModalService.name}
