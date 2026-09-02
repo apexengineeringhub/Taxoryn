@@ -989,7 +989,7 @@ export const AdminFeedbackPage: React.FC = () => {
                     </div>
 
                     {/* Context Details */}
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-gray-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-gray-100">
                       <div>
                         <span className="text-gray-400">Page Context:</span>
                         <p className="font-mono text-gray-800 font-medium">
@@ -1010,7 +1010,7 @@ export const AdminFeedbackPage: React.FC = () => {
                     <h3 className="font-bold text-gray-800 flex items-center gap-1.5">
                       <User className="w-4 h-4 text-indigo-600" /> Reporter & Practice Profile
                     </h3>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       <div>
                         <span className="text-gray-400">Reporter:</span>
                         <p className="font-semibold text-gray-900">{selectedDetail.reporterName}</p>

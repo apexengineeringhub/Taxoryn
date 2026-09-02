@@ -423,7 +423,7 @@ export const AuditLogsPage: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
                   <div>
                     <span className="text-slate-400 block font-medium uppercase text-[10px]">Actor</span>
                     <span className="font-bold text-slate-800 truncate block">
