@@ -8,12 +8,14 @@ import { teamApi } from '../api/endpoints';
 import { Employee, Role } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
+import { AddTeamMemberModal } from '../components/team/AddTeamMemberModal';
 
 export const TeamManagementPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [activeTab, setActiveTab] = useState<'employees' | 'roles'>('employees');
   const [isLoading, setIsLoading] = useState(true);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const { user } = useAuth();
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
@@ -137,7 +139,9 @@ export const TeamManagementPage: React.FC = () => {
                 ⚡ Bulk Onboard Team
               </Button>
             </Link>
-            <Button leftIcon={<Plus className="w-4 h-4" />}>Add Team Member</Button>
+            <Button leftIcon={<Plus className="w-4 h-4" />} onClick={() => setIsAddModalOpen(true)}>
+              Add Team Member
+            </Button>
           </div>
         )}
       </div>
@@ -201,6 +205,13 @@ export const TeamManagementPage: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Add Team Member Modal */}
+      <AddTeamMemberModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={loadData}
+      />
 
       {/* Hidden File Input for Avatar Upload */}
       <input

@@ -47,6 +47,14 @@ public class RoleServiceImpl implements RoleService {
     public List<RoleDto> getAvailableRoles() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         List<RoleEntity> roles = roleRepository.findAllAvailableForOrganization(organizationId);
+
+        boolean isSuperAdmin = SecurityUtils.isTaxorynSuperAdmin();
+        if (!isSuperAdmin) {
+            roles = roles.stream()
+                    .filter(r -> !SecurityUtils.isPlatformRole(r.getCode()))
+                    .collect(Collectors.toList());
+        }
+
         return roleMapper.toDtoList(roles);
     }
 
@@ -58,6 +66,8 @@ public class RoleServiceImpl implements RoleService {
 
         if (!role.isSystemRole()) {
             validateTenantAccess(role.getOrganizationId());
+        } else if (SecurityUtils.isPlatformRole(role.getCode()) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new ForbiddenException("Access denied: Platform role details are restricted to platform administrators");
         }
 
         return roleMapper.toDto(role);
@@ -67,6 +77,14 @@ public class RoleServiceImpl implements RoleService {
     @Transactional(readOnly = true)
     public List<PermissionDto> getAllPermissions() {
         List<PermissionEntity> permissions = permissionRepository.findAll();
+
+        boolean isSuperAdmin = SecurityUtils.isTaxorynSuperAdmin();
+        if (!isSuperAdmin) {
+            permissions = permissions.stream()
+                    .filter(p -> !SecurityUtils.isPlatformPermission(p.getCode()))
+                    .collect(Collectors.toList());
+        }
+
         return roleMapper.toPermissionDtoList(permissions);
     }
 
@@ -76,11 +94,19 @@ public class RoleServiceImpl implements RoleService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         String code = request.getCode().toUpperCase().trim();
 
-        // Check if role code exists in system roles or within the organization
+        // 1. Prevent platform role naming collisions
+        if (SecurityUtils.isPlatformRole(code)) {
+            throw new ForbiddenException("Cannot create custom role using reserved platform role code: " + code);
+        }
+
+        // 2. Check if role code exists in system roles or within the organization
         if (roleRepository.findByCodeAndIsSystemRoleTrue(code).isPresent()
                 || roleRepository.existsByCodeAndOrganizationId(code, organizationId)) {
             throw new DuplicateResourceException("Role", "code", code);
         }
+
+        // 3. Delegation boundary validation: caller cannot grant permissions exceeding their authority
+        SecurityUtils.validatePermissionDelegation(request.getPermissionCodes());
 
         List<PermissionEntity> matchedPermissions = permissionRepository.findByCodeIn(request.getPermissionCodes());
         if (matchedPermissions.isEmpty()) {
@@ -114,6 +140,9 @@ public class RoleServiceImpl implements RoleService {
         }
 
         validateTenantAccess(role.getOrganizationId());
+
+        // Delegation boundary validation: caller cannot grant permissions exceeding their authority
+        SecurityUtils.validatePermissionDelegation(request.getPermissionCodes());
 
         RoleDto oldSnapshot = roleMapper.toDto(role);
 
@@ -160,9 +189,22 @@ public class RoleServiceImpl implements RoleService {
         UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
+        // 1. RBAC Privilege Escalation & Delegation Boundary Check
+        SecurityUtils.validateRoleDelegation(request.getRoleCodes(), userId);
+
         List<RoleEntity> roles = getRolesByCodes(request.getRoleCodes(), organizationId);
         if (roles.isEmpty()) {
             throw new BusinessValidationException("At least one valid role must be assigned");
+        }
+
+        // 2. Prevent tenant lockout: If target is currently an ORG_ADMIN and new roles do not contain ORG_ADMIN
+        boolean currentlyIsOrgAdmin = user.getRoles().stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
+        boolean willBeOrgAdmin = roles.stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
+        if (currentlyIsOrgAdmin && !willBeOrgAdmin) {
+            long adminCount = userRepository.countActiveOrgAdmins(organizationId);
+            if (adminCount <= 1) {
+                throw new BusinessValidationException("Cannot demote the last remaining active Organization Administrator");
+            }
         }
 
         Set<String> oldRoles = user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet());
@@ -181,10 +223,33 @@ public class RoleServiceImpl implements RoleService {
         UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        boolean removed = user.getRoles().removeIf(r -> r.getId().equals(roleId));
-        if (!removed) {
-            throw new ResourceNotFoundException("Role assignment", "roleId", roleId);
+        RoleEntity targetRole = user.getRoles().stream()
+                .filter(r -> r.getId().equals(roleId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Role assignment", "roleId", roleId));
+
+        // 1. RBAC Privilege Escalation & Delegation Boundary Check
+        SecurityUtils.validateRoleDelegation(Set.of(targetRole.getCode()), userId);
+
+        // 2. Authorization & Privilege boundary: Only SuperAdmin or ORG_ADMIN can remove roles from users
+        if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.hasRole("ORG_ADMIN")) {
+            throw new ForbiddenException("Access denied: You do not have permission to remove roles from users");
         }
+
+        // 3. Platform role protection
+        if (SecurityUtils.isPlatformRole(targetRole.getCode()) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new ForbiddenException("Privilege boundary violation: Only SuperAdmin can modify platform role assignments");
+        }
+
+        // 3. Prevent self-demotion from ORG_ADMIN unless another admin exists
+        if ("ORG_ADMIN".equals(targetRole.getCode())) {
+            long adminCount = userRepository.countActiveOrgAdmins(organizationId);
+            if (adminCount <= 1) {
+                throw new BusinessValidationException("Cannot remove Organization Administrator role from the sole remaining active admin");
+            }
+        }
+
+        user.getRoles().remove(targetRole);
 
         if (user.getRoles().isEmpty()) {
             throw new BusinessValidationException("A user must have at least one role assigned");

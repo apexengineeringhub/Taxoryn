@@ -69,6 +69,9 @@ public class UserServiceImpl implements UserService {
             throw new DuplicateResourceException("User", "email", request.getEmail());
         }
 
+        // 1. RBAC Privilege Escalation & Delegation Boundary Check
+        SecurityUtils.validateRoleDelegation(request.getRoleCodes(), null);
+
         List<RoleEntity> roles = roleService.getRolesByCodes(request.getRoleCodes(), organizationId);
 
         UserEntity user = UserEntity.builder()
@@ -96,10 +99,39 @@ public class UserServiceImpl implements UserService {
         user.setFirstName(request.getFirstName().trim());
         if (request.getLastName() != null) user.setLastName(request.getLastName().trim());
         if (request.getPhone() != null) user.setPhone(request.getPhone());
-        if (request.getStatus() != null) user.setStatus(request.getStatus());
+
+        boolean isCurrentlyOrgAdmin = user.getRoles().stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
+
+        // Prevent deactivating the last remaining active ORG_ADMIN
+        if (request.getStatus() != null) {
+            if (isCurrentlyOrgAdmin && request.getStatus() != UserStatus.ACTIVE && user.getStatus() == UserStatus.ACTIVE) {
+                long activeAdminCount = userRepository.countActiveOrgAdmins(organizationId);
+                if (activeAdminCount <= 1) {
+                    throw new com.taxoryn.core.exception.BusinessValidationException(
+                            "Cannot deactivate the sole remaining active Organization Administrator"
+                    );
+                }
+            }
+            user.setStatus(request.getStatus());
+        }
 
         if (request.getRoleCodes() != null && !request.getRoleCodes().isEmpty()) {
+            // 1. RBAC Privilege Escalation & Delegation Boundary Check
+            SecurityUtils.validateRoleDelegation(request.getRoleCodes(), userId);
+
             List<RoleEntity> roles = roleService.getRolesByCodes(request.getRoleCodes(), organizationId);
+
+            // 2. Prevent removing ORG_ADMIN from sole remaining admin
+            boolean willBeOrgAdmin = roles.stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
+            if (isCurrentlyOrgAdmin && !willBeOrgAdmin) {
+                long activeAdminCount = userRepository.countActiveOrgAdmins(organizationId);
+                if (activeAdminCount <= 1) {
+                    throw new com.taxoryn.core.exception.BusinessValidationException(
+                            "Cannot demote the sole remaining active Organization Administrator"
+                    );
+                }
+            }
+
             user.setRoles(new HashSet<>(roles));
         }
 
@@ -113,6 +145,18 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(UUID userId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UserEntity user = getUserEntityById(userId, organizationId);
+
+        // Prevent deactivating the last remaining active ORG_ADMIN
+        boolean isCurrentlyOrgAdmin = user.getRoles().stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
+        if (isCurrentlyOrgAdmin && user.getStatus() == UserStatus.ACTIVE) {
+            long activeAdminCount = userRepository.countActiveOrgAdmins(organizationId);
+            if (activeAdminCount <= 1) {
+                throw new com.taxoryn.core.exception.BusinessValidationException(
+                        "Cannot deactivate the sole remaining active Organization Administrator"
+                );
+            }
+        }
+
         user.setStatus(UserStatus.INACTIVE);
         userRepository.save(user);
         log.info("Deactivated user {} in organization {}", userId, organizationId);

@@ -36,6 +36,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.taxoryn.core.security.PracticeSecurityScope;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -43,6 +45,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -58,6 +61,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceMapper invoiceMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
 
     @Override
@@ -140,6 +144,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", id));
 
+        validateInvoiceAccess(invoice);
+
         return enrichDto(invoice);
     }
 
@@ -151,6 +157,21 @@ public class InvoiceServiceImpl implements InvoiceService {
         Specification<InvoiceEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (SecurityUtils.isClientPortalUser()) {
+                UUID currentClientId = SecurityUtils.requireCurrentClientId();
+                predicates.add(cb.equal(root.get("clientId"), currentClientId));
+            } else {
+                PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+                if (!scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+                    Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                    if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                        predicates.add(cb.disjunction());
+                    } else {
+                        predicates.add(root.get("clientId").in(accessibleClientIds));
+                    }
+                }
+            }
 
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
@@ -186,6 +207,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", id));
+
+        validateInvoiceAccess(invoice);
 
         InvoiceDto oldSnapshot = enrichDto(invoice);
 
@@ -255,6 +278,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", id));
 
+        validateInvoiceAccess(invoice);
+
         if (invoice.getStatus() != InvoiceStatus.DRAFT) {
             throw new BadRequestException("Only DRAFT invoices can be issued. Current status: " + invoice.getStatus());
         }
@@ -310,6 +335,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", id));
 
+        validateInvoiceAccess(invoice);
+
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new BadRequestException("Fully paid invoices cannot be cancelled");
         }
@@ -329,6 +356,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(invoiceId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", invoiceId));
+
+        validateInvoiceAccess(invoice);
 
         if (invoice.getStatus() == InvoiceStatus.DRAFT || invoice.getStatus() == InvoiceStatus.CANCELLED) {
             throw new BadRequestException("Payments cannot be recorded for invoices in " + invoice.getStatus() + " status");
@@ -779,5 +808,31 @@ public class InvoiceServiceImpl implements InvoiceService {
             number = String.format("INV-%d-%04d", year, count++);
         } while (invoiceRepository.existsByOrganizationIdAndInvoiceNumber(organizationId, number));
         return number;
+    }
+
+    private void validateInvoiceAccess(InvoiceEntity invoice) {
+        if (invoice == null || invoice.getClientId() == null) {
+            return;
+        }
+
+        // 1. Strict match for Client Portal Users
+        if (SecurityUtils.isClientPortalUser()) {
+            UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
+            if (currentClientId == null || !currentClientId.equals(invoice.getClientId())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You cannot access invoices belonging to another client");
+            }
+            return;
+        }
+
+        // 2. ABAC Portfolio Scoping for Practice Staff without broad billing privileges
+        if (securityScopeEvaluator != null) {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || !accessibleClientIds.contains(invoice.getClientId())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view or manage invoices for this client.");
+                }
+            }
+        }
     }
 }

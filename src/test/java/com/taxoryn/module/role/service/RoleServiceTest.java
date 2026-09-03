@@ -197,4 +197,185 @@ class RoleServiceTest {
         assertNotNull(response);
         assertEquals(targetUserId, response.getUserId());
     }
+
+    @Test
+    @DisplayName("Privilege Escalation: Org Admin cannot assign platform role SUPER_ADMIN")
+    void testPrivilegeEscalationAssignPlatformRoleThrows() {
+        UUID targetUserId = UUID.randomUUID();
+        UserEntity user = UserEntity.builder()
+                .email("staff@taxpractice.com")
+                .roles(new HashSet<>())
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("SUPER_ADMIN"));
+        assertThrows(ForbiddenException.class, () -> roleService.assignRolesToUser(targetUserId, request));
+    }
+
+    @Test
+    @DisplayName("Privilege Escalation: Org Admin cannot create custom role with platform permission")
+    void testPrivilegeEscalationCreateRoleWithPlatformPermissionThrows() {
+        CreateRoleRequest request = CreateRoleRequest.builder()
+                .code("CUSTOM_ADMIN")
+                .name("Custom Admin")
+                .permissionCodes(Set.of("PLATFORM_USER_CREATE"))
+                .build();
+
+        assertThrows(ForbiddenException.class, () -> roleService.createCustomRole(request));
+    }
+
+    @Test
+    @DisplayName("Privilege Escalation: Cannot create custom role with reserved platform role code")
+    void testCreateCustomRoleWithReservedPlatformRoleCodeThrows() {
+        CreateRoleRequest request = CreateRoleRequest.builder()
+                .code("TAXORYN_SUPERADMIN")
+                .name("Fake SuperAdmin")
+                .permissionCodes(Set.of("CLIENT_VIEW"))
+                .build();
+
+        assertThrows(ForbiddenException.class, () -> roleService.createCustomRole(request));
+    }
+
+    @Test
+    @DisplayName("Lockout Prevention: Cannot demote sole remaining Org Admin")
+    void testLockoutPreventionDemoteSoleOrgAdminThrows() {
+        UUID targetUserId = UUID.randomUUID();
+        RoleEntity orgAdminRole = RoleEntity.builder().code("ORG_ADMIN").isSystemRole(true).build();
+        UserEntity user = UserEntity.builder()
+                .email("admin@taxpractice.com")
+                .roles(new HashSet<>(Set.of(orgAdminRole)))
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+
+        RoleEntity viewerRole = RoleEntity.builder().code("VIEWER").isSystemRole(true).permissions(new HashSet<>()).build();
+        when(roleRepository.findByCodesAndOrganizationId(Set.of("VIEWER"), tenantId)).thenReturn(List.of(viewerRole));
+        when(userRepository.countActiveOrgAdmins(tenantId)).thenReturn(1L);
+
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("VIEWER"));
+        assertThrows(com.taxoryn.core.exception.BusinessValidationException.class,
+                () -> roleService.assignRolesToUser(targetUserId, request));
+    }
+
+    @Test
+    @DisplayName("Self-Escalation: Non-admin manager cannot assign themselves ORG_ADMIN")
+    void testSelfPrivilegeEscalationDenied() {
+        UUID managerUserId = UUID.randomUUID();
+        SecurityUser managerPrincipal = SecurityUser.builder()
+                .userId(managerUserId)
+                .organizationId(tenantId)
+                .email("manager@taxpractice.com")
+                .roles(Set.of("MANAGER"))
+                .permissions(Set.of("USER_UPDATE", "ROLE_WRITE"))
+                .enabled(true)
+                .build();
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(managerPrincipal, null, managerPrincipal.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        UserEntity managerUser = UserEntity.builder()
+                .email("manager@taxpractice.com")
+                .roles(new HashSet<>())
+                .build();
+        managerUser.setId(managerUserId);
+        managerUser.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(managerUserId, tenantId)).thenReturn(Optional.of(managerUser));
+
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("ORG_ADMIN"));
+        assertThrows(ForbiddenException.class, () -> roleService.assignRolesToUser(managerUserId, request));
+    }
+
+    @Test
+    @DisplayName("Role Removal: Org Admin can remove role from user")
+    void testRemoveRoleFromUserSuccess() {
+        UUID targetUserId = UUID.randomUUID();
+        UUID accountantRoleId = UUID.randomUUID();
+        UUID staffRoleId = UUID.randomUUID();
+
+        RoleEntity staffRole = RoleEntity.builder().code("STAFF").isSystemRole(true).build();
+        staffRole.setId(staffRoleId);
+
+        RoleEntity accountantRole = RoleEntity.builder().code("ACCOUNTANT").isSystemRole(true).build();
+        accountantRole.setId(accountantRoleId);
+
+        UserEntity user = UserEntity.builder()
+                .email("employee@taxpractice.com")
+                .roles(new HashSet<>(Set.of(staffRole, accountantRole)))
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        UserRolesResponse response = roleService.removeRoleFromUser(targetUserId, accountantRoleId);
+
+        assertNotNull(response);
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    @DisplayName("Role Removal: Non-Admin Staff cannot remove roles from other users")
+    void testRemoveRoleFromUserNonAdminThrows() {
+        UUID staffUserId = UUID.randomUUID();
+        SecurityUser staffPrincipal = SecurityUser.builder()
+                .userId(staffUserId)
+                .organizationId(tenantId)
+                .email("staff@taxpractice.com")
+                .roles(Set.of("STAFF"))
+                .permissions(Set.of("USER_VIEW"))
+                .enabled(true)
+                .build();
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(staffPrincipal, null, staffPrincipal.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        UUID targetUserId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        RoleEntity role = RoleEntity.builder().code("TAX_PROFESSIONAL").isSystemRole(true).build();
+        role.setId(roleId);
+
+        UserEntity user = UserEntity.builder().email("target@taxpractice.com").roles(new HashSet<>(Set.of(role))).build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+
+        assertThrows(ForbiddenException.class, () -> roleService.removeRoleFromUser(targetUserId, roleId));
+    }
+
+    @Test
+    @DisplayName("Role Removal: Cannot remove sole remaining Org Admin")
+    void testRemoveSoleOrgAdminThrows() {
+        UUID targetUserId = UUID.randomUUID();
+        UUID orgAdminRoleId = UUID.randomUUID();
+        UUID viewerRoleId = UUID.randomUUID();
+
+        RoleEntity orgAdminRole = RoleEntity.builder().code("ORG_ADMIN").isSystemRole(true).build();
+        orgAdminRole.setId(orgAdminRoleId);
+
+        RoleEntity viewerRole = RoleEntity.builder().code("VIEWER").isSystemRole(true).build();
+        viewerRole.setId(viewerRoleId);
+
+        UserEntity user = UserEntity.builder()
+                .email("admin@taxpractice.com")
+                .roles(new HashSet<>(Set.of(orgAdminRole, viewerRole)))
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(userRepository.countActiveOrgAdmins(tenantId)).thenReturn(1L);
+
+        assertThrows(com.taxoryn.core.exception.BusinessValidationException.class,
+                () -> roleService.removeRoleFromUser(targetUserId, orgAdminRoleId));
+    }
 }

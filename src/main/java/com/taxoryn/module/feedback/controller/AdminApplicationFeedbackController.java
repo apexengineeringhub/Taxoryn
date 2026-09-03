@@ -28,7 +28,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Tag(name = "Platform Admin Feedback Management", description = "Taxoryn Operations & Super Admin lifecycle management for product feedback")
 @SecurityRequirement(name = "BearerAuth")
-@PreAuthorize("hasRole('SUPER_ADMIN') or hasAuthority('FEEDBACK_MANAGE') or hasAuthority('FEEDBACK_VIEW')")
+@PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasAuthority('FEEDBACK_MANAGE')")
 public class AdminApplicationFeedbackController {
 
     private final AdminApplicationFeedbackService adminFeedbackService;
