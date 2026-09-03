@@ -211,6 +211,9 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateResourceException("User", "email", email);
         }
 
+        // RBAC Privilege Escalation & Delegation Boundary Check
+        SecurityUtils.validateRoleDelegation(request.getRoleCodes(), null);
+
         List<RoleEntity> roles = roleService.getRolesByCodes(request.getRoleCodes(), organizationId);
 
         UserEntity user = UserEntity.builder()

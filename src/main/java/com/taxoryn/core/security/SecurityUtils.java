@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public final class SecurityUtils {
 
@@ -130,6 +131,131 @@ public final class SecurityUtils {
         }
 
         return false;
+    }
+
+    public static final Set<String> PLATFORM_ROLE_CODES = Set.of(
+            "SUPER_ADMIN",
+            "TAXORYN_SUPERADMIN",
+            "TAXORYN_OPERATIONS_ADMIN",
+            "TAXORYN_SUPPORT_ADMIN",
+            "TAXORYN_MARKETPLACE_ADMIN",
+            "TAXORYN_FINANCE_ADMIN",
+            "TAXORYN_CONTENT_ADMIN",
+            "TAXORYN_SECURITY_ADMIN",
+            "TAXORYN_ENGINEERING_ADMIN"
+    );
+
+    public static final Set<String> PLATFORM_PERMISSION_CODES = Set.of(
+            "PLATFORM_USER_VIEW",
+            "PLATFORM_USER_CREATE",
+            "PLATFORM_USER_UPDATE",
+            "PLATFORM_USER_DELETE",
+            "SYSTEM_STATUS_VIEW",
+            "TECHNICAL_INCIDENT_VIEW",
+            "TECHNICAL_INCIDENT_MANAGE"
+    );
+
+    public static boolean isPlatformRole(String roleCode) {
+        if (roleCode == null) return false;
+        String clean = roleCode.trim().toUpperCase();
+        if (clean.startsWith("ROLE_")) {
+            clean = clean.substring(5);
+        }
+        return PLATFORM_ROLE_CODES.contains(clean);
+    }
+
+    public static boolean isPlatformPermission(String permissionCode) {
+        if (permissionCode == null) return false;
+        return PLATFORM_PERMISSION_CODES.contains(permissionCode.trim().toUpperCase());
+    }
+
+    /**
+     * Verifies that the caller has authority to assign or delegate the given roles.
+     * Prevents tenant users from assigning platform roles, and non-superadmins from escalating privileges.
+     */
+    public static void validateRoleDelegation(Set<String> targetRoleCodes, UUID targetUserId) {
+        if (targetRoleCodes == null || targetRoleCodes.isEmpty()) {
+            return;
+        }
+
+        boolean isSuperAdmin = isTaxorynSuperAdmin();
+        UUID currentUserId = getCurrentUser().map(SecurityUser::getUserId).orElse(null);
+
+        // 1. Prevent non-superadmins from assigning any platform administrative roles
+        for (String roleCode : targetRoleCodes) {
+            if (isPlatformRole(roleCode) && !isSuperAdmin) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Privilege escalation denied: Platform role '" + roleCode + "' cannot be assigned by tenant users"
+                );
+            }
+        }
+
+        // 2. Prevent self-escalation (caller modifying their own roles unless they are a SuperAdmin)
+        if (!isSuperAdmin && currentUserId != null && currentUserId.equals(targetUserId)) {
+            Set<String> callerRoles = getCurrentRoles().stream()
+                    .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
+                    .collect(Collectors.toSet());
+
+            for (String targetRole : targetRoleCodes) {
+                String cleanTarget = targetRole.startsWith("ROLE_") ? targetRole.substring(5) : targetRole;
+                if (!callerRoles.contains(cleanTarget) && !callerRoles.contains("ORG_ADMIN")) {
+                    throw new com.taxoryn.core.exception.ForbiddenException(
+                            "Self-privilege escalation denied: You cannot grant yourself the '" + targetRole + "' role"
+                    );
+                }
+            }
+        }
+
+        // 3. Non-Org-Admins / Non-SuperAdmins cannot delegate roles they do not possess
+        if (!isSuperAdmin && !hasRole("ORG_ADMIN")) {
+            Set<String> callerRoles = getCurrentRoles().stream()
+                    .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
+                    .collect(Collectors.toSet());
+
+            for (String targetRole : targetRoleCodes) {
+                String cleanTarget = targetRole.startsWith("ROLE_") ? targetRole.substring(5) : targetRole;
+                if (!callerRoles.contains(cleanTarget)) {
+                    throw new com.taxoryn.core.exception.ForbiddenException(
+                            "Role delegation boundary violation: You cannot assign role '" + targetRole + "' because you do not hold this role"
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies that the caller has authority to include target permissions in a custom role.
+     */
+    public static void validatePermissionDelegation(Set<String> permissionCodes) {
+        if (permissionCodes == null || permissionCodes.isEmpty()) {
+            return;
+        }
+
+        boolean isSuperAdmin = isTaxorynSuperAdmin();
+
+        // 1. Block platform permissions from being added to tenant custom roles by non-superadmins
+        for (String permCode : permissionCodes) {
+            if (isPlatformPermission(permCode) && !isSuperAdmin) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Permission delegation denied: Platform permission '" + permCode + "' cannot be assigned to tenant custom roles"
+                );
+            }
+        }
+
+        // 2. If caller is not Org Admin or Super Admin, they cannot create a role with permissions they don't have
+        if (!isSuperAdmin && !hasRole("ORG_ADMIN")) {
+            Set<String> callerPerms = getCurrentUser()
+                    .map(SecurityUser::getPermissions)
+                    .orElse(Collections.emptySet());
+
+            for (String permCode : permissionCodes) {
+                if (!callerPerms.contains(permCode)) {
+                    throw new com.taxoryn.core.exception.ForbiddenException(
+                            "Permission delegation boundary violation: You cannot grant permission '" + permCode + "' which you do not possess"
+                    );
+                }
+            }
+        }
     }
 
     public static boolean hasAuthority(String authority) {
