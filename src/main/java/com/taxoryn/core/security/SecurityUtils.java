@@ -198,7 +198,7 @@ public final class SecurityUtils {
 
             for (String targetRole : targetRoleCodes) {
                 String cleanTarget = targetRole.startsWith("ROLE_") ? targetRole.substring(5) : targetRole;
-                if (!callerRoles.contains(cleanTarget) && !callerRoles.contains("ORG_ADMIN")) {
+                if (!callerRoles.contains(cleanTarget)) {
                     throw new com.taxoryn.core.exception.ForbiddenException(
                             "Self-privilege escalation denied: You cannot grant yourself the '" + targetRole + "' role"
                     );

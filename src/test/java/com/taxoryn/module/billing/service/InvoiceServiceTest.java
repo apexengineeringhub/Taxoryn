@@ -68,6 +68,12 @@ class InvoiceServiceTest {
     private InvoiceMapper invoiceMapper;
     @Mock
     private com.taxoryn.module.audit.service.AuditService auditService;
+    @Mock
+    private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+    @Mock
+    private com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
 
     @InjectMocks
     private InvoiceServiceImpl invoiceService;

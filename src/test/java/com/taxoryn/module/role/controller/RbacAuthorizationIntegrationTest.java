@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(classes = com.taxoryn.TaxorynApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class RbacAuthorizationIntegrationTest {
@@ -269,5 +269,57 @@ class RbacAuthorizationIntegrationTest {
                         .header("Authorization", orgAdminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.effectivePermissions").isArray());
+    }
+
+    @Test
+    @DisplayName("6. HTTP Enforcement: Org Admin cannot assign platform role (SUPER_ADMIN)")
+    void testHttpPrivilegeEscalationAssignPlatformRoleDenied() throws Exception {
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("SUPER_ADMIN"));
+
+        mockMvc.perform(put("/api/v1/roles/users/" + staffUser.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("7. HTTP Enforcement: Viewer cannot self-escalate to ORG_ADMIN")
+    void testHttpSelfPrivilegeEscalationDenied() throws Exception {
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("ORG_ADMIN"));
+
+        mockMvc.perform(put("/api/v1/roles/users/" + viewerUser.getId())
+                        .header("Authorization", viewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("8. HTTP Enforcement: Org Admin cannot create custom role with platform permission")
+    void testHttpCreateCustomRoleWithPlatformPermissionDenied() throws Exception {
+        CreateRoleRequest request = CreateRoleRequest.builder()
+                .code("SUPER_AUDITOR")
+                .name("Super Auditor")
+                .permissionCodes(Set.of("PLATFORM_USER_CREATE"))
+                .build();
+
+        mockMvc.perform(post("/api/v1/roles")
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("9. HTTP Enforcement: Non-Admin Viewer cannot remove role from another user")
+    void testHttpNonAdminRemoveRoleDenied() throws Exception {
+        mockMvc.perform(delete("/api/v1/roles/users/" + staffUser.getId() + "/" + systemViewerRole.getId())
+                        .header("Authorization", viewerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
 }

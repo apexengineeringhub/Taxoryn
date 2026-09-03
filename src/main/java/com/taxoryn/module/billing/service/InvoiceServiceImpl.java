@@ -825,11 +825,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
 
         // 2. ABAC Portfolio Scoping for Practice Staff without broad billing privileges
-        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-        if (!scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
-            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-            if (accessibleClientIds == null || !accessibleClientIds.contains(invoice.getClientId())) {
-                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view or manage invoices for this client.");
+        if (securityScopeEvaluator != null) {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || !accessibleClientIds.contains(invoice.getClientId())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view or manage invoices for this client.");
+                }
             }
         }
     }

@@ -349,12 +349,14 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         // 2. ABAC Portfolio Scoping for Practice Staff
-        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-        if (!scope.isFirmAdmin()) {
-            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-            if (accessibleClientIds == null || !accessibleClientIds.contains(document.getClientId())) {
-                throw new org.springframework.security.access.AccessDeniedException(
-                        "Access denied: You do not have permission to access documents for this client.");
+        if (securityScopeEvaluator != null) {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || !accessibleClientIds.contains(document.getClientId())) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You do not have permission to access documents for this client.");
+                }
             }
         }
     }

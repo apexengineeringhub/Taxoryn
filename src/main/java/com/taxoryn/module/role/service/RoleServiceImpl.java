@@ -228,7 +228,20 @@ public class RoleServiceImpl implements RoleService {
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Role assignment", "roleId", roleId));
 
-        // Prevent self-demotion from ORG_ADMIN unless another admin exists
+        // 1. RBAC Privilege Escalation & Delegation Boundary Check
+        SecurityUtils.validateRoleDelegation(Set.of(targetRole.getCode()), userId);
+
+        // 2. Authorization & Privilege boundary: Only SuperAdmin or ORG_ADMIN can remove roles from users
+        if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.hasRole("ORG_ADMIN")) {
+            throw new ForbiddenException("Access denied: You do not have permission to remove roles from users");
+        }
+
+        // 3. Platform role protection
+        if (SecurityUtils.isPlatformRole(targetRole.getCode()) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new ForbiddenException("Privilege boundary violation: Only SuperAdmin can modify platform role assignments");
+        }
+
+        // 3. Prevent self-demotion from ORG_ADMIN unless another admin exists
         if ("ORG_ADMIN".equals(targetRole.getCode())) {
             long adminCount = userRepository.countActiveOrgAdmins(organizationId);
             if (adminCount <= 1) {

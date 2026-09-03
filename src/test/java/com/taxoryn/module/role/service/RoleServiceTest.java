@@ -291,4 +291,91 @@ class RoleServiceTest {
         AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("ORG_ADMIN"));
         assertThrows(ForbiddenException.class, () -> roleService.assignRolesToUser(managerUserId, request));
     }
+
+    @Test
+    @DisplayName("Role Removal: Org Admin can remove role from user")
+    void testRemoveRoleFromUserSuccess() {
+        UUID targetUserId = UUID.randomUUID();
+        UUID accountantRoleId = UUID.randomUUID();
+        UUID staffRoleId = UUID.randomUUID();
+
+        RoleEntity staffRole = RoleEntity.builder().code("STAFF").isSystemRole(true).build();
+        staffRole.setId(staffRoleId);
+
+        RoleEntity accountantRole = RoleEntity.builder().code("ACCOUNTANT").isSystemRole(true).build();
+        accountantRole.setId(accountantRoleId);
+
+        UserEntity user = UserEntity.builder()
+                .email("employee@taxpractice.com")
+                .roles(new HashSet<>(Set.of(staffRole, accountantRole)))
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        UserRolesResponse response = roleService.removeRoleFromUser(targetUserId, accountantRoleId);
+
+        assertNotNull(response);
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    @DisplayName("Role Removal: Non-Admin Staff cannot remove roles from other users")
+    void testRemoveRoleFromUserNonAdminThrows() {
+        UUID staffUserId = UUID.randomUUID();
+        SecurityUser staffPrincipal = SecurityUser.builder()
+                .userId(staffUserId)
+                .organizationId(tenantId)
+                .email("staff@taxpractice.com")
+                .roles(Set.of("STAFF"))
+                .permissions(Set.of("USER_VIEW"))
+                .enabled(true)
+                .build();
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(staffPrincipal, null, staffPrincipal.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        UUID targetUserId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        RoleEntity role = RoleEntity.builder().code("TAX_PROFESSIONAL").isSystemRole(true).build();
+        role.setId(roleId);
+
+        UserEntity user = UserEntity.builder().email("target@taxpractice.com").roles(new HashSet<>(Set.of(role))).build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+
+        assertThrows(ForbiddenException.class, () -> roleService.removeRoleFromUser(targetUserId, roleId));
+    }
+
+    @Test
+    @DisplayName("Role Removal: Cannot remove sole remaining Org Admin")
+    void testRemoveSoleOrgAdminThrows() {
+        UUID targetUserId = UUID.randomUUID();
+        UUID orgAdminRoleId = UUID.randomUUID();
+        UUID viewerRoleId = UUID.randomUUID();
+
+        RoleEntity orgAdminRole = RoleEntity.builder().code("ORG_ADMIN").isSystemRole(true).build();
+        orgAdminRole.setId(orgAdminRoleId);
+
+        RoleEntity viewerRole = RoleEntity.builder().code("VIEWER").isSystemRole(true).build();
+        viewerRole.setId(viewerRoleId);
+
+        UserEntity user = UserEntity.builder()
+                .email("admin@taxpractice.com")
+                .roles(new HashSet<>(Set.of(orgAdminRole, viewerRole)))
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(userRepository.countActiveOrgAdmins(tenantId)).thenReturn(1L);
+
+        assertThrows(com.taxoryn.core.exception.BusinessValidationException.class,
+                () -> roleService.removeRoleFromUser(targetUserId, orgAdminRoleId));
+    }
 }
