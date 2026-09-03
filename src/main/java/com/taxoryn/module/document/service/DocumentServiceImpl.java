@@ -119,6 +119,8 @@ public class DocumentServiceImpl implements DocumentService {
         DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
 
+        validateDocumentAccess(document);
+
         if (document.getStatus() == DocumentStatus.DELETED) {
             throw new ResourceNotFoundException("Document has been deleted", "id", id);
         }
@@ -140,6 +142,8 @@ public class DocumentServiceImpl implements DocumentService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        validateDocumentAccess(document);
 
         return enrichDto(document);
     }
@@ -245,6 +249,8 @@ public class DocumentServiceImpl implements DocumentService {
         DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
 
+        validateDocumentAccess(document);
+
         // Delete from storage
         storageService.delete(document.getStorageKey());
 
@@ -263,6 +269,8 @@ public class DocumentServiceImpl implements DocumentService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        validateDocumentAccess(document);
 
         DocumentDto oldSnapshot = enrichDto(document);
 
@@ -324,5 +332,30 @@ public class DocumentServiceImpl implements DocumentService {
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         String pre = "KMGTPE".charAt(exp - 1) + "";
         return String.format("%.2f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+
+    private void validateDocumentAccess(DocumentEntity document) {
+        if (document == null || document.getClientId() == null) {
+            return;
+        }
+
+        // 1. Strict match for Client Portal Users
+        if (SecurityUtils.isClientPortalUser()) {
+            UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
+            if (currentClientId == null || !currentClientId.equals(document.getClientId())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You cannot access documents belonging to another client");
+            }
+            return;
+        }
+
+        // 2. ABAC Portfolio Scoping for Practice Staff
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || !accessibleClientIds.contains(document.getClientId())) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission to access documents for this client.");
+            }
+        }
     }
 }
