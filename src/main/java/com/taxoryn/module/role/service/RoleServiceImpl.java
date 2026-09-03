@@ -47,6 +47,14 @@ public class RoleServiceImpl implements RoleService {
     public List<RoleDto> getAvailableRoles() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         List<RoleEntity> roles = roleRepository.findAllAvailableForOrganization(organizationId);
+
+        boolean isSuperAdmin = SecurityUtils.isTaxorynSuperAdmin();
+        if (!isSuperAdmin) {
+            roles = roles.stream()
+                    .filter(r -> !SecurityUtils.isPlatformRole(r.getCode()))
+                    .collect(Collectors.toList());
+        }
+
         return roleMapper.toDtoList(roles);
     }
 
@@ -58,6 +66,8 @@ public class RoleServiceImpl implements RoleService {
 
         if (!role.isSystemRole()) {
             validateTenantAccess(role.getOrganizationId());
+        } else if (SecurityUtils.isPlatformRole(role.getCode()) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new ForbiddenException("Access denied: Platform role details are restricted to platform administrators");
         }
 
         return roleMapper.toDto(role);
@@ -67,6 +77,14 @@ public class RoleServiceImpl implements RoleService {
     @Transactional(readOnly = true)
     public List<PermissionDto> getAllPermissions() {
         List<PermissionEntity> permissions = permissionRepository.findAll();
+
+        boolean isSuperAdmin = SecurityUtils.isTaxorynSuperAdmin();
+        if (!isSuperAdmin) {
+            permissions = permissions.stream()
+                    .filter(p -> !SecurityUtils.isPlatformPermission(p.getCode()))
+                    .collect(Collectors.toList());
+        }
+
         return roleMapper.toPermissionDtoList(permissions);
     }
 

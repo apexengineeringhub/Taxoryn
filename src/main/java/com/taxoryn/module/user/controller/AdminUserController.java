@@ -65,7 +65,7 @@ public class AdminUserController {
     );
 
     @GetMapping
-    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasAuthority('USER_VIEW') or hasAuthority('PLATFORM_USER_VIEW')")
+    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasAuthority('PLATFORM_USER_VIEW')")
     @Transactional(readOnly = true)
     @Operation(summary = "List platform users", description = "Retrieves paginated list of users across the platform with filtering by role category, status, and search query.")
     public ResponseEntity<ApiResponse<PagedResponse<UserDto>>> getPlatformUsers(
@@ -107,8 +107,7 @@ public class AdminUserController {
                     if (StringUtils.hasText(search)) {
                         String q = search.toLowerCase().trim();
                         boolean matchesEmail = u.getEmail() != null && u.getEmail().toLowerCase().contains(q);
-                        boolean matchesName = (u.getFirstName() != null && u.getFirstName().toLowerCase().contains(q))
-                                || (u.getLastName() != null && u.getLastName().toLowerCase().contains(q));
+                        boolean matchesName = drillDownMatchesName(u, q);
                         boolean matchesPhone = u.getPhone() != null && u.getPhone().contains(q);
                         if (!matchesEmail && !matchesName && !matchesPhone) return false;
                     }
@@ -132,8 +131,13 @@ public class AdminUserController {
         return ResponseEntity.ok(ApiResponse.success("Platform users retrieved successfully", response));
     }
 
+    private boolean drillDownMatchesName(UserEntity u, String q) {
+        return (u.getFirstName() != null && u.getFirstName().toLowerCase().contains(q))
+                || (u.getLastName() != null && u.getLastName().toLowerCase().contains(q));
+    }
+
     @PostMapping
-    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('USER_CREATE') or hasAuthority('PLATFORM_USER_CREATE')")
+    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('PLATFORM_USER_CREATE')")
     @Transactional
     @Operation(summary = "Create internal Taxoryn platform user", description = "Provisions a new internal platform user with controlled system role and privilege escalation prevention.")
     public ResponseEntity<ApiResponse<UserDto>> createPlatformUser(
@@ -202,7 +206,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{userId}/role")
-    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('ROLE_WRITE') or hasAuthority('PLATFORM_USER_UPDATE')")
+    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('PLATFORM_USER_UPDATE')")
     @Transactional
     @Operation(summary = "Update platform user role", description = "Reassigns a platform user to a new approved platform role with privilege escalation protection.")
     public ResponseEntity<ApiResponse<UserDto>> updatePlatformUserRole(
@@ -256,7 +260,7 @@ public class AdminUserController {
     }
 
     @PatchMapping("/{userId}/status")
-    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('USER_DISABLE') or hasAuthority('USER_UPDATE') or hasAuthority('PLATFORM_USER_UPDATE')")
+    @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasAuthority('PLATFORM_USER_UPDATE')")
     @Transactional
     @Operation(summary = "Update user status", description = "Allows platform admins to activate, suspend, or deactivate a platform user.")
     public ResponseEntity<ApiResponse<UserDto>> updateUserStatus(
