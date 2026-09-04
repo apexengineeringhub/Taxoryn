@@ -32,6 +32,10 @@ server:
 
 # Taxoryn Security & JWT configuration
 taxoryn:
+  frontend:
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
+  auth:
+    reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
   jwt:
     # 256-bit+ base64 encoded secret key for HMAC-SHA256
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970

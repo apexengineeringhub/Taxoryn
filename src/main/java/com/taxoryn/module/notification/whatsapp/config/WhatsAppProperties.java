@@ -45,7 +45,7 @@ public class WhatsAppProperties {
     /**
      * Application login portal URL used in welcome messages.
      */
-    private String loginUrl = "http://localhost:5173/login";
+    private String loginUrl = "https://taxoryn.com/login";
 
     /**
      * Template language code (e.g. en_US or en). Default is en_US.

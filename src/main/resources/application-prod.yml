@@ -50,6 +50,8 @@ spring:
 
 # Hardened Security & Rate Limiting
 taxoryn:
+  frontend:
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
   auth:
     reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
   mail:

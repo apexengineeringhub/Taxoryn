@@ -38,7 +38,7 @@ public class EmailTemplateRenderer {
         String practiceName = getString(data, "practiceName", "Your Practice");
         String email = getString(data, "email", "");
         String mobile = getString(data, "mobile", "");
-        String loginUrl = getString(data, "loginUrl", "http://localhost:5173/login");
+        String loginUrl = getString(data, "loginUrl", "https://taxoryn.com/login");
 
         return """
         <!DOCTYPE html>
@@ -139,7 +139,7 @@ public class EmailTemplateRenderer {
         String name = getString(data, "name", "Valued Customer");
         String email = getString(data, "email", "");
         String mobile = getString(data, "mobile", "");
-        String loginUrl = getString(data, "loginUrl", "http://localhost:5173/login");
+        String loginUrl = getString(data, "loginUrl", "https://taxoryn.com/login");
 
         return """
         <!DOCTYPE html>
@@ -227,7 +227,7 @@ public class EmailTemplateRenderer {
         String practiceName = getString(data, "organizationName", "Tax Practice");
         String totalAmount = getString(data, "totalAmount", "0.00");
         String dueDate = getString(data, "dueDate", "");
-        String invoiceUrl = getString(data, "invoiceUrl", "http://localhost:5173/login");
+        String invoiceUrl = getString(data, "invoiceUrl", "https://taxoryn.com/login");
 
         return """
         <!DOCTYPE html>
@@ -289,7 +289,7 @@ public class EmailTemplateRenderer {
         String invoiceNumber = getString(data, "invoiceNumber", "");
         String balanceAmount = getString(data, "balanceAmount", "0.00");
         String dueDate = getString(data, "dueDate", "Overdue");
-        String invoiceUrl = getString(data, "invoiceUrl", "http://localhost:5173/login");
+        String invoiceUrl = getString(data, "invoiceUrl", "https://taxoryn.com/login");
 
         return """
         <!DOCTYPE html>
@@ -316,7 +316,7 @@ public class EmailTemplateRenderer {
 
     private String renderPasswordResetHtml(Map<String, Object> data) {
         String name = getString(data, "name", "Taxoryn User");
-        String resetUrl = getString(data, "resetUrl", "http://localhost:5173/reset-password");
+        String resetUrl = getString(data, "resetUrl", "https://taxoryn.com/reset-password");
         String expiryMinutes = getString(data, "expiryMinutes", "30");
 
         return """
@@ -396,7 +396,7 @@ public class EmailTemplateRenderer {
         String dueDate = getString(data, "dueDate", "Promptly");
         String message = getString(data, "message", "");
         String itemsListHtml = getString(data, "itemsListHtml", "<li>Standard tax compliance documents</li>");
-        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
+        String uploadUrl = getString(data, "uploadUrl", "https://taxoryn.com/login");
 
         return """
         <!DOCTYPE html>
@@ -489,7 +489,7 @@ public class EmailTemplateRenderer {
         String practiceName = getString(data, "practiceName", "Your Tax Consultant");
         String dueDate = getString(data, "dueDate", "Promptly");
         String itemsListHtml = getString(data, "itemsListHtml", "<li>Pending documents</li>");
-        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
+        String uploadUrl = getString(data, "uploadUrl", "https://taxoryn.com/login");
 
         return """
         <!DOCTYPE html>
@@ -566,7 +566,7 @@ public class EmailTemplateRenderer {
         String purpose = getString(data, "purpose", "Tax Preparation");
         String reason = getString(data, "reason", "Document could not be verified.");
         String practiceName = getString(data, "practiceName", "Your Tax Consultant");
-        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
+        String uploadUrl = getString(data, "uploadUrl", "https://taxoryn.com/login");
 
         return """
         <!DOCTYPE html>

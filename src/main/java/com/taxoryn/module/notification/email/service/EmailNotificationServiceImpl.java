@@ -169,7 +169,7 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         data.put("dueDate", dueDate != null ? dueDate.toString() : "Promptly");
         data.put("message", message != null ? message : "");
         data.put("itemsListHtml", itemsListHtml.toString());
-        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "http://localhost:5173/login");
+        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "https://taxoryn.com/login");
 
         String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REQUEST, data);
         String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REQUEST, data);
@@ -198,7 +198,7 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Consultant");
         data.put("dueDate", dueDate != null ? dueDate.toString() : "Immediate");
         data.put("itemsListHtml", itemsListHtml.toString());
-        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "http://localhost:5173/login");
+        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "https://taxoryn.com/login");
 
         String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REMINDER, data);
         String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REMINDER, data);
@@ -218,7 +218,7 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         data.put("documentTitle", StringUtils.hasText(documentTitle) ? documentTitle.trim() : "Document");
         data.put("reason", StringUtils.hasText(reason) ? reason.trim() : "Correction required by practitioner");
         data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Consultant");
-        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "http://localhost:5173/login");
+        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "https://taxoryn.com/login");
 
         String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REJECTED, data);
         String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REJECTED, data);

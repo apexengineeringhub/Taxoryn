@@ -32,7 +32,7 @@ public class EmailProperties {
     /**
      * Application login portal URL.
      */
-    private String loginUrl = "http://localhost:5173/login";
+    private String loginUrl = "https://taxoryn.com/login";
 
     /**
      * Resend API Key for Port 443 HTTPS email dispatch (Render/Cloud compatible).

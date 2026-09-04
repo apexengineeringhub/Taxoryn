@@ -87,7 +87,7 @@ public class AuthServiceImpl implements AuthService {
     @Value("${taxoryn.auth.password-reset.expiration-minutes:30}")
     private long passwordResetExpirationMinutes;
 
-    @Value("${taxoryn.frontend.reset-password-url:http://localhost:5173/reset-password}")
+    @Value("${taxoryn.frontend.reset-password-url:${taxoryn.auth.reset-password-base-url:${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}}}")
     private String resetPasswordBaseUrl;
 
     @Override
