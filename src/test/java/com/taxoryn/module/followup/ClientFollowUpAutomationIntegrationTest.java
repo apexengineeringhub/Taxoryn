@@ -391,7 +391,8 @@ public class ClientFollowUpAutomationIntegrationTest {
 
         // 2. Client uploads item
         UUID itemId = createdDocReq.getItems().get(0).getId();
-        MockMultipartFile file = new MockMultipartFile("file", "purchase_july.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "excel-data".getBytes());
+        byte[] validZipBytes = new byte[]{(byte) 0x50, (byte) 0x4B, (byte) 0x05, (byte) 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile("file", "purchase_july.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", validZipBytes);
 
         setClientAuthContext(testClient);
         docRequestService.uploadClientPortalItemDocument(itemId, file);
@@ -445,7 +446,7 @@ public class ClientFollowUpAutomationIntegrationTest {
 
         // 2. Client uploads file
         UUID itemId = createdDocReq.getItems().get(0).getId();
-        MockMultipartFile file = new MockMultipartFile("file", "form26as_2026.pdf", "application/pdf", "pdf-data".getBytes());
+        MockMultipartFile file = new MockMultipartFile("file", "form26as_2026.pdf", "application/pdf", "%PDF-1.4 mock 26AS".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         setClientAuthContext(testClient);
         docRequestService.uploadClientPortalItemDocument(itemId, file);
