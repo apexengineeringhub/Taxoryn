@@ -21,19 +21,19 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
 
     List<RefreshTokenEntity> findAllByUserIdAndRevokedAtIsNull(UUID userId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshTokenEntity t SET t.revokedAt = :now, t.revokedReason = :reason WHERE t.familyId = :familyId AND t.revokedAt IS NULL")
     int revokeAllByFamilyId(@Param("familyId") UUID familyId, @Param("now") Instant now, @Param("reason") String reason);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshTokenEntity t SET t.revokedAt = :now, t.revokedReason = :reason WHERE t.userId = :userId AND t.revokedAt IS NULL")
     int revokeAllByUserId(@Param("userId") UUID userId, @Param("now") Instant now, @Param("reason") String reason);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshTokenEntity t SET t.revokedAt = :now, t.revokedReason = :reason WHERE t.id = :id AND t.revokedAt IS NULL")
     int revokeSingleTokenAtomic(@Param("id") UUID id, @Param("now") Instant now, @Param("reason") String reason);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RefreshTokenEntity t WHERE t.expiresAt < :cutoff")
     int deleteExpiredTokens(@Param("cutoff") Instant cutoff);
 }

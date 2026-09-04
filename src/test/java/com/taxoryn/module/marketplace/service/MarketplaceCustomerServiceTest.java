@@ -3,6 +3,7 @@ package com.taxoryn.module.marketplace.service;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.security.JwtTokenProvider;
 import com.taxoryn.core.security.SecurityUser;
+import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
 import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.entity.*;

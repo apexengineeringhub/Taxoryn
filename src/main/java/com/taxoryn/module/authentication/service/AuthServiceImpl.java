@@ -240,13 +240,13 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = {UnauthorizedException.class, AppException.class})
     public LoginResponse refreshToken(RefreshTokenRequest request) {
         return refreshToken(request, null, null);
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = {UnauthorizedException.class, AppException.class})
     public LoginResponse refreshToken(RefreshTokenRequest request, String clientIp, String userAgent) {
         String rawToken = request.getRefreshToken();
         if (!StringUtils.hasText(rawToken)) {
@@ -288,12 +288,15 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 3. ATOMIC ROTATION / CONCURRENCY PROTECTION
-        int updated = refreshTokenRepository.revokeSingleTokenAtomic(tokenEntity.getId(), Instant.now(), "ROTATED");
+        Instant now = Instant.now();
+        int updated = refreshTokenRepository.revokeSingleTokenAtomic(tokenEntity.getId(), now, "ROTATED");
         if (updated == 0) {
             log.warn("Concurrent refresh collision detected for token ID: {}. Triggering family revocation.", tokenEntity.getId());
-            refreshTokenRepository.revokeAllByFamilyId(tokenEntity.getFamilyId(), Instant.now(), "REUSE_DETECTED");
+            refreshTokenRepository.revokeAllByFamilyId(tokenEntity.getFamilyId(), now, "REUSE_DETECTED");
             throw new UnauthorizedException("Refresh token already consumed or invalid");
         }
+        tokenEntity.setRevokedAt(now);
+        tokenEntity.setRevokedReason("ROTATED");
 
         // 4. VERIFY USER AND TENANT STATUS (Re-derived directly from persistent store)
         UUID userId = tokenEntity.getUserId();
