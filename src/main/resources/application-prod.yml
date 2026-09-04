@@ -27,23 +27,26 @@ spring:
           order_inserts: true
           order_updates: true
   mail:
-    host: ${SMTP_HOST:}
-    port: ${SMTP_PORT:587}
-    username: ${SMTP_USERNAME:}
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:465}
+    username: ${SMTP_USERNAME:taxoryn@gmail.com}
     password: ${SMTP_PASSWORD:}
     properties:
       mail:
         smtp:
           auth: ${SMTP_AUTH:true}
           starttls:
-            enable: ${SMTP_STARTTLS:true}
-            required: false
+            enable: ${SMTP_STARTTLS:false}
           ssl:
-            enable: ${SMTP_SSL:false}
+            enable: ${SMTP_SSL:true}
             trust: "*"
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+          socketFactory:
+            port: ${SMTP_PORT:465}
+            class: javax.net.ssl.SSLSocketFactory
+            fallback: false
+          connectiontimeout: 15000
+          timeout: 15000
+          writetimeout: 15000
 
 # Hardened Security & Rate Limiting
 taxoryn:
@@ -52,7 +55,7 @@ taxoryn:
   mail:
     enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:SMTP}
-    from-email: ${MAIL_FROM_EMAIL:notifications@taxoryn.com}
+    from-email: ${MAIL_FROM_EMAIL:taxoryn@gmail.com}
     from-name: ${MAIL_FROM_NAME:Taxoryn}
     login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
   jwt:

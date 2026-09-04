@@ -43,7 +43,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
 
-            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "notifications@taxoryn.com";
+            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "taxoryn@gmail.com";
             String fromName = StringUtils.hasText(emailProperties.getFromName()) ? emailProperties.getFromName() : "Taxoryn";
 
             helper.setFrom(fromAddress, fromName);

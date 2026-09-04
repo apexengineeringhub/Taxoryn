@@ -22,7 +22,7 @@ public class EmailProperties {
     /**
      * From email address.
      */
-    private String fromEmail = "notifications@taxoryn.com";
+    private String fromEmail = "taxoryn@gmail.com";
 
     /**
      * From display name.

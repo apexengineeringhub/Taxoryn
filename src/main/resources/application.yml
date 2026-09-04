@@ -62,7 +62,7 @@ taxoryn:
   mail:
     enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:LOG}
-    from-email: ${MAIL_FROM_EMAIL:notifications@taxoryn.com}
+    from-email: ${MAIL_FROM_EMAIL:taxoryn@gmail.com}
     from-name: ${MAIL_FROM_NAME:Taxoryn}
     login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
 
