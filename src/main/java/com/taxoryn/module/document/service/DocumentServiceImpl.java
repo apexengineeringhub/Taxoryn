@@ -47,6 +47,10 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentStorageService storageService;
     private final ClientRepository clientRepository;
+    private final com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository;
+    private final com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
+    private final com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository;
+    private final com.taxoryn.module.task.repository.TaskRepository taskRepository;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final DocumentMapper documentMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
@@ -64,9 +68,55 @@ public class DocumentServiceImpl implements DocumentService {
         // Check MAX_STORAGE Subscription Limit
         subscriptionService.checkStorageLimit(organizationId, file.getSize());
 
+        // Validate Client relationship and tenant boundary
         if (request.getClientId() != null) {
             clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+
+            // Enforce client portal boundary: Portal user cannot upload into another client's vault
+            if (SecurityUtils.isClientPortalUser()) {
+                UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
+                if (currentClientId == null || !currentClientId.equals(request.getClientId())) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You cannot upload documents to another client's vault");
+                }
+            }
+
+            // Enforce ABAC staff portfolio boundary: Restricted staff cannot upload to out-of-portfolio clients
+            if (securityScopeEvaluator != null) {
+                PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+                if (scope != null && !scope.isFirmAdmin()) {
+                    Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                    if (accessibleClientIds == null || !accessibleClientIds.contains(request.getClientId())) {
+                        throw new org.springframework.security.access.AccessDeniedException(
+                                "Access denied: You do not have permission to upload documents for this client.");
+                    }
+                }
+            }
+        }
+
+        // Validate GST Filing tenant boundary if linked
+        if (request.getGstFilingId() != null && gstReturnFilingRepository != null) {
+            gstReturnFilingRepository.findByIdAndOrganizationId(request.getGstFilingId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("GST Filing", "id", request.getGstFilingId()));
+        }
+
+        // Validate ITR Return tenant boundary if linked
+        if (request.getItrReturnId() != null && itrReturnRepository != null) {
+            itrReturnRepository.findByIdAndOrganizationId(request.getItrReturnId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", request.getItrReturnId()));
+        }
+
+        // Validate TDS Return tenant boundary if linked
+        if (request.getTdsReturnId() != null && tdsReturnRepository != null) {
+            tdsReturnRepository.findByIdAndOrganizationId(request.getTdsReturnId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", request.getTdsReturnId()));
+        }
+
+        // Validate Task tenant boundary if linked
+        if (request.getTaskId() != null && taskRepository != null) {
+            taskRepository.findByIdAndOrganizationId(request.getTaskId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Task", "id", request.getTaskId()));
         }
 
         byte[] bytes;
@@ -88,6 +138,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .clientId(request.getClientId())
                 .gstFilingId(request.getGstFilingId())
                 .itrReturnId(request.getItrReturnId())
+                .tdsReturnId(request.getTdsReturnId())
                 .taskId(request.getTaskId())
                 .documentType(request.getDocumentType())
                 .fileName(originalFilename)
@@ -127,6 +178,30 @@ public class DocumentServiceImpl implements DocumentService {
 
         byte[] data = storageService.retrieve(document.getStorageKey());
         auditService.logEvent("DOCUMENT_DOWNLOADED", "DOCUMENT", id.toString(), null, document.getFileName());
+
+        return DocumentDownloadDto.builder()
+                .fileName(document.getFileName())
+                .contentType(document.getContentType())
+                .fileSize(document.getFileSize())
+                .data(data)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DocumentDownloadDto previewDocument(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        validateDocumentAccess(document);
+
+        if (document.getStatus() == DocumentStatus.DELETED) {
+            throw new ResourceNotFoundException("Document has been deleted", "id", id);
+        }
+
+        byte[] data = storageService.retrieve(document.getStorageKey());
+        auditService.logEvent("DOCUMENT_PREVIEWED", "DOCUMENT", id.toString(), null, document.getFileName());
 
         return DocumentDownloadDto.builder()
                 .fileName(document.getFileName())

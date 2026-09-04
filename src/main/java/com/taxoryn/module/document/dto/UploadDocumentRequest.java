@@ -36,6 +36,9 @@ public class UploadDocumentRequest {
     @Schema(description = "Associated ITR Return Filing ID (optional)")
     private UUID itrReturnId;
 
+    @Schema(description = "Associated TDS Return Filing ID (optional)")
+    private UUID tdsReturnId;
+
     @Schema(description = "Associated Task ID (optional)")
     private UUID taskId;
 

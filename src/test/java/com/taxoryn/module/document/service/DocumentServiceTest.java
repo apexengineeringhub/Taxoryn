@@ -52,6 +52,18 @@ class DocumentServiceTest {
     private ClientRepository clientRepository;
 
     @Mock
+    private com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository;
+
+    @Mock
+    private com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
+
+    @Mock
+    private com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository;
+
+    @Mock
+    private com.taxoryn.module.task.repository.TaskRepository taskRepository;
+
+    @Mock
     private DocumentMapper documentMapper;
 
     @Mock

@@ -43,6 +43,8 @@ public interface ClientPortalService {
 
     DocumentDownloadDto downloadClientDocument(UUID documentId);
 
+    DocumentDownloadDto previewClientDocument(UUID documentId);
+
     List<ClientTaskDto> getClientTasks();
 
     List<ClientNotificationDto> getClientNotifications();

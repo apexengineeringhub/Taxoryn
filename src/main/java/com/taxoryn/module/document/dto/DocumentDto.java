@@ -55,10 +55,12 @@ public class DocumentDto {
     @Schema(description = "Human-readable file size", example = "1.00 MB")
     private String fileSizeFormatted;
 
-    @Schema(description = "Unique storage path key")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Schema(hidden = true)
     private String storageKey;
 
-    @Schema(description = "Active storage provider backend", example = "LOCAL")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Schema(hidden = true)
     private StorageProvider storageProvider;
 
     @Schema(description = "Financial Year (e.g. 2025-26)", example = "2025-26")

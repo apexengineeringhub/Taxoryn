@@ -17,6 +17,8 @@ public interface DocumentService {
 
     DocumentDownloadDto downloadDocument(UUID id);
 
+    DocumentDownloadDto previewDocument(UUID id);
+
     DocumentDto getDocumentById(UUID id);
 
     PagedResponse<DocumentDto> getDocuments(DocumentFilterRequest filterRequest);

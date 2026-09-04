@@ -63,15 +63,43 @@ public class DocumentController {
 
     @GetMapping("/{id}/download")
     @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Download document content", description = "Streams the binary content of the requested document with appropriate MIME headers.")
+    @Operation(summary = "Download document content", description = "Streams the binary content of the requested document with attachment disposition and strict cache-control.")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = documentService.downloadDocument(id);
+        String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(download.getContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.getFileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeDispositionName + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
+                .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
                 .body(download.getData());
+    }
+
+    @GetMapping("/{id}/preview")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Preview document inline", description = "Streams the binary content of the requested document with inline disposition and strict cache-control.")
+    public ResponseEntity<byte[]> previewDocument(@PathVariable UUID id) {
+        DocumentDownloadDto download = documentService.previewDocument(id);
+        String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(download.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + safeDispositionName + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
+                .body(download.getData());
+    }
+
+    private String sanitizeHeaderFilename(String filename) {
+        if (!org.springframework.util.StringUtils.hasText(filename)) return "document.bin";
+        return filename.replaceAll("[\r\n\"\\\\]", "_");
     }
 
     // =========================================================================

@@ -396,6 +396,23 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
     @Override
     @Transactional(readOnly = true)
+    public DocumentDownloadDto previewClientDocument(UUID documentId) {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        DocumentEntity doc = documentRepository.findByIdAndOrganizationId(documentId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", "id", documentId));
+
+        if (!Objects.equals(doc.getClientId(), clientId)) {
+            log.warn("Unauthorized attempt by client {} to preview foreign document {}", clientId, documentId);
+            throw new ForbiddenException("You are not authorized to preview this document");
+        }
+
+        return documentService.previewDocument(documentId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ClientTaskDto> getClientTasks() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();

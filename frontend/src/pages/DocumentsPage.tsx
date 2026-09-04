@@ -292,6 +292,22 @@ export const DocumentsPage: React.FC = () => {
     },
   ];
 
+  const handleDownloadVaultDoc = async (id: string, fileName?: string) => {
+    try {
+      const blob = await documentApi.download(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'document.pdf';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(`Failed to download document: ${err?.response?.data?.message || err?.message || 'Download failed'}`);
+    }
+  };
+
   const vaultColumns: Column<DocumentItem>[] = [
     {
       header: 'Document Name',
@@ -301,7 +317,7 @@ export const DocumentsPage: React.FC = () => {
             <FileText className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <span className="font-bold text-slate-900 block break-all">{row.originalFilename}</span>
+            <span className="font-bold text-slate-900 block break-all">{row.originalFilename || (row as any).fileName}</span>
             <span className="text-[10px] text-slate-400 block truncate">{row.clientName || 'General Document'}</span>
           </div>
         </div>
@@ -311,7 +327,7 @@ export const DocumentsPage: React.FC = () => {
       header: 'Category',
       accessor: (row) => (
         <span className="font-bold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 uppercase">
-          {row.category}
+          {row.category || (row as any).documentType}
         </span>
       ),
     },
@@ -327,14 +343,13 @@ export const DocumentsPage: React.FC = () => {
       header: 'Actions',
       align: 'right',
       cell: (row) => (
-        <a
-          href={documentApi.downloadUrl(row.id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-md inline-flex items-center gap-1 text-xs font-semibold"
+        <button
+          onClick={() => handleDownloadVaultDoc(row.id, row.originalFilename || (row as any).fileName)}
+          className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-md inline-flex items-center gap-1 text-xs font-semibold cursor-pointer"
+          title="Download Document"
         >
           <Download className="w-4 h-4" />
-        </a>
+        </button>
       ),
     },
   ];
