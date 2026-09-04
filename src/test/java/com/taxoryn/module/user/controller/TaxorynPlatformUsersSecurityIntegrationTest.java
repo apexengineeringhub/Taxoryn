@@ -350,4 +350,79 @@ class TaxorynPlatformUsersSecurityIntegrationTest {
         assertTrue(auditLogRepository.findAll().stream()
                 .anyMatch(log -> "TAXORYN_USER_DISABLED".equals(log.getAction())));
     }
+
+    @Test
+    @DisplayName("Tenant ORG_ADMIN cannot access any platform-level administration endpoints (HTTP 403)")
+    void testTenantAdminCannotAccessPlatformAdministrationEndpoints() throws Exception {
+        OrganizationEntity practiceOrg = organizationRepository.save(OrganizationEntity.builder()
+                .name("Sharma & Associates CA")
+                .legalName("Sharma & Associates LLP")
+                .email("info@sharmaca.in")
+                .status(OrganizationStatus.ACTIVE)
+                .build());
+
+        RoleEntity orgAdminRole = getOrCreateRole("ORG_ADMIN", "Organization Administrator");
+        UserEntity orgAdminUser = createUser("admin@sharmaca.in", "Ramesh", "Sharma", orgAdminRole);
+        orgAdminUser.setOrganizationId(practiceOrg.getId());
+        userRepository.save(orgAdminUser);
+
+        String tenantAdminToken = jwtTokenProvider.generateAccessToken(
+                orgAdminUser.getId(), practiceOrg.getId(), null, orgAdminUser.getEmail(),
+                Set.of("ORG_ADMIN"),
+                Set.of("USER_VIEW", "USER_CREATE", "USER_UPDATE", "ROLE_READ", "ROLE_WRITE", "CLIENT_VIEW", "ORGANIZATION_VIEW")
+        );
+
+        // 1. Cannot list platform users
+        mockMvc.perform(get("/api/v1/admin/users")
+                        .header("Authorization", "Bearer " + tenantAdminToken))
+                .andExpect(status().isForbidden());
+
+        // 2. Cannot create platform users
+        CreatePlatformUserRequest createReq = CreatePlatformUserRequest.builder()
+                .firstName("Rogue")
+                .lastName("Admin")
+                .email("rogue@taxoryn.com")
+                .roleCode("TAXORYN_SUPPORT_ADMIN")
+                .status(UserStatus.ACTIVE)
+                .build();
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header("Authorization", "Bearer " + tenantAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createReq)))
+                .andExpect(status().isForbidden());
+
+        // 3. Cannot mutate platform user role
+        UpdatePlatformUserRoleRequest roleReq = new UpdatePlatformUserRoleRequest("TAXORYN_SUPPORT_ADMIN");
+        mockMvc.perform(put("/api/v1/admin/users/" + opsAdminUser.getId() + "/role")
+                        .header("Authorization", "Bearer " + tenantAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(roleReq)))
+                .andExpect(status().isForbidden());
+
+        // 4. Cannot update platform user status
+        mockMvc.perform(patch("/api/v1/admin/users/" + opsAdminUser.getId() + "/status")
+                        .header("Authorization", "Bearer " + tenantAdminToken)
+                        .param("status", "SUSPENDED"))
+                .andExpect(status().isForbidden());
+
+        // 5. Cannot access platform overview dashboard
+        mockMvc.perform(get("/api/v1/admin/platform/dashboard")
+                        .header("Authorization", "Bearer " + tenantAdminToken))
+                .andExpect(status().isForbidden());
+
+        // 6. Cannot access platform support dashboard
+        mockMvc.perform(get("/api/v1/admin/support/overview")
+                        .header("Authorization", "Bearer " + tenantAdminToken))
+                .andExpect(status().isForbidden());
+
+        // 7. Cannot access marketplace KYC verification queue
+        mockMvc.perform(get("/api/v1/admin/marketplace/verifications/pending")
+                        .header("Authorization", "Bearer " + tenantAdminToken))
+                .andExpect(status().isForbidden());
+
+        // 8. Cannot access or create master tax services
+        mockMvc.perform(get("/api/v1/admin/tax-services/categories")
+                        .header("Authorization", "Bearer " + tenantAdminToken))
+                .andExpect(status().isForbidden());
+    }
 }
