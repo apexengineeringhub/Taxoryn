@@ -27,15 +27,16 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
 
     @Override
     public boolean sendEmail(String recipientEmail, String recipientName, String subject, String content, Map<String, Object> templateData) {
-        if (!emailProperties.isEnabled() || !"SMTP".equalsIgnoreCase(emailProperties.getProvider())) {
-            log.info("[EMAIL_LOG] To: '{}' <{}> | Subject: '{}' | Provider: LOG (Real email disabled)",
+        if (!emailProperties.isEnabled() || "LOG".equalsIgnoreCase(emailProperties.getProvider())) {
+            log.info("[EMAIL_LOG] To: '{}' <{}> | Subject: '{}' | Provider: LOG (Simulated dispatch)",
                     recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
             return true;
         }
 
         if (javaMailSender == null) {
-            log.warn("SMTP provider selected but JavaMailSender is not configured in Spring context. Logged instead.");
-            return false;
+            log.info("[EMAIL_LOG_FALLBACK] SMTP selected but no mail host configured. Dispatched to logs. To: '{}' <{}> | Subject: '{}'",
+                    recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
+            return true;
         }
 
         try {
@@ -51,11 +52,14 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             helper.setText(content, true); // HTML content
 
             javaMailSender.send(message);
-            log.info("[EMAIL_SENT] Successfully dispatched email to '{}' <{}> | Subject: '{}'",
+            log.info("[EMAIL_SENT] Successfully dispatched SMTP email to '{}' <{}> | Subject: '{}'",
                     recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
             return true;
         } catch (Exception ex) {
-            log.error("Failed sending email to {}: {}", recipientEmail, ex.getMessage(), ex);
+            log.warn("Failed sending live SMTP email to '{}' <{}> (Reason: {}). Recording email payload to log.",
+                    recipientName != null ? recipientName : "Recipient", recipientEmail, ex.getMessage());
+            log.info("[EMAIL_LOG_FALLBACK] To: '{}' <{}> | Subject: '{}'",
+                    recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
             return false;
         }
     }

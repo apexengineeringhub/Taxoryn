@@ -1,65 +1,74 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BrandingProvider } from './context/BrandingContext';
 import { AppShell } from './components/layout/AppShell';
 
-// Pages
-import { LoginPage } from './pages/LoginPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import { ResetPasswordPage } from './pages/ResetPasswordPage';
-import { RegisterOrgPage } from './pages/RegisterOrgPage';
-import { AccountSecurityPage } from './pages/AccountSecurityPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { ClientsPage } from './pages/ClientsPage';
-import { ClientMigrationHubPage } from './pages/ClientMigrationHubPage';
-import { TasksPage } from './pages/TasksPage';
-import { BulkTasksGeneratorPage } from './pages/BulkTasksGeneratorPage';
-import { GstCompliancePage } from './pages/GstCompliancePage';
-import { GstDataMigrationHubPage } from './pages/GstDataMigrationHubPage';
-import { ItrCompliancePage } from './pages/ItrCompliancePage';
-import { ItrDataMigrationHubPage } from './pages/ItrDataMigrationHubPage';
-import { TdsCompliancePage } from './pages/TdsCompliancePage';
-import { TdsDataMigrationHubPage } from './pages/TdsDataMigrationHubPage';
-import { ComplianceCalendarPage } from './pages/ComplianceCalendarPage';
-import { DocumentsPage } from './pages/DocumentsPage';
-import { BillingPage } from './pages/BillingPage';
-import { ClientPortalManagementPage } from './pages/ClientPortalManagementPage';
-import { TeamManagementPage } from './pages/TeamManagementPage';
-import { BulkEmployeeOnboardingPage } from './pages/BulkEmployeeOnboardingPage';
-import { AuditLogsPage } from './pages/AuditLogsPage';
-import { PracticeBrandingPage } from './pages/PracticeBrandingPage';
-import { SubscriptionsPage } from './pages/SubscriptionsPage';
-import { MarketplaceExplorePage } from './pages/MarketplaceExplorePage';
-import { MarketplaceProfileDetailPage } from './pages/MarketplaceProfileDetailPage';
-import { PracticePublicProfilePage } from './pages/PracticePublicProfilePage';
-import { MarketplaceComparePage } from './pages/MarketplaceComparePage';
-import { PracticeMarketplaceProfilePage } from './pages/PracticeMarketplaceProfilePage';
-import { MarketplaceLeadsPage } from './pages/MarketplaceLeadsPage';
-import { PlatformAdminMarketplacePage } from './pages/PlatformAdminMarketplacePage';
-import { MarketplaceOnboardingHubPage } from './pages/MarketplaceOnboardingHubPage';
-import { CustomerOnboardingPortalPage } from './pages/CustomerOnboardingPortalPage';
-import { RegisterCustomerPage } from './pages/RegisterCustomerPage';
-import { MarketplaceCustomerDashboardPage } from './pages/MarketplaceCustomerDashboardPage';
-import { CustomerProfilePage } from './pages/CustomerProfilePage';
-import { CustomerTaxRequirementWizardPage } from './pages/CustomerTaxRequirementWizardPage';
-import { CustomerTaxRequirementsListPage } from './pages/CustomerTaxRequirementsListPage';
-import { ApplicationFeedbackPage } from './pages/ApplicationFeedbackPage';
-import { AdminFeedbackPage } from './pages/AdminFeedbackPage';
-import { PlatformOverviewPage } from './pages/PlatformOverviewPage';
-import { PlatformPracticesPage } from './pages/PlatformPracticesPage';
-import { PlatformUsersPage } from './pages/PlatformUsersPage';
-import { PlatformSubscriptionsPage } from './pages/PlatformSubscriptionsPage';
-import { LearnLandingPage } from './pages/learn/LearnLandingPage';
-import { LearnContentBrowsePage } from './pages/learn/LearnContentBrowsePage';
-import { LearnContentDetailPage } from './pages/learn/LearnContentDetailPage';
-import { PlatformContentManagementPage } from './pages/PlatformContentManagementPage';
-import { WhatsAppMessagesPage } from './pages/WhatsAppMessagesPage';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { ReportsPage } from './pages/ReportsPage';
+// Lazy Loaded Pages for Instant Initial Load & Low Memory Footprint
+const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
+const RegisterOrgPage = React.lazy(() => import('./pages/RegisterOrgPage').then(m => ({ default: m.RegisterOrgPage })));
+const AccountSecurityPage = React.lazy(() => import('./pages/AccountSecurityPage').then(m => ({ default: m.AccountSecurityPage })));
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
+const ClientMigrationHubPage = React.lazy(() => import('./pages/ClientMigrationHubPage').then(m => ({ default: m.ClientMigrationHubPage })));
+const TasksPage = React.lazy(() => import('./pages/TasksPage').then(m => ({ default: m.TasksPage })));
+const BulkTasksGeneratorPage = React.lazy(() => import('./pages/BulkTasksGeneratorPage').then(m => ({ default: m.BulkTasksGeneratorPage })));
+const GstCompliancePage = React.lazy(() => import('./pages/GstCompliancePage').then(m => ({ default: m.GstCompliancePage })));
+const GstDataMigrationHubPage = React.lazy(() => import('./pages/GstDataMigrationHubPage').then(m => ({ default: m.GstDataMigrationHubPage })));
+const ItrCompliancePage = React.lazy(() => import('./pages/ItrCompliancePage').then(m => ({ default: m.ItrCompliancePage })));
+const ItrDataMigrationHubPage = React.lazy(() => import('./pages/ItrDataMigrationHubPage').then(m => ({ default: m.ItrDataMigrationHubPage })));
+const TdsCompliancePage = React.lazy(() => import('./pages/TdsCompliancePage').then(m => ({ default: m.TdsCompliancePage })));
+const TdsDataMigrationHubPage = React.lazy(() => import('./pages/TdsDataMigrationHubPage').then(m => ({ default: m.TdsDataMigrationHubPage })));
+const ComplianceCalendarPage = React.lazy(() => import('./pages/ComplianceCalendarPage').then(m => ({ default: m.ComplianceCalendarPage })));
+const DocumentsPage = React.lazy(() => import('./pages/DocumentsPage').then(m => ({ default: m.DocumentsPage })));
+const BillingPage = React.lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
+const ClientPortalManagementPage = React.lazy(() => import('./pages/ClientPortalManagementPage').then(m => ({ default: m.ClientPortalManagementPage })));
+const TeamManagementPage = React.lazy(() => import('./pages/TeamManagementPage').then(m => ({ default: m.TeamManagementPage })));
+const BulkEmployeeOnboardingPage = React.lazy(() => import('./pages/BulkEmployeeOnboardingPage').then(m => ({ default: m.BulkEmployeeOnboardingPage })));
+const AuditLogsPage = React.lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
+const PracticeBrandingPage = React.lazy(() => import('./pages/PracticeBrandingPage').then(m => ({ default: m.PracticeBrandingPage })));
+const SubscriptionsPage = React.lazy(() => import('./pages/SubscriptionsPage').then(m => ({ default: m.SubscriptionsPage })));
+const MarketplaceExplorePage = React.lazy(() => import('./pages/MarketplaceExplorePage').then(m => ({ default: m.MarketplaceExplorePage })));
+const PracticePublicProfilePage = React.lazy(() => import('./pages/PracticePublicProfilePage').then(m => ({ default: m.PracticePublicProfilePage })));
+const MarketplaceComparePage = React.lazy(() => import('./pages/MarketplaceComparePage').then(m => ({ default: m.MarketplaceComparePage })));
+const PracticeMarketplaceProfilePage = React.lazy(() => import('./pages/PracticeMarketplaceProfilePage').then(m => ({ default: m.PracticeMarketplaceProfilePage })));
+const MarketplaceLeadsPage = React.lazy(() => import('./pages/MarketplaceLeadsPage').then(m => ({ default: m.MarketplaceLeadsPage })));
+const PlatformAdminMarketplacePage = React.lazy(() => import('./pages/PlatformAdminMarketplacePage').then(m => ({ default: m.PlatformAdminMarketplacePage })));
+const MarketplaceOnboardingHubPage = React.lazy(() => import('./pages/MarketplaceOnboardingHubPage').then(m => ({ default: m.MarketplaceOnboardingHubPage })));
+const CustomerOnboardingPortalPage = React.lazy(() => import('./pages/CustomerOnboardingPortalPage').then(m => ({ default: m.CustomerOnboardingPortalPage })));
+const RegisterCustomerPage = React.lazy(() => import('./pages/RegisterCustomerPage').then(m => ({ default: m.RegisterCustomerPage })));
+const MarketplaceCustomerDashboardPage = React.lazy(() => import('./pages/MarketplaceCustomerDashboardPage').then(m => ({ default: m.MarketplaceCustomerDashboardPage })));
+const CustomerProfilePage = React.lazy(() => import('./pages/CustomerProfilePage').then(m => ({ default: m.CustomerProfilePage })));
+const CustomerTaxRequirementWizardPage = React.lazy(() => import('./pages/CustomerTaxRequirementWizardPage').then(m => ({ default: m.CustomerTaxRequirementWizardPage })));
+const CustomerTaxRequirementsListPage = React.lazy(() => import('./pages/CustomerTaxRequirementsListPage').then(m => ({ default: m.CustomerTaxRequirementsListPage })));
+const ApplicationFeedbackPage = React.lazy(() => import('./pages/ApplicationFeedbackPage').then(m => ({ default: m.ApplicationFeedbackPage })));
+const AdminFeedbackPage = React.lazy(() => import('./pages/AdminFeedbackPage').then(m => ({ default: m.AdminFeedbackPage })));
+const PlatformOverviewPage = React.lazy(() => import('./pages/PlatformOverviewPage').then(m => ({ default: m.PlatformOverviewPage })));
+const PlatformPracticesPage = React.lazy(() => import('./pages/PlatformPracticesPage').then(m => ({ default: m.PlatformPracticesPage })));
+const PlatformUsersPage = React.lazy(() => import('./pages/PlatformUsersPage').then(m => ({ default: m.PlatformUsersPage })));
+const PlatformSubscriptionsPage = React.lazy(() => import('./pages/PlatformSubscriptionsPage').then(m => ({ default: m.PlatformSubscriptionsPage })));
+const LearnLandingPage = React.lazy(() => import('./pages/learn/LearnLandingPage').then(m => ({ default: m.LearnLandingPage })));
+const LearnContentBrowsePage = React.lazy(() => import('./pages/learn/LearnContentBrowsePage').then(m => ({ default: m.LearnContentBrowsePage })));
+const LearnContentDetailPage = React.lazy(() => import('./pages/learn/LearnContentDetailPage').then(m => ({ default: m.LearnContentDetailPage })));
+const PlatformContentManagementPage = React.lazy(() => import('./pages/PlatformContentManagementPage').then(m => ({ default: m.PlatformContentManagementPage })));
+const WhatsAppMessagesPage = React.lazy(() => import('./pages/WhatsAppMessagesPage').then(m => ({ default: m.WhatsAppMessagesPage })));
+const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import { getTenantSubdomain } from './utils/tenantUrl';
+
+// Sleek Skeleton Page Fallback
+const PageLoadingFallback: React.FC = () => (
+  <div className="min-h-screen w-full flex items-center justify-center bg-slate-900 text-white">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 rounded-full border-2 border-[#00D1A3] border-t-transparent animate-spin" />
+      <span className="text-xs font-semibold text-slate-300 tracking-wide">Loading module...</span>
+    </div>
+  </div>
+);
 
 // Dynamic Multi-Tenant Subdomain Resolver
 const TenantRootResolver: React.FC = () => {
@@ -100,7 +109,8 @@ export const App: React.FC = () => {
     <AuthProvider>
       <BrandingProvider>
         <BrowserRouter>
-          <Routes>
+          <Suspense fallback={<PageLoadingFallback />}>
+            <Routes>
             {/* Root Route: Tenant Subdomain Resolution (e.g., https://apex.taxoryn.com) or Dashboard */}
             <Route path="/" element={<TenantRootResolver />} />
             {/* Public Auth & Discovery Routes */}
@@ -291,8 +301,9 @@ export const App: React.FC = () => {
             {/* Catch all redirect */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
-        </BrowserRouter>
-      </BrandingProvider>
-    </AuthProvider>
+        </Suspense>
+      </BrowserRouter>
+    </BrandingProvider>
+  </AuthProvider>
   );
 };
