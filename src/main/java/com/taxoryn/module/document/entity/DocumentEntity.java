@@ -77,6 +77,20 @@ public class DocumentEntity extends TenantAuditableEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scan_status", nullable = false, length = 30)
+    @Builder.Default
+    private DocumentScanStatus scanStatus = DocumentScanStatus.CLEAN;
+
+    @Column(name = "scanned_at")
+    private java.time.Instant scannedAt;
+
+    @Column(name = "scanner_name", length = 100)
+    private String scannerName;
+
+    @Column(name = "scan_result_details", length = 500)
+    private String scanResultDetails;
+
     public enum DocumentType {
         PAN_CARD,
         AADHAAR_CARD,
@@ -99,6 +113,14 @@ public class DocumentEntity extends TenantAuditableEntity {
         MOA_AOA,
         PARTNERSHIP_DEED,
         OTHER
+    }
+
+    public enum DocumentScanStatus {
+        PENDING_SCAN,
+        CLEAN,
+        INFECTED,
+        SCAN_FAILED,
+        LEGACY_UNSCANNED
     }
 
     public enum DocumentStatus {

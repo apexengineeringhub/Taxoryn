@@ -78,6 +78,15 @@ public class DocumentDto {
     @Schema(description = "User notes and tags")
     private String notes;
 
+    @Schema(description = "Malware scan status", example = "CLEAN")
+    private com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus scanStatus;
+
+    @Schema(description = "Malware scan timestamp")
+    private Instant scannedAt;
+
+    @Schema(description = "Malware scan details or threat name if flagged")
+    private String scanResultDetails;
+
     @Schema(description = "Uploader user email")
     private String uploadedBy;
 

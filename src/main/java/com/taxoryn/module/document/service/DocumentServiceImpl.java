@@ -36,6 +36,10 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import com.taxoryn.core.security.upload.FileValidator;
+import com.taxoryn.core.security.upload.MalwareScanner;
+import com.taxoryn.core.security.upload.ScanResult;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus;
 import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 
@@ -55,6 +59,8 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentMapper documentMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    private final FileValidator fileValidator;
+    private final MalwareScanner malwareScanner;
 
     @Override
     @Transactional
@@ -80,10 +86,8 @@ public class DocumentServiceImpl implements DocumentService {
                     throw new org.springframework.security.access.AccessDeniedException(
                             "Access denied: You cannot upload documents to another client's vault");
                 }
-            }
-
-            // Enforce ABAC staff portfolio boundary: Restricted staff cannot upload to out-of-portfolio clients
-            if (securityScopeEvaluator != null) {
+            } else if (securityScopeEvaluator != null) {
+                // Enforce ABAC staff portfolio boundary: Restricted staff cannot upload to out-of-portfolio clients
                 PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
                 if (scope != null && !scope.isFirmAdmin()) {
                     Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
@@ -128,6 +132,25 @@ public class DocumentServiceImpl implements DocumentService {
 
         String originalFilename = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "document.bin";
         String contentType = StringUtils.hasText(file.getContentType()) ? file.getContentType() : "application/octet-stream";
+
+        // 1. Multi-layer file validation (filename, extension, MIME, magic bytes, zip bomb inspection)
+        fileValidator.validate(originalFilename, contentType, bytes);
+
+        // 2. Malware and Antivirus signature scanning (Fail-closed)
+        ScanResult scanResult = malwareScanner.scan(bytes, originalFilename);
+        if (scanResult.isInfected()) {
+            log.warn("SECURITY ALERT: Malware detected in uploaded file '{}' for tenant {}: {}",
+                    originalFilename, organizationId, scanResult.getDetails());
+            auditService.logEvent("DOCUMENT_MALWARE_BLOCKED", "DOCUMENT", "N/A", null,
+                    "Malware detected in " + originalFilename + ": " + scanResult.getThreatName());
+            throw new BadRequestException("Malware detected in uploaded file: " + scanResult.getThreatName() + " (" + scanResult.getDetails() + ")");
+        }
+        if (scanResult.isFailed()) {
+            log.error("SECURITY ALERT: Malware scanning failed for file '{}' for tenant {}: {}. Enforcing fail-closed policy.",
+                    originalFilename, organizationId, scanResult.getDetails());
+            throw new BadRequestException("Malware scan failed for uploaded file: " + scanResult.getDetails());
+        }
+
         String checksum = calculateSha256(bytes);
 
         // Store file in configured storage backend (Local / S3)
@@ -149,14 +172,18 @@ public class DocumentServiceImpl implements DocumentService {
                 .financialYear(request.getFinancialYear())
                 .assessmentYear(request.getAssessmentYear())
                 .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.CLEAN)
+                .scannedAt(java.time.Instant.now())
+                .scannerName(scanResult.getScannerName())
+                .scanResultDetails(scanResult.getDetails())
                 .checksum(checksum)
                 .notes(request.getNotes())
                 .build();
         entity.setOrganizationId(organizationId);
 
         DocumentEntity saved = documentRepository.save(entity);
-        log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={} for tenant={}",
-                saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), organizationId);
+        log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={}, scanStatus={} for tenant={}",
+                saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), saved.getScanStatus(), organizationId);
 
         DocumentDto result = enrichDto(saved);
         auditService.logEvent("DOCUMENT_UPLOADED", "DOCUMENT", saved.getId().toString(), null, result);
@@ -171,6 +198,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
 
         validateDocumentAccess(document);
+        validateDocumentScanStatus(document);
 
         if (document.getStatus() == DocumentStatus.DELETED) {
             throw new ResourceNotFoundException("Document has been deleted", "id", id);
@@ -195,6 +223,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
 
         validateDocumentAccess(document);
+        validateDocumentScanStatus(document);
 
         if (document.getStatus() == DocumentStatus.DELETED) {
             throw new ResourceNotFoundException("Document has been deleted", "id", id);
@@ -433,6 +462,18 @@ public class DocumentServiceImpl implements DocumentService {
                             "Access denied: You do not have permission to access documents for this client.");
                 }
             }
+        }
+    }
+
+    private void validateDocumentScanStatus(DocumentEntity document) {
+        if (document == null) return;
+        if (document.getScanStatus() != null
+                && document.getScanStatus() != DocumentScanStatus.CLEAN
+                && document.getScanStatus() != DocumentScanStatus.LEGACY_UNSCANNED) {
+            log.warn("SECURITY ALERT: Blocked download/preview of unscanned or infected document: id={}, scanStatus={}",
+                    document.getId(), document.getScanStatus());
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Access denied: Document has not passed malware scanning. Current scan status: " + document.getScanStatus());
         }
     }
 }

@@ -75,6 +75,12 @@ class DocumentServiceTest {
     @Mock
     private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
+    @Mock
+    private com.taxoryn.core.security.upload.FileValidator fileValidator;
+
+    @Mock
+    private com.taxoryn.core.security.upload.MalwareScanner malwareScanner;
+
     @InjectMocks
     private DocumentServiceImpl documentService;
 
@@ -132,6 +138,8 @@ class DocumentServiceTest {
         client.setOrganizationId(tenantId);
 
         when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(malwareScanner.scan(any(byte[].class), eq("Form16.pdf")))
+                .thenReturn(com.taxoryn.core.security.upload.ScanResult.clean("MockScanner"));
         when(storageService.store(eq(tenantId), eq("Form16.pdf"), eq("application/pdf"), any(byte[].class)))
                 .thenReturn("org_" + tenantId + "/2026/08/Form16.pdf");
         when(storageService.getStorageProviderName()).thenReturn("LOCAL");
