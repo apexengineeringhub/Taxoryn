@@ -4,6 +4,7 @@ import com.taxoryn.core.dto.PageRequestDto;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.role.entity.RoleEntity;
 import com.taxoryn.module.role.service.RoleService;
@@ -23,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -116,12 +119,21 @@ public class UserServiceImpl implements UserService {
         }
 
         if (request.getRoleCodes() != null && !request.getRoleCodes().isEmpty()) {
-            // 1. RBAC Privilege Escalation & Delegation Boundary Check
+            // 1. Block Self-Role Mutation
+            UUID currentUserId = SecurityUtils.getCurrentUser().map(SecurityUser::getUserId).orElse(null);
+            if (currentUserId != null && currentUserId.equals(userId) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                Set<String> currentRoleCodes = user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet());
+                if (!currentRoleCodes.equals(request.getRoleCodes())) {
+                    throw new com.taxoryn.core.exception.ForbiddenException("Self-role mutation denied: You cannot modify your own assigned roles");
+                }
+            }
+
+            // 2. RBAC Privilege Escalation & Delegation Boundary Check
             SecurityUtils.validateRoleDelegation(request.getRoleCodes(), userId);
 
             List<RoleEntity> roles = roleService.getRolesByCodes(request.getRoleCodes(), organizationId);
 
-            // 2. Prevent removing ORG_ADMIN from sole remaining admin
+            // 3. Prevent removing ORG_ADMIN from sole remaining admin
             boolean willBeOrgAdmin = roles.stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
             if (isCurrentlyOrgAdmin && !willBeOrgAdmin) {
                 long activeAdminCount = userRepository.countActiveOrgAdmins(organizationId);

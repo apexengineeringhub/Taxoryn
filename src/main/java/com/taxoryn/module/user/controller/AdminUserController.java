@@ -226,6 +226,12 @@ public class AdminUserController {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
+        // Block self-role modification for non-superadmin
+        UUID currentUserId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
+        if (currentUserId != null && currentUserId.equals(userId) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new ForbiddenException("Self-role mutation denied: You cannot modify your own platform role");
+        }
+
         // Prevent non-superadmin from modifying an existing SuperAdmin
         boolean targetIsSuperAdmin = user.getRoles() != null && user.getRoles().stream()
                 .anyMatch(r -> "SUPER_ADMIN".equals(r.getCode()) || "TAXORYN_SUPERADMIN".equals(r.getCode()));

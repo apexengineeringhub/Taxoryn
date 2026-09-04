@@ -142,17 +142,99 @@ public final class SecurityUtils {
             "TAXORYN_FINANCE_ADMIN",
             "TAXORYN_CONTENT_ADMIN",
             "TAXORYN_SECURITY_ADMIN",
-            "TAXORYN_ENGINEERING_ADMIN"
+            "TAXORYN_ENGINEERING_ADMIN",
+            "PLATFORM_ADMIN"
+    );
+
+    public static final Set<String> TENANT_ROLE_CODES = Set.of(
+            "ORG_ADMIN",
+            "PRACTICE_OWNER",
+            "PRACTICE_ADMIN",
+            "MANAGER",
+            "TAX_PROFESSIONAL",
+            "PRACTITIONER",
+            "ACCOUNTANT",
+            "EMPLOYEE",
+            "PRACTICE_EMPLOYEE",
+            "STAFF",
+            "VIEWER",
+            "PARTNER"
+    );
+
+    public static final Set<String> CLIENT_ROLE_CODES = Set.of(
+            "CLIENT_ADMIN",
+            "CLIENT_USER",
+            "PRACTICE_CLIENT",
+            "MARKETPLACE_CUSTOMER"
+    );
+
+    public static final Set<String> PRIVILEGED_ROLE_CODES = Set.of(
+            "SUPER_ADMIN",
+            "TAXORYN_SUPERADMIN",
+            "TAXORYN_OPERATIONS_ADMIN",
+            "TAXORYN_SUPPORT_ADMIN",
+            "TAXORYN_MARKETPLACE_ADMIN",
+            "TAXORYN_FINANCE_ADMIN",
+            "TAXORYN_CONTENT_ADMIN",
+            "TAXORYN_SECURITY_ADMIN",
+            "TAXORYN_ENGINEERING_ADMIN",
+            "PLATFORM_ADMIN",
+            "ORG_ADMIN",
+            "PRACTICE_OWNER",
+            "PRACTICE_ADMIN",
+            "MANAGER",
+            "TAX_PROFESSIONAL",
+            "PRACTITIONER",
+            "ACCOUNTANT",
+            "STAFF",
+            "CLIENT_ADMIN"
     );
 
     public static final Set<String> PLATFORM_PERMISSION_CODES = Set.of(
+            "PLATFORM_VIEW",
             "PLATFORM_USER_VIEW",
             "PLATFORM_USER_CREATE",
             "PLATFORM_USER_UPDATE",
             "PLATFORM_USER_DELETE",
+            "PLATFORM_SETTINGS_VIEW",
+            "PLATFORM_SETTINGS_MANAGE",
+            "PLATFORM_HEALTH_VIEW",
             "SYSTEM_STATUS_VIEW",
             "TECHNICAL_INCIDENT_VIEW",
-            "TECHNICAL_INCIDENT_MANAGE"
+            "TECHNICAL_INCIDENT_MANAGE",
+            "SECURITY_VIEW",
+            "SECURITY_MANAGE",
+            "SECURITY_ALERT_VIEW",
+            "SECURITY_ALERT_MANAGE",
+            "ACCESS_REVIEW",
+            "ROLE_ASSIGNMENT_REVIEW",
+            "SESSION_REVIEW",
+            "AUDIT_VIEW",
+            "AUDIT_SEARCH",
+            "AUDIT_EXPORT",
+            "PRACTICE_VERIFY",
+            "PRACTICE_SUSPEND",
+            "USER_DISABLE",
+            "ONBOARDING_VIEW",
+            "ONBOARDING_MANAGE",
+            "SUPPORT_VIEW",
+            "SUPPORT_ASSIGN",
+            "SUPPORT_RESOLVE",
+            "MRR_VIEW",
+            "REFUND_MANAGE",
+            "FINANCE_REPORT_VIEW",
+            "SUBSCRIPTION_MANAGE",
+            "PAYMENT_MANAGE",
+            "CONTENT_MANAGE",
+            "CONTENT_PUBLISH",
+            "ARTICLE_PUBLISH",
+            "ARTICLE_ARCHIVE",
+            "VIDEO_PUBLISH",
+            "VIDEO_ARCHIVE",
+            "MARKETPLACE_MANAGE",
+            "MARKETPLACE_MATCH_MANAGE",
+            "MARKETPLACE_DISPUTE_MANAGE",
+            "INTEGRATION_MANAGE"
     );
 
     public static boolean isPlatformRole(String roleCode) {
@@ -164,9 +246,52 @@ public final class SecurityUtils {
         return PLATFORM_ROLE_CODES.contains(clean);
     }
 
+    public static boolean isTenantRole(String roleCode) {
+        if (roleCode == null) return false;
+        String clean = roleCode.trim().toUpperCase();
+        if (clean.startsWith("ROLE_")) {
+            clean = clean.substring(5);
+        }
+        return TENANT_ROLE_CODES.contains(clean);
+    }
+
+    public static boolean isClientRole(String roleCode) {
+        if (roleCode == null) return false;
+        String clean = roleCode.trim().toUpperCase();
+        if (clean.startsWith("ROLE_")) {
+            clean = clean.substring(5);
+        }
+        return CLIENT_ROLE_CODES.contains(clean);
+    }
+
+    public static boolean isPrivilegedRole(String roleCode) {
+        if (roleCode == null) return false;
+        String clean = roleCode.trim().toUpperCase();
+        if (clean.startsWith("ROLE_")) {
+            clean = clean.substring(5);
+        }
+        return PRIVILEGED_ROLE_CODES.contains(clean);
+    }
+
+    public static boolean isTenantAdmin() {
+        return isTaxorynSuperAdmin()
+                || hasRole("ORG_ADMIN")
+                || hasRole("PRACTICE_OWNER")
+                || hasRole("PRACTICE_ADMIN");
+    }
+
     public static boolean isPlatformPermission(String permissionCode) {
         if (permissionCode == null) return false;
-        return PLATFORM_PERMISSION_CODES.contains(permissionCode.trim().toUpperCase());
+        String clean = permissionCode.trim().toUpperCase();
+        if (PLATFORM_PERMISSION_CODES.contains(clean)) {
+            return true;
+        }
+        return clean.startsWith("PLATFORM_")
+                || clean.startsWith("SYSTEM_")
+                || clean.startsWith("TECHNICAL_")
+                || clean.startsWith("SECURITY_")
+                || clean.startsWith("AUDIT_")
+                || clean.startsWith("ONBOARDING_");
     }
 
     /**
@@ -206,8 +331,8 @@ public final class SecurityUtils {
             }
         }
 
-        // 3. Non-Org-Admins / Non-SuperAdmins cannot delegate roles they do not possess
-        if (!isSuperAdmin && !hasRole("ORG_ADMIN")) {
+        // 3. Delegation boundary: Non-tenant-admins and non-superadmins cannot delegate roles
+        if (!isSuperAdmin && !isTenantAdmin()) {
             Set<String> callerRoles = getCurrentRoles().stream()
                     .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
                     .collect(Collectors.toSet());
@@ -219,6 +344,13 @@ public final class SecurityUtils {
                             "Role delegation boundary violation: You cannot assign role '" + targetRole + "' because you do not hold this role"
                     );
                 }
+            }
+
+            // Non-admin callers cannot delegate roles to other users
+            if (currentUserId == null || !currentUserId.equals(targetUserId)) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Role delegation boundary violation: You do not have permission to delegate roles"
+                );
             }
         }
     }
@@ -242,8 +374,8 @@ public final class SecurityUtils {
             }
         }
 
-        // 2. If caller is not Org Admin or Super Admin, they cannot create a role with permissions they don't have
-        if (!isSuperAdmin && !hasRole("ORG_ADMIN")) {
+        // 2. If caller is not Tenant Admin or Super Admin, they cannot create a role with permissions they don't have
+        if (!isSuperAdmin && !isTenantAdmin()) {
             Set<String> callerPerms = getCurrentUser()
                     .map(SecurityUser::getPermissions)
                     .orElse(Collections.emptySet());

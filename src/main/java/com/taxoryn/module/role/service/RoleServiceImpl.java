@@ -6,6 +6,7 @@ import com.taxoryn.core.exception.ForbiddenException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.exception.TenantAccessDeniedException;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.module.role.dto.AssignUserRolesRequest;
 import com.taxoryn.module.role.dto.CreateRoleRequest;
 import com.taxoryn.module.role.dto.PermissionDto;
@@ -189,7 +190,16 @@ public class RoleServiceImpl implements RoleService {
         UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        // 1. RBAC Privilege Escalation & Delegation Boundary Check
+        // 1. Block Self-Role Mutation (prevent users from mutating their own assigned roles)
+        UUID currentUserId = SecurityUtils.getCurrentUser().map(SecurityUser::getUserId).orElse(null);
+        if (currentUserId != null && currentUserId.equals(userId) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            Set<String> currentRoleCodes = user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet());
+            if (!currentRoleCodes.equals(request.getRoleCodes())) {
+                throw new ForbiddenException("Self-role mutation denied: You cannot modify your own assigned roles");
+            }
+        }
+
+        // 2. RBAC Privilege Escalation & Delegation Boundary Check
         SecurityUtils.validateRoleDelegation(request.getRoleCodes(), userId);
 
         List<RoleEntity> roles = getRolesByCodes(request.getRoleCodes(), organizationId);
@@ -197,7 +207,7 @@ public class RoleServiceImpl implements RoleService {
             throw new BusinessValidationException("At least one valid role must be assigned");
         }
 
-        // 2. Prevent tenant lockout: If target is currently an ORG_ADMIN and new roles do not contain ORG_ADMIN
+        // 3. Prevent tenant lockout: If target is currently an ORG_ADMIN and new roles do not contain ORG_ADMIN
         boolean currentlyIsOrgAdmin = user.getRoles().stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
         boolean willBeOrgAdmin = roles.stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
         if (currentlyIsOrgAdmin && !willBeOrgAdmin) {
@@ -228,20 +238,26 @@ public class RoleServiceImpl implements RoleService {
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Role assignment", "roleId", roleId));
 
-        // 1. RBAC Privilege Escalation & Delegation Boundary Check
-        SecurityUtils.validateRoleDelegation(Set.of(targetRole.getCode()), userId);
+        // 1. Block Self-Role Removal (users cannot strip roles from their own account)
+        UUID currentUserId = SecurityUtils.getCurrentUser().map(SecurityUser::getUserId).orElse(null);
+        if (currentUserId != null && currentUserId.equals(userId) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new ForbiddenException("Self-role mutation denied: You cannot remove roles from your own account");
+        }
 
-        // 2. Authorization & Privilege boundary: Only SuperAdmin or ORG_ADMIN can remove roles from users
-        if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.hasRole("ORG_ADMIN")) {
+        // 2. Authorization & Privilege boundary: Only SuperAdmin or Tenant Admins can remove roles from users
+        if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.isTenantAdmin()) {
             throw new ForbiddenException("Access denied: You do not have permission to remove roles from users");
         }
 
-        // 3. Platform role protection
+        // 3. RBAC Privilege Escalation & Delegation Boundary Check
+        SecurityUtils.validateRoleDelegation(Set.of(targetRole.getCode()), userId);
+
+        // 4. Platform role protection
         if (SecurityUtils.isPlatformRole(targetRole.getCode()) && !SecurityUtils.isTaxorynSuperAdmin()) {
             throw new ForbiddenException("Privilege boundary violation: Only SuperAdmin can modify platform role assignments");
         }
 
-        // 3. Prevent self-demotion from ORG_ADMIN unless another admin exists
+        // 5. Prevent self-demotion from ORG_ADMIN unless another admin exists
         if ("ORG_ADMIN".equals(targetRole.getCode())) {
             long adminCount = userRepository.countActiveOrgAdmins(organizationId);
             if (adminCount <= 1) {

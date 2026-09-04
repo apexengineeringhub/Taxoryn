@@ -194,6 +194,41 @@ class RbacPrivilegeEscalationSecurityTest {
     }
 
     @Test
+    @DisplayName("[PASS] Authorized tenant role assignment by PRACTICE_OWNER and PRACTICE_ADMIN")
+    void testPracticeOwnerAndAdminCanAssignTenantRoles() {
+        authenticateUser(adminUserId, Set.of("PRACTICE_OWNER"), Set.of("USER_UPDATE", "ROLE_WRITE"));
+        UUID targetUserId = UUID.randomUUID();
+        assertDoesNotThrow(() ->
+                SecurityUtils.validateRoleDelegation(Set.of("TAX_PROFESSIONAL", "STAFF"), targetUserId));
+
+        authenticateUser(adminUserId, Set.of("PRACTICE_ADMIN"), Set.of("USER_UPDATE", "ROLE_WRITE"));
+        assertDoesNotThrow(() ->
+                SecurityUtils.validateRoleDelegation(Set.of("ACCOUNTANT", "EMPLOYEE"), targetUserId));
+    }
+
+    @Test
+    @DisplayName("[PASS] Role category classifications verify accurately")
+    void testRoleCategoryClassifications() {
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isPlatformRole("SUPER_ADMIN"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isPlatformRole("TAXORYN_SUPERADMIN"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isPlatformRole("TAXORYN_SECURITY_ADMIN"));
+        org.junit.jupiter.api.Assertions.assertFalse(SecurityUtils.isPlatformRole("ORG_ADMIN"));
+
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isTenantRole("ORG_ADMIN"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isTenantRole("PRACTICE_OWNER"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isTenantRole("TAX_PROFESSIONAL"));
+        org.junit.jupiter.api.Assertions.assertFalse(SecurityUtils.isTenantRole("SUPER_ADMIN"));
+
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isClientRole("CLIENT_ADMIN"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isClientRole("CLIENT_USER"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isClientRole("MARKETPLACE_CUSTOMER"));
+
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isPrivilegedRole("ORG_ADMIN"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isPrivilegedRole("MANAGER"));
+        org.junit.jupiter.api.Assertions.assertTrue(SecurityUtils.isPrivilegedRole("SUPER_ADMIN"));
+    }
+
+    @Test
     @DisplayName("[PASS] Platform SuperAdmin: Allowed to assign all roles and permissions")
     void testPlatformSuperAdminAllowedAll() {
         UUID superAdminId = UUID.randomUUID();

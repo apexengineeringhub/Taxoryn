@@ -74,7 +74,9 @@ class RbacAuthorizationIntegrationTest {
     private UserEntity staffUser;
     private String orgAdminToken;
     private String viewerToken;
+    private RoleEntity orgAdminRole;
     private RoleEntity systemViewerRole;
+    private RoleEntity systemManagerRole;
 
     @BeforeEach
     void setUp() {
@@ -99,9 +101,10 @@ class RbacAuthorizationIntegrationTest {
         PermissionEntity clientCreate = permissionRepository.save(PermissionEntity.builder().code("CLIENT_CREATE").name("Create Client").module("CLIENT").build());
         PermissionEntity userView = permissionRepository.save(PermissionEntity.builder().code("USER_VIEW").name("View Users").module("USER").build());
         PermissionEntity userUpdate = permissionRepository.save(PermissionEntity.builder().code("USER_UPDATE").name("Update Users").module("USER").build());
+        permissionRepository.save(PermissionEntity.builder().code("PLATFORM_USER_CREATE").name("Create Platform User").module("PLATFORM").build());
 
         // 3. Create System Roles
-        RoleEntity orgAdminRole = roleRepository.save(RoleEntity.builder()
+        orgAdminRole = roleRepository.save(RoleEntity.builder()
                 .code("ORG_ADMIN")
                 .name("Organization Administrator")
                 .isSystemRole(true)
@@ -111,6 +114,13 @@ class RbacAuthorizationIntegrationTest {
         systemViewerRole = roleRepository.save(RoleEntity.builder()
                 .code("VIEWER")
                 .name("Read-Only Viewer")
+                .isSystemRole(true)
+                .permissions(new HashSet<>(Set.of(orgRead, clientView, userView, roleRead)))
+                .build());
+
+        systemManagerRole = roleRepository.save(RoleEntity.builder()
+                .code("MANAGER")
+                .name("Practice Manager")
                 .isSystemRole(true)
                 .permissions(new HashSet<>(Set.of(orgRead, clientView, userView, roleRead)))
                 .build());
@@ -253,16 +263,16 @@ class RbacAuthorizationIntegrationTest {
     @Test
     @DisplayName("5. Assign and remove roles from user within tenant")
     void testAssignAndRemoveUserRoles() throws Exception {
-        AssignUserRolesRequest assignRequest = new AssignUserRolesRequest(Set.of("ORG_ADMIN"));
+        AssignUserRolesRequest assignRequest = new AssignUserRolesRequest(Set.of("MANAGER"));
 
-        // Assign ORG_ADMIN to staff user
+        // Assign MANAGER to staff user
         mockMvc.perform(put("/api/v1/roles/users/" + staffUser.getId())
                         .header("Authorization", orgAdminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(assignRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.roles[0].code").value("ORG_ADMIN"));
+                .andExpect(jsonPath("$.data.roles[0].code").value("MANAGER"));
 
         // Get effective permissions
         mockMvc.perform(get("/api/v1/roles/users/" + staffUser.getId())
@@ -321,5 +331,138 @@ class RbacAuthorizationIntegrationTest {
                         .header("Authorization", viewerToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("10. HTTP Enforcement: Self-Role Removal is strictly blocked for ORG_ADMIN")
+    void testHttpOrgAdminCannotRemoveOwnOrgAdminRoleDenied() throws Exception {
+        mockMvc.perform(delete("/api/v1/roles/users/" + orgAdminUser.getId() + "/" + orgAdminRole.getId())
+                        .header("Authorization", orgAdminToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("11. HTTP Enforcement: Self-Role Mutation is strictly blocked for ORG_ADMIN")
+    void testHttpOrgAdminCannotMutateOwnRolesDenied() throws Exception {
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("VIEWER"));
+
+        mockMvc.perform(put("/api/v1/roles/users/" + orgAdminUser.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("12. HTTP Enforcement: Cross-Tenant User Role Assignment is rejected")
+    void testHttpCrossTenantUserRoleAssignmentDenied() throws Exception {
+        // Create Tenant B & User in Tenant B
+        OrganizationEntity orgB = organizationRepository.save(OrganizationEntity.builder()
+                .name("Beta Tax Consultancy")
+                .email("admin@betatax.com")
+                .status(OrganizationStatus.ACTIVE)
+                .build());
+
+        UserEntity userInOrgB = userRepository.save(UserEntity.builder()
+                .email("user@betatax.com")
+                .passwordHash(passwordEncoder.encode("SecretPass123!"))
+                .firstName("BetaUser")
+                .status(UserStatus.ACTIVE)
+                .roles(new HashSet<>(Set.of(systemViewerRole)))
+                .organizationId(orgB.getId())
+                .build());
+
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("VIEWER"));
+
+        // Tenant A admin tries to assign role to Tenant B user
+        mockMvc.perform(put("/api/v1/roles/users/" + userInOrgB.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("13. HTTP Enforcement: Cross-Tenant User Role Removal is rejected")
+    void testHttpCrossTenantUserRoleRemovalDenied() throws Exception {
+        // Create Tenant B & User in Tenant B
+        OrganizationEntity orgB = organizationRepository.save(OrganizationEntity.builder()
+                .name("Gamma Tax Advisory")
+                .email("admin@gammapractice.com")
+                .status(OrganizationStatus.ACTIVE)
+                .build());
+
+        UserEntity userInOrgB = userRepository.save(UserEntity.builder()
+                .email("user@gammapractice.com")
+                .passwordHash(passwordEncoder.encode("SecretPass123!"))
+                .firstName("GammaUser")
+                .status(UserStatus.ACTIVE)
+                .roles(new HashSet<>(Set.of(systemViewerRole)))
+                .organizationId(orgB.getId())
+                .build());
+
+        // Tenant A admin tries to delete role from Tenant B user
+        mockMvc.perform(delete("/api/v1/roles/users/" + userInOrgB.getId() + "/" + systemViewerRole.getId())
+                        .header("Authorization", orgAdminToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("14. HTTP Enforcement: Cross-Tenant Custom Role Mutation is rejected")
+    void testHttpCrossTenantCustomRoleAccessDenied() throws Exception {
+        // Create Tenant B & Custom Role in Tenant B
+        OrganizationEntity orgB = organizationRepository.save(OrganizationEntity.builder()
+                .name("Delta Tax Services")
+                .email("admin@deltatax.com")
+                .status(OrganizationStatus.ACTIVE)
+                .build());
+
+        RoleEntity roleInOrgB = roleRepository.save(RoleEntity.builder()
+                .code("DELTA_CUSTOM_ROLE")
+                .name("Delta Custom Role")
+                .organizationId(orgB.getId())
+                .isSystemRole(false)
+                .permissions(new HashSet<>(Set.of(systemViewerRole.getPermissions().iterator().next())))
+                .build());
+
+        UpdateRoleRequest updateRequest = UpdateRoleRequest.builder()
+                .name("Hacked Delta Role")
+                .permissionCodes(Set.of("CLIENT_VIEW"))
+                .build();
+
+        // Tenant A admin tries to update Tenant B custom role
+        mockMvc.perform(put("/api/v1/roles/" + roleInOrgB.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("TENANT_MISMATCH"));
+    }
+
+    @Test
+    @DisplayName("15. Authorized role assignment and removal between distinct tenant users")
+    void testHttpAuthorizedRoleAssignmentAndRemovalBetweenDistinctUsers() throws Exception {
+        // Staff user currently has systemViewerRole. Assign both VIEWER and MANAGER.
+        AssignUserRolesRequest assignMulti = new AssignUserRolesRequest(Set.of("VIEWER", "MANAGER"));
+
+        mockMvc.perform(put("/api/v1/roles/users/" + staffUser.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(assignMulti)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.roles.length()").value(2));
+
+        // Now remove MANAGER role from staffUser (leaving VIEWER)
+        mockMvc.perform(delete("/api/v1/roles/users/" + staffUser.getId() + "/" + systemManagerRole.getId())
+                        .header("Authorization", orgAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.roles.length()").value(1))
+                .andExpect(jsonPath("$.data.roles[0].code").value("VIEWER"));
     }
 }
