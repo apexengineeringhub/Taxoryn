@@ -236,7 +236,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public LoginResponse refreshToken(RefreshTokenRequest request) {
         String token = request.getRefreshToken();
-        if (!jwtTokenProvider.validateToken(token)) {
+        if (!jwtTokenProvider.validateToken(token) || !jwtTokenProvider.isRefreshToken(token)) {
             throw new UnauthorizedException("Invalid or expired refresh token");
         }
 
