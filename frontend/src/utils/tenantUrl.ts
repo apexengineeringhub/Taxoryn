@@ -75,7 +75,12 @@ export function getTenantSubdomain(hostname: string = typeof window !== 'undefin
     }
   }
 
-  // 5. Fallback for custom domains (e.g. sub.domain.com with 3+ parts)
+  // 5. Ignore deployment platform preview domains (e.g. *.vercel.app, *.onrender.com, *.netlify.app)
+  if (cleanHost.endsWith('.vercel.app') || cleanHost.endsWith('.onrender.com') || cleanHost.endsWith('.render.com') || cleanHost.endsWith('.netlify.app')) {
+    return null;
+  }
+
+  // 6. Fallback for custom domains (e.g. sub.domain.com with 3+ parts)
   const parts = cleanHost.split('.');
   if (parts.length >= 3) {
     const candidate = parts[0];
