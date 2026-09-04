@@ -280,6 +280,51 @@ public final class SecurityUtils {
                 || hasRole("PRACTICE_ADMIN");
     }
 
+    public static final Set<String> TENANT_DELEGATABLE_PERMISSIONS = Set.of(
+            "ORGANIZATION_VIEW",
+            "ORGANIZATION_UPDATE",
+            "USER_VIEW",
+            "USER_CREATE",
+            "USER_UPDATE",
+            "USER_DELETE",
+            "EMPLOYEE_VIEW",
+            "EMPLOYEE_CREATE",
+            "EMPLOYEE_UPDATE",
+            "CLIENT_VIEW",
+            "CLIENT_CREATE",
+            "CLIENT_UPDATE",
+            "CLIENT_DELETE",
+            "TASK_VIEW",
+            "TASK_CREATE",
+            "TASK_UPDATE",
+            "TASK_ASSIGN",
+            "GST_VIEW",
+            "GST_CREATE",
+            "GST_UPDATE",
+            "ITR_VIEW",
+            "ITR_CREATE",
+            "ITR_UPDATE",
+            "DOCUMENT_VIEW",
+            "DOCUMENT_UPLOAD",
+            "DOCUMENT_DELETE",
+            "BILLING_VIEW",
+            "BILLING_CREATE",
+            "ROLE_READ",
+            "ROLE_WRITE",
+            "CLIENT_PORTAL_ACCESS",
+            "CLIENT_PORTAL_DOCUMENT_UPLOAD",
+            "CLIENT_PORTAL_DOCUMENT_VIEW",
+            "CLIENT_PORTAL_PROFILE_VIEW",
+            "CLIENT_PORTAL_PROFILE_UPDATE",
+            "CLIENT_PORTAL_STATUS_VIEW"
+    );
+
+    public static boolean isTenantDelegatablePermission(String permissionCode) {
+        if (permissionCode == null) return false;
+        String clean = permissionCode.trim().toUpperCase();
+        return TENANT_DELEGATABLE_PERMISSIONS.contains(clean);
+    }
+
     public static boolean isPlatformPermission(String permissionCode) {
         if (permissionCode == null) return false;
         String clean = permissionCode.trim().toUpperCase();
@@ -308,7 +353,7 @@ public final class SecurityUtils {
 
         // 1. Prevent non-superadmins from assigning any platform administrative roles
         for (String roleCode : targetRoleCodes) {
-            if (isPlatformRole(roleCode) && !isSuperAdmin) {
+            if (roleCode == null || (isPlatformRole(roleCode) && !isSuperAdmin)) {
                 throw new com.taxoryn.core.exception.ForbiddenException(
                         "Privilege escalation denied: Platform role '" + roleCode + "' cannot be assigned by tenant users"
                 );
@@ -322,6 +367,7 @@ public final class SecurityUtils {
                     .collect(Collectors.toSet());
 
             for (String targetRole : targetRoleCodes) {
+                if (targetRole == null) continue;
                 String cleanTarget = targetRole.startsWith("ROLE_") ? targetRole.substring(5) : targetRole;
                 if (!callerRoles.contains(cleanTarget)) {
                     throw new com.taxoryn.core.exception.ForbiddenException(
@@ -338,6 +384,7 @@ public final class SecurityUtils {
                     .collect(Collectors.toSet());
 
             for (String targetRole : targetRoleCodes) {
+                if (targetRole == null) continue;
                 String cleanTarget = targetRole.startsWith("ROLE_") ? targetRole.substring(5) : targetRole;
                 if (!callerRoles.contains(cleanTarget)) {
                     throw new com.taxoryn.core.exception.ForbiddenException(
@@ -357,20 +404,24 @@ public final class SecurityUtils {
 
     /**
      * Verifies that the caller has authority to include target permissions in a custom role.
+     * Enforces a strict FAIL-CLOSED policy: Any permission not explicitly vetted as an authorized
+     * delegatable tenant practice permission is denied for non-superadmins.
      */
     public static void validatePermissionDelegation(Set<String> permissionCodes) {
         if (permissionCodes == null || permissionCodes.isEmpty()) {
-            return;
+            throw new com.taxoryn.core.exception.BusinessValidationException("At least one permission code must be provided");
         }
 
         boolean isSuperAdmin = isTaxorynSuperAdmin();
 
-        // 1. Block platform permissions from being added to tenant custom roles by non-superadmins
-        for (String permCode : permissionCodes) {
-            if (isPlatformPermission(permCode) && !isSuperAdmin) {
-                throw new com.taxoryn.core.exception.ForbiddenException(
-                        "Permission delegation denied: Platform permission '" + permCode + "' cannot be assigned to tenant custom roles"
-                );
+        // 1. Fail-closed: Non-superadmins CANNOT delegate platform/system permissions OR unknown/unclassified permissions
+        if (!isSuperAdmin) {
+            for (String permCode : permissionCodes) {
+                if (permCode == null || !isTenantDelegatablePermission(permCode)) {
+                    throw new com.taxoryn.core.exception.ForbiddenException(
+                            "Permission delegation denied: Permission '" + permCode + "' is not an authorized tenant practice permission"
+                    );
+                }
             }
         }
 

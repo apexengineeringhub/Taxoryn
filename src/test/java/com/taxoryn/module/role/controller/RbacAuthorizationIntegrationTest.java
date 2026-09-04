@@ -14,6 +14,8 @@ import com.taxoryn.module.role.entity.PermissionEntity;
 import com.taxoryn.module.role.entity.RoleEntity;
 import com.taxoryn.module.role.repository.PermissionRepository;
 import com.taxoryn.module.role.repository.RoleRepository;
+import com.taxoryn.module.user.dto.CreateUserRequest;
+import com.taxoryn.module.user.dto.UpdateUserRequest;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.entity.UserEntity.UserStatus;
 import com.taxoryn.module.user.repository.UserRepository;
@@ -464,5 +466,108 @@ class RbacAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.roles.length()").value(1))
                 .andExpect(jsonPath("$.data.roles[0].code").value("VIEWER"));
+    }
+
+    @Test
+    @DisplayName("16. HTTP Enforcement: Org Admin can create user with authorized tenant role")
+    void testHttpCreateUserWithTenantRoleSuccess() throws Exception {
+        CreateUserRequest request = CreateUserRequest.builder()
+                .firstName("New")
+                .lastName("Accountant")
+                .email("accountant@apexpractice.com")
+                .password("SecretPass123!")
+                .roleCodes(Set.of("MANAGER"))
+                .build();
+
+        mockMvc.perform(post("/api/v1/users")
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.email").value("accountant@apexpractice.com"))
+                .andExpect(jsonPath("$.data.roles[0].code").value("MANAGER"));
+    }
+
+    @Test
+    @DisplayName("17. HTTP Enforcement: Org Admin cannot create user with platform role (SUPER_ADMIN)")
+    void testHttpCreateUserWithPlatformRoleDenied() throws Exception {
+        CreateUserRequest request = CreateUserRequest.builder()
+                .firstName("Rogue")
+                .lastName("Admin")
+                .email("rogue@apexpractice.com")
+                .password("SecretPass123!")
+                .roleCodes(Set.of("SUPER_ADMIN"))
+                .build();
+
+        mockMvc.perform(post("/api/v1/users")
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("18. HTTP Enforcement: Org Admin can update another user's role to an authorized tenant role")
+    void testHttpUpdateUserRoleSuccess() throws Exception {
+        UpdateUserRequest request = UpdateUserRequest.builder()
+                .firstName("UpdatedStaff")
+                .roleCodes(Set.of("MANAGER"))
+                .build();
+
+        mockMvc.perform(put("/api/v1/users/" + staffUser.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.roles[0].code").value("MANAGER"));
+    }
+
+    @Test
+    @DisplayName("19. HTTP Enforcement: Org Admin cannot update user to platform role")
+    void testHttpUpdateUserWithPlatformRoleDenied() throws Exception {
+        UpdateUserRequest request = UpdateUserRequest.builder()
+                .firstName("UpdatedStaff")
+                .roleCodes(Set.of("SUPER_ADMIN"))
+                .build();
+
+        mockMvc.perform(put("/api/v1/users/" + staffUser.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("20. HTTP Enforcement: Custom role creation with unclassified/unknown sensitive permission fails closed")
+    void testHttpCreateCustomRoleWithUnclassifiedPermissionDeniedFailClosed() throws Exception {
+        CreateRoleRequest request = CreateRoleRequest.builder()
+                .code("SECURITY_LEAD")
+                .name("Security Lead")
+                .permissionCodes(Set.of("TENANT_SECURITY_CONFIGURATION_UPDATE"))
+                .build();
+
+        mockMvc.perform(post("/api/v1/roles")
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("21. HTTP Enforcement: Assigning unknown/non-existent role code fails safely")
+    void testHttpAssignUnknownRoleCodeFailsSafely() throws Exception {
+        AssignUserRolesRequest request = new AssignUserRolesRequest(Set.of("NON_EXISTENT_ROLE_XYZ"));
+
+        mockMvc.perform(put("/api/v1/roles/users/" + staffUser.getId())
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
     }
 }
