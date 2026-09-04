@@ -157,6 +157,8 @@ public final class SecurityUtils {
             "EMPLOYEE",
             "PRACTICE_EMPLOYEE",
             "STAFF",
+            "ARTICLE_ASSISTANT",
+            "TRAINEE",
             "VIEWER",
             "PARTNER"
     );
