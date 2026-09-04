@@ -48,13 +48,8 @@ export const RegisterCustomerPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const resp = await marketplaceCustomerApi.register(formData);
-      // Auto-login or save session
-      localStorage.setItem('taxoryn_access_token', resp.accessToken);
-      localStorage.setItem('taxoryn_refresh_token', resp.refreshToken);
-      localStorage.setItem('taxoryn_last_user_email', formData.email.trim());
-
-      // Attempt to load customer user session
+      await marketplaceCustomerApi.register(formData);
+      // Attempt to load customer user session using in-memory token state
       await login(formData.email.trim(), formData.password);
       navigate('/marketplace/customer/dashboard');
     } catch (err: any) {

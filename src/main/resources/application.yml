@@ -36,6 +36,12 @@ taxoryn:
     reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
   auth:
     reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
+    cookie:
+      name: ${TAXORYN_COOKIE_NAME:taxoryn_refresh_token}
+      secure: ${TAXORYN_COOKIE_SECURE:false}
+      same-site: ${TAXORYN_COOKIE_SAME_SITE:Lax}
+      path: ${TAXORYN_COOKIE_PATH:/}
+      domain: ${TAXORYN_COOKIE_DOMAIN:}
   jwt:
     # 256-bit+ base64 encoded secret key for HMAC-SHA256
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970

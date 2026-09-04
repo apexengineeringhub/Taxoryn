@@ -28,6 +28,11 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.taxoryn.core.security.AuthCookieUtil;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import com.taxoryn.core.exception.UnauthorizedException;
+
 @RestController
 @RequestMapping({"/api/auth", "/api/v1/auth"})
 @RequiredArgsConstructor
@@ -35,12 +40,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthCookieUtil authCookieUtil;
 
     @PostMapping("/register-organization")
     @Operation(summary = "Register organization & admin", description = "Onboards a new tenant organization and creates its initial primary administrator account.")
     public ResponseEntity<ApiResponse<LoginResponse>> registerOrganization(@Valid @RequestBody RegisterOrganizationRequest request) {
         LoginResponse response = authService.registerOrganization(request);
+        ResponseCookie cookie = authCookieUtil.createRefreshTokenCookie(response.getRefreshToken());
         return ResponseEntity.status(HttpStatus.CREATED)
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(ApiResponse.created("Organization and administrator registered successfully", response));
     }
 
@@ -48,18 +56,28 @@ public class AuthController {
     @Operation(summary = "User login", description = "Authenticates credentials and issues multi-tenant JWT access and refresh tokens.")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+        ResponseCookie cookie = authCookieUtil.createRefreshTokenCookie(response.getRefreshToken());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(ApiResponse.success("Login successful", response));
     }
 
     @PostMapping({"/refresh", "/refresh-token"})
     @Operation(summary = "Refresh JWT tokens", description = "Issues fresh access & refresh tokens using a valid unrevoked refresh token.")
     public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(
-            @Valid @RequestBody RefreshTokenRequest request,
+            @RequestBody(required = false) RefreshTokenRequest request,
             HttpServletRequest servletRequest) {
+        String rawToken = authCookieUtil.extractRefreshToken(servletRequest, request)
+                .orElseThrow(() -> new UnauthorizedException("Refresh token is required"));
+
         String clientIp = extractClientIp(servletRequest);
         String userAgent = servletRequest.getHeader("User-Agent");
-        LoginResponse response = authService.refreshToken(request, clientIp, userAgent);
-        return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
+        LoginResponse response = authService.refreshToken(new RefreshTokenRequest(rawToken), clientIp, userAgent);
+
+        ResponseCookie cookie = authCookieUtil.createRefreshTokenCookie(response.getRefreshToken());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(ApiResponse.success("Token refreshed successfully", response));
     }
 
     @GetMapping("/me")
@@ -85,9 +103,18 @@ public class AuthController {
     @Operation(summary = "Logout & Invalidate Tokens", description = "Revokes the active JWT access token and optional refresh token, blacklisting them from further access.")
     public ResponseEntity<ApiResponse<Void>> logout(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestBody(required = false) LogoutRequest request) {
-        authService.logout(authHeader, request);
-        return ResponseEntity.ok(ApiResponse.success("Successfully logged out and tokens invalidated", null));
+            @RequestBody(required = false) LogoutRequest request,
+            HttpServletRequest servletRequest) {
+        String rawRefreshToken = authCookieUtil.extractRefreshToken(
+                servletRequest,
+                request != null && org.springframework.util.StringUtils.hasText(request.getRefreshToken()) ? new RefreshTokenRequest(request.getRefreshToken()) : null
+        ).orElse(null);
+
+        authService.logout(authHeader, new LogoutRequest(rawRefreshToken));
+        ResponseCookie deleteCookie = authCookieUtil.createDeleteRefreshTokenCookie();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
+                .body(ApiResponse.success("Successfully logged out and tokens invalidated", null));
     }
 
     @PostMapping("/logout-all")
@@ -95,7 +122,10 @@ public class AuthController {
     @Operation(summary = "Logout All Sessions", description = "Revokes all active refresh token sessions for the authenticated user across all devices.")
     public ResponseEntity<ApiResponse<Void>> logoutAll() {
         authService.logoutAllSessions();
-        return ResponseEntity.ok(ApiResponse.success("All sessions successfully terminated", null));
+        ResponseCookie deleteCookie = authCookieUtil.createDeleteRefreshTokenCookie();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
+                .body(ApiResponse.success("All sessions successfully terminated", null));
     }
 
     @PostMapping("/change-password")

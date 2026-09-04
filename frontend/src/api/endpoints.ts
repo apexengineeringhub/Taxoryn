@@ -157,10 +157,16 @@ export const authApi = {
     const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/register-organization', payload);
     return res.data.data;
   },
-  logout: async (refreshToken?: string | null) => {
-    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/logout', {
-      refreshToken: refreshToken || undefined,
-    });
+  refreshToken: async () => {
+    const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/refresh', {});
+    return res.data.data;
+  },
+  getMe: async () => {
+    const res = await apiClient.get<ApiResponse<User>>('/v1/auth/me');
+    return res.data.data;
+  },
+  logout: async () => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/logout', {});
     return res.data;
   },
   changePassword: async (payload: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
