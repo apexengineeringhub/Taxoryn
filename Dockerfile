@@ -45,7 +45,7 @@ USER taxoryn:taxoryn
 # cgroup memory limit kills the whole JVM with an untraceable SIGKILL (exit 137).
 ENV SPRING_PROFILES_ACTIVE=demo \
     SERVER_PORT=8088 \
-    JAVA_OPTS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
+    JAVA_OPTS="-Xms128m -Xmx220m -Xss512k -XX:MetaspaceSize=96m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
 
 EXPOSE 8088
 
