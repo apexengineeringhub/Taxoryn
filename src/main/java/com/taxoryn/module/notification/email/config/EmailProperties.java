@@ -33,4 +33,19 @@ public class EmailProperties {
      * Application login portal URL.
      */
     private String loginUrl = "http://localhost:5173/login";
+
+    /**
+     * Resend API Key for Port 443 HTTPS email dispatch (Render/Cloud compatible).
+     */
+    private String resendApiKey;
+
+    /**
+     * Brevo (Sendinblue) API Key for Port 443 HTTPS email dispatch.
+     */
+    private String brevoApiKey;
+
+    /**
+     * Generic API key if using custom HTTP relay.
+     */
+    private String apiKey;
 }

@@ -70,10 +70,12 @@ taxoryn:
     reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
   mail:
     enabled: ${MAIL_ENABLED:true}
-    provider: ${MAIL_PROVIDER:SMTP}
+    provider: ${MAIL_PROVIDER:AUTO}
     from-email: ${MAIL_FROM_EMAIL:taxoryn@gmail.com}
     from-name: ${MAIL_FROM_NAME:Taxoryn}
     login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
+    resend-api-key: ${RESEND_API_KEY:}
+    brevo-api-key: ${BREVO_API_KEY:}
   jwt:
     # SECURITY: no default here on purpose - see application-prod.yml note. The demo
     # environment is public-facing, so it must not fall back to the known repo default either.

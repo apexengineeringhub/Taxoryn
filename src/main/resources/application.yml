@@ -65,6 +65,8 @@ taxoryn:
     from-email: ${MAIL_FROM_EMAIL:taxoryn@gmail.com}
     from-name: ${MAIL_FROM_NAME:Taxoryn}
     login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
+    resend-api-key: ${RESEND_API_KEY:}
+    brevo-api-key: ${BREVO_API_KEY:}
 
 # OpenAPI / Swagger
 springdoc:
