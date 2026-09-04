@@ -19,7 +19,9 @@ import com.taxoryn.module.authentication.dto.RegisterOrganizationRequest;
 import com.taxoryn.module.authentication.dto.RegisterUserByAdminRequest;
 import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
 import com.taxoryn.module.authentication.entity.PasswordResetTokenEntity;
+import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
 import com.taxoryn.module.authentication.repository.PasswordResetTokenRepository;
+import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
 import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import com.taxoryn.module.organization.dto.OrganizationDto;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
@@ -27,6 +29,7 @@ import com.taxoryn.module.organization.entity.OrganizationEntity.OrganizationSta
 import com.taxoryn.module.organization.entity.OrganizationEntity.SubscriptionPlan;
 import com.taxoryn.module.organization.mapper.OrganizationMapper;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
+import org.springframework.scheduling.annotation.Scheduled;
 import com.taxoryn.module.role.entity.PermissionEntity;
 import com.taxoryn.module.role.entity.RoleEntity;
 import com.taxoryn.module.role.repository.RoleRepository;
@@ -78,11 +81,15 @@ public class AuthServiceImpl implements AuthService {
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
 
     @Value("${taxoryn.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
+
+    @Value("${taxoryn.jwt.refresh-expiration-ms:604800000}")
+    private long jwtRefreshExpirationMs;
 
     @Value("${taxoryn.auth.password-reset.expiration-minutes:30}")
     private long passwordResetExpirationMinutes;
@@ -91,7 +98,7 @@ public class AuthServiceImpl implements AuthService {
     private String resetPasswordBaseUrl;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         String email = request.getEmail().toLowerCase().trim();
         UserEntity user = userRepository.findByEmailIgnoreCase(email)
@@ -233,15 +240,64 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse refreshToken(RefreshTokenRequest request) {
-        String token = request.getRefreshToken();
-        if (!jwtTokenProvider.validateToken(token) || !jwtTokenProvider.isRefreshToken(token)) {
-            throw new UnauthorizedException("Invalid or expired refresh token");
+        return refreshToken(request, null, null);
+    }
+
+    @Override
+    @Transactional
+    public LoginResponse refreshToken(RefreshTokenRequest request, String clientIp, String userAgent) {
+        String rawToken = request.getRefreshToken();
+        if (!StringUtils.hasText(rawToken)) {
+            throw new UnauthorizedException("Refresh token is required");
         }
 
-        UUID userId = jwtTokenProvider.getUserIdFromToken(token);
-        UUID organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+        String tokenHash = hashToken(rawToken.trim());
+        RefreshTokenEntity tokenEntity = refreshTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new UnauthorizedException("Invalid or expired refresh token"));
+
+        // 1. REUSE DETECTION: If token was already revoked, an attacker or compromised client is replaying an old token!
+        if (tokenEntity.isRevoked()) {
+            log.warn("SECURITY ALERT: Refresh token reuse detected for familyId: {}, userId: {}. Revoking entire token family.",
+                    tokenEntity.getFamilyId(), tokenEntity.getUserId());
+
+            // Invalidate ALL refresh tokens belonging to this session family immediately
+            refreshTokenRepository.revokeAllByFamilyId(tokenEntity.getFamilyId(), Instant.now(), "REUSE_DETECTED");
+
+            auditService.logEvent(
+                    tokenEntity.getOrganizationId(),
+                    tokenEntity.getUserId(),
+                    "REFRESH_TOKEN_REUSE_DETECTED",
+                    "REFRESH_TOKEN",
+                    tokenEntity.getId().toString(),
+                    null,
+                    "Revoked token reused. Entire session family invalidated."
+            );
+
+            throw new UnauthorizedException("Refresh token reuse detected. Session terminated for security.");
+        }
+
+        // 2. EXPIRATION CHECK
+        if (tokenEntity.isExpired()) {
+            log.info("Refresh token expired for userId: {}", tokenEntity.getUserId());
+            tokenEntity.setRevokedAt(Instant.now());
+            tokenEntity.setRevokedReason("EXPIRED");
+            refreshTokenRepository.save(tokenEntity);
+            throw new UnauthorizedException("Refresh token has expired. Please log in again.");
+        }
+
+        // 3. ATOMIC ROTATION / CONCURRENCY PROTECTION
+        int updated = refreshTokenRepository.revokeSingleTokenAtomic(tokenEntity.getId(), Instant.now(), "ROTATED");
+        if (updated == 0) {
+            log.warn("Concurrent refresh collision detected for token ID: {}. Triggering family revocation.", tokenEntity.getId());
+            refreshTokenRepository.revokeAllByFamilyId(tokenEntity.getFamilyId(), Instant.now(), "REUSE_DETECTED");
+            throw new UnauthorizedException("Refresh token already consumed or invalid");
+        }
+
+        // 4. VERIFY USER AND TENANT STATUS (Re-derived directly from persistent store)
+        UUID userId = tokenEntity.getUserId();
+        UUID organizationId = tokenEntity.getOrganizationId();
 
         UserEntity user;
         if (organizationId != null) {
@@ -253,6 +309,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (user.getStatus() != UserStatus.ACTIVE) {
+            refreshTokenRepository.revokeAllByFamilyId(tokenEntity.getFamilyId(), Instant.now(), "ACCOUNT_INACTIVE");
             throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "User account is " + user.getStatus());
         }
 
@@ -262,11 +319,33 @@ public class AuthServiceImpl implements AuthService {
                     .orElseThrow(() -> new UnauthorizedException("Organization not found for refresh token"));
 
             if (organization.getStatus() != OrganizationStatus.ACTIVE) {
+                refreshTokenRepository.revokeAllByFamilyId(tokenEntity.getFamilyId(), Instant.now(), "ORGANIZATION_INACTIVE");
                 throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "Organization account is " + organization.getStatus());
             }
         }
 
-        return createAuthResponse(user, organization);
+        // 5. ROTATE: Issue fresh access token and child refresh token in the SAME session family
+        LoginResponse response = createAuthResponse(user, organization, tokenEntity.getFamilyId(), clientIp, userAgent);
+
+        // Link parent token to child token
+        String newRawToken = response.getRefreshToken();
+        String newTokenHash = hashToken(newRawToken);
+        refreshTokenRepository.findByTokenHash(newTokenHash).ifPresent(child -> {
+            tokenEntity.setReplacedByTokenId(child.getId());
+            refreshTokenRepository.save(tokenEntity);
+        });
+
+        auditService.logEvent(
+                organizationId,
+                userId,
+                "REFRESH_TOKEN_ROTATED",
+                "REFRESH_TOKEN",
+                tokenEntity.getId().toString(),
+                null,
+                "Refresh token successfully rotated"
+        );
+
+        return response;
     }
 
     @Override
@@ -288,6 +367,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void logout(String authHeader, LogoutRequest request) {
         if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
             String accessToken = authHeader.substring(7).trim();
@@ -295,13 +375,30 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (request != null && StringUtils.hasText(request.getRefreshToken())) {
-            jwtTokenProvider.invalidateToken(request.getRefreshToken().trim());
+            String rawToken = request.getRefreshToken().trim();
+            String tokenHash = hashToken(rawToken);
+            refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(tokenEntity -> {
+                refreshTokenRepository.revokeAllByFamilyId(tokenEntity.getFamilyId(), Instant.now(), "LOGOUT");
+            });
+            jwtTokenProvider.invalidateToken(rawToken);
         }
 
-        log.info("User successfully logged out and tokens invalidated");
+        log.info("User successfully logged out and session tokens invalidated");
+    }
+
+    @Override
+    @Transactional
+    public void logoutAllSessions() {
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+        refreshTokenRepository.revokeAllByUserId(currentUserId, Instant.now(), "LOGOUT_ALL");
+        log.info("All refresh sessions invalidated for user: {}", currentUserId);
     }
 
     private LoginResponse createAuthResponse(UserEntity user, OrganizationEntity organization) {
+        return createAuthResponse(user, organization, null, null, null);
+    }
+
+    private LoginResponse createAuthResponse(UserEntity user, OrganizationEntity organization, UUID familyId, String clientIp, String userAgent) {
         Set<String> roleCodes = user.getRoles().stream()
                 .map(RoleEntity::getCode)
                 .collect(Collectors.toSet());
@@ -320,19 +417,30 @@ public class AuthServiceImpl implements AuthService {
                 permissionCodes
         );
 
-        String refreshToken = jwtTokenProvider.generateRefreshToken(
-                user.getId(),
-                organization != null ? organization.getId() : null,
-                user.getClientId(),
-                user.getEmail()
-        );
+        // Generate cryptographically secure random opaque refresh token
+        String rawRefreshToken = generateSecureRefreshToken();
+        String tokenHash = hashToken(rawRefreshToken);
+
+        UUID effectiveFamilyId = (familyId != null) ? familyId : UUID.randomUUID();
+
+        RefreshTokenEntity tokenEntity = RefreshTokenEntity.builder()
+                .userId(user.getId())
+                .organizationId(organization != null ? organization.getId() : null)
+                .tokenHash(tokenHash)
+                .familyId(effectiveFamilyId)
+                .expiresAt(Instant.now().plusMillis(jwtRefreshExpirationMs))
+                .createdByIp(clientIp)
+                .userAgent(userAgent)
+                .build();
+
+        refreshTokenRepository.save(tokenEntity);
 
         UserDto userDto = userMapper.toDto(user);
         OrganizationDto orgDto = organization != null ? organizationMapper.toDto(organization) : null;
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
+                .refreshToken(rawRefreshToken)
                 .tokenType("Bearer")
                 .expiresIn(jwtExpirationMs / 1000)
                 .user(userDto)
@@ -429,10 +537,13 @@ public class AuthServiceImpl implements AuthService {
         tokenEntity.setUsedAt(Instant.now());
         passwordResetTokenRepository.save(tokenEntity);
 
-        // 3. Invalidate any other pending tokens
+        // 3. Invalidate any other pending password reset tokens
         passwordResetTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
 
-        // 4. Record audit log
+        // 4. Invalidate all active refresh token sessions for this user upon password reset
+        refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "PASSWORD_RESET");
+
+        // 5. Record audit log
         auditService.logEvent(
                 user.getOrganizationId(),
                 user.getId(),
@@ -480,7 +591,10 @@ public class AuthServiceImpl implements AuthService {
         // 5. Invalidate any pending password reset tokens as safety precaution
         passwordResetTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
 
-        // 6. Record audit log
+        // 6. Invalidate all active refresh token sessions for this user upon password change
+        refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "PASSWORD_CHANGED");
+
+        // 7. Record audit log
         auditService.logEvent(
                 user.getOrganizationId(),
                 user.getId(),
@@ -494,8 +608,25 @@ public class AuthServiceImpl implements AuthService {
         log.info("Password successfully changed for user {}", user.getId());
     }
 
+    @Scheduled(cron = "0 0 3 * * ?") // Prune expired tokens daily at 3 AM
+    @Transactional
+    public void cleanupExpiredRefreshTokens() {
+        // Retain revoked/expired tokens for 30 days for security investigation, then clean up
+        Instant cutoff = Instant.now().minus(30, ChronoUnit.DAYS);
+        int deleted = refreshTokenRepository.deleteExpiredTokens(cutoff);
+        if (deleted > 0) {
+            log.info("Cleaned up {} expired refresh tokens older than 30 days", deleted);
+        }
+    }
+
     private String generateSecureToken() {
         byte[] randomBytes = new byte[32];
+        new SecureRandom().nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+    }
+
+    private String generateSecureRefreshToken() {
+        byte[] randomBytes = new byte[64];
         new SecureRandom().nextBytes(randomBytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }

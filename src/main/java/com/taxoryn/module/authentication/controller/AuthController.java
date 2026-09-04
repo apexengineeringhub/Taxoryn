@@ -53,8 +53,12 @@ public class AuthController {
 
     @PostMapping({"/refresh", "/refresh-token"})
     @Operation(summary = "Refresh JWT tokens", description = "Issues fresh access & refresh tokens using a valid unrevoked refresh token.")
-    public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        LoginResponse response = authService.refreshToken(request);
+    public ResponseEntity<ApiResponse<LoginResponse>> refreshToken(
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = extractClientIp(servletRequest);
+        String userAgent = servletRequest.getHeader("User-Agent");
+        LoginResponse response = authService.refreshToken(request, clientIp, userAgent);
         return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
     }
 
@@ -84,6 +88,14 @@ public class AuthController {
             @RequestBody(required = false) LogoutRequest request) {
         authService.logout(authHeader, request);
         return ResponseEntity.ok(ApiResponse.success("Successfully logged out and tokens invalidated", null));
+    }
+
+    @PostMapping("/logout-all")
+    @SecurityRequirement(name = "BearerAuth")
+    @Operation(summary = "Logout All Sessions", description = "Revokes all active refresh token sessions for the authenticated user across all devices.")
+    public ResponseEntity<ApiResponse<Void>> logoutAll() {
+        authService.logoutAllSessions();
+        return ResponseEntity.ok(ApiResponse.success("All sessions successfully terminated", null));
     }
 
     @PostMapping("/change-password")

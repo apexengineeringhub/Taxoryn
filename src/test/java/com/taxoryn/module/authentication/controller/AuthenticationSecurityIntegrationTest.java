@@ -65,6 +65,9 @@ class AuthenticationSecurityIntegrationTest {
     @Autowired
     private TokenBlacklistService tokenBlacklistService;
 
+    @Autowired
+    private com.taxoryn.module.authentication.repository.RefreshTokenRepository refreshTokenRepository;
+
     private OrganizationEntity org1;
     private OrganizationEntity org2;
     private UserEntity activeUserOrg1;
@@ -74,6 +77,7 @@ class AuthenticationSecurityIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
 
@@ -308,24 +312,197 @@ class AuthenticationSecurityIntegrationTest {
     }
 
     @Test
-    @DisplayName("9. Refresh Token Endpoint /api/auth/refresh issues fresh tokens")
-    void testRefreshToken() throws Exception {
-        String refreshToken = jwtTokenProvider.generateRefreshToken(
-                activeUserOrg1.getId(),
-                org1.getId(),
-                activeUserOrg1.getEmail()
-        );
+    @DisplayName("9. Refresh Token Endpoint /api/auth/refresh rotates token and issues fresh access token")
+    void testRefreshToken_RotationSuccess() throws Exception {
+        // Step 1: Login to get valid R1
+        LoginRequest loginRequest = LoginRequest.builder()
+                .email("rajesh@alphatax.com")
+                .password("SecretPass123!")
+                .build();
 
-        RefreshTokenRequest request = RefreshTokenRequest.builder()
-                .refreshToken(refreshToken)
+        String loginResponseStr = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String r1 = objectMapper.readTree(loginResponseStr).path("data").path("refreshToken").asText();
+
+        // Step 2: Use R1 to refresh -> get R2
+        RefreshTokenRequest refreshReq1 = RefreshTokenRequest.builder()
+                .refreshToken(r1)
+                .build();
+
+        String refreshResponseStr = mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").isString())
+                .andExpect(jsonPath("$.data.refreshToken").isString())
+                .andReturn().getResponse().getContentAsString();
+
+        String r2 = objectMapper.readTree(refreshResponseStr).path("data").path("refreshToken").asText();
+        org.junit.jupiter.api.Assertions.assertNotEquals(r1, r2, "Refresh token must rotate to a new value");
+
+        // Step 3: Use R2 to refresh -> get R3
+        RefreshTokenRequest refreshReq2 = RefreshTokenRequest.builder()
+                .refreshToken(r2)
                 .build();
 
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(refreshReq2)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").isString())
                 .andExpect(jsonPath("$.data.refreshToken").isString());
+    }
+
+    @Test
+    @DisplayName("10. SECURITY: Replaying an already-consumed refresh token triggers family revocation")
+    void testRefreshToken_ReuseDetection_RevokesFamily() throws Exception {
+        // Step 1: Login to get R1
+        LoginRequest loginRequest = LoginRequest.builder()
+                .email("rajesh@alphatax.com")
+                .password("SecretPass123!")
+                .build();
+
+        String loginResponseStr = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String r1 = objectMapper.readTree(loginResponseStr).path("data").path("refreshToken").asText();
+
+        // Step 2: Legitimately consume R1 -> get R2
+        RefreshTokenRequest refreshReq1 = RefreshTokenRequest.builder().refreshToken(r1).build();
+        String refresh1Response = mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq1)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String r2 = objectMapper.readTree(refresh1Response).path("data").path("refreshToken").asText();
+
+        // Step 3: Attacker replays consumed R1 -> REUSE DETECTED! Returns 401
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq1)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+
+        // Step 4: Legitimate client tries to use R2 -> REJECTED because entire family was compromised and revoked!
+        RefreshTokenRequest refreshReq2 = RefreshTokenRequest.builder().refreshToken(r2).build();
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq2)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @DisplayName("11. SECURITY: Logout revokes refresh token session")
+    void testLogout_RevokesRefreshToken() throws Exception {
+        LoginRequest loginRequest = LoginRequest.builder()
+                .email("rajesh@alphatax.com")
+                .password("SecretPass123!")
+                .build();
+
+        String loginResponseStr = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String accessToken = objectMapper.readTree(loginResponseStr).path("data").path("accessToken").asText();
+        String refreshToken = objectMapper.readTree(loginResponseStr).path("data").path("refreshToken").asText();
+
+        // Perform logout passing both tokens
+        LogoutRequest logoutReq = new LogoutRequest(refreshToken);
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logoutReq)))
+                .andExpect(status().isOk());
+
+        // Subsequent refresh attempt must fail with 401
+        RefreshTokenRequest refreshReq = RefreshTokenRequest.builder().refreshToken(refreshToken).build();
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("12. SECURITY: Logout All Sessions revokes all active refresh tokens for user")
+    void testLogoutAllSessions_RevokesAllTokens() throws Exception {
+        LoginRequest loginRequest = LoginRequest.builder()
+                .email("rajesh@alphatax.com")
+                .password("SecretPass123!")
+                .build();
+
+        String loginResponse1 = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String accessToken1 = objectMapper.readTree(loginResponse1).path("data").path("accessToken").asText();
+        String refreshToken1 = objectMapper.readTree(loginResponse1).path("data").path("refreshToken").asText();
+
+        // Perform logout-all
+        mockMvc.perform(post("/api/auth/logout-all")
+                        .header("Authorization", "Bearer " + accessToken1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Refresh with refreshToken1 must fail
+        RefreshTokenRequest refreshReq = RefreshTokenRequest.builder().refreshToken(refreshToken1).build();
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("13. SECURITY: Refresh attempt for disabled/inactive user is rejected")
+    void testRefreshToken_DisabledUser_Rejected() throws Exception {
+        // Create an active user, get refresh token, then deactivate user
+        UserEntity user = UserEntity.builder()
+                .email("temp.active@alphatax.com")
+                .passwordHash(passwordEncoder.encode("Pass123!"))
+                .firstName("Temp")
+                .status(UserStatus.ACTIVE)
+                .roles(new HashSet<>(Set.of(orgAdminRole)))
+                .build();
+        user.setOrganizationId(org1.getId());
+        user = userRepository.save(user);
+
+        LoginRequest loginRequest = LoginRequest.builder()
+                .email("temp.active@alphatax.com")
+                .password("Pass123!")
+                .build();
+
+        String loginResponse = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String refreshToken = objectMapper.readTree(loginResponse).path("data").path("refreshToken").asText();
+
+        // Admin deactivates user
+        user.setStatus(UserStatus.INACTIVE);
+        userRepository.save(user);
+
+        // Refresh attempt must fail
+        RefreshTokenRequest refreshReq = RefreshTokenRequest.builder().refreshToken(refreshToken).build();
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("ACCOUNT_INACTIVE"));
     }
 }

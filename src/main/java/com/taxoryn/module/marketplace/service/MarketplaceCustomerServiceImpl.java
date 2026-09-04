@@ -32,7 +32,16 @@ import org.springframework.util.StringUtils;
 import com.taxoryn.module.notification.whatsapp.event.UserRegisteredEvent;
 import com.taxoryn.module.notification.whatsapp.event.UserRegistrationType;
 
+import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
+import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -63,11 +72,15 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
     private final CustomerProfileCompletenessCalculator completenessCalculator;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${taxoryn.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
+
+    @Value("${taxoryn.jwt.refresh-expiration-ms:604800000}")
+    private long jwtRefreshExpirationMs;
 
     @Override
     @Transactional
@@ -144,12 +157,17 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
                 permissionCodes
         );
 
-        String refreshToken = jwtTokenProvider.generateRefreshToken(
-                savedUser.getId(),
-                null,
-                null,
-                savedUser.getEmail()
-        );
+        String rawRefreshToken = generateSecureRefreshToken();
+        String tokenHash = hashToken(rawRefreshToken);
+
+        RefreshTokenEntity refreshTokenEntity = RefreshTokenEntity.builder()
+                .userId(savedUser.getId())
+                .organizationId(null)
+                .tokenHash(tokenHash)
+                .familyId(UUID.randomUUID())
+                .expiresAt(Instant.now().plusMillis(jwtRefreshExpirationMs))
+                .build();
+        refreshTokenRepository.save(refreshTokenEntity);
 
         CustomerProfileDto profileDto = mapper.toCustomerProfileDto(savedProfile);
         profileDto.setProfileCompleteness(completenessCalculator.calculate(savedProfile));
@@ -170,11 +188,33 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
 
         return CustomerAuthResponseDto.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
+                .refreshToken(rawRefreshToken)
                 .tokenType("Bearer")
                 .expiresIn(jwtExpirationMs / 1000)
                 .customer(profileDto)
                 .build();
+    }
+
+    private String generateSecureRefreshToken() {
+        byte[] randomBytes = new byte[64];
+        new SecureRandom().nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+    }
+
+    private String hashToken(String rawToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not available", e);
+        }
     }
 
     @Override
