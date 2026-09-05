@@ -160,6 +160,28 @@ public class DocumentServiceImpl implements DocumentService {
         String storageKey = storageService.store(organizationId, request.getClientId(), null, originalFilename, contentType, bytes);
         StorageProvider provider = "S3".equalsIgnoreCase(storageService.getStorageProviderName()) ? StorageProvider.S3 : StorageProvider.LOCAL;
 
+        if (originalFilename.length() > 255) {
+            String ext = "";
+            int dotIdx = originalFilename.lastIndexOf('.');
+            if (dotIdx > 0) ext = originalFilename.substring(dotIdx);
+            int maxBase = 255 - ext.length();
+            originalFilename = originalFilename.substring(0, Math.min(maxBase, originalFilename.length())) + ext;
+        }
+
+        if (contentType.length() > 100) {
+            contentType = contentType.substring(0, 100);
+        }
+
+        String scannerName = scanResult.getScannerName();
+        if (scannerName != null && scannerName.length() > 100) {
+            scannerName = scannerName.substring(0, 100);
+        }
+
+        String scanDetails = scanResult.getDetails();
+        if (scanDetails != null && scanDetails.length() > 500) {
+            scanDetails = scanDetails.substring(0, 500);
+        }
+
         DocumentEntity entity = DocumentEntity.builder()
                 .clientId(request.getClientId())
                 .gstFilingId(request.getGstFilingId())
@@ -177,8 +199,8 @@ public class DocumentServiceImpl implements DocumentService {
                 .status(DocumentStatus.ACTIVE)
                 .scanStatus(DocumentScanStatus.CLEAN)
                 .scannedAt(java.time.Instant.now())
-                .scannerName(scanResult.getScannerName())
-                .scanResultDetails(scanResult.getDetails())
+                .scannerName(scannerName)
+                .scanResultDetails(scanDetails)
                 .checksum(checksum)
                 .notes(request.getNotes())
                 .build();

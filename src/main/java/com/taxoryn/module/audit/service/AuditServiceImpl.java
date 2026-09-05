@@ -221,17 +221,28 @@ public class AuditServiceImpl implements AuditService {
                 ? request.getUserAgent()
                 : resolveUserAgent();
 
+        String action = request.getAction() != null ? request.getAction() : "EVENT";
+        if (action.length() > 100) action = action.substring(0, 100);
+
         String entityType = StringUtils.hasText(request.getEntityType())
                 ? request.getEntityType()
-                : request.getEntityName();
+                : (request.getEntityName() != null ? request.getEntityName() : "GENERAL");
+        if (entityType.length() > 100) entityType = entityType.substring(0, 100);
+
+        String entityId = request.getEntityId();
+        if (entityId != null && entityId.length() > 255) entityId = entityId.substring(0, 255);
+
+        if (ipAddress != null && ipAddress.length() > 50) ipAddress = ipAddress.substring(0, 50);
+        if (requestId != null && requestId.length() > 100) requestId = requestId.substring(0, 100);
+        if (userAgent != null && userAgent.length() > 500) userAgent = userAgent.substring(0, 500);
 
         AuditLogEntity auditLog = AuditLogEntity.builder()
                 .organizationId(organizationId)
                 .userId(userId)
-                .action(request.getAction())
-                .entityType(entityType != null ? entityType : "GENERAL")
-                .entityName(entityType != null ? entityType : "GENERAL")
-                .entityId(request.getEntityId())
+                .action(action)
+                .entityType(entityType)
+                .entityName(entityType)
+                .entityId(entityId)
                 .oldValue(request.getOldValue())
                 .newValue(request.getNewValue())
                 .ipAddress(ipAddress)
