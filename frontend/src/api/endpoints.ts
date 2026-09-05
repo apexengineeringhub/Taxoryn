@@ -807,7 +807,78 @@ export const documentApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<DocumentItem>>>('/v1/documents', { params });
     return res.data.data;
   },
-  upload: async (formData: FormData) => {
+  upload: async (
+    fileOrFormData: File | FormData,
+    metadata?: {
+      documentType?: string;
+      category?: string;
+      clientId?: string;
+      financialYear?: string;
+      assessmentYear?: string;
+      notes?: string;
+      description?: string;
+    }
+  ) => {
+    let formData: FormData;
+    const categoryMap: Record<string, string> = {
+      BANK_STATEMENT: 'BANK_STATEMENT',
+      FORM_16: 'FORM_16',
+      FORM_16A: 'FORM_16A',
+      FORM_26AS: 'FORM_26AS',
+      AIS_TIS: 'AIS_TIS',
+      GST: 'GST_INVOICE_SALE',
+      GST_INVOICES: 'GST_INVOICE_SALE',
+      GST_INVOICE_SALE: 'GST_INVOICE_SALE',
+      GST_INVOICE_PURCHASE: 'GST_INVOICE_PURCHASE',
+      GST_REGISTRATION_CERTIFICATE: 'GST_REGISTRATION_CERTIFICATE',
+      ITR: 'ITR_ACKNOWLEDGEMENT',
+      TAX_RETURNS: 'ITR_ACKNOWLEDGEMENT',
+      ITR_ACKNOWLEDGEMENT: 'ITR_ACKNOWLEDGEMENT',
+      ITR_COMPUTATION_SHEET: 'ITR_COMPUTATION_SHEET',
+      KYC: 'PAN_CARD',
+      PAN_CARD: 'PAN_CARD',
+      AADHAAR_CARD: 'AADHAAR_CARD',
+      FINANCIAL_STATEMENTS: 'FINANCIAL_STATEMENTS',
+      OTHER: 'OTHER',
+    };
+
+    if (fileOrFormData instanceof FormData) {
+      formData = fileOrFormData;
+      if (!formData.has('metadata')) {
+        const cat = (formData.get('category') as string) || (formData.get('documentType') as string) || 'OTHER';
+        const docType = categoryMap[cat] || cat || 'OTHER';
+        const clientId = formData.get('clientId') as string;
+        const notes = (formData.get('notes') as string) || (formData.get('description') as string) || (formData.get('title') as string);
+        formData.append(
+          'metadata',
+          new Blob([JSON.stringify({ documentType: docType, clientId: clientId || undefined, notes })], {
+            type: 'application/json',
+          })
+        );
+      }
+    } else {
+      formData = new FormData();
+      formData.append('file', fileOrFormData);
+      let resolvedDocType = metadata?.documentType || metadata?.category || 'OTHER';
+      if (categoryMap[resolvedDocType]) {
+        resolvedDocType = categoryMap[resolvedDocType];
+      }
+      formData.append(
+        'metadata',
+        new Blob(
+          [
+            JSON.stringify({
+              clientId: metadata?.clientId,
+              documentType: resolvedDocType,
+              financialYear: metadata?.financialYear,
+              assessmentYear: metadata?.assessmentYear,
+              notes: metadata?.notes || metadata?.description,
+            }),
+          ],
+          { type: 'application/json' }
+        )
+      );
+    }
     const res = await apiClient.post<ApiResponse<DocumentItem>>('/v1/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -1012,12 +1083,68 @@ export const portalApi = {
     const res = await apiClient.get<ApiResponse<ClientDocumentRequest[]>>('/v1/portal/pending-documents');
     return res.data.data;
   },
-  uploadDocument: async (file: File, metadata: { title: string; category: string; description?: string; clientId?: string }, documentRequestId?: string) => {
+  uploadDocument: async (
+    file: File,
+    metadata: {
+      title?: string;
+      category?: string;
+      documentType?: string;
+      description?: string;
+      notes?: string;
+      clientId?: string;
+      financialYear?: string;
+      assessmentYear?: string;
+      gstFilingId?: string;
+      itrReturnId?: string;
+      tdsReturnId?: string;
+      taskId?: string;
+    },
+    documentRequestId?: string
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
+
+    let resolvedDocType = metadata.documentType || metadata.category || 'OTHER';
+    const categoryMap: Record<string, string> = {
+      BANK_STATEMENT: 'BANK_STATEMENT',
+      FORM_16: 'FORM_16',
+      FORM_16A: 'FORM_16A',
+      FORM_26AS: 'FORM_26AS',
+      AIS_TIS: 'AIS_TIS',
+      GST: 'GST_INVOICE_SALE',
+      GST_INVOICES: 'GST_INVOICE_SALE',
+      GST_INVOICE_SALE: 'GST_INVOICE_SALE',
+      GST_INVOICE_PURCHASE: 'GST_INVOICE_PURCHASE',
+      GST_REGISTRATION_CERTIFICATE: 'GST_REGISTRATION_CERTIFICATE',
+      ITR: 'ITR_ACKNOWLEDGEMENT',
+      TAX_RETURNS: 'ITR_ACKNOWLEDGEMENT',
+      ITR_ACKNOWLEDGEMENT: 'ITR_ACKNOWLEDGEMENT',
+      ITR_COMPUTATION_SHEET: 'ITR_COMPUTATION_SHEET',
+      KYC: 'PAN_CARD',
+      PAN_CARD: 'PAN_CARD',
+      AADHAAR_CARD: 'AADHAAR_CARD',
+      FINANCIAL_STATEMENTS: 'FINANCIAL_STATEMENTS',
+      OTHER: 'OTHER',
+    };
+    if (categoryMap[resolvedDocType]) {
+      resolvedDocType = categoryMap[resolvedDocType];
+    }
+
+    const payload = {
+      clientId: metadata.clientId || undefined,
+      documentType: resolvedDocType,
+      notes: metadata.notes || metadata.description || metadata.title,
+      financialYear: metadata.financialYear,
+      assessmentYear: metadata.assessmentYear,
+      gstFilingId: metadata.gstFilingId,
+      itrReturnId: metadata.itrReturnId,
+      tdsReturnId: metadata.tdsReturnId,
+      taskId: metadata.taskId,
+    };
+
     formData.append(
       'metadata',
-      new Blob([JSON.stringify(metadata)], { type: 'application/json' })
+      new Blob([JSON.stringify(payload)], { type: 'application/json' })
     );
     const res = await apiClient.post<ApiResponse<DocumentItem>>('/v1/portal/documents/upload', formData, {
       params: documentRequestId ? { documentRequestId } : undefined,

@@ -118,15 +118,14 @@ export const DocumentsPage: React.FC = () => {
 
     try {
       setIsUploading(true);
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('category', uploadCategory);
-      await documentApi.upload(formData);
+      await documentApi.upload(selectedFile, {
+        category: uploadCategory,
+      });
       setIsUploadModalOpen(false);
       setSelectedFile(null);
       loadDocuments();
-    } catch (err) {
-      alert('Upload failed');
+    } catch (err: any) {
+      alert(`Upload failed: ${err?.response?.data?.message || err?.message || 'Upload failed'}`);
     } finally {
       setIsUploading(false);
     }

@@ -93,7 +93,7 @@ export const ClientPortalManagementPage: React.FC = () => {
   }>({
     file: null,
     title: '',
-    category: 'TAX_RETURNS',
+    category: 'ITR_ACKNOWLEDGEMENT',
     description: '',
   });
 
@@ -197,6 +197,7 @@ export const ClientPortalManagementPage: React.FC = () => {
         {
           title: uploadForm.title || uploadForm.file.name,
           category: uploadForm.category,
+          documentType: uploadForm.category,
           description: uploadForm.description,
           clientId: dashboard?.clientId,
         },
@@ -205,7 +206,7 @@ export const ClientPortalManagementPage: React.FC = () => {
       alert('Document uploaded successfully to vault!');
       setIsUploadModalOpen(false);
       setSelectedDocRequest(null);
-      setUploadForm({ file: null, title: '', category: 'TAX_RETURNS', description: '' });
+      setUploadForm({ file: null, title: '', category: 'ITR_ACKNOWLEDGEMENT', description: '' });
       loadPortalData();
     } catch (err: any) {
       alert(`Upload failed: ${err.response?.data?.message || err.message}`);
@@ -1213,10 +1214,15 @@ export const ClientPortalManagementPage: React.FC = () => {
                   onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg"
                 >
-                  <option value="BANK_STATEMENT">Bank Statement</option>
+                  <option value="ITR_ACKNOWLEDGEMENT">Signed Tax Returns (ITR)</option>
                   <option value="FORM_16">Form 16 / TDS Certificate</option>
-                  <option value="GST_INVOICES">Sales / Purchase Invoices</option>
-                  <option value="TAX_RETURNS">Signed Tax Returns</option>
+                  <option value="FORM_26AS">Form 26AS / AIS / TIS</option>
+                  <option value="BANK_STATEMENT">Bank Statement</option>
+                  <option value="GST_INVOICE_SALE">Sales Invoices (GST)</option>
+                  <option value="GST_INVOICE_PURCHASE">Purchase Invoices / Bills</option>
+                  <option value="PAN_CARD">PAN Card</option>
+                  <option value="AADHAAR_CARD">Aadhaar Card</option>
+                  <option value="FINANCIAL_STATEMENTS">Financial Statements / P&L</option>
                   <option value="OTHER">Other Supporting Document</option>
                 </select>
               </div>
