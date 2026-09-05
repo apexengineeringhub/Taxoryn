@@ -20,6 +20,16 @@ spring:
       hibernate:
         format_sql: true
 
+# Development Environment Settings & Local Defaults
+taxoryn:
+  jwt:
+    # DEV ONLY: Known default secret used strictly for local developer convenience
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  storage:
+    provider: LOCAL
+    local:
+      base-dir: ./data/documents
+
 logging:
   level:
     root: INFO

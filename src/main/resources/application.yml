@@ -43,8 +43,8 @@ taxoryn:
       path: ${TAXORYN_COOKIE_PATH:/}
       domain: ${TAXORYN_COOKIE_DOMAIN:}
   jwt:
-    # 256-bit+ base64 encoded secret key for HMAC-SHA256
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    # Externalized secret key for HMAC-SHA256 (injected per profile or environment)
+    secret: ${JWT_SECRET:}
     expiration-ms: 86400000 # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
     issuer: taxoryn-platform

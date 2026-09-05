@@ -160,6 +160,9 @@ class DefaultCredentialsAndDemoSecurityTest {
     void testProductionSecurityValidator_FailsWhenDefaultJwtSecretInProduction() {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         ProductionSecurityValidator validator = new ProductionSecurityValidator(environment, userRepository, passwordEncoder);
+        ReflectionTestUtils.setField(validator, "datasourceUrl", "jdbc:postgresql://db:5432/taxoryn_prod");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "taxoryn_user");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretPass2026!");
         ReflectionTestUtils.setField(validator, "demoEnabled", false);
         ReflectionTestUtils.setField(validator, "jwtSecret", ProductionSecurityValidator.DEFAULT_REPOSITORY_JWT_SECRET);
 
@@ -172,6 +175,9 @@ class DefaultCredentialsAndDemoSecurityTest {
     void testProductionSecurityValidator_FailsWhenActiveSuperAdminHasDefaultPasswordInProduction() {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         ProductionSecurityValidator validator = new ProductionSecurityValidator(environment, userRepository, passwordEncoder);
+        ReflectionTestUtils.setField(validator, "datasourceUrl", "jdbc:postgresql://db:5432/taxoryn_prod");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "taxoryn_user");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretPass2026!");
         ReflectionTestUtils.setField(validator, "demoEnabled", false);
         ReflectionTestUtils.setField(validator, "jwtSecret", "c3VwZXJzZWNyZXRwcm9kdWN0aW9ua2V5MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=");
 
@@ -191,6 +197,9 @@ class DefaultCredentialsAndDemoSecurityTest {
     void testProductionSecurityValidator_PassesWithSafeConfiguration() {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         ProductionSecurityValidator validator = new ProductionSecurityValidator(environment, userRepository, passwordEncoder);
+        ReflectionTestUtils.setField(validator, "datasourceUrl", "jdbc:postgresql://db:5432/taxoryn_prod");
+        ReflectionTestUtils.setField(validator, "datasourceUsername", "taxoryn_user");
+        ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretPass2026!");
         ReflectionTestUtils.setField(validator, "demoEnabled", false);
         ReflectionTestUtils.setField(validator, "jwtSecret", "c3VwZXJzZWNyZXRwcm9kdWN0aW9ua2V5MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=");
 

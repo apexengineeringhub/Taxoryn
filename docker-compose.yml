@@ -13,9 +13,9 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-taxoryn_db}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-taxoryn_user}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-taxoryn_secret}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://taxoryn.com,https://*.taxoryn.com}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-LOCAL}
       STORAGE_LOCAL_BASE_DIR: /app/data/documents
     volumes:
@@ -40,7 +40,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-taxoryn_db}
       POSTGRES_USER: ${POSTGRES_USER:-taxoryn_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taxoryn_secret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

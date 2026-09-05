@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/taxoryn_db}
-    username: ${SPRING_DATASOURCE_USERNAME:taxoryn_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:taxoryn_secret}
+    url: ${DB_URL:${SPRING_DATASOURCE_URL:}}
+    username: ${DB_USERNAME:${SPRING_DATASOURCE_USERNAME:}}
+    password: ${DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}
@@ -27,46 +27,43 @@ spring:
           order_inserts: true
           order_updates: true
   mail:
-    host: ${SMTP_HOST:smtp.gmail.com}
-    port: ${SMTP_PORT:465}
-    username: ${SMTP_USERNAME:taxoryn@gmail.com}
-    password: ${SMTP_PASSWORD:}
+    host: ${MAIL_HOST:${SMTP_HOST:}}
+    port: ${MAIL_PORT:${SMTP_PORT:587}}
+    username: ${MAIL_USERNAME:${SMTP_USERNAME:}}
+    password: ${MAIL_PASSWORD:${SMTP_PASSWORD:}}
     properties:
       mail:
         smtp:
           auth: ${SMTP_AUTH:true}
           starttls:
-            enable: ${SMTP_STARTTLS:false}
+            enable: ${SMTP_STARTTLS:true}
           ssl:
-            enable: ${SMTP_SSL:true}
-            trust: "*"
-          socketFactory:
-            port: ${SMTP_PORT:465}
-            class: javax.net.ssl.SSLSocketFactory
-            fallback: false
+            enable: ${SMTP_SSL:false}
+          trust: "*"
           connectiontimeout: 15000
           timeout: 15000
           writetimeout: 15000
 
 # Hardened Security & Rate Limiting
 taxoryn:
+  demo:
+    enabled: false
   frontend:
     reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
   auth:
     reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
   mail:
-    enabled: ${MAIL_ENABLED:true}
-    provider: ${MAIL_PROVIDER:AUTO}
-    from-email: ${MAIL_FROM_EMAIL:taxoryn@gmail.com}
+    enabled: ${MAIL_ENABLED:false}
+    provider: ${MAIL_PROVIDER:SMTP}
+    from-email: ${MAIL_FROM_EMAIL:notifications@taxoryn.com}
     from-name: ${MAIL_FROM_NAME:Taxoryn}
     login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
   jwt:
-    # SECURITY: no default here on purpose. JWT_SECRET MUST be supplied via environment
-    # variable in production (256-bit+ random value). JwtTokenProvider fails fast at startup
-    # if this resolves to the known repository-default secret while running a non-local profile.
-    secret: ${JWT_SECRET}
+    # SECURITY: Injected via JWT_SECRET runtime variable.
+    # ProductionSecurityValidator ensures secret is non-null, >= 256 bits, and not a known default.
+    secret: ${JWT_SECRET:}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
     issuer: ${JWT_ISSUER:taxoryn-platform}
@@ -83,12 +80,13 @@ taxoryn:
   storage:
     provider: ${STORAGE_PROVIDER:LOCAL}
     local:
-      base-dir: ${STORAGE_LOCAL_BASE_DIR:./data/documents}
+      base-dir: ${STORAGE_LOCAL_BASE_DIR:/app/data/documents}
     s3:
-      bucket-name: ${STORAGE_S3_BUCKET:taxoryn-production-documents}
-      region: ${STORAGE_S3_REGION:ap-south-1}
-      access-key: ${STORAGE_S3_ACCESS_KEY:}
-      secret-key: ${STORAGE_S3_SECRET_KEY:}
+      bucket: ${STORAGE_BUCKET:${STORAGE_S3_BUCKET:}}
+      region: ${STORAGE_REGION:${STORAGE_S3_REGION:ap-south-1}}
+      access-key: ${STORAGE_ACCESS_KEY:${STORAGE_S3_ACCESS_KEY:}}
+      secret-key: ${STORAGE_SECRET_KEY:${STORAGE_S3_SECRET_KEY:}}
+      endpoint: ${STORAGE_ENDPOINT:${STORAGE_S3_ENDPOINT:}}
 
 # Production Observability & Actuator
 management:
