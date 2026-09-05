@@ -62,14 +62,17 @@ chmod +x scripts/setup-db.sh
 ./scripts/setup-db.sh --seed
 ```
 
-### 3. Demo Credentials (from `seed-dev-data.sql`)
-| Role | Email | Password |
-|---|---|---|
-| **Org Admin** | `admin@apextax.com` | `Password123!` |
-| **Practice Manager** | `manager@apextax.com` | `Password123!` |
-| **Senior Tax Pro** | `taxpro@apextax.com` | `Password123!` |
-| **Staff Accountant** | `accountant@apextax.com` | `Password123!` |
-| **Firm Staff** | `staff@apextax.com` | `Password123!` |
+### 3. Local Development & Demo Credentials (Non-Production Only)
+> [!NOTE]
+> The following accounts are strictly for local development and synthetic demo environments. They are **never** seeded or usable in production deployments. Production requires explicit one-time bootstrap via `TAXORYN_BOOTSTRAP_ADMIN_EMAIL` and `TAXORYN_BOOTSTRAP_ADMIN_PASSWORD` environment variables with high-entropy credentials.
+
+| Environment | Role | Email | Demo Password | Purpose |
+|---|---|---|---|---|
+| `dev`, `demo` | **Org Admin** | `admin@apextax.com` | `Password123!` | Tenant Admin (Apex Tax Advisors LLP) |
+| `dev`, `demo` | **Org Admin** | `pawanadv@gmail.com` | `Password123!` | Tenant Admin (Maa Mundeshwari Tax) |
+| `dev`, `demo` | **Practice Staff** | `pooja.joshi@maamundeshwari.com` | `Password123!` | Staff Workflow Execution |
+| `dev`, `demo` | **Client User** | `client.mundeshwari@maamundeshwari.com` | `Password123!` | Client Portal Access |
+| `dev` only | **Platform SuperAdmin** | `superadmin@taxoryn.com` | `Password123!` | Local Platform Governance (Dev only) |
 
 ---
 

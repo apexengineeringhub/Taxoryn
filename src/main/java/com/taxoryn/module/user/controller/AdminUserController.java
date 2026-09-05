@@ -171,7 +171,7 @@ public class AdminUserController {
 
         String rawPassword = StringUtils.hasText(request.getTemporaryPassword())
                 ? request.getTemporaryPassword()
-                : "Password123!";
+                : com.taxoryn.core.security.PasswordSecurityUtils.generateSecureTemporaryPassword();
 
         UserEntity user = UserEntity.builder()
                 .firstName(request.getFirstName().trim())

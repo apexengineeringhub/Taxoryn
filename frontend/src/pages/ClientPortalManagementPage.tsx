@@ -78,7 +78,7 @@ export const ClientPortalManagementPage: React.FC = () => {
   const [provisionForm, setProvisionForm] = useState<RegisterClientPortalUserRequest>({
     clientId: '',
     email: '',
-    password: 'Password123!',
+    password: '',
     firstName: '',
     lastName: '',
     phone: '',
@@ -324,7 +324,7 @@ export const ClientPortalManagementPage: React.FC = () => {
                 setProvisionForm({
                   clientId: selectedClientId,
                   email: target?.email || '',
-                  password: 'Password123!',
+                  password: '',
                   firstName: target?.displayName?.split(' ')[0] || 'Client',
                   lastName: target?.displayName?.split(' ').slice(1).join(' ') || 'User',
                   phone: target?.phone || '',
@@ -1023,7 +1023,7 @@ export const ClientPortalManagementPage: React.FC = () => {
                 setProvisionForm({
                   clientId: selectedClientId,
                   email: target?.email || '',
-                  password: 'Password123!',
+                  password: '',
                   firstName: target?.displayName?.split(' ')[0] || 'Client',
                   lastName: target?.displayName?.split(' ').slice(1).join(' ') || 'User',
                   phone: target?.phone || '',

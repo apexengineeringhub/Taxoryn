@@ -55,7 +55,7 @@ export const PlatformUsersPage: React.FC = () => {
     phone: '',
     roleCode: 'TAXORYN_OPERATIONS_ADMIN',
     status: 'ACTIVE',
-    temporaryPassword: 'Password123!',
+    temporaryPassword: '',
   });
 
   const currentUserRoleCodes = (currentUser?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));

@@ -105,9 +105,16 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final MarketplaceProfileRepository marketplaceProfileRepository;
     private final MarketplaceServiceRepository marketplaceServiceRepository;
     private final MarketplaceLeadRepository marketplaceLeadRepository;
+    private final org.springframework.core.env.Environment environment;
 
     @Override
     public void run(String... args) {
+        List<String> activeProfiles = java.util.Arrays.asList(environment.getActiveProfiles());
+        if (activeProfiles.contains("prod") || activeProfiles.contains("production")) {
+            log.error("CRITICAL SECURITY GUARD: DemoDataSeeder execution blocked because production profile is active!");
+            return;
+        }
+
         try {
             seedPermissionsAndRoles();
         } catch (Exception ex) {
@@ -500,6 +507,12 @@ public class DemoDataSeeder implements CommandLineRunner {
     }
 
     private void seedSuperAdminUser() {
+        List<String> activeProfiles = java.util.Arrays.asList(environment.getActiveProfiles());
+        if (!activeProfiles.contains("dev")) {
+            log.info("Non-dev profile active ({}). Skipping platform SuperAdmin demo account seeding to prevent platform control plane exposure.", activeProfiles);
+            return;
+        }
+
         OrganizationEntity org = organizationRepository.findByEmailIgnoreCase("admin@taxoryn.com")
                 .orElseGet(() -> organizationRepository.save(OrganizationEntity.builder()
                         .name("Taxoryn Platform Operations")
@@ -543,6 +556,11 @@ public class DemoDataSeeder implements CommandLineRunner {
                 log.info("Platform user seeded: {} ({}) — see README for demo credentials", seed.email(), seed.roleCode());
             } else {
                 user = existingUser.get();
+                if (user.getStatus() == UserStatus.INACTIVE || user.getStatus() == UserStatus.SUSPENDED) {
+                    log.info("User {} is {} — preserving administrative status and skipping demo password reset", user.getEmail(), user.getStatus());
+                    continue;
+                }
+
                 Set<RoleEntity> expectedRoles = new HashSet<>(Set.of(role));
                 if ("TAXORYN_SUPERADMIN".equals(seed.roleCode())) {
                     roleRepository.findByCodeAndIsSystemRoleTrue("SUPER_ADMIN").ifPresent(expectedRoles::add);
@@ -609,13 +627,17 @@ public class DemoDataSeeder implements CommandLineRunner {
             log.info("Demo user seeded: {} ({}) — see README for demo credentials", adminEmail, orgName);
         } else {
             adminUser = existingUser.get();
-            adminUser.setStatus(UserStatus.ACTIVE);
-            adminUser.setPasswordHash(passwordEncoder.encode("Password123!"));
-            if (adminUser.getRoles() == null) {
-                adminUser.setRoles(new HashSet<>());
+            if (adminUser.getStatus() == UserStatus.INACTIVE || adminUser.getStatus() == UserStatus.SUSPENDED) {
+                log.info("Admin user {} is {} — preserving administrative status and skipping demo password reset", adminUser.getEmail(), adminUser.getStatus());
+            } else {
+                adminUser.setStatus(UserStatus.ACTIVE);
+                adminUser.setPasswordHash(passwordEncoder.encode("Password123!"));
+                if (adminUser.getRoles() == null) {
+                    adminUser.setRoles(new HashSet<>());
+                }
+                adminUser.getRoles().add(orgAdminRole);
+                adminUser = userRepository.save(adminUser);
             }
-            adminUser.getRoles().add(orgAdminRole);
-            adminUser = userRepository.save(adminUser);
         }
 
         // 2. Seed Clients & ITR Returns first

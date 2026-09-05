@@ -81,7 +81,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(classes = com.taxoryn.TaxorynApplication.class)
 @ActiveProfiles("test")
 @Transactional
 public class ReportServiceIntegrationTest {

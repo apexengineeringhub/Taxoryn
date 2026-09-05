@@ -128,7 +128,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
                     UserEntity user = UserEntity.builder()
                             .email(email.toLowerCase().trim())
-                            .passwordHash(passwordEncoder.encode("Password123!"))
+                            .passwordHash(passwordEncoder.encode(com.taxoryn.core.security.PasswordSecurityUtils.generateSecureTemporaryPassword()))
                             .firstName(firstName)
                             .lastName(lastName)
                             .phone(phone)

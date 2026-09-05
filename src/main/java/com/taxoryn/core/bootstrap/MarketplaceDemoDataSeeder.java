@@ -76,10 +76,17 @@ public class MarketplaceDemoDataSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final org.springframework.core.env.Environment environment;
 
     @Override
     @Transactional
     public void run(String... args) {
+        List<String> activeProfiles = java.util.Arrays.asList(environment.getActiveProfiles());
+        if (activeProfiles.contains("prod") || activeProfiles.contains("production")) {
+            log.error("CRITICAL SECURITY GUARD: MarketplaceDemoDataSeeder execution blocked because production profile is active!");
+            return;
+        }
+
         try {
             seedControlledTaxServiceMaster();
         } catch (Exception ex) {
