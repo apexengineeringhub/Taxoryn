@@ -165,13 +165,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
                 fallbackMockBuffer.put(s3Key, data);
                 return s3Key;
             } catch (S3Exception e) {
-                log.error("S3 bucket [{}] rejected upload: {}", bucket, e.awsErrorDetails().errorMessage(), e);
-                fallbackMockBuffer.put(s3Key, data);
-                return s3Key;
+                String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
+                log.error("S3/R2 bucket [{}] rejected upload: {}", bucket, errorMsg, e);
+                throw new InternalServerException("S3/R2 storage rejected upload: " + errorMsg);
             } catch (SdkException e) {
-                log.warn("S3 client connection unavailable (fallback buffer used): {}", e.getMessage());
-                fallbackMockBuffer.put(s3Key, data);
-                return s3Key;
+                log.error("S3/R2 client connection error: {}", e.getMessage(), e);
+                throw new InternalServerException("Failed to connect to S3/R2 storage: " + e.getMessage());
             } catch (Exception e) {
                 log.error("Failed to upload object to S3/R2 storage: {}", e.getMessage(), e);
                 throw new InternalServerException("Failed to store file in object storage: " + e.getMessage());
