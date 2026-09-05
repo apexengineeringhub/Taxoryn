@@ -5,6 +5,7 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.document.dto.DocumentDownloadDto;
 import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.dto.DocumentFilterRequest;
+import com.taxoryn.module.document.dto.PresignedUrlResponse;
 import com.taxoryn.module.document.dto.UpdateDocumentRequest;
 import com.taxoryn.module.document.dto.UploadDocumentRequest;
 import com.taxoryn.module.document.service.DocumentService;
@@ -95,6 +96,14 @@ public class DocumentController {
                 .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
                 .body(download.getData());
+    }
+
+    @GetMapping("/{id}/download-url")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get document download URL", description = "Generates a secure short-lived presigned download URL for S3/R2 storage or an authenticated streaming URL for local storage.")
+    public ResponseEntity<ApiResponse<PresignedUrlResponse>> getDocumentDownloadUrl(@PathVariable UUID id) {
+        PresignedUrlResponse response = documentService.getDocumentDownloadUrl(id);
+        return ResponseEntity.ok(ApiResponse.success("Document download URL generated successfully", response));
     }
 
     private String sanitizeHeaderFilename(String filename) {

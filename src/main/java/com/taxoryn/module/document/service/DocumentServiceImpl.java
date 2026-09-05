@@ -36,6 +36,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import com.taxoryn.module.document.dto.PresignedUrlResponse;
+import com.taxoryn.module.document.storage.StorageProperties;
 import com.taxoryn.core.security.upload.FileValidator;
 import com.taxoryn.core.security.upload.MalwareScanner;
 import com.taxoryn.core.security.upload.ScanResult;
@@ -50,6 +52,7 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
     private final DocumentStorageService storageService;
+    private final StorageProperties storageProperties;
     private final ClientRepository clientRepository;
     private final com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository;
     private final com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
@@ -153,8 +156,8 @@ public class DocumentServiceImpl implements DocumentService {
 
         String checksum = calculateSha256(bytes);
 
-        // Store file in configured storage backend (Local / S3)
-        String storageKey = storageService.store(organizationId, originalFilename, contentType, bytes);
+        // Store file in configured storage backend (Local / S3) with tenant & client structured isolation
+        String storageKey = storageService.store(organizationId, request.getClientId(), null, originalFilename, contentType, bytes);
         StorageProvider provider = "S3".equalsIgnoreCase(storageService.getStorageProviderName()) ? StorageProvider.S3 : StorageProvider.LOCAL;
 
         DocumentEntity entity = DocumentEntity.builder()
@@ -238,6 +241,55 @@ public class DocumentServiceImpl implements DocumentService {
                 .fileSize(document.getFileSize())
                 .data(data)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PresignedUrlResponse getDocumentDownloadUrl(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        validateDocumentAccess(document);
+        validateDocumentScanStatus(document);
+
+        if (document.getStatus() == DocumentStatus.DELETED) {
+            throw new ResourceNotFoundException("Document has been deleted", "id", id);
+        }
+
+        String providerName = storageService.getStorageProviderName();
+        if (storageService.supportsPresignedUrls()) {
+            int durationMinutes = storageProperties != null ? storageProperties.getPresignedUrlDurationMinutes() : 15;
+            if (durationMinutes <= 0) {
+                durationMinutes = 15;
+            }
+            java.time.Duration expiration = java.time.Duration.ofMinutes(durationMinutes);
+            String presignedUrl = storageService.generatePresignedDownloadUrl(document.getStorageKey(), document.getFileName(), expiration);
+            java.time.Instant expiresAt = java.time.Instant.now().plus(expiration);
+
+            auditService.logEvent("DOCUMENT_PRESIGNED_URL_GENERATED", "DOCUMENT", id.toString(), null, document.getFileName());
+
+            return PresignedUrlResponse.builder()
+                    .downloadUrl(presignedUrl)
+                    .expiresInSeconds(expiration.toSeconds())
+                    .expiresAt(expiresAt)
+                    .fileName(document.getFileName())
+                    .contentType(document.getContentType())
+                    .fileSize(document.getFileSize())
+                    .provider(providerName)
+                    .build();
+        } else {
+            auditService.logEvent("DOCUMENT_DOWNLOAD_URL_REQUESTED", "DOCUMENT", id.toString(), null, document.getFileName());
+            return PresignedUrlResponse.builder()
+                    .downloadUrl("/api/v1/documents/" + id + "/download")
+                    .expiresInSeconds(0)
+                    .expiresAt(null)
+                    .fileName(document.getFileName())
+                    .contentType(document.getContentType())
+                    .fileSize(document.getFileSize())
+                    .provider("LOCAL")
+                    .build();
+        }
     }
 
     @Override

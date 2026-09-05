@@ -248,6 +248,12 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     }
 
     private void validateStorageConfiguration() {
+        if (!StringUtils.hasText(storageProvider) || "LOCAL".equalsIgnoreCase(storageProvider.trim())) {
+            String error = "CRITICAL SECURITY VIOLATION: Local filesystem storage (taxoryn.storage.provider=LOCAL) is prohibited in production. Configure persistent S3/Cloudflare R2 storage (STORAGE_PROVIDER=S3, STORAGE_BUCKET, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY)";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
         if ("S3".equalsIgnoreCase(storageProvider) || "R2".equalsIgnoreCase(storageProvider) || "CLOUD".equalsIgnoreCase(storageProvider)) {
             if (!StringUtils.hasText(storageS3Bucket)) {
                 String error = "CRITICAL SECURITY VIOLATION: Storage provider is '" + storageProvider + "' but STORAGE_BUCKET is not configured";
@@ -264,6 +270,10 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
                 log.error(error);
                 throw new IllegalStateException(error);
             }
+        } else {
+            String error = "CRITICAL SECURITY VIOLATION: Unsupported production storage provider '" + storageProvider + "'. Expected 'S3'";
+            log.error(error);
+            throw new IllegalStateException(error);
         }
     }
 

@@ -47,13 +47,12 @@ public class LocalDocumentStorageService implements DocumentStorageService {
         String safeExt = getSafeExtension(originalFilename);
         LocalDate now = LocalDate.now();
         String orgPrefix = organizationId != null ? "org_" + organizationId : "platform";
-        String relativeOrgDir = orgPrefix + "/" + now.getYear() + "/" + String.format("%02d", now.getMonthValue());
+        String relativeOrgDir = "tenants/" + orgPrefix + "/" + now.getYear() + "/" + String.format("%02d", now.getMonthValue());
 
         Path targetDir = this.rootLocation.resolve(relativeOrgDir).normalize();
 
         try {
             Files.createDirectories(targetDir);
-            // Opaque UUID filename - prevents any client name, PAN, or sensitive metadata leakage in storage keys
             String uniqueFilename = UUID.randomUUID() + safeExt;
             Path destinationFile = targetDir.resolve(uniqueFilename).normalize();
 
@@ -68,6 +67,45 @@ public class LocalDocumentStorageService implements DocumentStorageService {
             return storageKey;
         } catch (IOException e) {
             log.error("Failed to write file to local disk: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to store file: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String store(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, byte[] data) {
+        if (data == null || data.length == 0) {
+            throw new BadRequestException("Cannot store empty document file");
+        }
+
+        String safeExt = getSafeExtension(originalFilename);
+        String orgPrefix = organizationId != null ? "org_" + organizationId : "platform";
+        String docIdStr = documentId != null ? documentId.toString() : UUID.randomUUID().toString();
+
+        String relativeDir;
+        if (clientId != null) {
+            relativeDir = "tenants/" + orgPrefix + "/clients/" + clientId + "/documents";
+        } else {
+            relativeDir = "tenants/" + orgPrefix + "/documents";
+        }
+
+        Path targetDir = this.rootLocation.resolve(relativeDir).normalize();
+
+        try {
+            Files.createDirectories(targetDir);
+            String uniqueFilename = docIdStr + safeExt;
+            Path destinationFile = targetDir.resolve(uniqueFilename).normalize();
+
+            // Guard against path traversal attacks
+            if (!destinationFile.startsWith(this.rootLocation)) {
+                throw new BadRequestException("Invalid storage destination path (path traversal detected)");
+            }
+
+            Files.write(destinationFile, data, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            String storageKey = relativeDir + "/" + uniqueFilename;
+            log.debug("Stored structured document locally with key: {}", storageKey);
+            return storageKey;
+        } catch (IOException e) {
+            log.error("Failed to write structured file to local disk: {}", e.getMessage(), e);
             throw new InternalServerException("Failed to store file: " + e.getMessage());
         }
     }
@@ -115,6 +153,11 @@ public class LocalDocumentStorageService implements DocumentStorageService {
     @Override
     public String getStorageProviderName() {
         return "LOCAL";
+    }
+
+    @Override
+    public boolean supportsPresignedUrls() {
+        return false;
     }
 
     private Path resolveAndValidatePath(String storageKey) {

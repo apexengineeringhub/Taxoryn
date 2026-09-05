@@ -4,6 +4,7 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.document.dto.DocumentDownloadDto;
 import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.dto.DocumentFilterRequest;
+import com.taxoryn.module.document.dto.PresignedUrlResponse;
 import com.taxoryn.module.document.dto.UpdateDocumentRequest;
 import com.taxoryn.module.document.dto.UploadDocumentRequest;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +19,8 @@ public interface DocumentService {
     DocumentDownloadDto downloadDocument(UUID id);
 
     DocumentDownloadDto previewDocument(UUID id);
+
+    PresignedUrlResponse getDocumentDownloadUrl(UUID id);
 
     DocumentDto getDocumentById(UUID id);
 

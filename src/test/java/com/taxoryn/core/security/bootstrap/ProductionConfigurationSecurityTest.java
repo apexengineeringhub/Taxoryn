@@ -51,7 +51,10 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "datasourcePassword", VALID_PROD_DB_PASS);
         ReflectionTestUtils.setField(validator, "jwtSecret", VALID_PROD_JWT_SECRET);
         ReflectionTestUtils.setField(validator, "demoEnabled", false);
-        ReflectionTestUtils.setField(validator, "storageProvider", "LOCAL");
+        ReflectionTestUtils.setField(validator, "storageProvider", "S3");
+        ReflectionTestUtils.setField(validator, "storageS3Bucket", "taxoryn-production-docs");
+        ReflectionTestUtils.setField(validator, "storageS3AccessKey", "AKIAIOSFODNN7EXAMPLE");
+        ReflectionTestUtils.setField(validator, "storageS3SecretKey", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
         ReflectionTestUtils.setField(validator, "mailEnabled", false);
         ReflectionTestUtils.setField(validator, "whatsappEnabled", false);
     }
@@ -178,6 +181,18 @@ class ProductionConfigurationSecurityTest {
     // =========================================================================
     // 3. Storage Provider Fail-Fast Tests
     // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when local storage provider is used")
+    void testProductionFailsWhenLocalStorageInProduction() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageProvider", "LOCAL");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Local filesystem storage"));
+        assertTrue(ex.getMessage().contains("prohibited in production"));
+    }
 
     @Test
     @DisplayName("Fail-Fast: Production fails when S3 storage provider is selected but STORAGE_BUCKET is missing")

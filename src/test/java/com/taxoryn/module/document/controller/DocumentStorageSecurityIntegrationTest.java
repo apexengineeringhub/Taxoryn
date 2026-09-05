@@ -474,7 +474,44 @@ class DocumentStorageSecurityIntegrationTest {
         mockMvc.perform(get("/api/v1/documents/" + UUID.randomUUID() + "/download"))
                 .andExpect(status().isUnauthorized());
 
+        mockMvc.perform(get("/api/v1/documents/" + UUID.randomUUID() + "/download-url"))
+                .andExpect(status().isUnauthorized());
+
         mockMvc.perform(get("/api/v1/portal/documents"))
                 .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/portal/documents/" + UUID.randomUUID() + "/download-url"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("10. Download URL Endpoint Security: Firm and Portal users receive authorized download URL response")
+    void testDownloadUrlEndpoints() throws Exception {
+        byte[] content = "%PDF-1.4 Vault Document".getBytes(StandardCharsets.UTF_8);
+        String docId = uploadTestDocument(tokenOrg1, client1.getId(), "VaultDoc.pdf", content);
+
+        // Firm user requests download URL
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/download-url")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.downloadUrl").isNotEmpty())
+                .andExpect(jsonPath("$.data.fileName").value("VaultDoc.pdf"));
+
+        // Client 1 portal user requests download URL
+        mockMvc.perform(get("/api/v1/portal/documents/" + docId + "/download-url")
+                        .header(HttpHeaders.AUTHORIZATION, tokenClient1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.downloadUrl").isNotEmpty())
+                .andExpect(jsonPath("$.data.fileName").value("VaultDoc.pdf"));
+
+        // Client 2 cannot get download URL for Client 1 document
+        mockMvc.perform(get("/api/v1/portal/documents/" + docId + "/download-url")
+                        .header(HttpHeaders.AUTHORIZATION, tokenClient2))
+                .andExpect(status().is4xxClientError());
+
+        // Org 2 user cannot get download URL for Org 1 document
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/download-url")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg2))
+                .andExpect(status().isNotFound());
     }
 }
