@@ -180,6 +180,10 @@ class DefaultCredentialsAndDemoSecurityTest {
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretPass2026!");
         ReflectionTestUtils.setField(validator, "demoEnabled", false);
         ReflectionTestUtils.setField(validator, "jwtSecret", "c3VwZXJzZWNyZXRwcm9kdWN0aW9ua2V5MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=");
+        ReflectionTestUtils.setField(validator, "storageProvider", "S3");
+        ReflectionTestUtils.setField(validator, "storageS3Bucket", "taxoryn-production-docs");
+        ReflectionTestUtils.setField(validator, "storageS3AccessKey", "AKIAIOSFODNN7EXAMPLE");
+        ReflectionTestUtils.setField(validator, "storageS3SecretKey", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
 
         UserEntity insecureUser = UserEntity.builder()
                 .email("superadmin@taxoryn.com")
@@ -202,6 +206,10 @@ class DefaultCredentialsAndDemoSecurityTest {
         ReflectionTestUtils.setField(validator, "datasourcePassword", "StrongSecretPass2026!");
         ReflectionTestUtils.setField(validator, "demoEnabled", false);
         ReflectionTestUtils.setField(validator, "jwtSecret", "c3VwZXJzZWNyZXRwcm9kdWN0aW9ua2V5MTIzNDU2Nzg5MDEyMzQ1Njc4OTA=");
+        ReflectionTestUtils.setField(validator, "storageProvider", "S3");
+        ReflectionTestUtils.setField(validator, "storageS3Bucket", "taxoryn-production-docs");
+        ReflectionTestUtils.setField(validator, "storageS3AccessKey", "AKIAIOSFODNN7EXAMPLE");
+        ReflectionTestUtils.setField(validator, "storageS3SecretKey", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
 
         UserEntity disabledLegacyUser = UserEntity.builder()
                 .email("superadmin@taxoryn.com")
