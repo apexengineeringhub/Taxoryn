@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Organization } from '../types';
 import { authApi } from '../api/endpoints';
+import { setAccessToken } from '../api/client';
 
 interface AuthContextType {
   user: User | null;
@@ -31,28 +32,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Background session restoration via HttpOnly refresh cookie on application load
   useEffect(() => {
-    const savedUser = localStorage.getItem('taxoryn_user');
-    const savedOrg = localStorage.getItem('taxoryn_org');
-    const token = localStorage.getItem('taxoryn_access_token');
+    let isMounted = true;
 
-    if (savedUser && token) {
+    const restoreSession = async () => {
       try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        localStorage.removeItem('taxoryn_user');
+        const data = await authApi.refreshToken();
+        if (isMounted && data?.accessToken) {
+          setAccessToken(data.accessToken);
+          setUser(data.user);
+          if (data.organization) {
+            setOrganization(data.organization);
+          } else if (data.user?.organizationName) {
+            setOrganization({
+              id: data.user.organizationId,
+              name: data.user.organizationName,
+            });
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setAccessToken(null);
+          setUser(null);
+          setOrganization(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-    }
+    };
 
-    if (savedOrg) {
-      try {
-        setOrganization(JSON.parse(savedOrg));
-      } catch (e) {
-        localStorage.removeItem('taxoryn_org');
-      }
-    }
+    restoreSession();
 
-    setIsLoading(false);
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const practiceName = organization?.name || user?.organizationName || 'Tax Practice Hub';
@@ -66,23 +82,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [practiceName]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     setIsLoading(true);
     try {
       const data = await authApi.login({ email, password });
-      localStorage.setItem('taxoryn_access_token', data.accessToken);
-      localStorage.setItem('taxoryn_refresh_token', data.refreshToken);
-      localStorage.setItem('taxoryn_user', JSON.stringify(data.user));
+      // In-Memory Access Token ONLY (Never persisted to localStorage/sessionStorage)
+      setAccessToken(data.accessToken);
 
       if (data.organization) {
-        localStorage.setItem('taxoryn_org', JSON.stringify(data.organization));
         setOrganization(data.organization);
       } else if (data.user?.organizationName) {
         const dummyOrg: Organization = {
           id: data.user.organizationId,
           name: data.user.organizationName,
         };
-        localStorage.setItem('taxoryn_org', JSON.stringify(dummyOrg));
         setOrganization(dummyOrg);
       }
 
@@ -94,18 +107,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    const refreshToken = localStorage.getItem('taxoryn_refresh_token');
-    const accessToken = localStorage.getItem('taxoryn_access_token');
-
     try {
-      if (accessToken || refreshToken) {
-        await authApi.logout(refreshToken);
-      }
+      await authApi.logout();
     } catch (err) {
-      console.warn('Backend token invalidation completed with notice', err);
+      console.warn('Backend logout completed with notice', err);
     } finally {
-      localStorage.removeItem('taxoryn_access_token');
-      localStorage.removeItem('taxoryn_refresh_token');
+      // Clear in-memory token & state
+      setAccessToken(null);
       localStorage.removeItem('taxoryn_user');
       localStorage.removeItem('taxoryn_org');
       setUser(null);

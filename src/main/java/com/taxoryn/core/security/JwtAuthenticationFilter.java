@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = resolveToken(request);
 
-            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
+            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt) && tokenProvider.isAccessToken(jwt)) {
                 UUID userId = tokenProvider.getUserIdFromToken(jwt);
                 UUID organizationId = tokenProvider.getOrganizationIdFromToken(jwt);
                 UUID clientId = tokenProvider.getClientIdFromToken(jwt);

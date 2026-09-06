@@ -14,6 +14,11 @@ public class StorageProperties {
      */
     private String provider = "LOCAL";
 
+    /**
+     * Duration in minutes for signed download URLs (default 15 minutes).
+     */
+    private int presignedUrlDurationMinutes = 15;
+
     private Local local = new Local();
     private S3 s3 = new S3();
 

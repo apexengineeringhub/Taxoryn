@@ -6,6 +6,8 @@ import com.taxoryn.module.content.dto.MediaAssetDto;
 import com.taxoryn.module.content.dto.UpdateMediaAssetRequest;
 import com.taxoryn.module.content.entity.MediaAssetEntity;
 import com.taxoryn.module.content.repository.MediaAssetRepository;
+import com.taxoryn.core.security.upload.MalwareScanner;
+import com.taxoryn.core.security.upload.ScanResult;
 import com.taxoryn.module.document.storage.DocumentStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +39,7 @@ public class MediaServiceImpl implements MediaService {
 
     private final MediaAssetRepository mediaAssetRepository;
     private final DocumentStorageService storageService;
+    private final MalwareScanner malwareScanner;
 
     @Override
     @Transactional(readOnly = true)
@@ -79,6 +82,17 @@ public class MediaServiceImpl implements MediaService {
         } catch (IOException e) {
             log.error("Failed to read media upload bytes for {}", originalFilename, e);
             throw new BusinessValidationException("Failed to read uploaded media content.");
+        }
+
+        // Anti-malware and disguised executable scan
+        ScanResult scanResult = malwareScanner.scan(bytes, originalFilename);
+        if (scanResult.isInfected()) {
+            log.warn("SECURITY ALERT: Malware detected in media asset '{}': {}", originalFilename, scanResult.getDetails());
+            throw new BusinessValidationException("Malware detected in uploaded media file: " + scanResult.getThreatName());
+        }
+        if (scanResult.isFailed()) {
+            log.error("SECURITY ALERT: Malware scanning failed for media asset '{}': {}", originalFilename, scanResult.getDetails());
+            throw new BusinessValidationException("Malware scanning failed: " + scanResult.getDetails());
         }
 
         String storageKey = storageService.store(null, originalFilename, contentType, bytes);

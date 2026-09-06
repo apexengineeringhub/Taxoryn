@@ -133,11 +133,23 @@ public class NotificationServiceImpl implements NotificationService {
         RecipientContact recipient = resolveRecipient(organizationId, userId, clientId);
 
         UUID targetUserId = userId;
-        if (userId != null && userRepository.findByIdAndOrganizationId(userId, organizationId).isEmpty()) {
-            Optional<EmployeeEntity> empOpt = employeeRepository.findByIdAndOrganizationId(userId, organizationId);
-            if (empOpt.isPresent() && empOpt.get().getUserId() != null) {
-                targetUserId = empOpt.get().getUserId();
+        if (userId != null) {
+            boolean userExists = userRepository.existsById(userId);
+            if (!userExists) {
+                Optional<EmployeeEntity> empOpt = employeeRepository.findByIdAndOrganizationId(userId, organizationId);
+                if (empOpt.isPresent() && empOpt.get().getUserId() != null && userRepository.existsById(empOpt.get().getUserId())) {
+                    targetUserId = empOpt.get().getUserId();
+                } else {
+                    log.warn("Target user {} does not exist in users table; clearing userId for notification to prevent FK violation", userId);
+                    targetUserId = null;
+                }
             }
+        }
+
+        UUID targetClientId = clientId;
+        if (clientId != null && !clientRepository.existsById(clientId)) {
+            log.warn("Target client {} does not exist in clients table; clearing clientId for notification to prevent FK violation", clientId);
+            targetClientId = null;
         }
 
         String resolvedEntityType = entityType;
@@ -170,7 +182,7 @@ public class NotificationServiceImpl implements NotificationService {
         NotificationEntity entity = NotificationEntity.builder()
                 .organizationId(organizationId)
                 .userId(targetUserId)
-                .clientId(clientId)
+                .clientId(targetClientId)
                 .notificationType(resolvedType)
                 .severity(resolvedSeverity)
                 .category(resolvedCategory)

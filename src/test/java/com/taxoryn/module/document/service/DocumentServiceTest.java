@@ -31,9 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -52,16 +50,37 @@ class DocumentServiceTest {
     private ClientRepository clientRepository;
 
     @Mock
+    private com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository;
+
+    @Mock
+    private com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
+
+    @Mock
+    private com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository;
+
+    @Mock
+    private com.taxoryn.module.task.repository.TaskRepository taskRepository;
+
+    @Mock
     private DocumentMapper documentMapper;
 
     @Mock
     private com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
 
     @Mock
+    private com.taxoryn.module.document.storage.StorageProperties storageProperties;
+
+    @Mock
     private com.taxoryn.module.audit.service.AuditService auditService;
 
     @Mock
     private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
+    @Mock
+    private com.taxoryn.core.security.upload.FileValidator fileValidator;
+
+    @Mock
+    private com.taxoryn.core.security.upload.MalwareScanner malwareScanner;
 
     @InjectMocks
     private DocumentServiceImpl documentService;
@@ -120,8 +139,10 @@ class DocumentServiceTest {
         client.setOrganizationId(tenantId);
 
         when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
-        when(storageService.store(eq(tenantId), eq("Form16.pdf"), eq("application/pdf"), any(byte[].class)))
-                .thenReturn("org_" + tenantId + "/2026/08/Form16.pdf");
+        when(malwareScanner.scan(any(byte[].class), eq("Form16.pdf")))
+                .thenReturn(com.taxoryn.core.security.upload.ScanResult.clean("MockScanner"));
+        when(storageService.store(eq(tenantId), eq(clientId), org.mockito.ArgumentMatchers.nullable(UUID.class), eq("Form16.pdf"), eq("application/pdf"), any(byte[].class)))
+                .thenReturn("tenants/org_" + tenantId + "/clients/" + clientId + "/documents/" + documentId + ".pdf");
         when(storageService.getStorageProviderName()).thenReturn("LOCAL");
 
         DocumentEntity saved = DocumentEntity.builder()
@@ -130,7 +151,7 @@ class DocumentServiceTest {
                 .fileName("Form16.pdf")
                 .contentType("application/pdf")
                 .fileSize(content.length)
-                .storageKey("org_" + tenantId + "/2026/08/Form16.pdf")
+                .storageKey("tenants/org_" + tenantId + "/clients/" + clientId + "/documents/" + documentId + ".pdf")
                 .storageProvider(StorageProvider.LOCAL)
                 .status(DocumentStatus.ACTIVE)
                 .build();
@@ -241,5 +262,67 @@ class DocumentServiceTest {
 
         org.mockito.Mockito.verify(documentRepository, org.mockito.Mockito.never())
                 .findAllByOrganizationIdAndClientIdAndStatus(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Get download URL generates short-lived presigned URL when storage provider is S3")
+    void testGetDownloadUrlWithS3Provider() {
+        DocumentEntity document = DocumentEntity.builder()
+                .fileName("AuditReport.pdf")
+                .contentType("application/pdf")
+                .fileSize(1024L)
+                .storageKey("tenants/org_" + tenantId + "/clients/" + clientId + "/documents/" + documentId + ".pdf")
+                .storageProvider(StorageProvider.S3)
+                .status(DocumentStatus.ACTIVE)
+                .scanStatus(com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus.CLEAN)
+                .clientId(clientId)
+                .build();
+        document.setId(documentId);
+        document.setOrganizationId(tenantId);
+
+        when(documentRepository.findByIdAndOrganizationId(documentId, tenantId)).thenReturn(Optional.of(document));
+        when(storageService.getStorageProviderName()).thenReturn("S3");
+        when(storageService.supportsPresignedUrls()).thenReturn(true);
+        when(storageProperties.getPresignedUrlDurationMinutes()).thenReturn(15);
+        when(storageService.generatePresignedDownloadUrl(eq(document.getStorageKey()), eq("AuditReport.pdf"), any(java.time.Duration.class)))
+                .thenReturn("https://bucket.s3.amazonaws.com/path?X-Amz-Expires=900&Signature=abc");
+
+        com.taxoryn.module.document.dto.PresignedUrlResponse res = documentService.getDocumentDownloadUrl(documentId);
+
+        assertNotNull(res);
+        assertEquals("S3", res.getProvider());
+        assertEquals("AuditReport.pdf", res.getFileName());
+        assertEquals(900L, res.getExpiresInSeconds());
+        assertTrue(res.getDownloadUrl().startsWith("https://bucket.s3.amazonaws.com"));
+        assertNotNull(res.getExpiresAt());
+    }
+
+    @Test
+    @DisplayName("Get download URL returns direct authenticated streaming route when storage provider is LOCAL")
+    void testGetDownloadUrlWithLocalProvider() {
+        DocumentEntity document = DocumentEntity.builder()
+                .fileName("LocalDoc.pdf")
+                .contentType("application/pdf")
+                .fileSize(2048L)
+                .storageKey("tenants/org_" + tenantId + "/documents/" + documentId + ".pdf")
+                .storageProvider(StorageProvider.LOCAL)
+                .status(DocumentStatus.ACTIVE)
+                .scanStatus(com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus.CLEAN)
+                .clientId(clientId)
+                .build();
+        document.setId(documentId);
+        document.setOrganizationId(tenantId);
+
+        when(documentRepository.findByIdAndOrganizationId(documentId, tenantId)).thenReturn(Optional.of(document));
+        when(storageService.getStorageProviderName()).thenReturn("LOCAL");
+        when(storageService.supportsPresignedUrls()).thenReturn(false);
+
+        com.taxoryn.module.document.dto.PresignedUrlResponse res = documentService.getDocumentDownloadUrl(documentId);
+
+        assertNotNull(res);
+        assertEquals("LOCAL", res.getProvider());
+        assertEquals("/api/v1/documents/" + documentId + "/download", res.getDownloadUrl());
+        assertEquals(0L, res.getExpiresInSeconds());
+        assertNull(res.getExpiresAt());
     }
 }

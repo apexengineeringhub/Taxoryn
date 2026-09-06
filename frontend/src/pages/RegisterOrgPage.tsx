@@ -7,6 +7,7 @@ import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { authApi } from '../api/endpoints';
 
 export const RegisterOrgPage: React.FC = () => {
+  const isDemoEnvironment = Boolean(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true');
   const [formData, setFormData] = useState({
     organizationName: '',
     organizationEmail: '',
@@ -26,6 +27,7 @@ export const RegisterOrgPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleQuickFillSample = () => {
+    if (!isDemoEnvironment) return;
     setFormData({
       organizationName: 'Apex Tax Advisors LLP',
       organizationEmail: 'contact@apextax.com',
@@ -283,13 +285,17 @@ export const RegisterOrgPage: React.FC = () => {
         </form>
 
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <button
-            type="button"
-            onClick={handleQuickFillSample}
-            className="text-brand-600 hover:text-brand-700 font-semibold inline-flex items-center gap-1"
-          >
-            <Sparkles className="w-3.5 h-3.5" /> Quick Fill Valid Sample
-          </button>
+          {isDemoEnvironment ? (
+            <button
+              type="button"
+              onClick={handleQuickFillSample}
+              className="text-brand-600 hover:text-brand-700 font-semibold inline-flex items-center gap-1"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Quick Fill Valid Sample
+            </button>
+          ) : (
+            <span className="text-slate-400">Already registered?</span>
+          )}
           <Link to="/login" className="hover:text-slate-800 font-semibold">
             Sign In →
           </Link>

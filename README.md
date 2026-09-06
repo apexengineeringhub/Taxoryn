@@ -62,14 +62,66 @@ chmod +x scripts/setup-db.sh
 ./scripts/setup-db.sh --seed
 ```
 
-### 3. Demo Credentials (from `seed-dev-data.sql`)
-| Role | Email | Password |
-|---|---|---|
-| **Org Admin** | `admin@apextax.com` | `Password123!` |
-| **Practice Manager** | `manager@apextax.com` | `Password123!` |
-| **Senior Tax Pro** | `taxpro@apextax.com` | `Password123!` |
-| **Staff Accountant** | `accountant@apextax.com` | `Password123!` |
-| **Firm Staff** | `staff@apextax.com` | `Password123!` |
+### 3. Environment Profiles & Configuration Matrix
+
+Taxoryn adopts a strict 3-tier environment isolation architecture:
+
+```text
+                 TAXORYN
+                    |
+        ┌───────────┼───────────┐
+        ↓           ↓           ↓
+       DEV         DEMO        PROD
+        |           |           |
+   local secrets  demo-safe   injected secrets
+        |           |           |
+   easy startup  easy demo    fail-fast
+                                |
+                                ↓
+                         NO DEFAULT SECRETS
+                         NO DEMO CREDENTIALS
+                         NO HARDCODED SECRETS
+```
+
+| Environment | Spring Profile | Credentials Source | Fail-Fast Enforcement | Purpose |
+|---|---|---|---|---|
+| **DEV** | `dev` | `application-dev.yml` (local defaults) | Permissive for rapid local iteration | Local developer workstation |
+| **DEMO** | `demo` | `application-demo.yml` (demo-safe defaults) | Isolated demo database & demo banner | Public sandbox & preview environments |
+| **PROD** | `prod` | Environment variables / Cloud secrets only | **Strict fail-fast** on missing/weak secrets | Production deployments |
+
+### 4. Production Environment Variables (Fail-Fast Requirements)
+
+When running with `SPRING_PROFILES_ACTIVE=prod`, the application validates all sensitive configuration during startup (`SmartInitializingSingleton`). If any required production secret is missing, weak, or matches repository defaults, **startup is immediately aborted**.
+
+| Variable | Required | Description | Example / Standard |
+|---|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | Yes | Active profile | `prod` |
+| `DB_URL` / `SPRING_DATASOURCE_URL` | Yes | PostgreSQL JDBC Connection URL | `jdbc:postgresql://postgres.internal:5432/taxoryn_prod` |
+| `DB_USERNAME` / `SPRING_DATASOURCE_USERNAME` | Yes | Production database username | `taxoryn_app_user` |
+| `DB_PASSWORD` / `SPRING_DATASOURCE_PASSWORD` | Yes | High-entropy production DB password | Injected via Secret Manager |
+| `JWT_SECRET` | Yes | 256-bit+ cryptographically random signing key | `openssl rand -base64 32` |
+| `CORS_ALLOWED_ORIGINS` | Yes | Production CORS origins whitelist | `https://taxoryn.com,https://app.taxoryn.com` |
+| `STORAGE_PROVIDER` | No | Storage driver (`LOCAL` or `S3`) | `S3` or `LOCAL` |
+| `STORAGE_BUCKET` | If S3 | S3/R2 storage bucket name | `taxoryn-production-documents` |
+| `STORAGE_REGION` | If S3 | Cloud storage region | `ap-south-1` |
+| `STORAGE_ACCESS_KEY` | If S3 | Cloud storage IAM access key | Injected via Secret Manager |
+| `STORAGE_SECRET_KEY` | If S3 | Cloud storage IAM secret key | Injected via Secret Manager |
+| `MAIL_ENABLED` | No | Enable real outbound emails | `true` or `false` |
+| `MAIL_PROVIDER` | If Mail | Provider: `SMTP`, `RESEND`, `BREVO` | `SMTP` |
+| `TAXORYN_BOOTSTRAP_ADMIN_EMAIL` | Optional | Initial SuperAdmin email for one-time bootstrap | `admin@taxoryn.com` |
+| `TAXORYN_BOOTSTRAP_ADMIN_PASSWORD` | Optional | Initial SuperAdmin strong password | 12+ chars, mixed complexity |
+
+### 5. Local Development & Demo Credentials (Non-Production Only)
+> [!NOTE]
+> The following accounts are strictly for local development and synthetic demo environments. They are **never** seeded or usable in production deployments. Production requires explicit one-time bootstrap via `TAXORYN_BOOTSTRAP_ADMIN_EMAIL` and `TAXORYN_BOOTSTRAP_ADMIN_PASSWORD` environment variables with high-entropy credentials.
+
+| Environment | Role | Email | Demo Password | Purpose |
+|---|---|---|---|---|
+| `dev`, `demo` | **Org Admin** | `admin@apextax.com` | `Password123!` | Tenant Admin (Apex Tax Advisors LLP) |
+| `dev`, `demo` | **Org Admin** | `pawanadv@gmail.com` | `Password123!` | Tenant Admin (Maa Mundeshwari Tax) |
+| `dev`, `demo` | **Practice Staff** | `pooja.joshi@maamundeshwari.com` | `Password123!` | Staff Workflow Execution |
+| `dev`, `demo` | **Client User** | `client.mundeshwari@maamundeshwari.com` | `Password123!` | Client Portal Access |
+| `dev` only | **Platform SuperAdmin** | `superadmin@taxoryn.com` | `Password123!` | Local Platform Governance (Dev only) |
 
 ---
 

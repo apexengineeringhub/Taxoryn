@@ -119,16 +119,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
         String detail = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
-        log.error("Database integrity violation at {}: {}", request.getRequestURI(), detail);
+        log.error("Database integrity violation at {}: {}", request.getRequestURI(), detail, ex);
         String msg = "Database integrity constraint violation";
         if (detail != null) {
             String lower = detail.toLowerCase();
             if (lower.contains("unique") || lower.contains("duplicate")) {
                 msg = "A record with identical unique details already exists";
             } else if (lower.contains("foreign key") || lower.contains("violates foreign key constraint")) {
-                msg = "Invalid foreign reference or referenced record not found";
+                msg = "Invalid foreign reference or referenced record not found: " + detail;
             } else if (lower.contains("not-null") || lower.contains("null value in column")) {
-                msg = "A required field value was missing or null";
+                msg = "A required field value was missing or null: " + detail;
+            } else if (lower.contains("value too long") || lower.contains("character varying")) {
+                msg = "One of the provided fields exceeds the maximum allowed length: " + detail;
+            } else {
+                msg = "Database integrity constraint violation: " + detail;
             }
         }
         return buildResponse(HttpStatus.CONFLICT, ErrorCode.RESOURCE_ALREADY_EXISTS.getCode(), msg, null, request);

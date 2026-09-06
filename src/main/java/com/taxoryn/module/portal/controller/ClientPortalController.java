@@ -3,6 +3,7 @@ package com.taxoryn.module.portal.controller;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.module.document.dto.DocumentDownloadDto;
 import com.taxoryn.module.document.dto.DocumentDto;
+import com.taxoryn.module.document.dto.PresignedUrlResponse;
 import com.taxoryn.module.document.dto.UploadDocumentRequest;
 import com.taxoryn.module.portal.dto.ClientDocumentRequestDto;
 import com.taxoryn.module.portal.dto.ClientGstStatusDto;
@@ -171,11 +172,48 @@ public class ClientPortalController {
     @Operation(summary = "Download client document", description = "Downloads a document belonging strictly to the authenticated client.")
     public ResponseEntity<byte[]> downloadClientDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = clientPortalService.downloadClientDocument(id);
+        String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
+
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(download.getContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.getFileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeDispositionName + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
+                .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
                 .body(download.getData());
+    }
+
+    @GetMapping("/documents/{id}/preview")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Preview client document", description = "Previews a document belonging strictly to the authenticated client inline.")
+    public ResponseEntity<byte[]> previewClientDocument(@PathVariable UUID id) {
+        DocumentDownloadDto download = clientPortalService.previewClientDocument(id);
+        String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(download.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + safeDispositionName + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
+                .body(download.getData());
+    }
+
+    @GetMapping("/documents/{id}/download-url")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Get client document download URL", description = "Generates a secure short-lived presigned download URL for S3/R2 storage or an authenticated streaming URL for local storage.")
+    public ResponseEntity<ApiResponse<PresignedUrlResponse>> getClientDocumentDownloadUrl(@PathVariable UUID id) {
+        PresignedUrlResponse response = clientPortalService.getClientDocumentDownloadUrl(id);
+        return ResponseEntity.ok(ApiResponse.success("Document download URL generated successfully", response));
+    }
+
+    private String sanitizeHeaderFilename(String filename) {
+        if (!org.springframework.util.StringUtils.hasText(filename)) return "document.bin";
+        return filename.replaceAll("[\r\n\"\\\\]", "_");
     }
 
     // =========================================================================

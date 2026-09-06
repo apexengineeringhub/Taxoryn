@@ -36,6 +36,12 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import com.taxoryn.module.document.dto.PresignedUrlResponse;
+import com.taxoryn.module.document.storage.StorageProperties;
+import com.taxoryn.core.security.upload.FileValidator;
+import com.taxoryn.core.security.upload.MalwareScanner;
+import com.taxoryn.core.security.upload.ScanResult;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus;
 import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 
@@ -46,11 +52,18 @@ public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
     private final DocumentStorageService storageService;
+    private final StorageProperties storageProperties;
     private final ClientRepository clientRepository;
+    private final com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository;
+    private final com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
+    private final com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository;
+    private final com.taxoryn.module.task.repository.TaskRepository taskRepository;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final DocumentMapper documentMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    private final FileValidator fileValidator;
+    private final MalwareScanner malwareScanner;
 
     @Override
     @Transactional
@@ -64,9 +77,53 @@ public class DocumentServiceImpl implements DocumentService {
         // Check MAX_STORAGE Subscription Limit
         subscriptionService.checkStorageLimit(organizationId, file.getSize());
 
+        // Validate Client relationship and tenant boundary
         if (request.getClientId() != null) {
             clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+
+            // Enforce client portal boundary: Portal user cannot upload into another client's vault
+            if (SecurityUtils.isClientPortalUser()) {
+                UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
+                if (currentClientId == null || !currentClientId.equals(request.getClientId())) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You cannot upload documents to another client's vault");
+                }
+            } else if (securityScopeEvaluator != null) {
+                // Enforce ABAC staff portfolio boundary: Restricted staff cannot upload to out-of-portfolio clients
+                PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+                if (scope != null && !scope.isFirmAdmin()) {
+                    Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                    if (accessibleClientIds == null || !accessibleClientIds.contains(request.getClientId())) {
+                        throw new org.springframework.security.access.AccessDeniedException(
+                                "Access denied: You do not have permission to upload documents for this client.");
+                    }
+                }
+            }
+        }
+
+        // Validate GST Filing tenant boundary if linked
+        if (request.getGstFilingId() != null && gstReturnFilingRepository != null) {
+            gstReturnFilingRepository.findByIdAndOrganizationId(request.getGstFilingId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("GST Filing", "id", request.getGstFilingId()));
+        }
+
+        // Validate ITR Return tenant boundary if linked
+        if (request.getItrReturnId() != null && itrReturnRepository != null) {
+            itrReturnRepository.findByIdAndOrganizationId(request.getItrReturnId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", request.getItrReturnId()));
+        }
+
+        // Validate TDS Return tenant boundary if linked
+        if (request.getTdsReturnId() != null && tdsReturnRepository != null) {
+            tdsReturnRepository.findByIdAndOrganizationId(request.getTdsReturnId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", request.getTdsReturnId()));
+        }
+
+        // Validate Task tenant boundary if linked
+        if (request.getTaskId() != null && taskRepository != null) {
+            taskRepository.findByIdAndOrganizationId(request.getTaskId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Task", "id", request.getTaskId()));
         }
 
         byte[] bytes;
@@ -78,16 +135,58 @@ public class DocumentServiceImpl implements DocumentService {
 
         String originalFilename = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "document.bin";
         String contentType = StringUtils.hasText(file.getContentType()) ? file.getContentType() : "application/octet-stream";
+
+        // 1. Multi-layer file validation (filename, extension, MIME, magic bytes, zip bomb inspection)
+        fileValidator.validate(originalFilename, contentType, bytes);
+
+        // 2. Malware and Antivirus signature scanning (Fail-closed)
+        ScanResult scanResult = malwareScanner.scan(bytes, originalFilename);
+        if (scanResult.isInfected()) {
+            log.warn("SECURITY ALERT: Malware detected in uploaded file '{}' for tenant {}: {}",
+                    originalFilename, organizationId, scanResult.getDetails());
+            auditService.logEvent("DOCUMENT_MALWARE_BLOCKED", "DOCUMENT", "N/A", null,
+                    "Malware detected in " + originalFilename + ": " + scanResult.getThreatName());
+            throw new BadRequestException("Malware detected in uploaded file: " + scanResult.getThreatName() + " (" + scanResult.getDetails() + ")");
+        }
+        if (scanResult.isFailed()) {
+            log.error("SECURITY ALERT: Malware scanning failed for file '{}' for tenant {}: {}. Enforcing fail-closed policy.",
+                    originalFilename, organizationId, scanResult.getDetails());
+            throw new BadRequestException("Malware scan failed for uploaded file: " + scanResult.getDetails());
+        }
+
         String checksum = calculateSha256(bytes);
 
-        // Store file in configured storage backend (Local / S3)
-        String storageKey = storageService.store(organizationId, originalFilename, contentType, bytes);
+        // Store file in configured storage backend (Local / S3) with tenant & client structured isolation
+        String storageKey = storageService.store(organizationId, request.getClientId(), null, originalFilename, contentType, bytes);
         StorageProvider provider = "S3".equalsIgnoreCase(storageService.getStorageProviderName()) ? StorageProvider.S3 : StorageProvider.LOCAL;
+
+        if (originalFilename.length() > 255) {
+            String ext = "";
+            int dotIdx = originalFilename.lastIndexOf('.');
+            if (dotIdx > 0) ext = originalFilename.substring(dotIdx);
+            int maxBase = 255 - ext.length();
+            originalFilename = originalFilename.substring(0, Math.min(maxBase, originalFilename.length())) + ext;
+        }
+
+        if (contentType.length() > 100) {
+            contentType = contentType.substring(0, 100);
+        }
+
+        String scannerName = scanResult.getScannerName();
+        if (scannerName != null && scannerName.length() > 100) {
+            scannerName = scannerName.substring(0, 100);
+        }
+
+        String scanDetails = scanResult.getDetails();
+        if (scanDetails != null && scanDetails.length() > 500) {
+            scanDetails = scanDetails.substring(0, 500);
+        }
 
         DocumentEntity entity = DocumentEntity.builder()
                 .clientId(request.getClientId())
                 .gstFilingId(request.getGstFilingId())
                 .itrReturnId(request.getItrReturnId())
+                .tdsReturnId(request.getTdsReturnId())
                 .taskId(request.getTaskId())
                 .documentType(request.getDocumentType())
                 .fileName(originalFilename)
@@ -98,14 +197,18 @@ public class DocumentServiceImpl implements DocumentService {
                 .financialYear(request.getFinancialYear())
                 .assessmentYear(request.getAssessmentYear())
                 .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.CLEAN)
+                .scannedAt(java.time.Instant.now())
+                .scannerName(scannerName)
+                .scanResultDetails(scanDetails)
                 .checksum(checksum)
                 .notes(request.getNotes())
                 .build();
         entity.setOrganizationId(organizationId);
 
         DocumentEntity saved = documentRepository.save(entity);
-        log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={} for tenant={}",
-                saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), organizationId);
+        log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={}, scanStatus={} for tenant={}",
+                saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), saved.getScanStatus(), organizationId);
 
         DocumentDto result = enrichDto(saved);
         auditService.logEvent("DOCUMENT_UPLOADED", "DOCUMENT", saved.getId().toString(), null, result);
@@ -120,6 +223,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
 
         validateDocumentAccess(document);
+        validateDocumentScanStatus(document);
 
         if (document.getStatus() == DocumentStatus.DELETED) {
             throw new ResourceNotFoundException("Document has been deleted", "id", id);
@@ -134,6 +238,80 @@ public class DocumentServiceImpl implements DocumentService {
                 .fileSize(document.getFileSize())
                 .data(data)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DocumentDownloadDto previewDocument(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        validateDocumentAccess(document);
+        validateDocumentScanStatus(document);
+
+        if (document.getStatus() == DocumentStatus.DELETED) {
+            throw new ResourceNotFoundException("Document has been deleted", "id", id);
+        }
+
+        byte[] data = storageService.retrieve(document.getStorageKey());
+        auditService.logEvent("DOCUMENT_PREVIEWED", "DOCUMENT", id.toString(), null, document.getFileName());
+
+        return DocumentDownloadDto.builder()
+                .fileName(document.getFileName())
+                .contentType(document.getContentType())
+                .fileSize(document.getFileSize())
+                .data(data)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PresignedUrlResponse getDocumentDownloadUrl(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        validateDocumentAccess(document);
+        validateDocumentScanStatus(document);
+
+        if (document.getStatus() == DocumentStatus.DELETED) {
+            throw new ResourceNotFoundException("Document has been deleted", "id", id);
+        }
+
+        String providerName = storageService.getStorageProviderName();
+        if (storageService.supportsPresignedUrls()) {
+            int durationMinutes = storageProperties != null ? storageProperties.getPresignedUrlDurationMinutes() : 15;
+            if (durationMinutes <= 0) {
+                durationMinutes = 15;
+            }
+            java.time.Duration expiration = java.time.Duration.ofMinutes(durationMinutes);
+            String presignedUrl = storageService.generatePresignedDownloadUrl(document.getStorageKey(), document.getFileName(), expiration);
+            java.time.Instant expiresAt = java.time.Instant.now().plus(expiration);
+
+            auditService.logEvent("DOCUMENT_PRESIGNED_URL_GENERATED", "DOCUMENT", id.toString(), null, document.getFileName());
+
+            return PresignedUrlResponse.builder()
+                    .downloadUrl(presignedUrl)
+                    .expiresInSeconds(expiration.toSeconds())
+                    .expiresAt(expiresAt)
+                    .fileName(document.getFileName())
+                    .contentType(document.getContentType())
+                    .fileSize(document.getFileSize())
+                    .provider(providerName)
+                    .build();
+        } else {
+            auditService.logEvent("DOCUMENT_DOWNLOAD_URL_REQUESTED", "DOCUMENT", id.toString(), null, document.getFileName());
+            return PresignedUrlResponse.builder()
+                    .downloadUrl("/api/v1/documents/" + id + "/download")
+                    .expiresInSeconds(0)
+                    .expiresAt(null)
+                    .fileName(document.getFileName())
+                    .contentType(document.getContentType())
+                    .fileSize(document.getFileSize())
+                    .provider("LOCAL")
+                    .build();
+        }
     }
 
     @Override
@@ -358,6 +536,18 @@ public class DocumentServiceImpl implements DocumentService {
                             "Access denied: You do not have permission to access documents for this client.");
                 }
             }
+        }
+    }
+
+    private void validateDocumentScanStatus(DocumentEntity document) {
+        if (document == null) return;
+        if (document.getScanStatus() != null
+                && document.getScanStatus() != DocumentScanStatus.CLEAN
+                && document.getScanStatus() != DocumentScanStatus.LEGACY_UNSCANNED) {
+            log.warn("SECURITY ALERT: Blocked download/preview of unscanned or infected document: id={}, scanStatus={}",
+                    document.getId(), document.getScanStatus());
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Access denied: Document has not passed malware scanning. Current scan status: " + document.getScanStatus());
         }
     }
 }

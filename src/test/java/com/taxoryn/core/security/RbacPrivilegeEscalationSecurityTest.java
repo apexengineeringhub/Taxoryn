@@ -194,6 +194,30 @@ class RbacPrivilegeEscalationSecurityTest {
     }
 
     @Test
+    @DisplayName("[PASS] Tenant Admin: Unknown/unclassified sensitive permission fails closed (DENY)")
+    void testTenantAdminCannotGrantUnknownOrUnclassifiedPermissionsFailClosed() {
+        authenticateUser(adminUserId, Set.of("ORG_ADMIN"), Set.of("ROLE_WRITE"));
+
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validatePermissionDelegation(Set.of("TENANT_SECURITY_CONFIGURATION_UPDATE")));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validatePermissionDelegation(Set.of("UNKNOWN_PRIVILEGED_PERMISSION")));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validatePermissionDelegation(Set.of("DATABASE_DUMP", "AUDIT_PURGE")));
+    }
+
+    @Test
+    @DisplayName("[PASS] Empty or null permission delegation requests fail safely")
+    void testEmptyOrNullPermissionDelegationFailsSafely() {
+        authenticateUser(adminUserId, Set.of("ORG_ADMIN"), Set.of("ROLE_WRITE"));
+
+        assertThrows(com.taxoryn.core.exception.BusinessValidationException.class, () ->
+                SecurityUtils.validatePermissionDelegation(null));
+        assertThrows(com.taxoryn.core.exception.BusinessValidationException.class, () ->
+                SecurityUtils.validatePermissionDelegation(java.util.Collections.emptySet()));
+    }
+
+    @Test
     @DisplayName("[PASS] Authorized tenant role assignment by PRACTICE_OWNER and PRACTICE_ADMIN")
     void testPracticeOwnerAndAdminCanAssignTenantRoles() {
         authenticateUser(adminUserId, Set.of("PRACTICE_OWNER"), Set.of("USER_UPDATE", "ROLE_WRITE"));

@@ -21,9 +21,13 @@ public interface AuthService {
 
     LoginResponse refreshToken(RefreshTokenRequest request);
 
+    LoginResponse refreshToken(RefreshTokenRequest request, String clientIp, String userAgent);
+
     UserDto getMe();
 
     void logout(String accessToken, LogoutRequest request);
+
+    void logoutAllSessions();
 
     void changePassword(ChangePasswordRequest request);
 

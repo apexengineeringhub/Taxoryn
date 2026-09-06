@@ -197,6 +197,31 @@ public class JwtTokenProvider {
         return Set.of();
     }
 
+    public String getTokenTypeFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims.get("tokenType", String.class);
+    }
+
+    public boolean isAccessToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            String tokenType = claims.get("tokenType", String.class);
+            return tokenType == null || "ACCESS".equalsIgnoreCase(tokenType);
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    public boolean isRefreshToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            String tokenType = claims.get("tokenType", String.class);
+            return "REFRESH".equalsIgnoreCase(tokenType);
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
     public boolean validateToken(String token) {
         if (tokenBlacklistService != null && tokenBlacklistService.isBlacklisted(token)) {
             log.debug("Token is revoked / blacklisted");

@@ -107,14 +107,16 @@ class RoleServiceTest {
         when(roleRepository.existsByCodeAndOrganizationId("SENIOR_AUDITOR", tenantId)).thenReturn(false);
 
         PermissionEntity p1 = PermissionEntity.builder().code("CLIENT_VIEW").name("View Clients").build();
-        when(permissionRepository.findByCodeIn(request.getPermissionCodes())).thenReturn(List.of(p1));
+        PermissionEntity p2 = PermissionEntity.builder().code("TASK_VIEW").name("View Tasks").build();
+        PermissionEntity p3 = PermissionEntity.builder().code("GST_VIEW").name("View GST").build();
+        when(permissionRepository.findByCodeIn(request.getPermissionCodes())).thenReturn(List.of(p1, p2, p3));
 
         RoleEntity saved = RoleEntity.builder()
                 .code("SENIOR_AUDITOR")
                 .name("Senior Auditor")
                 .organizationId(tenantId)
                 .isSystemRole(false)
-                .permissions(new HashSet<>(Set.of(p1)))
+                .permissions(new HashSet<>(Set.of(p1, p2, p3)))
                 .build();
         saved.setId(UUID.randomUUID());
 

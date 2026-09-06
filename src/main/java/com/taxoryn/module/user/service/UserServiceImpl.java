@@ -76,6 +76,9 @@ public class UserServiceImpl implements UserService {
         SecurityUtils.validateRoleDelegation(request.getRoleCodes(), null);
 
         List<RoleEntity> roles = roleService.getRolesByCodes(request.getRoleCodes(), organizationId);
+        if (roles.isEmpty() || roles.size() != request.getRoleCodes().size()) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("One or more specified role codes are invalid or not accessible");
+        }
 
         UserEntity user = UserEntity.builder()
                 .email(request.getEmail().toLowerCase().trim())
@@ -132,6 +135,9 @@ public class UserServiceImpl implements UserService {
             SecurityUtils.validateRoleDelegation(request.getRoleCodes(), userId);
 
             List<RoleEntity> roles = roleService.getRolesByCodes(request.getRoleCodes(), organizationId);
+            if (roles.isEmpty() || roles.size() != request.getRoleCodes().size()) {
+                throw new com.taxoryn.core.exception.BusinessValidationException("One or more specified role codes are invalid or not accessible");
+            }
 
             // 3. Prevent removing ORG_ADMIN from sole remaining admin
             boolean willBeOrgAdmin = roles.stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));

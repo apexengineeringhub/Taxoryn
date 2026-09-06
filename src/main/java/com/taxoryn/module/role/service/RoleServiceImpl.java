@@ -92,6 +92,10 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleDto createCustomRole(CreateRoleRequest request) {
+        if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.isTenantAdmin()) {
+            throw new ForbiddenException("Access denied: Only organization administrators can manage custom roles");
+        }
+
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         String code = request.getCode().toUpperCase().trim();
 
@@ -106,12 +110,12 @@ public class RoleServiceImpl implements RoleService {
             throw new DuplicateResourceException("Role", "code", code);
         }
 
-        // 3. Delegation boundary validation: caller cannot grant permissions exceeding their authority
+        // 3. Delegation boundary validation: caller cannot grant permissions exceeding their authority (fail closed)
         SecurityUtils.validatePermissionDelegation(request.getPermissionCodes());
 
         List<PermissionEntity> matchedPermissions = permissionRepository.findByCodeIn(request.getPermissionCodes());
-        if (matchedPermissions.isEmpty()) {
-            throw new BusinessValidationException("At least one valid permission code must be provided");
+        if (matchedPermissions.isEmpty() || matchedPermissions.size() != request.getPermissionCodes().size()) {
+            throw new BusinessValidationException("One or more specified permission codes are invalid or not found");
         }
 
         RoleEntity role = RoleEntity.builder()
@@ -133,6 +137,10 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleDto updateCustomRole(UUID roleId, UpdateRoleRequest request) {
+        if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.isTenantAdmin()) {
+            throw new ForbiddenException("Access denied: Only organization administrators can manage custom roles");
+        }
+
         RoleEntity role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
 
@@ -142,14 +150,14 @@ public class RoleServiceImpl implements RoleService {
 
         validateTenantAccess(role.getOrganizationId());
 
-        // Delegation boundary validation: caller cannot grant permissions exceeding their authority
+        // Delegation boundary validation: caller cannot grant permissions exceeding their authority (fail closed)
         SecurityUtils.validatePermissionDelegation(request.getPermissionCodes());
 
         RoleDto oldSnapshot = roleMapper.toDto(role);
 
         List<PermissionEntity> matchedPermissions = permissionRepository.findByCodeIn(request.getPermissionCodes());
-        if (matchedPermissions.isEmpty()) {
-            throw new BusinessValidationException("At least one valid permission code must be provided");
+        if (matchedPermissions.isEmpty() || matchedPermissions.size() != request.getPermissionCodes().size()) {
+            throw new BusinessValidationException("One or more specified permission codes are invalid or not found");
         }
 
         role.setName(request.getName().trim());
@@ -168,6 +176,10 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public void deleteCustomRole(UUID roleId) {
+        if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.isTenantAdmin()) {
+            throw new ForbiddenException("Access denied: Only organization administrators can manage custom roles");
+        }
+
         RoleEntity role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
 
@@ -203,8 +215,8 @@ public class RoleServiceImpl implements RoleService {
         SecurityUtils.validateRoleDelegation(request.getRoleCodes(), userId);
 
         List<RoleEntity> roles = getRolesByCodes(request.getRoleCodes(), organizationId);
-        if (roles.isEmpty()) {
-            throw new BusinessValidationException("At least one valid role must be assigned");
+        if (roles.isEmpty() || roles.size() != request.getRoleCodes().size()) {
+            throw new BusinessValidationException("One or more specified role codes are invalid or not accessible");
         }
 
         // 3. Prevent tenant lockout: If target is currently an ORG_ADMIN and new roles do not contain ORG_ADMIN

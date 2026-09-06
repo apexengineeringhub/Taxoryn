@@ -43,6 +43,10 @@ public interface ClientPortalService {
 
     DocumentDownloadDto downloadClientDocument(UUID documentId);
 
+    DocumentDownloadDto previewClientDocument(UUID documentId);
+
+    com.taxoryn.module.document.dto.PresignedUrlResponse getClientDocumentDownloadUrl(UUID documentId);
+
     List<ClientTaskDto> getClientTasks();
 
     List<ClientNotificationDto> getClientNotifications();

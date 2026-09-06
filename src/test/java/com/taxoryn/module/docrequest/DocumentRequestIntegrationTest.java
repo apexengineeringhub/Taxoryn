@@ -304,11 +304,12 @@ class DocumentRequestIntegrationTest {
                 .andExpect(jsonPath("$.data[0].purpose", is("GST Audit FY 2026-27")));
 
         // 3. Client uploads file for item
+        byte[] validZipBytes = new byte[]{(byte) 0x50, (byte) 0x4B, (byte) 0x05, (byte) 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "Purchase_Register_Aug_2026.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "mock-excel-binary-data".getBytes()
+                validZipBytes
         );
 
         mockMvc.perform(multipart("/api/v1/portal/document-requests/v1/items/" + itemId + "/upload")
@@ -390,7 +391,7 @@ class DocumentRequestIntegrationTest {
 
         UUID itemId = UUID.fromString(objectMapper.readTree(createStr).path("data").path("items").get(0).path("id").asText());
 
-        MockMultipartFile file1 = new MockMultipartFile("file", "statement_incomplete.pdf", "application/pdf", "data".getBytes());
+        MockMultipartFile file1 = new MockMultipartFile("file", "statement_incomplete.pdf", "application/pdf", "%PDF-1.4 mock incomplete".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mockMvc.perform(multipart("/api/v1/portal/document-requests/v1/items/" + itemId + "/upload")
                         .file(file1)
                         .header("Authorization", clientToken1))
@@ -415,7 +416,7 @@ class DocumentRequestIntegrationTest {
                 .andExpect(jsonPath("$.data.items[0].rejectionReason", containsString("missing months Oct-Mar")));
 
         // 4. Client re-uploads replacement document
-        MockMultipartFile file2 = new MockMultipartFile("file", "statement_full_12months.pdf", "application/pdf", "data".getBytes());
+        MockMultipartFile file2 = new MockMultipartFile("file", "statement_full_12months.pdf", "application/pdf", "%PDF-1.4 mock full".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mockMvc.perform(multipart("/api/v1/portal/document-requests/v1/items/" + itemId + "/upload")
                         .file(file2)
                         .header("Authorization", clientToken1))
@@ -482,7 +483,7 @@ class DocumentRequestIntegrationTest {
                 .andExpect(status().isNotFound());
 
         // Client 2 attempts to upload to Client 1's item -> 404
-        MockMultipartFile file = new MockMultipartFile("file", "leak.pdf", "application/pdf", "data".getBytes());
+        MockMultipartFile file = new MockMultipartFile("file", "leak.pdf", "application/pdf", "%PDF-1.4 mock leak".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mockMvc.perform(multipart("/api/v1/portal/document-requests/v1/items/" + itemId + "/upload")
                         .file(file)
                         .header("Authorization", clientToken2))

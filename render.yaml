@@ -1,11 +1,10 @@
 # Render Blueprint for the Taxoryn backend (Spring Boot API).
 # Docs: https://render.com/docs/blueprint-spec
 #
-# This file only manages deployment/runtime settings for the existing Render Web Service.
-# It does not provision a managed Postgres instance - Taxoryn already points at an
-# externally configured database via the SPRING_DATASOURCE_* / DB_* environment variables
-# (see application-demo.yml / application-prod.yml). Set those in the Render dashboard's
-# "Environment" tab for this service, they are intentionally not duplicated here.
+# This file manages deployment/runtime settings for the public demo service (SPRING_PROFILES_ACTIVE=demo).
+# For production deployments, deploy with SPRING_PROFILES_ACTIVE=prod and inject required secrets
+# (DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET) via the Render dashboard Environment tab.
+# Production strictly fails fast at startup if any required secret is missing or insecure.
 #
 # See docs/RENDER_KEEPALIVE.md for the full explanation of the health check and keep-alive setup.
 

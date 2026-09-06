@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import com.taxoryn.core.security.AuthCookieUtil;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+
 @RestController
 @RequestMapping({"/api/v1/marketplace/customer", "/api/marketplace/customer"})
 @RequiredArgsConstructor
@@ -22,6 +26,7 @@ import java.util.UUID;
 public class MarketplaceCustomerController {
 
     private final MarketplaceCustomerService customerService;
+    private final AuthCookieUtil authCookieUtil;
 
     @PostMapping("/register")
     @Operation(summary = "Register Marketplace Customer", description = "Creates a new customer identity and customer profile for marketplace interactions")
@@ -29,7 +34,9 @@ public class MarketplaceCustomerController {
             @Valid @RequestBody RegisterCustomerRequest request
     ) {
         CustomerAuthResponseDto response = customerService.registerCustomer(request);
+        ResponseCookie cookie = authCookieUtil.createRefreshTokenCookie(response.getRefreshToken());
         return ResponseEntity.status(HttpStatus.CREATED)
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(ApiResponse.success("Marketplace customer account created successfully", response));
     }
 

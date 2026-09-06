@@ -41,9 +41,16 @@ public class LearnContentDemoDataSeeder implements CommandLineRunner {
     private final TaxServiceCategoryRepository categoryRepository;
     private final TaxServiceRepository taxServiceRepository;
     private final UserRepository userRepository;
+    private final org.springframework.core.env.Environment environment;
 
     @Override
     public void run(String... args) {
+        List<String> activeProfiles = java.util.Arrays.asList(environment.getActiveProfiles());
+        if (activeProfiles.contains("prod") || activeProfiles.contains("production")) {
+            log.error("CRITICAL SECURITY GUARD: LearnContentDemoDataSeeder execution blocked because production profile is active!");
+            return;
+        }
+
         // Fast-path for warm restarts: content items are the last artifact this seeder
         // produces, so their presence means categories/services/tags were already fully
         // seeded on a prior run. Skip re-walking every ensure-check (dozens of individual

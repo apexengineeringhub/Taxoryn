@@ -3,6 +3,7 @@ package com.taxoryn.module.marketplace.service;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.security.JwtTokenProvider;
 import com.taxoryn.core.security.SecurityUser;
+import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
 import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.entity.*;
@@ -88,6 +89,9 @@ class MarketplaceCustomerServiceTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @Mock
+    private com.taxoryn.module.authentication.repository.RefreshTokenRepository refreshTokenRepository;
+
+    @Mock
     private AuditService auditService;
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
@@ -121,6 +125,7 @@ class MarketplaceCustomerServiceTest {
                 completenessCalculator,
                 passwordEncoder,
                 jwtTokenProvider,
+                refreshTokenRepository,
                 auditService,
                 eventPublisher
         );
@@ -189,7 +194,7 @@ class MarketplaceCustomerServiceTest {
         });
 
         when(jwtTokenProvider.generateAccessToken(any(), any(), any(), anyString(), any(), any())).thenReturn("mockAccessToken");
-        when(jwtTokenProvider.generateRefreshToken(any(), any(), any(), anyString())).thenReturn("mockRefreshToken");
+        when(refreshTokenRepository.save(any(RefreshTokenEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CustomerAuthResponseDto response = customerService.registerCustomer(req);
 
