@@ -28,12 +28,16 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
 
     private final EmailProperties emailProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newBuilder()
+    private HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
     @Autowired(required = false)
     private JavaMailSender javaMailSender;
+
+    void setHttpClient(HttpClient httpClient) {
+        this.httpClient = httpClient;
+    }
 
     @Override
     public boolean sendEmail(String recipientEmail, String recipientName, String subject, String content, Map<String, Object> templateData) {
@@ -93,7 +97,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
                 return true;
             }
 
-            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "taxoryn@gmail.com";
+            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "notifications@taxoryn.com";
             String fromName = StringUtils.hasText(emailProperties.getFromName()) ? emailProperties.getFromName() : "Taxoryn";
             String formattedFrom = String.format("%s <%s>", fromName, fromAddress);
 
@@ -102,6 +106,10 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             payload.put("to", Collections.singletonList(recipientEmail));
             payload.put("subject", subject);
             payload.put("html", htmlContent);
+
+            if (StringUtils.hasText(emailProperties.getReplyTo())) {
+                payload.put("reply_to", emailProperties.getReplyTo().trim());
+            }
 
             String requestBody = objectMapper.writeValueAsString(payload);
 
@@ -142,7 +150,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
                 return true;
             }
 
-            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "taxoryn@gmail.com";
+            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "notifications@taxoryn.com";
             String fromName = StringUtils.hasText(emailProperties.getFromName()) ? emailProperties.getFromName() : "Taxoryn";
 
             Map<String, Object> sender = new HashMap<>();
@@ -160,6 +168,13 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             payload.put("to", Collections.singletonList(recipient));
             payload.put("subject", subject);
             payload.put("htmlContent", htmlContent);
+
+            if (StringUtils.hasText(emailProperties.getReplyTo())) {
+                Map<String, Object> replyToMap = new HashMap<>();
+                replyToMap.put("email", emailProperties.getReplyTo().trim());
+                replyToMap.put("name", fromName);
+                payload.put("replyTo", replyToMap);
+            }
 
             String requestBody = objectMapper.writeValueAsString(payload);
 
@@ -198,13 +213,17 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
 
-            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "taxoryn@gmail.com";
+            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "notifications@taxoryn.com";
             String fromName = StringUtils.hasText(emailProperties.getFromName()) ? emailProperties.getFromName() : "Taxoryn";
 
             helper.setFrom(fromAddress, fromName);
             helper.setTo(recipientEmail);
             helper.setSubject(subject);
             helper.setText(content, true);
+
+            if (StringUtils.hasText(emailProperties.getReplyTo())) {
+                helper.setReplyTo(emailProperties.getReplyTo().trim());
+            }
 
             javaMailSender.send(message);
             log.info("[EMAIL_SENT] Successfully dispatched SMTP email to '{}' <{}> | Subject: '{}'",

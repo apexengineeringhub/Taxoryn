@@ -5,10 +5,7 @@ import com.taxoryn.core.exception.InternalServerException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -31,33 +28,27 @@ import java.net.URI;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Production storage implementation for Cloudflare R2 / AWS S3 / MinIO object storage.
- * Active when taxoryn.storage.provider=S3.
+ * Fails closed on any configuration, network, or storage failure.
+ * Never falls back to in-memory, mock, or fake signatures in production.
  */
 @Slf4j
-@Service
-@RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "taxoryn.storage", name = "provider", havingValue = "S3")
 public class S3DocumentStorageService implements DocumentStorageService {
 
     private final StorageProperties storageProperties;
-
     private S3Client s3Client;
     private S3Presigner s3Presigner;
 
-    // In-memory buffer fallback for testing / offline mocking environments
-    private final ConcurrentMap<String, byte[]> fallbackMockBuffer = new ConcurrentHashMap<>();
-    private boolean useMockBufferOnly = false;
+    public S3DocumentStorageService(StorageProperties storageProperties) {
+        this.storageProperties = storageProperties;
+    }
 
     public S3DocumentStorageService(StorageProperties storageProperties, S3Client s3Client, S3Presigner s3Presigner) {
         this.storageProperties = storageProperties;
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
-        this.useMockBufferOnly = (s3Client == null);
     }
 
     @PostConstruct
@@ -67,14 +58,29 @@ public class S3DocumentStorageService implements DocumentStorageService {
         }
 
         StorageProperties.S3 s3Props = storageProperties.getS3();
-        String endpoint = s3Props.getEndpoint();
-        String regionStr = StringUtils.hasText(s3Props.getRegion()) ? s3Props.getRegion() : "auto";
+        if (s3Props == null) {
+            throw new IllegalStateException("S3 configuration block is missing in StorageProperties");
+        }
+
+        String endpoint = s3Props.getResolvedEndpoint();
+        String regionStr = StringUtils.hasText(s3Props.getRegion()) ? s3Props.getRegion().trim() : "auto";
         String accessKey = s3Props.getAccessKey();
         String secretKey = s3Props.getSecretKey();
+        String bucket = s3Props.getBucket();
+
+        if (!StringUtils.hasText(bucket)) {
+            throw new IllegalStateException("S3/R2 bucket name is required ('taxoryn.storage.s3.bucket' / STORAGE_BUCKET)");
+        }
+        if (!StringUtils.hasText(accessKey)) {
+            throw new IllegalStateException("S3/R2 access key is required ('taxoryn.storage.s3.access-key' / STORAGE_ACCESS_KEY)");
+        }
+        if (!StringUtils.hasText(secretKey)) {
+            throw new IllegalStateException("S3/R2 secret key is required ('taxoryn.storage.s3.secret-key' / STORAGE_SECRET_KEY)");
+        }
 
         if (StringUtils.hasText(endpoint)) {
             if (!endpoint.startsWith("https://") && !endpoint.contains("localhost") && !endpoint.contains("127.0.0.1")) {
-                log.warn("SECURITY WARNING: S3/R2 endpoint is configured with insecure HTTP protocol: {}", endpoint);
+                log.warn("SECURITY WARNING: S3/R2 endpoint is configured with non-HTTPS protocol: {}", endpoint);
             }
         }
 
@@ -83,14 +89,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
             S3ClientBuilder clientBuilder = S3Client.builder().region(region);
             S3Presigner.Builder presignerBuilder = S3Presigner.builder().region(region);
 
-            if (StringUtils.hasText(accessKey) && StringUtils.hasText(secretKey)) {
-                StaticCredentialsProvider creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey));
-                clientBuilder.credentialsProvider(creds);
-                presignerBuilder.credentialsProvider(creds);
-            }
+            StaticCredentialsProvider creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey.trim(), secretKey.trim()));
+            clientBuilder.credentialsProvider(creds);
+            presignerBuilder.credentialsProvider(creds);
 
             if (StringUtils.hasText(endpoint)) {
-                URI endpointUri = URI.create(endpoint);
+                URI endpointUri = URI.create(endpoint.trim());
                 clientBuilder.endpointOverride(endpointUri);
                 presignerBuilder.endpointOverride(endpointUri);
             }
@@ -101,13 +105,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
 
             this.s3Client = clientBuilder.build();
             this.s3Presigner = presignerBuilder.build();
-            this.useMockBufferOnly = false;
 
             log.info("Initialized S3DocumentStorageService (bucket: {}, region: {}, endpoint: {})",
-                    s3Props.getBucket(), regionStr, StringUtils.hasText(endpoint) ? endpoint : "AWS Default");
+                    bucket, regionStr, StringUtils.hasText(endpoint) ? endpoint : "AWS Default");
         } catch (Exception e) {
-            log.warn("Could not fully initialize AWS S3 SDK clients (fallback mock mode activated for tests): {}", e.getMessage());
-            this.useMockBufferOnly = true;
+            log.error("Failed to initialize AWS S3 / Cloudflare R2 client: {}", e.getMessage(), e);
+            throw new IllegalStateException("Failed to initialize S3/R2 storage client: " + e.getMessage(), e);
         }
     }
 
@@ -135,6 +138,7 @@ public class S3DocumentStorageService implements DocumentStorageService {
         if (data == null || data.length == 0) {
             throw new BadRequestException("Cannot store empty document file");
         }
+        ensureClientInitialized();
 
         String safeExt = getSafeExtension(originalFilename);
         String orgPrefix = organizationId != null ? "org_" + organizationId : "platform";
@@ -152,125 +156,136 @@ public class S3DocumentStorageService implements DocumentStorageService {
         String bucket = storageProperties.getS3().getBucket();
         String mimeType = StringUtils.hasText(contentType) ? contentType : "application/octet-stream";
 
-        if (!useMockBufferOnly && s3Client != null) {
-            try {
-                PutObjectRequest putRequest = PutObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(s3Key)
-                        .contentType(mimeType)
-                        .build();
+        try {
+            // 1. PutObject to S3 / Cloudflare R2
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(s3Key)
+                    .contentType(mimeType)
+                    .build();
 
-                s3Client.putObject(putRequest, RequestBody.fromBytes(data));
-                log.info("Uploaded document to S3/R2 bucket [{}] at key [{}]", bucket, s3Key);
-                fallbackMockBuffer.put(s3Key, data);
-                return s3Key;
-            } catch (S3Exception e) {
-                String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
-                log.error("S3/R2 bucket [{}] rejected upload: {}", bucket, errorMsg, e);
-                throw new InternalServerException("S3/R2 storage rejected upload: " + errorMsg);
-            } catch (SdkException e) {
-                log.error("S3/R2 client connection error: {}", e.getMessage(), e);
-                throw new InternalServerException("Failed to connect to S3/R2 storage: " + e.getMessage());
-            } catch (Exception e) {
-                log.error("Failed to upload object to S3/R2 storage: {}", e.getMessage(), e);
-                throw new InternalServerException("Failed to store file in object storage: " + e.getMessage());
-            }
-        } else {
-            fallbackMockBuffer.put(s3Key, data);
-            log.info("Stored document in mock S3 buffer at key: {}", s3Key);
+            s3Client.putObject(putRequest, RequestBody.fromBytes(data));
+        } catch (S3Exception e) {
+            String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
+            log.error("S3/R2 bucket [{}] rejected upload: {}", bucket, errorMsg, e);
+            throw new InternalServerException("S3/R2 storage rejected upload: " + errorMsg);
+        } catch (SdkException e) {
+            log.error("S3/R2 client connection error during upload: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to connect to S3/R2 storage: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to upload object to S3/R2 storage: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to store file in object storage: " + e.getMessage());
+        }
+
+        // 2. HeadObject Verification: confirm object was committed and is accessible
+        try {
+            HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(s3Key)
+                    .build();
+            s3Client.headObject(headRequest);
+            log.info("Uploaded and verified document in S3/R2 bucket [{}] at key [{}]", bucket, s3Key);
             return s3Key;
+        } catch (Exception headEx) {
+            log.error("HeadObject verification failed after upload for key [{}] in bucket [{}]: {}", s3Key, bucket, headEx.getMessage());
+            // Attempt cleanup of unverified object
+            try {
+                s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(s3Key).build());
+            } catch (Exception cleanupEx) {
+                log.warn("Failed to cleanup unverified S3/R2 object at key [{}]: {}", s3Key, cleanupEx.getMessage());
+            }
+            throw new InternalServerException("Document storage verification failed in S3/R2 object storage");
         }
     }
 
     @Override
     public byte[] retrieve(String storageKey) {
         validateStorageKey(storageKey);
-
-        if (fallbackMockBuffer.containsKey(storageKey)) {
-            return fallbackMockBuffer.get(storageKey);
-        }
+        ensureClientInitialized();
 
         String bucket = storageProperties.getS3().getBucket();
-        if (!useMockBufferOnly && s3Client != null) {
-            try {
-                GetObjectRequest getRequest = GetObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(storageKey)
-                        .build();
+        try {
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(storageKey)
+                    .build();
 
-                return s3Client.getObjectAsBytes(getRequest).asByteArray();
-            } catch (NoSuchKeyException e) {
-                log.warn("Object not found in S3 bucket [{}] for key: {}", bucket, storageKey);
+            return s3Client.getObjectAsBytes(getRequest).asByteArray();
+        } catch (NoSuchKeyException e) {
+            log.warn("Object not found in S3 bucket [{}] for key: {}", bucket, storageKey);
+            throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
                 throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
-            } catch (S3Exception e) {
-                if (e.statusCode() == 404) {
-                    throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
-                }
-                log.error("Failed to retrieve object from S3: {}", e.awsErrorDetails().errorMessage(), e);
-                throw new InternalServerException("Failed to retrieve document from object storage");
-            } catch (SdkException e) {
-                log.warn("S3 client connection unavailable for retrieve: {}", e.getMessage());
-                if (fallbackMockBuffer.containsKey(storageKey)) {
-                    return fallbackMockBuffer.get(storageKey);
-                }
-                throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
-            } catch (Exception e) {
-                log.error("Failed to retrieve object from S3: {}", e.getMessage(), e);
-                throw new InternalServerException("Failed to retrieve document from object storage: " + e.getMessage());
             }
+            String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
+            log.error("Failed to retrieve object from S3: {}", errorMsg, e);
+            throw new InternalServerException("Failed to retrieve document from object storage");
+        } catch (SdkException e) {
+            log.error("S3 client connection error during retrieve: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to connect to object storage: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to retrieve object from S3: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to retrieve document from object storage: " + e.getMessage());
         }
-
-        throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
     }
 
     @Override
     public void delete(String storageKey) {
         if (!StringUtils.hasText(storageKey)) return;
-        try {
-            validateStorageKey(storageKey);
-            fallbackMockBuffer.remove(storageKey);
+        validateStorageKey(storageKey);
+        ensureClientInitialized();
 
-            if (!useMockBufferOnly && s3Client != null) {
-                String bucket = storageProperties.getS3().getBucket();
-                DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(storageKey)
-                        .build();
-                s3Client.deleteObject(deleteRequest);
-                log.info("Deleted document from S3 bucket [{}] for key: {}", bucket, storageKey);
+        String bucket = storageProperties.getS3().getBucket();
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(storageKey)
+                    .build();
+            s3Client.deleteObject(deleteRequest);
+            log.info("Deleted document from S3 bucket [{}] for key: {}", bucket, storageKey);
+        } catch (NoSuchKeyException e) {
+            log.debug("Document already absent in S3 bucket [{}] for key: {}", bucket, storageKey);
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                log.debug("Document already absent in S3 bucket [{}] for key: {}", bucket, storageKey);
+                return;
             }
-        } catch (BadRequestException e) {
-            log.warn("Ignored invalid S3 storage key delete attempt: {}", e.getMessage());
+            String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
+            log.error("Failed to delete S3 document [{}]: {}", storageKey, errorMsg, e);
+            throw new InternalServerException("Failed to delete document from object storage: " + errorMsg);
         } catch (Exception e) {
-            log.warn("Failed to delete S3 document: {}", e.getMessage());
+            log.error("Failed to delete S3 document [{}]: {}", storageKey, e.getMessage(), e);
+            throw new InternalServerException("Failed to delete document from object storage: " + e.getMessage());
         }
     }
 
     @Override
     public boolean exists(String storageKey) {
         if (!StringUtils.hasText(storageKey)) return false;
-        try {
-            validateStorageKey(storageKey);
-            if (fallbackMockBuffer.containsKey(storageKey)) {
-                return true;
-            }
+        validateStorageKey(storageKey);
+        ensureClientInitialized();
 
-            if (!useMockBufferOnly && s3Client != null) {
-                String bucket = storageProperties.getS3().getBucket();
-                HeadObjectRequest headRequest = HeadObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(storageKey)
-                        .build();
-                s3Client.headObject(headRequest);
-                return true;
-            }
-            return false;
+        String bucket = storageProperties.getS3().getBucket();
+        try {
+            HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(storageKey)
+                    .build();
+            s3Client.headObject(headRequest);
+            return true;
         } catch (NoSuchKeyException e) {
             return false;
         } catch (S3Exception e) {
-            return e.statusCode() != 404 && false;
-        } catch (Exception e) {
-            return fallbackMockBuffer.containsKey(storageKey);
+            if (e.statusCode() == 404) {
+                return false;
+            }
+            String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
+            log.error("S3 exists check failed with error: {}", errorMsg, e);
+            throw new InternalServerException("Failed to check document existence in object storage: " + errorMsg);
+        } catch (SdkException e) {
+            log.error("S3 connection error during exists check: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to connect to object storage: " + e.getMessage());
         }
     }
 
@@ -287,35 +302,47 @@ public class S3DocumentStorageService implements DocumentStorageService {
     @Override
     public String generatePresignedDownloadUrl(String storageKey, String originalFilename, Duration expiration) {
         validateStorageKey(storageKey);
+        if (s3Presigner == null) {
+            throw new IllegalStateException("S3 Presigner is not initialized");
+        }
+
         String bucket = storageProperties.getS3().getBucket();
         String safeDispositionName = sanitizeHeaderFilename(originalFilename);
 
-        if (s3Presigner != null) {
-            try {
-                GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(storageKey)
-                        .responseContentDisposition("attachment; filename=\"" + safeDispositionName + "\"")
-                        .build();
+        // Bound expiration between 1 minute and max allowed duration (e.g. 60 min)
+        long requestedMinutes = (expiration != null && !expiration.isNegative() && !expiration.isZero())
+                ? expiration.toMinutes()
+                : storageProperties.getPresignedUrlDurationMinutes();
+        int maxAllowedMinutes = storageProperties.getMaxPresignedUrlDurationMinutes() > 0
+                ? storageProperties.getMaxPresignedUrlDurationMinutes()
+                : 60;
+        long boundedMinutes = Math.max(1, Math.min(requestedMinutes, maxAllowedMinutes));
+        Duration effectiveExpiration = Duration.ofMinutes(boundedMinutes);
 
-                GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                        .signatureDuration(expiration)
-                        .getObjectRequest(getObjectRequest)
-                        .build();
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(storageKey)
+                    .responseContentDisposition("attachment; filename=\"" + safeDispositionName + "\"")
+                    .build();
 
-                PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
-                return presigned.url().toString();
-            } catch (Exception e) {
-                log.error("Failed to generate presigned S3 URL for key {}: {}", storageKey, e.getMessage(), e);
-                throw new InternalServerException("Failed to generate secure download URL: " + e.getMessage());
-            }
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(effectiveExpiration)
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
+            return presigned.url().toString();
+        } catch (Exception e) {
+            log.error("Failed to generate presigned S3 URL for key {}: {}", storageKey, e.getMessage(), e);
+            throw new InternalServerException("Failed to generate secure download URL: " + e.getMessage());
         }
+    }
 
-        // Fallback signed URL generator for offline test mock
-        String endpoint = StringUtils.hasText(storageProperties.getS3().getEndpoint())
-                ? storageProperties.getS3().getEndpoint()
-                : "https://" + bucket + ".s3." + storageProperties.getS3().getRegion() + ".amazonaws.com";
-        return endpoint + "/" + storageKey + "?X-Amz-Expires=" + expiration.toSeconds() + "&X-Amz-Signature=" + UUID.randomUUID();
+    private void ensureClientInitialized() {
+        if (this.s3Client == null) {
+            init();
+        }
     }
 
     private void validateStorageKey(String storageKey) {

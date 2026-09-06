@@ -265,7 +265,55 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "resendApiKey", "");
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
-        assertTrue(ex.getMessage().contains("RESEND_API_KEY is missing"));
+        assertTrue(ex.getMessage().contains("RESEND_API_KEY is missing or weak"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Mail is enabled with RESEND but API key is placeholder")
+    void testProductionFailsWhenResendApiKeyIsPlaceholder() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "mailEnabled", true);
+        ReflectionTestUtils.setField(validator, "mailProvider", "RESEND");
+        ReflectionTestUtils.setField(validator, "resendApiKey", "re_123456789");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("RESEND_API_KEY is missing or weak"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Mail sender is generic gmail in production")
+    void testProductionFailsWhenSenderIsGmailInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "mailEnabled", true);
+        ReflectionTestUtils.setField(validator, "mailProvider", "RESEND");
+        ReflectionTestUtils.setField(validator, "resendApiKey", "re_987654321_ValidResendApiKeyProduction123");
+        ReflectionTestUtils.setField(validator, "mailFromEmail", "taxoryn@gmail.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("cannot use consumer or example mailbox"));
+    }
+
+    @Test
+    @DisplayName("Success: Production passes when Mail is enabled with valid RESEND configuration")
+    void testProductionPassesWithValidResendConfiguration() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "mailEnabled", true);
+        ReflectionTestUtils.setField(validator, "mailProvider", "RESEND");
+        ReflectionTestUtils.setField(validator, "resendApiKey", "re_987654321_ValidResendApiKeyProduction123");
+        ReflectionTestUtils.setField(validator, "mailFromEmail", "notifications@taxoryn.com");
+        ReflectionTestUtils.setField(validator, "mailReplyTo", "support@taxoryn.com");
+
+        UserEntity inactiveLegacyUser = UserEntity.builder()
+                .email("superadmin@taxoryn.com")
+                .status(UserStatus.INACTIVE)
+                .passwordHash("$2a$12$DISABLED.INACTIVE.ACCOUNT.LOCKOUT.HASH.taxoryn.prod.safe.guard000")
+                .build();
+        when(userRepository.findByEmailIgnoreCase("superadmin@taxoryn.com")).thenReturn(Optional.of(inactiveLegacyUser));
+
+        assertDoesNotThrow(validator::validateEnvironmentSecurity);
     }
 
     @Test

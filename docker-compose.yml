@@ -18,6 +18,22 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://taxoryn.com,https://*.taxoryn.com}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-LOCAL}
       STORAGE_LOCAL_BASE_DIR: /app/data/documents
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-taxoryn-documents}
+      STORAGE_REGION: ${STORAGE_REGION:-auto}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_PATH_STYLE_ACCESS: ${STORAGE_PATH_STYLE_ACCESS:-false}
+      STORAGE_PRESIGNED_URL_DURATION_MINUTES: ${STORAGE_PRESIGNED_URL_DURATION_MINUTES:-15}
+      TAXORYN_COOKIE_DOMAIN: ${TAXORYN_COOKIE_DOMAIN:-}
+      TAXORYN_COOKIE_SECURE: ${TAXORYN_COOKIE_SECURE:-true}
+      TAXORYN_RESET_PASSWORD_URL: ${TAXORYN_RESET_PASSWORD_URL:-https://app.taxoryn.com/reset-password}
+      TAXORYN_LOGIN_URL: ${TAXORYN_LOGIN_URL:-https://app.taxoryn.com/login}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-RESEND}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      TAXORYN_EMAIL_FROM: ${TAXORYN_EMAIL_FROM:-notifications@taxoryn.com}
+      TAXORYN_EMAIL_REPLY_TO: ${TAXORYN_EMAIL_REPLY_TO:-support@taxoryn.com}
     volumes:
       - taxoryn_documents:/app/data/documents
       - taxoryn_logs:/app/logs

@@ -19,9 +19,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Slf4j
-@Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "taxoryn.storage", name = "provider", havingValue = "LOCAL", matchIfMissing = true)
 public class LocalDocumentStorageService implements DocumentStorageService {
 
     private final StorageProperties storageProperties;
