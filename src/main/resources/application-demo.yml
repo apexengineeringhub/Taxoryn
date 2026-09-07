@@ -67,16 +67,16 @@ taxoryn:
     enabled: true
     banner-text: "DEMO ENVIRONMENT — Synthetic data only. Not for real tax filings."
   frontend:
-    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn-7x7f.vercel.app/reset-password}
   auth:
-    reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
+    reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn-7x7f.vercel.app/reset-password}
   mail:
     enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:AUTO}
     from-email: ${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:notifications@taxoryn.com}}
     from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
     reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:support@taxoryn.com}}
-    login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
+    login-url: ${TAXORYN_LOGIN_URL:https://taxoryn-7x7f.vercel.app/login}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
   jwt:

@@ -19,11 +19,15 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     List<PasswordResetTokenEntity> findAllByUserIdAndUsedAtIsNull(UUID userId);
 
-    @Modifying
-    @Query("UPDATE PasswordResetTokenEntity t SET t.usedAt = :now WHERE t.userId = :userId AND t.usedAt IS NULL")
-    void invalidateAllPendingTokensForUser(@Param("userId") UUID userId, @Param("now") Instant now);
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE PasswordResetTokenEntity t SET t.usedAt = :now WHERE t.tokenHash = :tokenHash AND t.usedAt IS NULL AND t.expiresAt > :now")
+    int consumeTokenAtomic(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE PasswordResetTokenEntity t SET t.usedAt = :now WHERE t.userId = :userId AND t.usedAt IS NULL")
+    int invalidateAllPendingTokensForUser(@Param("userId") UUID userId, @Param("now") Instant now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM PasswordResetTokenEntity t WHERE t.expiresAt < :cutoff")
-    void deleteExpiredTokens(@Param("cutoff") Instant cutoff);
+    int deleteExpiredTokens(@Param("cutoff") Instant cutoff);
 }

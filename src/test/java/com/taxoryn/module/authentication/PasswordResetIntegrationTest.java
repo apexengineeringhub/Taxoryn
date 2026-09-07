@@ -3,9 +3,12 @@ package com.taxoryn.module.authentication;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
+import com.taxoryn.module.authentication.dto.RefreshTokenRequest;
 import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
 import com.taxoryn.module.authentication.entity.PasswordResetTokenEntity;
+import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
 import com.taxoryn.module.authentication.repository.PasswordResetTokenRepository;
+import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.user.entity.UserEntity;
@@ -21,13 +24,20 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -55,6 +65,9 @@ class PasswordResetIntegrationTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private UserEntity testUser;
@@ -62,6 +75,7 @@ class PasswordResetIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        refreshTokenRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
@@ -85,29 +99,269 @@ class PasswordResetIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should successfully request password reset for existing active user")
-    void testForgotPassword_ExistingUser() throws Exception {
-        ForgotPasswordRequest request = new ForgotPasswordRequest(testUser.getEmail());
-
+    @DisplayName("A. Happy path: Request password reset and complete reset with new password")
+    void testForgotPasswordAndReset_HappyPath() throws Exception {
+        // 1. Request password reset
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
         mockMvc.perform(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("If an account exists for this email, you will receive password reset instructions."));
 
         List<PasswordResetTokenEntity> tokens = passwordResetTokenRepository.findAllByUserIdAndUsedAtIsNull(testUser.getId());
         assertThat(tokens).hasSize(1);
-
         PasswordResetTokenEntity token = tokens.get(0);
         assertThat(token.getTokenHash()).hasSize(64);
         assertThat(token.getExpiresAt()).isAfter(Instant.now());
         assertThat(token.getUsedAt()).isNull();
+
+        // 2. Perform reset using a known raw token
+        String rawToken = "happy-path-test-raw-token-1234567890";
+        String tokenHash = hashToken(rawToken);
+        token.setTokenHash(tokenHash);
+        passwordResetTokenRepository.save(token);
+
+        ResetPasswordRequest resetRequest = new ResetPasswordRequest(rawToken, "BrandNewSecurePassword456!");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resetRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Password has been reset successfully. You can now log in with your new password."));
+
+        // Verify token is now marked as used
+        PasswordResetTokenEntity updatedToken = passwordResetTokenRepository.findById(token.getId()).orElseThrow();
+        assertThat(updatedToken.isUsed()).isTrue();
+        assertThat(updatedToken.getUsedAt()).isNotNull();
+
+        // 3. Verify login succeeds with new password
+        LoginRequest loginRequest = new LoginRequest(testUser.getEmail(), "BrandNewSecurePassword456!");
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
     }
 
     @Test
-    @DisplayName("Should return generic 200 response for non-existent email (anti-enumeration)")
-    void testForgotPassword_NonExistentEmail() throws Exception {
+    @DisplayName("B. Old password rejection: Old password fails login immediately after reset")
+    void testResetPassword_OldPasswordFails() throws Exception {
+        String rawToken = "old-pwd-test-token-12345";
+        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
+                .userId(testUser.getId())
+                .tokenHash(hashToken(rawToken))
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
+                .createdByIp("127.0.0.1")
+                .build());
+
+        ResetPasswordRequest resetRequest = new ResetPasswordRequest(rawToken, "BrandNewSecurePassword456!");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resetRequest)))
+                .andExpect(status().isOk());
+
+        // Attempting to log in with old password MUST fail
+        LoginRequest oldLoginRequest = new LoginRequest(testUser.getEmail(), "OldPassword123!");
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(oldLoginRequest)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("C. Token reuse rejection: Reusing an already consumed token fails (single-use)")
+    void testResetPassword_TokenReuseRejected() throws Exception {
+        String rawToken = "reuse-test-token-12345";
+        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
+                .userId(testUser.getId())
+                .tokenHash(hashToken(rawToken))
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
+                .createdByIp("127.0.0.1")
+                .build());
+
+        ResetPasswordRequest resetRequest = new ResetPasswordRequest(rawToken, "BrandNewSecurePassword456!");
+        // First reset -> SUCCESS
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resetRequest)))
+                .andExpect(status().isOk());
+
+        // Second reset with SAME token -> MUST FAIL (401 Unauthorized)
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resetRequest)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("D. Expired token rejection: Using an expired token fails")
+    void testResetPassword_ExpiredTokenRejected() throws Exception {
+        String rawToken = "expired-token-12345";
+        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
+                .userId(testUser.getId())
+                .tokenHash(hashToken(rawToken))
+                .expiresAt(Instant.now().minus(10, ChronoUnit.MINUTES)) // expired
+                .createdByIp("127.0.0.1")
+                .build());
+
+        ResetPasswordRequest request = new ResetPasswordRequest(rawToken, "BrandNewSecurePassword456!");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("E. Invalid token rejection: Random, truncated, or modified tokens are rejected")
+    void testResetPassword_InvalidTokenRejected() throws Exception {
+        ResetPasswordRequest randomRequest = new ResetPasswordRequest("completely-non-existent-random-token", "BrandNewSecurePassword456!");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(randomRequest)))
+                .andExpect(status().isUnauthorized());
+
+        ResetPasswordRequest blankTokenRequest = new ResetPasswordRequest("   ", "BrandNewSecurePassword456!");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(blankTokenRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("F. Multiple reset requests: Generating Token B invalidates Token A")
+    void testForgotPassword_MultipleRequests_InvalidatesPreviousTokens() throws Exception {
+        // Request 1
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ForgotPasswordRequest(testUser.getEmail()))))
+                .andExpect(status().isOk());
+
+        List<PasswordResetTokenEntity> firstTokens = passwordResetTokenRepository.findAll();
+        assertThat(firstTokens).hasSize(1);
+        PasswordResetTokenEntity tokenA = firstTokens.get(0);
+        String rawTokenA = "raw-token-A-12345";
+        tokenA.setTokenHash(hashToken(rawTokenA));
+        passwordResetTokenRepository.save(tokenA);
+
+        // Request 2 (generates Token B and invalidates Token A)
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ForgotPasswordRequest(testUser.getEmail()))))
+                .andExpect(status().isOk());
+
+        List<PasswordResetTokenEntity> allTokens = passwordResetTokenRepository.findAll();
+        assertThat(allTokens).hasSize(2);
+
+        PasswordResetTokenEntity tokenB = allTokens.stream()
+                .filter(t -> t.getUsedAt() == null)
+                .findFirst()
+                .orElseThrow();
+        String rawTokenB = "raw-token-B-67890";
+        tokenB.setTokenHash(hashToken(rawTokenB));
+        passwordResetTokenRepository.save(tokenB);
+
+        // Verify Token A is marked used/invalidated
+        PasswordResetTokenEntity refreshedTokenA = passwordResetTokenRepository.findById(tokenA.getId()).orElseThrow();
+        assertThat(refreshedTokenA.isUsed()).isTrue();
+
+        // Reset with Token A MUST FAIL
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ResetPasswordRequest(rawTokenA, "NewSecurePassword456!"))))
+                .andExpect(status().isUnauthorized());
+
+        // Reset with Token B MUST SUCCEED
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ResetPasswordRequest(rawTokenB, "NewSecurePassword456!"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("G. Concurrent reset race condition: Exactly 1 concurrent request succeeds and 1 fails")
+    void testResetPassword_ConcurrentAtomicConsumption_PreventsRaceCondition() throws Exception {
+        String rawToken = "concurrent-race-test-token-12345";
+        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
+                .userId(testUser.getId())
+                .tokenHash(hashToken(rawToken))
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
+                .createdByIp("127.0.0.1")
+                .build());
+
+        int threadCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+        List<Integer> statusCodes = Collections.synchronizedList(new ArrayList<>());
+
+        for (int i = 0; i < threadCount; i++) {
+            executor.submit(() -> {
+                try {
+                    startLatch.await(); // wait for simultaneous launch
+                    ResetPasswordRequest request = new ResetPasswordRequest(rawToken, "NewSecurePassword456!");
+                    MvcResult result = mockMvc.perform(post("/api/auth/reset-password")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(objectMapper.writeValueAsString(request)))
+                            .andReturn();
+                    statusCodes.add(result.getResponse().getStatus());
+                } catch (Exception e) {
+                    statusCodes.add(500);
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown(); // trigger simultaneous requests
+        boolean finished = doneLatch.await(10, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertThat(finished).isTrue();
+        assertThat(statusCodes).hasSize(2);
+        // Exactly ONE request must succeed (200) and ONE must fail (401)
+        assertThat(statusCodes).containsExactlyInAnyOrder(200, 401);
+    }
+
+    @Test
+    @DisplayName("H. Password validation: Weak, short, or invalid passwords are rejected")
+    void testResetPassword_WeakPasswordRejected() throws Exception {
+        String rawToken = "weak-pwd-token-12345";
+        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
+                .userId(testUser.getId())
+                .tokenHash(hashToken(rawToken))
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
+                .createdByIp("127.0.0.1")
+                .build());
+
+        // Too short (< 8 chars)
+        ResetPasswordRequest shortRequest = new ResetPasswordRequest(rawToken, "Short1!");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(shortRequest)))
+                .andExpect(status().isBadRequest());
+
+        // Missing special character
+        ResetPasswordRequest noSpecialRequest = new ResetPasswordRequest(rawToken, "NoSpecialChar123");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(noSpecialRequest)))
+                .andExpect(status().isBadRequest());
+
+        // Known weak dictionary password (password123!)
+        ResetPasswordRequest weakDictionaryRequest = new ResetPasswordRequest(rawToken, "password123!");
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(weakDictionaryRequest)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("I. Anti-enumeration: Non-existent email returns generic success without creating tokens")
+    void testForgotPassword_NonExistentEmail_AntiEnumeration() throws Exception {
         ForgotPasswordRequest request = new ForgotPasswordRequest("doesnotexist@nowhere.com");
 
         mockMvc.perform(post("/api/auth/forgot-password")
@@ -121,105 +375,46 @@ class PasswordResetIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should successfully reset password using valid raw token and log in with new password")
-    void testResetPassword_Success() throws Exception {
-        String rawToken = "my-super-secret-secure-reset-token-1234567890";
-        String tokenHash = hashToken(rawToken);
-
-        PasswordResetTokenEntity token = passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
+    @DisplayName("J. Session invalidation: Existing active refresh tokens are revoked after password reset")
+    void testResetPassword_RevokesActiveSessions() throws Exception {
+        // 1. Create an active refresh token session before password reset
+        String rawRefreshToken = "initial-session-refresh-token-12345";
+        RefreshTokenEntity activeSession = refreshTokenRepository.save(RefreshTokenEntity.builder()
                 .userId(testUser.getId())
-                .tokenHash(tokenHash)
+                .organizationId(testOrg.getId())
+                .tokenHash(hashToken(rawRefreshToken))
+                .familyId(UUID.randomUUID())
+                .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
+                .createdByIp("127.0.0.1")
+                .userAgent("Mozilla/5.0")
+                .build());
+
+        // 2. Perform password reset with valid reset token
+        String rawResetToken = "session-revocation-reset-token-12345";
+        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
+                .userId(testUser.getId())
+                .tokenHash(hashToken(rawResetToken))
                 .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
                 .createdByIp("127.0.0.1")
                 .build());
 
-        ResetPasswordRequest request = new ResetPasswordRequest(rawToken, "NewSecurePassword456!");
-
+        ResetPasswordRequest resetRequest = new ResetPasswordRequest(rawResetToken, "NewSecurePassword456!");
         mockMvc.perform(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Password has been reset successfully. You can now log in with your new password."));
+                        .content(objectMapper.writeValueAsString(resetRequest)))
+                .andExpect(status().isOk());
 
-        // Verify token is now marked as used
-        PasswordResetTokenEntity updatedToken = passwordResetTokenRepository.findById(token.getId()).orElseThrow();
-        assertThat(updatedToken.isUsed()).isTrue();
-        assertThat(updatedToken.getUsedAt()).isNotNull();
+        // 3. Verify the previous session refresh token was revoked
+        RefreshTokenEntity revokedSession = refreshTokenRepository.findById(activeSession.getId()).orElseThrow();
+        assertThat(revokedSession.isRevoked()).isTrue();
+        assertThat(revokedSession.getRevokedReason()).isEqualTo("PASSWORD_RESET");
 
-        // Verify user can log in with new password
-        LoginRequest loginRequest = new LoginRequest(testUser.getEmail(), "NewSecurePassword456!");
-        mockMvc.perform(post("/api/auth/login")
+        // 4. Attempting to refresh tokens with the old session MUST fail (401 Unauthorized)
+        RefreshTokenRequest refreshReq = new RefreshTokenRequest(rawRefreshToken);
+        mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
-    }
-
-    @Test
-    @DisplayName("Should reject password reset with invalid token")
-    void testResetPassword_InvalidToken() throws Exception {
-        ResetPasswordRequest request = new ResetPasswordRequest("completely-invalid-raw-token", "NewSecurePassword456!");
-
-        mockMvc.perform(post("/api/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(refreshReq)))
                 .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("Should reject password reset with expired token")
-    void testResetPassword_ExpiredToken() throws Exception {
-        String rawToken = "expired-token-123";
-        String tokenHash = hashToken(rawToken);
-
-        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
-                .userId(testUser.getId())
-                .tokenHash(tokenHash)
-                .expiresAt(Instant.now().minus(5, ChronoUnit.MINUTES)) // expired 5 mins ago
-                .createdByIp("127.0.0.1")
-                .build());
-
-        ResetPasswordRequest request = new ResetPasswordRequest(rawToken, "NewSecurePassword456!");
-
-        mockMvc.perform(post("/api/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("Should reject password reset with already used token (single-use)")
-    void testResetPassword_AlreadyUsedToken() throws Exception {
-        String rawToken = "used-token-123";
-        String tokenHash = hashToken(rawToken);
-
-        passwordResetTokenRepository.save(PasswordResetTokenEntity.builder()
-                .userId(testUser.getId())
-                .tokenHash(tokenHash)
-                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
-                .usedAt(Instant.now().minus(2, ChronoUnit.MINUTES)) // already used
-                .createdByIp("127.0.0.1")
-                .build());
-
-        ResetPasswordRequest request = new ResetPasswordRequest(rawToken, "NewSecurePassword456!");
-
-        mockMvc.perform(post("/api/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("Should reject reset password when password does not meet complexity standards")
-    void testResetPassword_WeakPassword() throws Exception {
-        ResetPasswordRequest request = new ResetPasswordRequest("some-valid-token", "weak"); // too short, missing requirements
-
-        mockMvc.perform(post("/api/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
     }
 
     private String hashToken(String rawToken) throws Exception {

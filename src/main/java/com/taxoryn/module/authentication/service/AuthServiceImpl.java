@@ -6,6 +6,7 @@ import com.taxoryn.core.exception.ErrorCode;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.exception.UnauthorizedException;
 import com.taxoryn.core.security.JwtTokenProvider;
+import com.taxoryn.core.security.PasswordSecurityUtils;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.audit.service.AuditService;
@@ -510,20 +511,68 @@ public class AuthServiceImpl implements AuthService {
         // Generic return for anti-enumeration security
     }
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     @Override
     @Transactional
     public void resetPassword(ResetPasswordRequest request, String clientIp) {
+        if (PasswordSecurityUtils.isKnownDefaultOrWeakPassword(request.getNewPassword())) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Password is too weak or commonly used. Please choose a stronger password.");
+        }
+
         String rawToken = request.getToken().trim();
         String tokenHash = hashToken(rawToken);
+        Instant now = Instant.now();
 
-        PasswordResetTokenEntity tokenEntity = passwordResetTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new BadCredentialsException("Invalid or expired password reset token"));
-
-        if (!tokenEntity.isValid()) {
-            log.warn("Attempt to use invalid/expired password reset token {} (used: {}, expired: {})",
-                    tokenEntity.getId(), tokenEntity.isUsed(), tokenEntity.isExpired());
+        // 1. ATOMIC TOKEN CONSUMPTION: Prevents race conditions from concurrent reset requests
+        int consumed = passwordResetTokenRepository.consumeTokenAtomic(tokenHash, now);
+        if (consumed == 0) {
+            // Token was already used, expired, or invalid - inspect store to record specific security audit event
+            Optional<PasswordResetTokenEntity> existingTokenOpt = passwordResetTokenRepository.findByTokenHash(tokenHash);
+            if (existingTokenOpt.isPresent()) {
+                PasswordResetTokenEntity existing = existingTokenOpt.get();
+                if (existing.isUsed()) {
+                    log.warn("SECURITY ALERT: Password reset token reuse attempted for tokenId: {}, userId: {}",
+                            existing.getId(), existing.getUserId());
+                    auditService.logEvent(
+                            null,
+                            existing.getUserId(),
+                            "PASSWORD_RESET_TOKEN_REUSE",
+                            "USER",
+                            existing.getUserId().toString(),
+                            null,
+                            "Attempted reuse of already consumed password reset token from IP: " + (clientIp != null ? clientIp : "unknown")
+                    );
+                } else if (existing.isExpired()) {
+                    log.info("Password reset token expired for tokenId: {}, userId: {}",
+                            existing.getId(), existing.getUserId());
+                    auditService.logEvent(
+                            null,
+                            existing.getUserId(),
+                            "PASSWORD_RESET_TOKEN_EXPIRED",
+                            "USER",
+                            existing.getUserId().toString(),
+                            null,
+                            "Attempted use of expired password reset token from IP: " + (clientIp != null ? clientIp : "unknown")
+                    );
+                }
+            } else {
+                auditService.logEvent(
+                        null,
+                        null,
+                        "PASSWORD_RESET_FAILED",
+                        "USER",
+                        null,
+                        null,
+                        "Password reset failed with invalid token from IP: " + (clientIp != null ? clientIp : "unknown")
+                );
+            }
             throw new BadCredentialsException("Invalid or expired password reset token");
         }
+
+        // 2. TOKEN SUCCESSFULLY CONSUMED: Proceed to update password and invalidate sessions
+        PasswordResetTokenEntity tokenEntity = passwordResetTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new BadCredentialsException("Invalid or expired password reset token"));
 
         UserEntity user = userRepository.findById(tokenEntity.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", tokenEntity.getUserId()));
@@ -532,21 +581,17 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.ACCOUNT_INACTIVE, "User account is " + user.getStatus() + ". Password cannot be reset");
         }
 
-        // 1. Update user password hash
+        // 3. Update user password hash
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
-        // 2. Mark token as consumed
-        tokenEntity.setUsedAt(Instant.now());
-        passwordResetTokenRepository.save(tokenEntity);
+        // 4. Invalidate any other outstanding pending password reset tokens for this user
+        passwordResetTokenRepository.invalidateAllPendingTokensForUser(user.getId(), now);
 
-        // 3. Invalidate any other pending password reset tokens
-        passwordResetTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+        // 5. Invalidate all active refresh token sessions for this user upon password reset
+        refreshTokenRepository.revokeAllByUserId(user.getId(), now, "PASSWORD_RESET");
 
-        // 4. Invalidate all active refresh token sessions for this user upon password reset
-        refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "PASSWORD_RESET");
-
-        // 5. Record audit log
+        // 6. Record audit log
         auditService.logEvent(
                 user.getOrganizationId(),
                 user.getId(),
@@ -624,13 +669,13 @@ public class AuthServiceImpl implements AuthService {
 
     private String generateSecureToken() {
         byte[] randomBytes = new byte[32];
-        new SecureRandom().nextBytes(randomBytes);
+        SECURE_RANDOM.nextBytes(randomBytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
     private String generateSecureRefreshToken() {
         byte[] randomBytes = new byte[64];
-        new SecureRandom().nextBytes(randomBytes);
+        SECURE_RANDOM.nextBytes(randomBytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 

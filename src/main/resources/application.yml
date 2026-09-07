@@ -33,9 +33,9 @@ server:
 # Taxoryn Security & JWT configuration
 taxoryn:
   frontend:
-    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
   auth:
-    reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}
+    reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:http://localhost:5173/reset-password}
     cookie:
       name: ${TAXORYN_COOKIE_NAME:taxoryn_refresh_token}
       secure: ${TAXORYN_COOKIE_SECURE:false}
@@ -68,14 +68,14 @@ taxoryn:
     business-account-id: ${WHATSAPP_BUSINESS_ACCOUNT_ID:}
     phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
     access-token: ${WHATSAPP_ACCESS_TOKEN:}
-    login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
+    login-url: ${TAXORYN_LOGIN_URL:http://localhost:5173/login}
   mail:
     enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:LOG}
     from-email: ${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:notifications@taxoryn.com}}
     from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
     reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:support@taxoryn.com}}
-    login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
+    login-url: ${TAXORYN_LOGIN_URL:http://localhost:5173/login}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
 
