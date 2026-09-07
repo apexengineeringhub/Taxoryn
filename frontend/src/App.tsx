@@ -58,7 +58,6 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').t
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
-import { getTenantSubdomain } from './utils/tenantUrl';
 
 // Sleek Skeleton Page Fallback
 const PageLoadingFallback: React.FC = () => (
@@ -69,15 +68,6 @@ const PageLoadingFallback: React.FC = () => (
     </div>
   </div>
 );
-
-// Dynamic Multi-Tenant Subdomain Resolver
-const TenantRootResolver: React.FC = () => {
-  const tenantSubdomain = getTenantSubdomain();
-  if (tenantSubdomain) {
-    return <PracticePublicProfilePage overrideSlug={tenantSubdomain} />;
-  }
-  return <Navigate to="/dashboard" replace />;
-};
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -111,8 +101,8 @@ export const App: React.FC = () => {
         <BrowserRouter>
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>
-            {/* Root Route: Tenant Subdomain Resolution (e.g., https://apex.taxoryn.com) or Dashboard */}
-            <Route path="/" element={<TenantRootResolver />} />
+            {/* Central SaaS Root Route */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             {/* Public Auth & Discovery Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />

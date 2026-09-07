@@ -73,8 +73,9 @@ taxoryn:
   mail:
     enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:AUTO}
-    from-email: ${MAIL_FROM_EMAIL:taxoryn@gmail.com}
-    from-name: ${MAIL_FROM_NAME:Taxoryn}
+    from-email: ${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:notifications@taxoryn.com}}
+    from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
+    reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:support@taxoryn.com}}
     login-url: ${TAXORYN_LOGIN_URL:https://taxoryn.com/login}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
@@ -86,7 +87,7 @@ taxoryn:
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
     issuer: ${JWT_ISSUER:taxoryn-demo}
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:8089,https://taxoryn.com,https://*.taxoryn.com,https://taxoryn-7x7f.vercel.app,https://*.vercel.app}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:8089,https://taxoryn.com,https://app.taxoryn.com,https://taxoryn-7x7f.vercel.app,https://*.vercel.app}
     allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
     allowed-headers: "*"
     allow-credentials: true

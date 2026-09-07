@@ -75,7 +75,7 @@ taxoryn:
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
     issuer: ${JWT_ISSUER:taxoryn-platform}
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://taxoryn.com,https://*.taxoryn.com,https://app.taxoryn.com,https://portal.taxoryn.com}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://taxoryn.com,https://app.taxoryn.com}
     allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
     allowed-headers: "*"
     allow-credentials: true
