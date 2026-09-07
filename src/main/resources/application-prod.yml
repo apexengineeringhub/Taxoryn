@@ -59,7 +59,7 @@ taxoryn:
       path: ${TAXORYN_COOKIE_PATH:/}
       domain: ${TAXORYN_COOKIE_DOMAIN:}
   mail:
-    enabled: ${MAIL_ENABLED:false}
+    enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:RESEND}
     from-email: ${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:notifications@taxoryn.com}}
     from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
