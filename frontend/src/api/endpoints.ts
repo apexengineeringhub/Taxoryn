@@ -154,8 +154,16 @@ export const authApi = {
     return res.data.data;
   },
   registerOrg: async (payload: any) => {
-    const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/register-organization', payload);
+    const res = await apiClient.post<ApiResponse<{ organizationId: string; organizationName: string; adminEmail: string; status: string; message: string }>>('/v1/auth/register-organization', payload);
     return res.data.data;
+  },
+  activateOrg: async (token: string) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/activate-organization', { token });
+    return res.data;
+  },
+  resendActivation: async (email: string) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/resend-activation', { email });
+    return res.data;
   },
   refreshToken: async () => {
     const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/refresh', {});

@@ -280,31 +280,28 @@ class BrowserTokenSecurityIntegrationTest {
     }
 
     @Test
-    @DisplayName("Register organization sets HttpOnly refresh token cookie")
+    @DisplayName("Register organization registers in INACTIVE status and login after activation sets HttpOnly refresh token cookie")
     void registerOrganizationSetsHttpOnlyCookie() throws Exception {
+        String adminEmail = "admin" + UUID.randomUUID() + "@taxoryn.com";
+        String adminPassword = "SecureNewOrgPassword123!";
+
         RegisterOrganizationRequest request = RegisterOrganizationRequest.builder()
                 .organizationName("New Org Reg")
                 .organizationEmail("newreg" + UUID.randomUUID() + "@taxoryn.com")
                 .organizationPhone("9123456780")
-                .adminEmail("admin" + UUID.randomUUID() + "@taxoryn.com")
-                .adminPassword("SecureNewOrgPassword123!")
+                .adminEmail(adminEmail)
+                .adminPassword(adminPassword)
                 .adminFirstName("Admin")
                 .adminLastName("User")
                 .build();
 
-        MvcResult result = mockMvc.perform(post("/api/auth/register-organization")
+        // 1. Register organization -> INACTIVE status, no auth cookie
+        mockMvc.perform(post("/api/auth/register-organization")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
-                .andExpect(header().exists(HttpHeaders.SET_COOKIE))
-                .andReturn();
-
-        String setCookieHeader = result.getResponse().getHeader(HttpHeaders.SET_COOKIE);
-        assertNotNull(setCookieHeader);
-        assertTrue(setCookieHeader.contains(authCookieUtil.getCookieName() + "="));
-        assertTrue(setCookieHeader.contains("HttpOnly"));
-        assertTrue(setCookieHeader.contains("SameSite=Lax"));
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
     }
 
     @Test

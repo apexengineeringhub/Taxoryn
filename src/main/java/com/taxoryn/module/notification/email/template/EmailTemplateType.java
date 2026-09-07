@@ -15,7 +15,8 @@ public enum EmailTemplateType {
     PASSWORD_RESET("Reset Your Taxoryn Account Password"),
     DOCUMENT_REQUEST("Documents Required — {{purpose}}"),
     DOCUMENT_REMINDER("Reminder: Documents Required — {{purpose}}"),
-    DOCUMENT_REJECTED("Action Required: Document Needs Correction — {{purpose}}");
+    DOCUMENT_REJECTED("Action Required: Document Needs Correction — {{purpose}}"),
+    ORGANIZATION_ACTIVATION("Activate Your Taxoryn Practice Account");
 
     private final String defaultSubject;
 }

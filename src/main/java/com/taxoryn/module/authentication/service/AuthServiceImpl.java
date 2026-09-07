@@ -10,6 +10,7 @@ import com.taxoryn.core.security.PasswordSecurityUtils;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.audit.service.AuditService;
+import com.taxoryn.module.authentication.dto.ActivateOrganizationRequest;
 import com.taxoryn.module.authentication.dto.ChangePasswordRequest;
 import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
@@ -17,10 +18,14 @@ import com.taxoryn.module.authentication.dto.LoginResponse;
 import com.taxoryn.module.authentication.dto.LogoutRequest;
 import com.taxoryn.module.authentication.dto.RefreshTokenRequest;
 import com.taxoryn.module.authentication.dto.RegisterOrganizationRequest;
+import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
 import com.taxoryn.module.authentication.dto.RegisterUserByAdminRequest;
+import com.taxoryn.module.authentication.dto.ResendActivationRequest;
 import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
+import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
 import com.taxoryn.module.authentication.entity.PasswordResetTokenEntity;
 import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
+import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
 import com.taxoryn.module.authentication.repository.PasswordResetTokenRepository;
 import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
 import com.taxoryn.module.notification.email.service.EmailNotificationService;
@@ -82,6 +87,7 @@ public class AuthServiceImpl implements AuthService {
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
@@ -95,8 +101,14 @@ public class AuthServiceImpl implements AuthService {
     @Value("${taxoryn.auth.password-reset.expiration-minutes:30}")
     private long passwordResetExpirationMinutes;
 
-    @Value("${taxoryn.frontend.reset-password-url:${taxoryn.auth.reset-password-base-url:${TAXORYN_RESET_PASSWORD_URL:https://taxoryn.com/reset-password}}}")
+    @Value("${taxoryn.auth.reset-password-url:${taxoryn.frontend.reset-password-url:${taxoryn.auth.reset-password-base-url:${TAXORYN_RESET_PASSWORD_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/reset-password}}}}")
     private String resetPasswordBaseUrl;
+
+    @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
+    private String activationBaseUrl;
+
+    @Value("${taxoryn.auth.activation.expiration-hours:24}")
+    private long activationExpirationHours;
 
     @Override
     @Transactional
@@ -131,7 +143,13 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public LoginResponse registerOrganization(RegisterOrganizationRequest request) {
+    public RegisterOrganizationResponse registerOrganization(RegisterOrganizationRequest request) {
+        return registerOrganization(request, null);
+    }
+
+    @Override
+    @Transactional
+    public RegisterOrganizationResponse registerOrganization(RegisterOrganizationRequest request, String clientIp) {
         String orgEmail = request.getOrganizationEmail().toLowerCase().trim();
         String adminEmail = request.getAdminEmail().toLowerCase().trim();
 
@@ -143,19 +161,19 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateResourceException("User", "email", adminEmail);
         }
 
-        // 1. Create Organization Entity
+        // 1. Create Organization Entity in INACTIVE status awaiting email activation
         OrganizationEntity organization = OrganizationEntity.builder()
                 .name(request.getOrganizationName().trim())
                 .email(orgEmail)
                 .phone(request.getOrganizationPhone())
                 .pan(request.getPan())
                 .gstin(request.getGstin())
-                .status(OrganizationStatus.ACTIVE)
+                .status(OrganizationStatus.INACTIVE)
                 .subscriptionPlan(SubscriptionPlan.STARTER)
                 .build();
 
         OrganizationEntity savedOrg = organizationRepository.save(organization);
-        log.info("Created organization tenant: id={}, name={}", savedOrg.getId(), savedOrg.getName());
+        log.info("Created organization tenant (INACTIVE): id={}, name={}", savedOrg.getId(), savedOrg.getName());
 
         // 2. Fetch ORG_ADMIN Role
         RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN")
@@ -172,37 +190,223 @@ public class AuthServiceImpl implements AuthService {
                 ? request.getAdminPhone().trim()
                 : (org.springframework.util.StringUtils.hasText(request.getOrganizationPhone()) ? request.getOrganizationPhone().trim() : null);
 
-        // 3. Create Admin User under the new Tenant
+        // 3. Create Admin User under the new Tenant in INACTIVE status
         UserEntity adminUser = UserEntity.builder()
                 .email(adminEmail)
                 .passwordHash(passwordEncoder.encode(request.getAdminPassword()))
                 .firstName(request.getAdminFirstName().trim())
                 .lastName(request.getAdminLastName() != null ? request.getAdminLastName().trim() : null)
                 .phone(phone)
-                .status(UserStatus.ACTIVE)
+                .status(UserStatus.INACTIVE)
                 .roles(new HashSet<>(Set.of(orgAdminRole)))
                 .build();
         adminUser.setOrganizationId(savedOrg.getId());
 
         UserEntity savedUser = userRepository.save(adminUser);
-        log.info("Created initial admin user: id={}, email={} for tenant={}", savedUser.getId(), savedUser.getEmail(), savedOrg.getId());
+        log.info("Created initial admin user (INACTIVE): id={}, email={} for tenant={}", savedUser.getId(), savedUser.getEmail(), savedOrg.getId());
 
         // 4. Create Initial STARTER SaaS Subscription
         subscriptionService.createInitialSubscription(savedOrg.getId(), com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.STARTER);
 
-        // 5. Publish UserRegisteredEvent for post-registration welcome notifications
-        eventPublisher.publishEvent(UserRegisteredEvent.builder()
+        // 5. Invalidate any existing activation tokens for this user as safety precaution
+        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(savedUser.getId(), Instant.now());
+
+        // 6. Generate Secure Organization Activation Token (SHA-256 hashed at rest)
+        String rawToken = generateSecureToken();
+        String tokenHash = hashToken(rawToken);
+        Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+        OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
                 .userId(savedUser.getId())
                 .organizationId(savedOrg.getId())
-                .registrationType(UserRegistrationType.PRACTITIONER)
-                .firstName(savedUser.getFirstName())
-                .lastName(savedUser.getLastName())
+                .tokenHash(tokenHash)
+                .expiresAt(expiresAt)
+                .createdByIp(clientIp)
+                .build();
+        organizationActivationTokenRepository.save(activationToken);
+
+        // 7. Dispatch Organization Activation Email with single-domain centralized URL
+        String activationUrl = activationBaseUrl + "?token=" + rawToken;
+        emailNotificationService.sendOrganizationActivationEmail(
+                savedUser.getEmail(),
+                savedUser.getFirstName(),
+                savedOrg.getName(),
+                activationUrl,
+                activationExpirationHours
+        );
+
+        // 8. Record audit log
+        auditService.logEvent(
+                savedOrg.getId(),
+                savedUser.getId(),
+                "ORGANIZATION_REGISTERED",
+                "ORGANIZATION",
+                savedOrg.getId().toString(),
+                null,
+                "Organization registered in INACTIVE status awaiting email activation from IP: " + (clientIp != null ? clientIp : "unknown")
+        );
+
+        return RegisterOrganizationResponse.builder()
+                .organizationId(savedOrg.getId())
                 .organizationName(savedOrg.getName())
-                .email(savedUser.getEmail())
-                .phone(savedUser.getPhone())
+                .adminEmail(savedUser.getEmail())
+                .status("INACTIVE")
+                .message("Registration successful. Please check your email to activate your account.")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void activateOrganization(ActivateOrganizationRequest request, String clientIp) {
+        String rawToken = request.getToken().trim();
+        String tokenHash = hashToken(rawToken);
+        Instant now = Instant.now();
+
+        // 1. ATOMIC TOKEN CONSUMPTION: Prevents race conditions from concurrent activation requests
+        int consumed = organizationActivationTokenRepository.consumeTokenAtomic(tokenHash, now);
+        if (consumed == 0) {
+            Optional<OrganizationActivationTokenEntity> existingTokenOpt = organizationActivationTokenRepository.findByTokenHash(tokenHash);
+            if (existingTokenOpt.isPresent()) {
+                OrganizationActivationTokenEntity existing = existingTokenOpt.get();
+                if (existing.isUsed()) {
+                    log.warn("SECURITY ALERT: Organization activation token reuse attempted for tokenId: {}, userId: {}",
+                            existing.getId(), existing.getUserId());
+                    auditService.logEvent(
+                            existing.getOrganizationId(),
+                            existing.getUserId(),
+                            "ORGANIZATION_ACTIVATION_TOKEN_REUSE",
+                            "ORGANIZATION",
+                            existing.getOrganizationId() != null ? existing.getOrganizationId().toString() : null,
+                            null,
+                            "Attempted reuse of already consumed activation token from IP: " + (clientIp != null ? clientIp : "unknown")
+                    );
+                } else if (existing.isExpired()) {
+                    log.info("Organization activation token expired for tokenId: {}, userId: {}",
+                            existing.getId(), existing.getUserId());
+                    auditService.logEvent(
+                            existing.getOrganizationId(),
+                            existing.getUserId(),
+                            "ORGANIZATION_ACTIVATION_TOKEN_EXPIRED",
+                            "ORGANIZATION",
+                            existing.getOrganizationId() != null ? existing.getOrganizationId().toString() : null,
+                            null,
+                            "Attempted use of expired activation token from IP: " + (clientIp != null ? clientIp : "unknown")
+                    );
+                }
+            } else {
+                auditService.logEvent(
+                        null,
+                        null,
+                        "ORGANIZATION_ACTIVATION_FAILED",
+                        "ORGANIZATION",
+                        null,
+                        null,
+                        "Organization activation failed with invalid token from IP: " + (clientIp != null ? clientIp : "unknown")
+                );
+            }
+            throw new BadCredentialsException("Invalid or expired activation token");
+        }
+
+        // 2. TOKEN SUCCESSFULLY CONSUMED: Activate organization and primary admin user
+        OrganizationActivationTokenEntity tokenEntity = organizationActivationTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new BadCredentialsException("Invalid or expired activation token"));
+
+        OrganizationEntity organization = organizationRepository.findById(tokenEntity.getOrganizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", tokenEntity.getOrganizationId()));
+
+        UserEntity user = userRepository.findById(tokenEntity.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", tokenEntity.getUserId()));
+
+        // Activate organization and user
+        organization.setStatus(OrganizationStatus.ACTIVE);
+        organizationRepository.save(organization);
+
+        user.setStatus(UserStatus.ACTIVE);
+        userRepository.save(user);
+
+        // Invalidate any other pending activation tokens for this user
+        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), now);
+
+        // Record audit log
+        auditService.logEvent(
+                organization.getId(),
+                user.getId(),
+                "ORGANIZATION_ACTIVATED",
+                "ORGANIZATION",
+                organization.getId().toString(),
+                null,
+                "Organization and administrator account successfully activated from IP: " + (clientIp != null ? clientIp : "unknown")
+        );
+
+        // Publish UserRegisteredEvent for post-activation welcome workflow
+        eventPublisher.publishEvent(UserRegisteredEvent.builder()
+                .userId(user.getId())
+                .organizationId(organization.getId())
+                .registrationType(UserRegistrationType.PRACTITIONER)
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .organizationName(organization.getName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
                 .build());
 
-        return createAuthResponse(savedUser, savedOrg);
+        log.info("Organization {} and admin user {} successfully activated", organization.getId(), user.getId());
+    }
+
+    @Override
+    @Transactional
+    public void resendActivation(ResendActivationRequest request, String clientIp) {
+        String email = request.getEmail().toLowerCase().trim();
+        Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(email);
+
+        if (userOpt.isPresent()) {
+            UserEntity user = userOpt.get();
+            if (user.getStatus() == UserStatus.INACTIVE && user.getOrganizationId() != null) {
+                Optional<OrganizationEntity> orgOpt = organizationRepository.findById(user.getOrganizationId());
+                if (orgOpt.isPresent()) {
+                    OrganizationEntity org = orgOpt.get();
+                    if (org.getStatus() == OrganizationStatus.INACTIVE) {
+                        // Invalidate existing tokens
+                        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+
+                        // Generate fresh token
+                        String rawToken = generateSecureToken();
+                        String tokenHash = hashToken(rawToken);
+                        Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+                        OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
+                                .userId(user.getId())
+                                .organizationId(org.getId())
+                                .tokenHash(tokenHash)
+                                .expiresAt(expiresAt)
+                                .createdByIp(clientIp)
+                                .build();
+                        organizationActivationTokenRepository.save(activationToken);
+
+                        String activationUrl = activationBaseUrl + "?token=" + rawToken;
+                        emailNotificationService.sendOrganizationActivationEmail(
+                                user.getEmail(),
+                                user.getFirstName(),
+                                org.getName(),
+                                activationUrl,
+                                activationExpirationHours
+                        );
+
+                        auditService.logEvent(
+                                org.getId(),
+                                user.getId(),
+                                "ORGANIZATION_ACTIVATION_RESENT",
+                                "ORGANIZATION",
+                                org.getId().toString(),
+                                null,
+                                "Organization activation email resent from IP: " + (clientIp != null ? clientIp : "unknown")
+                        );
+                        log.info("Organization activation email resent to user {} / org {}", user.getId(), org.getId());
+                    }
+                }
+            }
+        }
+        // Generic return for anti-enumeration
     }
 
     @Override

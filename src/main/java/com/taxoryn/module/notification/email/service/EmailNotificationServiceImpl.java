@@ -148,6 +148,31 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
     }
 
     @Override
+    public void sendOrganizationActivationEmail(String recipientEmail, String recipientName, String practiceName, String activationUrl, long expiryHours) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send organization activation email: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "Practitioner";
+        String firmName = StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Practice";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("practiceName", firmName);
+        data.put("email", recipientEmail.trim());
+        data.put("activationUrl", activationUrl);
+        data.put("expiryHours", String.valueOf(expiryHours));
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.ORGANIZATION_ACTIVATION, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.ORGANIZATION_ACTIVATION, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Organization activation email dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
+    @Override
     public void sendDocumentRequestEmail(String recipientEmail, String clientName, String purpose, String practiceName, java.time.LocalDate dueDate, String message, java.util.List<String> itemTitles) {
         if (!StringUtils.hasText(recipientEmail)) {
             return;

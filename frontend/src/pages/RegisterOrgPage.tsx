@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
+import { Building2, ArrowRight, AlertCircle, Sparkles, Mail, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { authApi } from '../api/endpoints';
@@ -23,7 +23,8 @@ export const RegisterOrgPage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
   const navigate = useNavigate();
 
   const handleQuickFillSample = () => {
@@ -81,8 +82,8 @@ export const RegisterOrgPage: React.FC = () => {
       };
 
       await authApi.registerOrg(payload);
-      await login(payload.adminEmail, payload.adminPassword);
-      navigate('/dashboard');
+      setRegisteredEmail(payload.adminEmail);
+      setIsSuccess(true);
     } catch (err: any) {
       const resp = err.response?.data;
       if (resp?.validationErrors && Array.isArray(resp.validationErrors)) {
@@ -99,6 +100,50 @@ export const RegisterOrgPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 py-12 relative overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 border border-slate-100 z-10 space-y-6 text-center">
+          <div className="flex flex-col items-center space-y-2">
+            <TaxorynLogo variant="horizontal" theme="light" size="md" />
+          </div>
+
+          <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto ring-8 ring-emerald-50/50 mt-4">
+            <Mail className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              Registration Successful!
+            </h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              We have sent an activation email to <strong className="text-slate-900 font-semibold">{registeredEmail}</strong>.
+            </p>
+            <p className="text-xs text-slate-500 leading-relaxed pt-1">
+              Please check your inbox and click the activation button to verify your practice and activate your account. The link is valid for 24 hours.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <Link to="/login" className="block w-full">
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full bg-[#00D1A3] hover:bg-[#00b88f] text-slate-950 font-bold py-3 text-sm shadow-md"
+              >
+                <span>Go to Login</span>
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 py-12 relative overflow-hidden">

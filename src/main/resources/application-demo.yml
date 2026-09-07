@@ -31,7 +31,7 @@ spring:
   mail:
     host: ${SMTP_HOST:smtp.gmail.com}
     port: ${SMTP_PORT:465}
-    username: ${SMTP_USERNAME:taxoryn@gmail.com}
+    username: ${SMTP_USERNAME:info@taxoryn.com}
     password: ${SMTP_PASSWORD:}
     properties:
       mail:
@@ -62,21 +62,32 @@ server:
 # Demo-mode flags — surfaced to the frontend via /api/config or a dedicated
 # endpoint so the UI can render a persistent "DEMO ENVIRONMENT" banner.
 # Never point this profile at real customer or production data.
+app:
+  frontend-url: ${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:https://taxoryn-7x7f.vercel.app}}}
+
 taxoryn:
   demo:
     enabled: true
     banner-text: "DEMO ENVIRONMENT — Synthetic data only. Not for real tax filings."
+  frontend-url: ${app.frontend-url}
   frontend:
-    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn-7x7f.vercel.app/reset-password}
+    activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:${taxoryn.frontend-url}/reset-password}
+    login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
   auth:
-    reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://taxoryn-7x7f.vercel.app/reset-password}
+    activation-url: ${taxoryn.frontend.activation-url}
+    activation-base-url: ${taxoryn.frontend.activation-url}
+    reset-password-url: ${taxoryn.frontend.reset-password-url}
+    reset-password-base-url: ${taxoryn.frontend.reset-password-url}
   mail:
     enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:AUTO}
-    from-email: ${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:notifications@taxoryn.com}}
+    from-email: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
     from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
     reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:support@taxoryn.com}}
-    login-url: ${TAXORYN_LOGIN_URL:https://taxoryn-7x7f.vercel.app/login}
+    frontend-url: ${taxoryn.frontend-url}
+    login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
+    activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
   jwt:

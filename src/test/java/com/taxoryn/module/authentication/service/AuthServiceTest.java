@@ -47,9 +47,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import com.taxoryn.module.authentication.dto.ActivateOrganizationRequest;
+import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
+import com.taxoryn.module.authentication.dto.ResendActivationRequest;
+import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
+import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
 import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
 import com.taxoryn.module.authentication.repository.PasswordResetTokenRepository;
@@ -63,6 +65,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -80,6 +83,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -124,6 +128,9 @@ class AuthServiceTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Mock
+    private OrganizationActivationTokenRepository organizationActivationTokenRepository;
+
+    @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
     @Mock
@@ -142,6 +149,8 @@ class AuthServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(authService, "jwtExpirationMs", 86400000L);
         ReflectionTestUtils.setField(authService, "jwtRefreshExpirationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "activationBaseUrl", "https://app.taxoryn.com/activate");
+        ReflectionTestUtils.setField(authService, "activationExpirationHours", 24L);
         userId = UUID.randomUUID();
         tenantId = UUID.randomUUID();
 
@@ -261,7 +270,7 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Register Organization creates organization, admin user, and returns tokens")
+    @DisplayName("Register Organization creates organization and user in INACTIVE status and dispatches activation email")
     void testRegisterOrganizationSuccess() {
         UUID orgId = UUID.randomUUID();
         UUID newUserId = UUID.randomUUID();
@@ -281,7 +290,7 @@ class AuthServiceTest {
         OrganizationEntity savedOrg = OrganizationEntity.builder()
                 .name(request.getOrganizationName())
                 .email(request.getOrganizationEmail())
-                .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                .status(OrganizationEntity.OrganizationStatus.INACTIVE)
                 .build();
         savedOrg.setId(orgId);
         when(organizationRepository.save(any(OrganizationEntity.class))).thenReturn(savedOrg);
@@ -294,20 +303,92 @@ class AuthServiceTest {
                 .email(request.getAdminEmail())
                 .firstName(request.getAdminFirstName())
                 .roles(new HashSet<>(Set.of(role)))
-                .status(UserEntity.UserStatus.ACTIVE)
+                .status(UserEntity.UserStatus.INACTIVE)
                 .build();
         savedUser.setId(newUserId);
         savedUser.setOrganizationId(orgId);
         when(userRepository.save(any(UserEntity.class))).thenReturn(savedUser);
 
-        when(jwtTokenProvider.generateAccessToken(any(), any(), any(), any(), any(), any())).thenReturn("access.jwt");
-
-        LoginResponse response = authService.registerOrganization(request);
+        RegisterOrganizationResponse response = authService.registerOrganization(request);
 
         assertNotNull(response);
-        assertEquals("access.jwt", response.getAccessToken());
-        assertNotNull(response.getRefreshToken());
-        verify(refreshTokenRepository).save(any(RefreshTokenEntity.class));
+        assertEquals(orgId, response.getOrganizationId());
+        assertEquals("INACTIVE", response.getStatus());
+        assertEquals(request.getAdminEmail(), response.getAdminEmail());
+        verify(organizationActivationTokenRepository).save(any(OrganizationActivationTokenEntity.class));
+        verify(emailNotificationService).sendOrganizationActivationEmail(
+                eq(request.getAdminEmail()),
+                eq(request.getAdminFirstName()),
+                eq(request.getOrganizationName()),
+                anyString(),
+                eq(24L)
+        );
+    }
+
+    @Test
+    @DisplayName("Activate Organization consumes token atomically and sets organization and user to ACTIVE")
+    void testActivateOrganizationSuccess() {
+        UUID orgId = UUID.randomUUID();
+        UUID adminUserId = UUID.randomUUID();
+        String rawToken = "valid-activation-token-string";
+
+        when(organizationActivationTokenRepository.consumeTokenAtomic(anyString(), any(Instant.class))).thenReturn(1);
+
+        OrganizationActivationTokenEntity tokenEntity = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(adminUserId)
+                .organizationId(orgId)
+                .tokenHash("somehash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .usedAt(Instant.now())
+                .build();
+
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(tokenEntity));
+
+        OrganizationEntity organization = OrganizationEntity.builder()
+                .name("Acme Tax Advisors")
+                .status(OrganizationEntity.OrganizationStatus.INACTIVE)
+                .build();
+        organization.setId(orgId);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+
+        UserEntity user = UserEntity.builder()
+                .email("admin@acmetax.com")
+                .firstName("Admin")
+                .status(UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(adminUserId);
+        when(userRepository.findById(adminUserId)).thenReturn(Optional.of(user));
+
+        ActivateOrganizationRequest request = new ActivateOrganizationRequest(rawToken);
+        authService.activateOrganization(request, "127.0.0.1");
+
+        assertEquals(OrganizationEntity.OrganizationStatus.ACTIVE, organization.getStatus());
+        assertEquals(UserEntity.UserStatus.ACTIVE, user.getStatus());
+        verify(organizationRepository).save(organization);
+        verify(userRepository).save(user);
+        verify(organizationActivationTokenRepository).invalidateAllPendingTokensForUser(eq(adminUserId), any(Instant.class));
+    }
+
+    @Test
+    @DisplayName("Activate Organization fails when token is already used or expired")
+    void testActivateOrganizationTokenFailure() {
+        String rawToken = "already-used-or-expired-token";
+        when(organizationActivationTokenRepository.consumeTokenAtomic(anyString(), any(Instant.class))).thenReturn(0);
+
+        OrganizationActivationTokenEntity usedToken = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(UUID.randomUUID())
+                .organizationId(UUID.randomUUID())
+                .tokenHash("hash")
+                .usedAt(Instant.now().minusSeconds(100))
+                .build();
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(usedToken));
+
+        ActivateOrganizationRequest request = new ActivateOrganizationRequest(rawToken);
+        assertThrows(BadCredentialsException.class, () -> authService.activateOrganization(request, "127.0.0.1"));
+        verify(organizationRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
     }
 
     @Test

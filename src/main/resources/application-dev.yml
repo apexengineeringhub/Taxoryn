@@ -20,8 +20,21 @@ spring:
       hibernate:
         format_sql: true
 
+app:
+  frontend-url: ${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:http://localhost:5173}}}
+
 # Development Environment Settings & Local Defaults
 taxoryn:
+  frontend-url: ${app.frontend-url}
+  frontend:
+    activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:${taxoryn.frontend-url}/reset-password}
+    login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
+  auth:
+    activation-url: ${taxoryn.frontend.activation-url}
+    activation-base-url: ${taxoryn.frontend.activation-url}
+    reset-password-url: ${taxoryn.frontend.reset-password-url}
+    reset-password-base-url: ${taxoryn.frontend.reset-password-url}
   jwt:
     # DEV ONLY: Known default secret used strictly for local developer convenience
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}

@@ -22,7 +22,7 @@ public class EmailProperties {
     /**
      * From email address.
      */
-    private String fromEmail = "notifications@taxoryn.com";
+    private String fromEmail = "info@taxoryn.com";
 
     /**
      * Reply-To email address.
@@ -35,9 +35,24 @@ public class EmailProperties {
     private String fromName = "Taxoryn";
 
     /**
+     * Centralized Frontend base URL.
+     */
+    private String frontendUrl = "http://localhost:5173";
+
+    /**
      * Application login portal URL.
      */
-    private String loginUrl = "https://taxoryn.com/login";
+    private String loginUrl = "http://localhost:5173/login";
+
+    /**
+     * Application activation URL.
+     */
+    private String activationUrl = "http://localhost:5173/activate";
+
+    /**
+     * Organization activation token expiration in hours.
+     */
+    private long activationExpirationHours = 24;
 
     /**
      * Resend API Key for Port 443 HTTPS email dispatch (Render/Cloud compatible).

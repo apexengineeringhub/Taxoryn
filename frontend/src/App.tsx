@@ -9,6 +9,7 @@ const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ defa
 const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const RegisterOrgPage = React.lazy(() => import('./pages/RegisterOrgPage').then(m => ({ default: m.RegisterOrgPage })));
+const ActivateOrgPage = React.lazy(() => import('./pages/ActivateOrgPage').then(m => ({ default: m.ActivateOrgPage })));
 const AccountSecurityPage = React.lazy(() => import('./pages/AccountSecurityPage').then(m => ({ default: m.AccountSecurityPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
@@ -108,6 +109,8 @@ export const App: React.FC = () => {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<RegisterOrgPage />} />
+            <Route path="/activate" element={<ActivateOrgPage />} />
+            <Route path="/activate-organization" element={<ActivateOrgPage />} />
             <Route path="/marketplace/register" element={<RegisterCustomerPage />} />
             <Route path="/marketplace" element={<MarketplaceExplorePage />} />
             <Route path="/practice/:slug" element={<PracticePublicProfilePage />} />

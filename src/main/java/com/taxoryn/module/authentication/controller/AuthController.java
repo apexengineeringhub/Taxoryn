@@ -1,6 +1,7 @@
 package com.taxoryn.module.authentication.controller;
 
 import com.taxoryn.core.response.ApiResponse;
+import com.taxoryn.module.authentication.dto.ActivateOrganizationRequest;
 import com.taxoryn.module.authentication.dto.ChangePasswordRequest;
 import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
@@ -8,7 +9,9 @@ import com.taxoryn.module.authentication.dto.LoginResponse;
 import com.taxoryn.module.authentication.dto.LogoutRequest;
 import com.taxoryn.module.authentication.dto.RefreshTokenRequest;
 import com.taxoryn.module.authentication.dto.RegisterOrganizationRequest;
+import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
 import com.taxoryn.module.authentication.dto.RegisterUserByAdminRequest;
+import com.taxoryn.module.authentication.dto.ResendActivationRequest;
 import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
 import com.taxoryn.module.authentication.service.AuthService;
 import com.taxoryn.module.user.dto.UserDto;
@@ -43,13 +46,40 @@ public class AuthController {
     private final AuthCookieUtil authCookieUtil;
 
     @PostMapping("/register-organization")
-    @Operation(summary = "Register organization & admin", description = "Onboards a new tenant organization and creates its initial primary administrator account.")
-    public ResponseEntity<ApiResponse<LoginResponse>> registerOrganization(@Valid @RequestBody RegisterOrganizationRequest request) {
-        LoginResponse response = authService.registerOrganization(request);
-        ResponseCookie cookie = authCookieUtil.createRefreshTokenCookie(response.getRefreshToken());
+    @Operation(summary = "Register organization & admin", description = "Onboards a new tenant organization in inactive state awaiting email activation.")
+    public ResponseEntity<ApiResponse<RegisterOrganizationResponse>> registerOrganization(
+            @Valid @RequestBody RegisterOrganizationRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = extractClientIp(servletRequest);
+        RegisterOrganizationResponse response = authService.registerOrganization(request, clientIp);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(ApiResponse.created("Organization and administrator registered successfully", response));
+                .body(ApiResponse.created("Organization registered successfully. Please check your email to activate your account.", response));
+    }
+
+    @PostMapping({"/activate-organization", "/activate"})
+    @Operation(summary = "Activate organization & admin account", description = "Validates the activation token, activates tenant organization and primary administrator.")
+    public ResponseEntity<ApiResponse<Void>> activateOrganization(
+            @Valid @RequestBody ActivateOrganizationRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = extractClientIp(servletRequest);
+        authService.activateOrganization(request, clientIp);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Organization and administrator account activated successfully. You can now log in.",
+                null
+        ));
+    }
+
+    @PostMapping("/resend-activation")
+    @Operation(summary = "Resend activation email", description = "Issues a fresh activation token and dispatches activation email to an inactive user.")
+    public ResponseEntity<ApiResponse<Void>> resendActivation(
+            @Valid @RequestBody ResendActivationRequest request,
+            HttpServletRequest servletRequest) {
+        String clientIp = extractClientIp(servletRequest);
+        authService.resendActivation(request, clientIp);
+        return ResponseEntity.ok(ApiResponse.success(
+                "If an inactive account exists for this email, an activation link has been sent.",
+                null
+        ));
     }
 
     @PostMapping("/login")

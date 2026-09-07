@@ -11,7 +11,20 @@ spring:
   flyway:
     enabled: false
 
+app:
+  frontend-url: http://localhost:5173
+
 taxoryn:
+  frontend-url: ${app.frontend-url}
+  frontend:
+    activation-url: ${taxoryn.frontend-url}/activate
+    reset-password-url: ${taxoryn.frontend-url}/reset-password
+    login-url: ${taxoryn.frontend-url}/login
+  auth:
+    activation-url: ${taxoryn.frontend.activation-url}
+    activation-base-url: ${taxoryn.frontend.activation-url}
+    reset-password-url: ${taxoryn.frontend.reset-password-url}
+    reset-password-base-url: ${taxoryn.frontend.reset-password-url}
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
     expiration-ms: 3600000
@@ -32,6 +45,11 @@ taxoryn:
   mail:
     enabled: false
     provider: LOG
+    from-email: info@taxoryn.com
+    from-name: Taxoryn
+    frontend-url: ${taxoryn.frontend-url}
+    login-url: ${taxoryn.frontend.login-url}
+    activation-url: ${taxoryn.frontend.activation-url}
 
 logging:
   level:

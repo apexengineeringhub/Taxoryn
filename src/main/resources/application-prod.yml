@@ -44,14 +44,23 @@ spring:
           timeout: 15000
           writetimeout: 15000
 
+app:
+  frontend-url: ${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:https://app.taxoryn.com}}}
+
 # Hardened Security & Rate Limiting
 taxoryn:
   demo:
     enabled: false
+  frontend-url: ${app.frontend-url}
   frontend:
-    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:https://app.taxoryn.com/reset-password}
+    activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:${taxoryn.frontend-url}/reset-password}
+    login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
   auth:
-    reset-password-base-url: ${TAXORYN_RESET_PASSWORD_URL:https://app.taxoryn.com/reset-password}
+    activation-url: ${taxoryn.frontend.activation-url}
+    activation-base-url: ${taxoryn.frontend.activation-url}
+    reset-password-url: ${taxoryn.frontend.reset-password-url}
+    reset-password-base-url: ${taxoryn.frontend.reset-password-url}
     cookie:
       name: ${TAXORYN_COOKIE_NAME:taxoryn_refresh_token}
       secure: ${TAXORYN_COOKIE_SECURE:true}
@@ -61,10 +70,12 @@ taxoryn:
   mail:
     enabled: ${MAIL_ENABLED:true}
     provider: ${MAIL_PROVIDER:RESEND}
-    from-email: ${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:notifications@taxoryn.com}}
+    from-email: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
     from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
     reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:support@taxoryn.com}}
-    login-url: ${TAXORYN_LOGIN_URL:https://app.taxoryn.com/login}
+    frontend-url: ${taxoryn.frontend-url}
+    login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
+    activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
   jwt:

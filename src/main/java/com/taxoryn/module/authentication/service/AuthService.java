@@ -1,5 +1,6 @@
 package com.taxoryn.module.authentication.service;
 
+import com.taxoryn.module.authentication.dto.ActivateOrganizationRequest;
 import com.taxoryn.module.authentication.dto.ChangePasswordRequest;
 import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.LoginRequest;
@@ -7,7 +8,9 @@ import com.taxoryn.module.authentication.dto.LoginResponse;
 import com.taxoryn.module.authentication.dto.LogoutRequest;
 import com.taxoryn.module.authentication.dto.RefreshTokenRequest;
 import com.taxoryn.module.authentication.dto.RegisterOrganizationRequest;
+import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
 import com.taxoryn.module.authentication.dto.RegisterUserByAdminRequest;
+import com.taxoryn.module.authentication.dto.ResendActivationRequest;
 import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
 import com.taxoryn.module.user.dto.UserDto;
 
@@ -15,7 +18,13 @@ public interface AuthService {
 
     LoginResponse login(LoginRequest request);
 
-    LoginResponse registerOrganization(RegisterOrganizationRequest request);
+    RegisterOrganizationResponse registerOrganization(RegisterOrganizationRequest request);
+
+    RegisterOrganizationResponse registerOrganization(RegisterOrganizationRequest request, String clientIp);
+
+    void activateOrganization(ActivateOrganizationRequest request, String clientIp);
+
+    void resendActivation(ResendActivationRequest request, String clientIp);
 
     UserDto registerUserByAdmin(RegisterUserByAdminRequest request);
 

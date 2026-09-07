@@ -97,7 +97,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
                 return true;
             }
 
-            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "notifications@taxoryn.com";
+            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "info@taxoryn.com";
             String fromName = StringUtils.hasText(emailProperties.getFromName()) ? emailProperties.getFromName() : "Taxoryn";
             String formattedFrom = String.format("%s <%s>", fromName, fromAddress);
 
@@ -150,7 +150,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
                 return true;
             }
 
-            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "notifications@taxoryn.com";
+            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "info@taxoryn.com";
             String fromName = StringUtils.hasText(emailProperties.getFromName()) ? emailProperties.getFromName() : "Taxoryn";
 
             Map<String, Object> sender = new HashMap<>();
@@ -213,7 +213,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
 
-            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "notifications@taxoryn.com";
+            String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "info@taxoryn.com";
             String fromName = StringUtils.hasText(emailProperties.getFromName()) ? emailProperties.getFromName() : "Taxoryn";
 
             helper.setFrom(fromAddress, fromName);
