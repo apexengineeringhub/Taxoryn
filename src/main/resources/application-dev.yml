@@ -58,6 +58,12 @@ taxoryn:
       endpoint: ${STORAGE_ENDPOINT:${STORAGE_S3_ENDPOINT:${R2_ENDPOINT:${CLOUDFLARE_R2_ENDPOINT:${AWS_ENDPOINT:${S3_ENDPOINT:}}}}}}
       account-id: ${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}
       path-style-access: ${STORAGE_PATH_STYLE_ACCESS:false}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8080,https://taxoryn.com,https://app.taxoryn.com,https://taxoryn-7x7f.vercel.app}
+    allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
 
 logging:
   level:

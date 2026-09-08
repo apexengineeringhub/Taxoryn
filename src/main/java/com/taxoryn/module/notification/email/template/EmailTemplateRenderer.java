@@ -347,7 +347,6 @@ public class EmailTemplateRenderer {
             .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; box-shadow: 0 2px 4px rgba(0, 209, 163, 0.2); }
             .btn:hover { background-color: #00b388; }
             .security-box { background: #f8fafc; border-left: 4px solid #00d1a3; border-radius: 4px; padding: 16px; margin: 24px 0; font-size: 13px; color: #64748b; }
-            .raw-link { word-break: break-all; font-size: 12px; color: #0284c7; }
             .footer { background: #f8fafc; padding: 28px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
             .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
             .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 12px; }
@@ -368,7 +367,7 @@ public class EmailTemplateRenderer {
               <p>We received a request to reset the password for your Taxoryn account. Click the button below to establish a new password:</p>
               
               <div class="btn-wrapper">
-                <a href="%s" class="btn">Reset My Password &rarr;</a>
+                <a href="%s" class="btn" target="_blank">Reset My Password &rarr;</a>
               </div>
 
               <div class="security-box">
@@ -379,10 +378,11 @@ public class EmailTemplateRenderer {
                 </ul>
               </div>
 
-              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
-                If the button above does not work, copy and paste this link into your browser:<br>
-                <a href="%s" class="raw-link">%s</a>
-              </p>
+              <div style="background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-top: 24px;">
+                <p style="font-size: 11px; font-weight: 700; color: #64748b; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px;">Fallback Direct Link</p>
+                <p style="font-size: 11px; color: #64748b; margin: 0 0 6px 0;">If the button above does not work, copy and paste this link into your browser:</p>
+                <a href="%s" style="font-size: 11px; color: #0284c7; text-decoration: underline; word-break: break-all; font-family: monospace;">%s</a>
+              </div>
             </div>
             <div class="footer">
               <div class="footer-brand">TAXORYN</div>

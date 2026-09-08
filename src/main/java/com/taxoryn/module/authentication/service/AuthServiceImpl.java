@@ -804,6 +804,12 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request, String clientIp) {
+        forgotPassword(request, clientIp, null);
+    }
+
+    @Override
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request, String clientIp, String requestOrigin) {
         String email = request.getEmail().toLowerCase().trim();
         Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(email);
 
@@ -826,10 +832,15 @@ public class AuthServiceImpl implements AuthService {
                         .build();
                 passwordResetTokenRepository.save(tokenEntity);
 
-                // 4. Construct complete reset URL with raw token
-                String resetUrl = resetPasswordBaseUrl.contains("?")
-                        ? resetPasswordBaseUrl + "&token=" + rawToken
-                        : resetPasswordBaseUrl + "?token=" + rawToken;
+                // 4. Construct complete reset URL with raw token and dynamic origin support
+                String baseUrl = resetPasswordBaseUrl;
+                if (org.springframework.util.StringUtils.hasText(requestOrigin)
+                        && (requestOrigin.startsWith("http://") || requestOrigin.startsWith("https://"))) {
+                    baseUrl = requestOrigin.replaceAll("/+$", "") + "/reset-password";
+                }
+                String resetUrl = baseUrl.contains("?")
+                        ? baseUrl + "&token=" + rawToken
+                        : baseUrl + "?token=" + rawToken;
 
                 // 5. Dispatch branded password reset email
                 emailNotificationService.sendPasswordResetEmail(
