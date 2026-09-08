@@ -219,6 +219,12 @@ public final class SecurityUtils {
             "USER_DISABLE",
             "ONBOARDING_VIEW",
             "ONBOARDING_MANAGE",
+            "FEEDBACK_VIEW",
+            "FEEDBACK_REVIEW",
+            "FEEDBACK_ASSIGN",
+            "FEEDBACK_RESOLVE",
+            "FEEDBACK_ESCALATE",
+            "FEEDBACK_MANAGE",
             "SUPPORT_VIEW",
             "SUPPORT_ASSIGN",
             "SUPPORT_RESOLVE",
@@ -227,8 +233,11 @@ public final class SecurityUtils {
             "FINANCE_REPORT_VIEW",
             "SUBSCRIPTION_MANAGE",
             "PAYMENT_MANAGE",
+            "CONTENT_VIEW",
+            "CONTENT_CREATE",
             "CONTENT_MANAGE",
             "CONTENT_PUBLISH",
+            "CONTENT_REVIEW",
             "ARTICLE_PUBLISH",
             "ARTICLE_ARCHIVE",
             "VIDEO_PUBLISH",
@@ -338,7 +347,15 @@ public final class SecurityUtils {
                 || clean.startsWith("TECHNICAL_")
                 || clean.startsWith("SECURITY_")
                 || clean.startsWith("AUDIT_")
-                || clean.startsWith("ONBOARDING_");
+                || clean.startsWith("ONBOARDING_")
+                || clean.startsWith("FEEDBACK_")
+                || clean.startsWith("SUPPORT_")
+                || clean.startsWith("CONTENT_")
+                || clean.startsWith("PAYMENT_")
+                || clean.startsWith("REFUND_")
+                || clean.startsWith("MRR_")
+                || clean.startsWith("FINANCE_")
+                || clean.startsWith("MARKETPLACE_");
     }
 
     /**

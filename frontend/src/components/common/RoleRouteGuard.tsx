@@ -32,14 +32,17 @@ export const RoleRouteGuard: React.FC<RoleRouteGuardProps> = ({
   if (!allowedRoles && !requiredPermissions) {
     isAuthorized = true;
   } else {
-    const roleMatches = allowedRoles ? allowedRoles.some((r) => userRoleCodes.includes(r)) : false;
-    const permissionMatches = requiredPermissions ? requiredPermissions.some((p) => userPermissions.includes(p)) : false;
+    const hasAllowedRoles = !!(allowedRoles && allowedRoles.length > 0);
+    const hasRequiredPermissions = !!(requiredPermissions && requiredPermissions.length > 0);
 
-    if (allowedRoles && requiredPermissions) {
-      isAuthorized = roleMatches || permissionMatches;
-    } else if (allowedRoles) {
+    const roleMatches = hasAllowedRoles ? allowedRoles!.some((r) => userRoleCodes.includes(r)) : true;
+    const permissionMatches = hasRequiredPermissions ? requiredPermissions!.some((p) => userPermissions.includes(p)) : true;
+
+    if (hasAllowedRoles && hasRequiredPermissions) {
+      isAuthorized = roleMatches && permissionMatches;
+    } else if (hasAllowedRoles) {
       isAuthorized = roleMatches;
-    } else if (requiredPermissions) {
+    } else if (hasRequiredPermissions) {
       isAuthorized = permissionMatches;
     }
   }

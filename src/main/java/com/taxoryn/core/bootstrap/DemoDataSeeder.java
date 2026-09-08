@@ -1,5 +1,6 @@
 package com.taxoryn.core.bootstrap;
 
+import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.employee.entity.EmployeeEntity;
@@ -367,13 +368,7 @@ public class DemoDataSeeder implements CommandLineRunner {
 
         // 2. ORG_ADMIN / PRACTICE_OWNER / PRACTICE_ADMIN Roles (Full Practice Scope)
         Set<PermissionEntity> practiceAdminPerms = allPermissions.stream()
-                .filter(p -> !p.getCode().startsWith("PLATFORM_")
-                        && !p.getCode().startsWith("PRACTICE_VERIFY")
-                        && !p.getCode().startsWith("PRACTICE_SUSPEND")
-                        && !p.getCode().startsWith("USER_DISABLE")
-                        && !p.getCode().startsWith("SECURITY_")
-                        && !p.getCode().startsWith("PLATFORM_SETTINGS_")
-                )
+                .filter(p -> !SecurityUtils.isPlatformPermission(p.getCode()))
                 .collect(Collectors.toSet());
 
         RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN")
