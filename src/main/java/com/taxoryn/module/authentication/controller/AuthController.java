@@ -180,7 +180,8 @@ public class AuthController {
             @Valid @RequestBody ForgotPasswordRequest request,
             HttpServletRequest servletRequest) {
         String clientIp = extractClientIp(servletRequest);
-        authService.forgotPassword(request, clientIp);
+        String origin = extractOrigin(servletRequest);
+        authService.forgotPassword(request, clientIp, origin);
         return ResponseEntity.ok(ApiResponse.success(
                 "If an account exists for this email, you will receive password reset instructions.",
                 null
@@ -198,6 +199,30 @@ public class AuthController {
                 "Password has been reset successfully. You can now log in with your new password.",
                 null
         ));
+    }
+
+    private String extractOrigin(HttpServletRequest request) {
+        String origin = request.getHeader("Origin");
+        if (org.springframework.util.StringUtils.hasText(origin)) {
+            return origin.trim();
+        }
+        String referer = request.getHeader("Referer");
+        if (org.springframework.util.StringUtils.hasText(referer)) {
+            try {
+                java.net.URI uri = java.net.URI.create(referer.trim());
+                String scheme = uri.getScheme();
+                String host = uri.getHost();
+                int port = uri.getPort();
+                if (scheme != null && host != null) {
+                    if (port > 0 && port != 80 && port != 443) {
+                        return scheme + "://" + host + ":" + port;
+                    }
+                    return scheme + "://" + host;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     private String extractClientIp(HttpServletRequest request) {
