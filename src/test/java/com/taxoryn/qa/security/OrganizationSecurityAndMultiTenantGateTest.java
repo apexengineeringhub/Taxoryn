@@ -208,4 +208,105 @@ class OrganizationSecurityAndMultiTenantGateTest {
             assertFalse(val.contains("secret-key"), "Audit log leaked secret key: " + logEntry.getId());
         }
     }
+
+    // =========================================================================
+    // 5. PLATFORM VS PRACTICE BOUNDARY RBAC TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("SEC-008: Practice Admin cannot access Feedback Ops API (/api/v1/admin/feedback) -> 403 Forbidden")
+    void practiceAdminCannotAccessFeedbackOpsApi() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/feedback")
+                        .header("Authorization", "Bearer " + tokenAdminA))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/admin/feedback/stats")
+                        .header("Authorization", "Bearer " + tokenAdminA))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SEC-009: Practice Staff/Employee cannot modify subscription -> 403 Forbidden")
+    void employeeCannotModifySubscription() throws Exception {
+        Map<String, Object> changePlanReq = Map.of(
+                "plan", "ENTERPRISE",
+                "billingInterval", "YEARLY"
+        );
+
+        mockMvc.perform(post("/api/v1/subscriptions/change-plan")
+                        .header("Authorization", "Bearer " + tokenStaffA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(changePlanReq)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SEC-010: Practice Staff/Employee cannot modify organization settings or branding -> 403 Forbidden")
+    void employeeCannotModifyOrganizationProfileOrSettings() throws Exception {
+        Map<String, Object> updateOrgReq = Map.of(
+                "name", "Hacked Org Name",
+                "phone", "+919876543210"
+        );
+
+        mockMvc.perform(put("/api/v1/organizations/current")
+                        .header("Authorization", "Bearer " + tokenStaffA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateOrgReq)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SEC-011: Strict Audit Trail Isolation - Org A admin cannot see Org B audit events")
+    void strictAuditTrailTenantIsolation() throws Exception {
+        // Create an audit log entry for Org B
+        AuditLogEntity logB = AuditLogEntity.builder()
+                .organizationId(orgB.getId())
+                .userId(adminB.getId())
+                .action("ORG_B_CONFIDENTIAL_ACTION")
+                .entityType("CONFIDENTIAL")
+                .entityId(UUID.randomUUID().toString())
+                .createdAt(java.time.Instant.now())
+                .build();
+        auditLogRepository.save(logB);
+
+        // Org A admin fetches audit logs
+        mockMvc.perform(get("/api/v1/audit-logs")
+                        .header("Authorization", "Bearer " + tokenAdminA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[*].action", not(hasItem("ORG_B_CONFIDENTIAL_ACTION"))));
+    }
+
+    @Test
+    @DisplayName("SEC-012: IDOR Protection - Org A Admin attempting to update Org B is denied")
+    void shouldRejectCrossTenantOrganizationUpdate() throws Exception {
+        Map<String, Object> updateOrgReq = Map.of(
+                "name", "Malicious Name Override",
+                "phone", "+919876543210"
+        );
+
+        mockMvc.perform(put("/api/v1/organizations/" + orgB.getId())
+                        .header("Authorization", "Bearer " + tokenAdminA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateOrgReq)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SEC-013: Organization User can access standard 'Give Feedback' endpoint (/api/v1/feedback)")
+    void organizationUserCanSubmitFeedback() throws Exception {
+        Map<String, Object> feedbackReq = Map.of(
+                "type", "SUGGESTION",
+                "category", "BILLING",
+                "rating", 5,
+                "title", "Add automated UPI QR code to invoices",
+                "description", "Clients request instant UPI QR code on generated PDF invoices."
+        );
+
+        mockMvc.perform(post("/api/v1/feedback")
+                        .header("Authorization", "Bearer " + tokenAdminA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(feedbackReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.title", is("Add automated UPI QR code to invoices")));
+    }
 }
