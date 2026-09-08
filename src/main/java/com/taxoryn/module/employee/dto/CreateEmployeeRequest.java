@@ -24,10 +24,19 @@ public class CreateEmployeeRequest {
     @Schema(description = "Optional linked user account ID")
     private UUID userId;
 
-    @NotBlank(message = "Employee code is required")
-    @Size(min = 2, max = 50, message = "Employee code must be between 2 and 50 characters")
-    @Schema(description = "Employee unique code", example = "EMP-001")
+    @Size(max = 50, message = "Employee code cannot exceed 50 characters")
+    @Schema(description = "Optional employee code / number (auto-generated sequentially as EMP-0001 if omitted)", example = "EMP-0001")
     private String employeeCode;
+
+    @Schema(description = "Optional employee number alias", example = "EMP-0001")
+    private String employeeNumber;
+
+    public String getEmployeeCode() {
+        if (employeeCode != null && !employeeCode.isBlank()) {
+            return employeeCode;
+        }
+        return employeeNumber;
+    }
 
     @NotBlank(message = "First name is required")
     @Size(min = 2, max = 100, message = "First name must be between 2 and 100 characters")
@@ -43,7 +52,7 @@ public class CreateEmployeeRequest {
     @Schema(description = "Official email address", example = "rohan.d@taxpractice.com")
     private String email;
 
-    @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
+    @Pattern(regexp = "^(\\+?[0-9\\s-]{7,20})?$", message = "Invalid phone number format")
     @Schema(description = "Contact phone", example = "+919876543210")
     private String phone;
 
@@ -63,9 +72,9 @@ public class CreateEmployeeRequest {
     @Builder.Default
     private LocalDate joiningDate = LocalDate.now();
 
-    @Schema(description = "Initial employment status", defaultValue = "ACTIVE")
+    @Schema(description = "Initial employment status", defaultValue = "INVITED")
     @Builder.Default
-    private EmployeeStatus status = EmployeeStatus.ACTIVE;
+    private EmployeeStatus status = EmployeeStatus.INVITED;
 
     @Schema(description = "Reporting manager employee ID")
     private UUID managerId;

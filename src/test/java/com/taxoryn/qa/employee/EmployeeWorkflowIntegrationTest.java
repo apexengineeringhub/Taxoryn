@@ -66,6 +66,8 @@ class EmployeeWorkflowIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
+        TenantContext.clear();
         orgA = factory.createOrganization("Alpha Advisors " + UUID.randomUUID().toString().substring(0, 5), "admin.alpha." + UUID.randomUUID().toString().substring(0, 5) + "@alpha.in");
         orgB = factory.createOrganization("Beta Financial " + UUID.randomUUID().toString().substring(0, 5), "admin.beta." + UUID.randomUUID().toString().substring(0, 5) + "@beta.in");
         adminA = factory.createAdminUser(orgA, "adminA." + UUID.randomUUID().toString().substring(0, 5) + "@alpha.in", "AdminPass123!");
@@ -121,7 +123,7 @@ class EmployeeWorkflowIntegrationTest {
 
         assertTrue(employeeRepository.existsByOrganizationIdAndEmail(orgA.getId(), "vikram." + unique + "@alpha.in"));
         UserEntity user = userRepository.findByEmailIgnoreCase("vikram." + unique + "@alpha.in").orElseThrow();
-        assertEquals(UserEntity.UserStatus.INACTIVE, user.getStatus());
+        assertEquals(UserEntity.UserStatus.INVITED, user.getStatus());
 
         // Verify activation token created for user and org
         var tokens = activationTokenRepository.findAllByUserIdAndUsedAtIsNull(user.getId());
@@ -154,7 +156,7 @@ class EmployeeWorkflowIntegrationTest {
                 .andExpect(status().isCreated());
 
         UserEntity user = userRepository.findByEmailIgnoreCase(employeeEmail).orElseThrow();
-        assertEquals(UserEntity.UserStatus.INACTIVE, user.getStatus());
+        assertEquals(UserEntity.UserStatus.INVITED, user.getStatus());
 
         // 2. INACTIVE employee cannot log in
         LoginRequest failedLogin = LoginRequest.builder()

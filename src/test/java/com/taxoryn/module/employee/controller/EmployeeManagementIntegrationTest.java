@@ -582,4 +582,48 @@ class EmployeeManagementIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("15. Dedicated PUT /api/v1/employees/{id}/role updates employee practice role")
+    void testDedicatedPutEmployeeRoleEndpoint() throws Exception {
+        com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest roleRequest =
+                new com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest(null, "TAX_PROFESSIONAL");
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId() + "/role")
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(roleRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.roleCode").value("TAX_PROFESSIONAL"))
+                .andExpect(jsonPath("$.data.roleName").value("Tax Professional"));
+    }
+
+    @Test
+    @DisplayName("16. Dedicated PATCH /api/v1/employees/{id}/role updates employee practice role")
+    void testDedicatedPatchEmployeeRoleEndpoint() throws Exception {
+        com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest roleRequest =
+                new com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest(null, "STAFF");
+
+        mockMvc.perform(patch("/api/v1/employees/" + employee1.getId() + "/role")
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(roleRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.roleCode").value("STAFF"));
+    }
+
+    @Test
+    @DisplayName("17. Dedicated /role endpoint rejects platform role privilege escalation with 403")
+    void testDedicatedRoleEndpointRejectsPlatformRole() throws Exception {
+        com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest roleRequest =
+                new com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest(null, "FEEDBACK_OPS");
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId() + "/role")
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(roleRequest)))
+                .andExpect(status().isForbidden());
+    }
 }

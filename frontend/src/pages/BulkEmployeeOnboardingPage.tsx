@@ -102,8 +102,8 @@ export const BulkEmployeeOnboardingPage: React.FC = () => {
         const cols = rowsMatrix[i];
         if (cols.length < 2 || cols.every((c) => c.trim() === '')) continue;
 
-        const rawCode = (codeIdx >= 0 ? cols[codeIdx] : cols[0]) || `EMP-${100 + i}`;
-        const employeeCode = rawCode.trim().toUpperCase();
+        const rawCode = (codeIdx >= 0 && cols[codeIdx]) ? cols[codeIdx].trim() : '';
+        const employeeCode = rawCode ? rawCode.toUpperCase() : '';
 
         const firstName = (firstIdx >= 0 ? cols[firstIdx] : cols[1]) || '';
         const lastName = (lastIdx >= 0 && lastIdx !== firstIdx ? cols[lastIdx] : cols[2]) || '';
@@ -125,7 +125,7 @@ export const BulkEmployeeOnboardingPage: React.FC = () => {
         } else if (!email || !emailRegex.test(email)) {
           isValid = false;
           validationError = 'Valid email required';
-        } else if (seenCodes.has(employeeCode)) {
+        } else if (employeeCode && seenCodes.has(employeeCode)) {
           isValid = false;
           validationError = `Duplicate Code in file (${employeeCode})`;
         } else if (seenEmails.has(email)) {
@@ -133,12 +133,14 @@ export const BulkEmployeeOnboardingPage: React.FC = () => {
           validationError = `Duplicate Email in file (${email})`;
         }
 
-        seenCodes.add(employeeCode);
+        if (employeeCode) {
+          seenCodes.add(employeeCode);
+        }
         seenEmails.add(email);
 
         // Check if already in DB
         const isExisting = existingEmployees.some(
-          (e) => e.employeeCode?.toUpperCase() === employeeCode || e.email?.toLowerCase() === email
+          (e) => (employeeCode && e.employeeCode?.toUpperCase() === employeeCode) || e.email?.toLowerCase() === email
         );
 
         rows.push({
@@ -194,7 +196,7 @@ export const BulkEmployeeOnboardingPage: React.FC = () => {
     setProgress(15);
 
     const payload = validRows.map((r) => ({
-      employeeCode: r.employeeCode,
+      employeeCode: r.employeeCode || undefined,
       firstName: r.firstName,
       lastName: r.lastName || undefined,
       email: r.email,
@@ -221,7 +223,7 @@ export const BulkEmployeeOnboardingPage: React.FC = () => {
         const item = validRows[i];
         try {
           const emp = await teamApi.createEmployee({
-            employeeCode: item.employeeCode,
+            employeeCode: item.employeeCode || undefined,
             firstName: item.firstName,
             lastName: item.lastName || undefined,
             email: item.email,

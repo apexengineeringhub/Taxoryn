@@ -177,7 +177,7 @@ export const ActivateOrgPage: React.FC = () => {
               : isValidating
               ? 'Please wait while we verify your invitation details'
               : tokenInfo?.requiresPasswordSetup
-              ? 'Set your account password to activate your Taxoryn employee access'
+              ? 'Set your account password to activate your Taxoryn access'
               : 'Activate your workspace to get started'}
           </p>
         </div>
@@ -205,7 +205,7 @@ export const ActivateOrgPage: React.FC = () => {
               </p>
               <p className="text-xs text-slate-600 leading-relaxed">
                 {tokenInfo?.requiresPasswordSetup
-                  ? 'Your password has been set securely and your employee account is now active.'
+                  ? 'Your password has been set securely and your account is now active.'
                   : 'Your organization and administrator credentials have been verified.'}{' '}
                 You can now log in with your email and password.
               </p>

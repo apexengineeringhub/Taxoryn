@@ -36,11 +36,13 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import com.taxoryn.module.role.entity.RoleEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -79,6 +81,21 @@ class ClientServiceTest {
 
     @Mock
     private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
+    @Mock
+    private com.taxoryn.module.user.repository.UserRepository userRepository;
+
+    @Mock
+    private com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository activationTokenRepository;
+
+    @Mock
+    private com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
+
+    @Mock
+    private com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
+
+    @Mock
+    private com.taxoryn.module.role.repository.RoleRepository roleRepository;
 
     @InjectMocks
     private ClientServiceImpl clientService;
@@ -272,5 +289,114 @@ class ClientServiceTest {
 
         assertNotNull(result);
         assertEquals("Annual Audit Scope", result.getTitle());
+    }
+
+    @Test
+    @DisplayName("Create client with email auto-provisions portal user and dispatches activation email")
+    void testCreateClientWithEmail_AutoProvisionsPortalUserAndSendsActivationEmail() {
+        CreateClientRequest request = CreateClientRequest.builder()
+                .clientType(ClientType.INDIVIDUAL)
+                .displayName("Rajesh Kumar")
+                .email("rajesh.kumar@example.com")
+                .phone("9876543210")
+                .pan("ABCDE1234F")
+                .status(ClientStatus.ACTIVE)
+                .build();
+
+        when(clientRepository.existsByOrganizationIdAndPan(tenantId, "ABCDE1234F")).thenReturn(false);
+
+        ClientEntity saved = ClientEntity.builder()
+                .clientType(ClientType.INDIVIDUAL)
+                .displayName("Rajesh Kumar")
+                .email("rajesh.kumar@example.com")
+                .phone("9876543210")
+                .pan("ABCDE1234F")
+                .status(ClientStatus.ACTIVE)
+                .build();
+        saved.setId(clientId);
+        saved.setOrganizationId(tenantId);
+
+        when(clientRepository.save(any(ClientEntity.class))).thenReturn(saved);
+        when(clientMapper.toDto(saved)).thenReturn(ClientDto.builder()
+                .id(clientId)
+                .displayName("Rajesh Kumar")
+                .email("rajesh.kumar@example.com")
+                .build());
+        when(userRepository.findByEmailIgnoreCase("rajesh.kumar@example.com")).thenReturn(Optional.empty());
+        when(roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")).thenReturn(Optional.of(
+                RoleEntity.builder().code("CLIENT_USER").name("Client User").isSystemRole(true).build()
+        ));
+        when(organizationRepository.findById(tenantId)).thenReturn(Optional.of(
+                com.taxoryn.module.organization.entity.OrganizationEntity.builder()
+                        .name("Apex Tax Consultants")
+                        .build()
+        ));
+
+        com.taxoryn.module.user.entity.UserEntity provisionedUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("rajesh.kumar@example.com")
+                .firstName("Rajesh")
+                .lastName("Kumar")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INVITED)
+                .organizationId(tenantId)
+                .clientId(clientId)
+                .build();
+        provisionedUser.setId(UUID.randomUUID());
+        when(userRepository.save(any(com.taxoryn.module.user.entity.UserEntity.class))).thenReturn(provisionedUser);
+
+        ClientDto result = clientService.createClient(request);
+
+        assertNotNull(result);
+        verify(userRepository).save(any(com.taxoryn.module.user.entity.UserEntity.class));
+        verify(activationTokenRepository).save(any(com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity.class));
+        verify(emailNotificationService).sendClientPortalInvitationEmail(
+                eq("rajesh.kumar@example.com"),
+                eq("Rajesh Kumar"),
+                eq("Rajesh Kumar"),
+                eq("Apex Tax Consultants"),
+                org.mockito.ArgumentMatchers.contains("/activate?token="),
+                eq(24L)
+        );
+    }
+
+    @Test
+    @DisplayName("Resend portal invitation invalidates prior tokens and dispatches new invitation email")
+    void testResendPortalInvitation_Success() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Zenith Infotech Pvt Ltd")
+                .email("portal@zenithinfo.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity portalUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("portal@zenithinfo.com")
+                .firstName("Zenith")
+                .lastName("Infotech Pvt Ltd")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INVITED)
+                .organizationId(tenantId)
+                .clientId(clientId)
+                .build();
+        portalUser.setId(UUID.randomUUID());
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of(portalUser));
+        when(organizationRepository.findById(tenantId)).thenReturn(Optional.of(
+                com.taxoryn.module.organization.entity.OrganizationEntity.builder()
+                        .name("Apex Tax Consultants")
+                        .build()
+        ));
+
+        clientService.resendPortalInvitation(clientId);
+
+        verify(activationTokenRepository).invalidateAllPendingTokensForUser(eq(portalUser.getId()), any(Instant.class));
+        verify(activationTokenRepository).save(any(com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity.class));
+        verify(emailNotificationService).sendClientPortalInvitationEmail(
+                eq("portal@zenithinfo.com"),
+                eq("Zenith Infotech Pvt Ltd"),
+                eq("Zenith Infotech Pvt Ltd"),
+                eq("Apex Tax Consultants"),
+                org.mockito.ArgumentMatchers.contains("/activate?token="),
+                eq(24L)
+        );
     }
 }

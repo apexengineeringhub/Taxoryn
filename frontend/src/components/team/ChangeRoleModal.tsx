@@ -64,23 +64,15 @@ export const ChangeRoleModal: React.FC<ChangeRoleModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      // Use existing update employee endpoint with roleCode
-      await teamApi.updateEmployee(employee.id, {
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        email: employee.email,
-        phone: employee.phone,
-        department: employee.department,
-        designation: employee.designation,
-        status: employee.status,
-        roleCode: selectedRoleCode,
-      });
+      await teamApi.updateEmployeeRole(employee.id, selectedRoleCode);
 
-      setSuccessMessage(`Successfully updated role to ${availableRoles.find(r => r.code === selectedRoleCode)?.name || selectedRoleCode}!`);
+      const newRoleObj = availableRoles.find(r => r.code === selectedRoleCode);
+      const newRoleName = newRoleObj?.name || selectedRoleCode;
+      setSuccessMessage(`Successfully updated role to ${newRoleName}!`);
       setTimeout(() => {
         onSuccess();
         onClose();
-      }, 900);
+      }, 500);
     } catch (err: any) {
       console.error('Failed to change employee role:', err);
       const apiMsg = err.response?.data?.message || err.message || 'Failed to update employee role. Please check organization permissions.';

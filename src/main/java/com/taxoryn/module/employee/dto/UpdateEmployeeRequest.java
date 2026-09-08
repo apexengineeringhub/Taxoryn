@@ -38,7 +38,7 @@ public class UpdateEmployeeRequest {
     @Schema(description = "Official email address", example = "rohan.d@taxpractice.com")
     private String email;
 
-    @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
+    @Pattern(regexp = "^(\\+?[0-9\\s-]{7,20})?$", message = "Invalid phone number format")
     @Schema(description = "Contact phone", example = "+919876543210")
     private String phone;
 

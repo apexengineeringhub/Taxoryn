@@ -97,6 +97,15 @@ public class ClientDto {
     @Schema(description = "Internal practitioner notes")
     private String notes;
 
+    @Schema(description = "Client portal access status (NOT_PROVISIONED, INVITED, ACTIVE, SUSPENDED, INACTIVE)", example = "INVITED")
+    private String portalStatus;
+
+    @Schema(description = "Client portal user login email", example = "finance@zenithinfo.com")
+    private String portalUserEmail;
+
+    @Schema(description = "Client portal user ID")
+    private UUID portalUserId;
+
     @Schema(description = "Creation timestamp")
     private Instant createdAt;
 

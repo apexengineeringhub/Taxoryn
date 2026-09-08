@@ -5,6 +5,7 @@ import com.taxoryn.module.employee.dto.CreateEmployeeRequest;
 import com.taxoryn.module.employee.dto.EmployeeDto;
 import com.taxoryn.module.employee.dto.EmployeeFilterRequest;
 import com.taxoryn.module.employee.dto.UpdateEmployeeRequest;
+import com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest;
 import com.taxoryn.module.employee.dto.UpdateEmployeeStatusRequest;
 import com.taxoryn.module.employee.dto.EmployeeWorkloadDto;
 
@@ -21,6 +22,8 @@ public interface EmployeeService {
     PagedResponse<EmployeeDto> getEmployees(EmployeeFilterRequest filterRequest);
 
     EmployeeDto updateEmployeeStatus(UUID employeeId, UpdateEmployeeStatusRequest request);
+
+    EmployeeDto updateEmployeeRole(UUID employeeId, UpdateEmployeeRoleRequest request);
 
     void deleteEmployee(UUID employeeId);
 

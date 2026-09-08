@@ -106,6 +106,7 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final MarketplaceProfileRepository marketplaceProfileRepository;
     private final MarketplaceServiceRepository marketplaceServiceRepository;
     private final MarketplaceLeadRepository marketplaceLeadRepository;
+    private final com.taxoryn.module.employee.repository.OrganizationEmployeeCounterRepository employeeCounterRepository;
     private final org.springframework.core.env.Environment environment;
 
     @Override
@@ -366,7 +367,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         engAdminRole.setPermissions(engPerms);
         roleRepository.save(engAdminRole);
 
-        // 2. ORG_ADMIN / PRACTICE_OWNER / PRACTICE_ADMIN Roles (Full Practice Scope)
+        // 2. ORG_ADMIN / PRACTICE_OWNER / PRACTICE_ADMIN / PARTNER Roles (Full Practice Scope)
         Set<PermissionEntity> practiceAdminPerms = allPermissions.stream()
                 .filter(p -> !SecurityUtils.isPlatformPermission(p.getCode()))
                 .collect(Collectors.toSet());
@@ -401,7 +402,37 @@ public class DemoDataSeeder implements CommandLineRunner {
         practiceAdminRole.setPermissions(practiceAdminPerms);
         roleRepository.save(practiceAdminRole);
 
-        // 3. PRACTITIONER Role (CA / Tax Practitioner)
+        RoleEntity partnerRole = roleRepository.findByCodeAndIsSystemRoleTrue("PARTNER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("PARTNER")
+                        .name("Practice Partner / CA")
+                        .description("Practice partner with executive engagement authority")
+                        .isSystemRole(true)
+                        .build()));
+        partnerRole.setPermissions(practiceAdminPerms);
+        roleRepository.save(partnerRole);
+
+        // 3. Senior Practitioners & Managers (TAX_MANAGER, TAX_PROFESSIONAL, PRACTITIONER, ACCOUNTANT)
+        RoleEntity taxManagerRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAX_MANAGER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAX_MANAGER")
+                        .name("Tax Manager")
+                        .description("Engagement manager overseeing tax compliance, review, and filings")
+                        .isSystemRole(true)
+                        .build()));
+        taxManagerRole.setPermissions(practiceAdminPerms);
+        roleRepository.save(taxManagerRole);
+
+        RoleEntity taxProfRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAX_PROFESSIONAL")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAX_PROFESSIONAL")
+                        .name("Tax Professional")
+                        .description("Senior Tax Professional & Chartered Accountant")
+                        .isSystemRole(true)
+                        .build()));
+        taxProfRole.setPermissions(practiceAdminPerms);
+        roleRepository.save(taxProfRole);
+
         RoleEntity practitionerRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("PRACTITIONER")
@@ -412,13 +443,17 @@ public class DemoDataSeeder implements CommandLineRunner {
         practitionerRole.setPermissions(practiceAdminPerms);
         roleRepository.save(practitionerRole);
 
-        // 4. ARTICLE_ASSISTANT / STAFF / PRACTICE_EMPLOYEE Roles
-        RoleEntity articleRole = roleRepository.findByCodeAndIsSystemRoleTrue("ARTICLE_ASSISTANT")
+        RoleEntity accountantRole = roleRepository.findByCodeAndIsSystemRoleTrue("ACCOUNTANT")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
-                        .code("ARTICLE_ASSISTANT")
-                        .name("Article Assistant")
+                        .code("ACCOUNTANT")
+                        .name("Senior Accountant")
+                        .description("Senior accountant managing client financial compliance and reporting")
                         .isSystemRole(true)
                         .build()));
+        accountantRole.setPermissions(practiceAdminPerms);
+        roleRepository.save(accountantRole);
+
+        // 4. Associates, Staff & Article Assistants (SENIOR_TAX_ASSOCIATE, TAX_ASSOCIATE, ARTICLE_ASSISTANT, STAFF, PRACTICE_EMPLOYEE, TRAINEE)
         Set<PermissionEntity> articlePerms = allPermissions.stream()
                 .filter(p -> p.getCode().startsWith("TASK_") && !p.getCode().equals("TASK_DELETE")
                         || p.getCode().startsWith("CLIENT_") && (p.getCode().contains("VIEW") || p.getCode().contains("READ"))
@@ -430,13 +465,52 @@ public class DemoDataSeeder implements CommandLineRunner {
                         || p.getCode().equals("EMPLOYEE_VIEW") || p.getCode().equals("EMPLOYEE_READ")
                 )
                 .collect(Collectors.toSet());
+
+        RoleEntity seniorTaxAssocRole = roleRepository.findByCodeAndIsSystemRoleTrue("SENIOR_TAX_ASSOCIATE")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("SENIOR_TAX_ASSOCIATE")
+                        .name("Senior Tax Associate")
+                        .description("Senior associate preparing complex direct and indirect tax returns")
+                        .isSystemRole(true)
+                        .build()));
+        seniorTaxAssocRole.setPermissions(articlePerms);
+        roleRepository.save(seniorTaxAssocRole);
+
+        RoleEntity taxAssocRole = roleRepository.findByCodeAndIsSystemRoleTrue("TAX_ASSOCIATE")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TAX_ASSOCIATE")
+                        .name("Tax Associate")
+                        .description("Tax associate preparing tax returns and handling client compliance")
+                        .isSystemRole(true)
+                        .build()));
+        taxAssocRole.setPermissions(articlePerms);
+        roleRepository.save(taxAssocRole);
+
+        RoleEntity articleRole = roleRepository.findByCodeAndIsSystemRoleTrue("ARTICLE_ASSISTANT")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("ARTICLE_ASSISTANT")
+                        .name("Article Assistant")
+                        .description("CA article trainee assisting with audit and compliance filings")
+                        .isSystemRole(true)
+                        .build()));
         articleRole.setPermissions(articlePerms);
         roleRepository.save(articleRole);
+
+        RoleEntity traineeRole = roleRepository.findByCodeAndIsSystemRoleTrue("TRAINEE")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("TRAINEE")
+                        .name("Trainee / Intern")
+                        .description("Practice trainee assisting with workflow data entry and document prep")
+                        .isSystemRole(true)
+                        .build()));
+        traineeRole.setPermissions(articlePerms);
+        roleRepository.save(traineeRole);
 
         RoleEntity staffRole = roleRepository.findByCodeAndIsSystemRoleTrue("STAFF")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code("STAFF")
                         .name("Practice Staff")
+                        .description("General practice staff supporting client workflows")
                         .isSystemRole(true)
                         .build()));
         staffRole.setPermissions(articlePerms);
@@ -451,6 +525,20 @@ public class DemoDataSeeder implements CommandLineRunner {
                         .build()));
         practiceEmpRole.setPermissions(articlePerms);
         roleRepository.save(practiceEmpRole);
+
+        // 5. Practice Read-Only Viewer
+        Set<PermissionEntity> viewerPerms = allPermissions.stream()
+                .filter(p -> (p.getCode().contains("VIEW") || p.getCode().contains("READ")) && !SecurityUtils.isPlatformPermission(p.getCode()))
+                .collect(Collectors.toSet());
+        RoleEntity viewerRole = roleRepository.findByCodeAndIsSystemRoleTrue("VIEWER")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("VIEWER")
+                        .name("Practice Viewer")
+                        .description("Read-only access to view practice worklists and compliance records")
+                        .isSystemRole(true)
+                        .build()));
+        viewerRole.setPermissions(viewerPerms);
+        roleRepository.save(viewerRole);
 
         // 6. CLIENT_USER / PRACTICE_CLIENT Role (Portal Access, Views & Uploads)
         RoleEntity clientUserRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
@@ -655,12 +743,12 @@ public class DemoDataSeeder implements CommandLineRunner {
                             String department, String designation, RoleEntity role) {}
 
         List<DemoEmployee> demoStaff = isMundeshwari ? List.of(
-                new DemoEmployee("EMP-108", "pooja.joshi@maamundeshwari.com", "Pooja", "Joshi", "+919878901234", "Direct Tax", "Article Assistant / Trainee", articleRole),
-                new DemoEmployee("EMP-102", "rajesh.patel@maamundeshwari.com", "Rajesh", "Patel", "+919811223344", "GST & Indirect Tax", "Senior Tax Accountant", practitionerRole),
-                new DemoEmployee("EMP-105", "vikas.sharma@maamundeshwari.com", "Vikas", "Sharma", "+919833445566", "Audit & Assurance", "Audit Manager", practitionerRole)
+                new DemoEmployee("EMP-0001", "pooja.joshi@maamundeshwari.com", "Pooja", "Joshi", "+919878901234", "Direct Tax", "Article Assistant / Trainee", articleRole),
+                new DemoEmployee("EMP-0002", "rajesh.patel@maamundeshwari.com", "Rajesh", "Patel", "+919811223344", "GST & Indirect Tax", "Senior Tax Accountant", practitionerRole),
+                new DemoEmployee("EMP-0003", "vikas.sharma@maamundeshwari.com", "Vikas", "Sharma", "+919833445566", "Audit & Assurance", "Audit Manager", practitionerRole)
         ) : List.of(
-                new DemoEmployee("EMP-201", "neha.sharma@apextax.com", "Neha", "Sharma", "+919844556677", "Direct Tax", "Senior Tax Consultant", practitionerRole),
-                new DemoEmployee("EMP-202", "amit.verma@apextax.com", "Amit", "Verma", "+919855667788", "Compliance", "Article Assistant", articleRole)
+                new DemoEmployee("EMP-0001", "neha.sharma@apextax.com", "Neha", "Sharma", "+919844556677", "Direct Tax", "Senior Tax Consultant", practitionerRole),
+                new DemoEmployee("EMP-0002", "amit.verma@apextax.com", "Amit", "Verma", "+919855667788", "Compliance", "Article Assistant", articleRole)
         );
 
         List<ClientEntity> clients = clientRepository.findAllByOrganizationId(org.getId());
@@ -804,6 +892,13 @@ public class DemoDataSeeder implements CommandLineRunner {
                 }
             }
         }
+
+        // Initialize / sync organization employee counter
+        employeeCounterRepository.save(com.taxoryn.module.employee.entity.OrganizationEmployeeCounterEntity.builder()
+                .organizationId(org.getId())
+                .lastNumber((long) demoStaff.size())
+                .updatedAt(java.time.Instant.now())
+                .build());
     }
 
     private void seedTask(UUID orgId, UUID clientId, UUID assignedTo, String title, String description,

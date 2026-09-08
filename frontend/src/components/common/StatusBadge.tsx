@@ -11,6 +11,14 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
   const normalized = status ? status.toUpperCase() : 'UNKNOWN';
 
   switch (normalized) {
+    case 'INVITED':
+      return (
+        <Badge variant="primary" size={size}>
+          <Clock className="w-3 h-3 text-blue-600" />
+          {normalized.replace('_', ' ')}
+        </Badge>
+      );
+
     case 'ACTIVE':
     case 'FILED':
     case 'PAID':

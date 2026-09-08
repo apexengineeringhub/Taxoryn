@@ -143,6 +143,9 @@ export interface Client {
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   portalEnabled?: boolean;
+  portalStatus?: string;
+  portalUserEmail?: string;
+  portalUserId?: string;
   createdAt?: string;
 }
 
@@ -552,6 +555,7 @@ export interface Employee {
   id: string;
   userId?: string;
   employeeCode: string;
+  employeeNumber?: string;
   firstName: string;
   lastName?: string;
   fullName?: string;

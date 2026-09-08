@@ -200,6 +200,104 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
     }
 
     @Override
+    public void sendClientPortalInvitationEmail(String recipientEmail, String recipientName, String clientName, String practiceName, String activationUrl, long expiryHours) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send client portal invitation email: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "Valued Client";
+        String firmName = StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Practice";
+        String clientAccountName = StringUtils.hasText(clientName) ? clientName.trim() : displayName;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("clientName", clientAccountName);
+        data.put("practiceName", firmName);
+        data.put("email", recipientEmail.trim());
+        data.put("activationUrl", activationUrl);
+        data.put("expiryHours", String.valueOf(expiryHours));
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.CLIENT_PORTAL_INVITATION, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.CLIENT_PORTAL_INVITATION, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Client portal invitation email dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
+    @Override
+    public void sendClientPortalSuspendedEmail(String recipientEmail, String recipientName, String clientName, String practiceName) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send client portal suspended email: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : (StringUtils.hasText(clientName) ? clientName.trim() : "Valued Client");
+        String firmName = StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Practice";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("clientName", StringUtils.hasText(clientName) ? clientName.trim() : displayName);
+        data.put("practiceName", firmName);
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.CLIENT_PORTAL_SUSPENDED, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.CLIENT_PORTAL_SUSPENDED, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Client portal suspension email dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
+    @Override
+    public void sendClientPortalRestoredEmail(String recipientEmail, String recipientName, String clientName, String practiceName, String loginUrl) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send client portal restored email: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : (StringUtils.hasText(clientName) ? clientName.trim() : "Valued Client");
+        String firmName = StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Practice";
+        String targetLoginUrl = StringUtils.hasText(loginUrl) ? loginUrl : "http://localhost:5173/login";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("clientName", StringUtils.hasText(clientName) ? clientName.trim() : displayName);
+        data.put("practiceName", firmName);
+        data.put("loginUrl", targetLoginUrl);
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.CLIENT_PORTAL_RESTORED, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.CLIENT_PORTAL_RESTORED, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Client portal restoration email dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
+    @Override
+    public void sendClientPortalDeactivatedEmail(String recipientEmail, String recipientName, String clientName, String practiceName) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send client portal deactivated email: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : (StringUtils.hasText(clientName) ? clientName.trim() : "Valued Client");
+        String firmName = StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Practice";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("clientName", StringUtils.hasText(clientName) ? clientName.trim() : displayName);
+        data.put("practiceName", firmName);
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.CLIENT_PORTAL_DEACTIVATED, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.CLIENT_PORTAL_DEACTIVATED, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Client portal deactivation email dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
+    @Override
     public void sendDocumentRequestEmail(String recipientEmail, String clientName, String purpose, String practiceName, java.time.LocalDate dueDate, String message, java.util.List<String> itemTitles) {
         if (!StringUtils.hasText(recipientEmail)) {
             return;

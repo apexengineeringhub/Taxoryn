@@ -90,6 +90,7 @@ public class AuthServiceImpl implements AuthService {
     private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
+    private final com.taxoryn.module.client.repository.ClientRepository clientRepository;
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
 
@@ -337,6 +338,21 @@ public class AuthServiceImpl implements AuthService {
             employeeRepository.save(emp);
         });
 
+        // If client portal user record exists, log audit event
+        if (user.getClientId() != null) {
+            clientRepository.findByIdAndOrganizationId(user.getClientId(), organization.getId()).ifPresent(client -> {
+                auditService.logEvent(
+                        organization.getId(),
+                        user.getId(),
+                        "CLIENT_PORTAL_ACTIVATED",
+                        "CLIENT",
+                        client.getId().toString(),
+                        null,
+                        "Client portal user account successfully activated and password configured from IP: " + (clientIp != null ? clientIp : "unknown")
+                );
+            });
+        }
+
         // Invalidate any other pending activation tokens for this user
         organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), now);
 
@@ -352,10 +368,11 @@ public class AuthServiceImpl implements AuthService {
         );
 
         // Publish UserRegisteredEvent for post-activation welcome workflow
+        UserRegistrationType regType = user.getClientId() != null ? UserRegistrationType.INDIVIDUAL : UserRegistrationType.PRACTITIONER;
         eventPublisher.publishEvent(UserRegisteredEvent.builder()
                 .userId(user.getId())
                 .organizationId(organization.getId())
-                .registrationType(UserRegistrationType.PRACTITIONER)
+                .registrationType(regType)
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .organizationName(organization.getName())
@@ -393,7 +410,8 @@ public class AuthServiceImpl implements AuthService {
                 .orElse(null);
         String orgName = org != null ? org.getName() : "Taxoryn Practice";
         boolean isEmployee = employeeRepository.findByOrganizationIdAndUserId(token.getOrganizationId(), user.getId()).isPresent();
-        boolean requiresPassword = isEmployee || user.getStatus() == UserStatus.INVITED || !StringUtils.hasText(user.getPasswordHash());
+        boolean isClientUser = user.getClientId() != null;
+        boolean requiresPassword = isEmployee || isClientUser || user.getStatus() == UserStatus.INVITED || !StringUtils.hasText(user.getPasswordHash());
 
         return com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse.builder()
                 .valid(true)
@@ -412,15 +430,91 @@ public class AuthServiceImpl implements AuthService {
 
         if (userOpt.isPresent()) {
             UserEntity user = userOpt.get();
-            if (user.getStatus() == UserStatus.INACTIVE && user.getOrganizationId() != null) {
+            if (user.getOrganizationId() != null) {
                 Optional<OrganizationEntity> orgOpt = organizationRepository.findById(user.getOrganizationId());
                 if (orgOpt.isPresent()) {
                     OrganizationEntity org = orgOpt.get();
-                    if (org.getStatus() == OrganizationStatus.INACTIVE) {
-                        // Invalidate existing tokens
-                        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
 
-                        // Generate fresh token
+                    if (user.getStatus() == UserStatus.INVITED && user.getClientId() != null) {
+                        // Resend Client Portal Invitation
+                        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+                        String rawToken = generateSecureToken();
+                        String tokenHash = hashToken(rawToken);
+                        Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+                        OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
+                                .userId(user.getId())
+                                .organizationId(org.getId())
+                                .tokenHash(tokenHash)
+                                .expiresAt(expiresAt)
+                                .createdByIp(clientIp)
+                                .build();
+                        organizationActivationTokenRepository.save(activationToken);
+
+                        String clientName = clientRepository.findByIdAndOrganizationId(user.getClientId(), org.getId())
+                                .map(com.taxoryn.module.client.entity.ClientEntity::getDisplayName)
+                                .orElse(user.getFullName());
+
+                        String activationUrl = activationBaseUrl + "?token=" + rawToken;
+                        emailNotificationService.sendClientPortalInvitationEmail(
+                                user.getEmail(),
+                                user.getFullName(),
+                                clientName,
+                                org.getName(),
+                                activationUrl,
+                                activationExpirationHours
+                        );
+
+                        auditService.logEvent(
+                                org.getId(),
+                                user.getId(),
+                                "CLIENT_PORTAL_INVITATION_RESENT",
+                                "CLIENT",
+                                user.getClientId().toString(),
+                                null,
+                                "Client portal invitation email resent from IP: " + (clientIp != null ? clientIp : "unknown")
+                        );
+                        log.info("Client portal invitation email resent to user {} / client {}", user.getId(), user.getClientId());
+                    } else if (user.getStatus() == UserStatus.INVITED && employeeRepository.findByOrganizationIdAndUserId(org.getId(), user.getId()).isPresent()) {
+                        // Resend Employee Invitation
+                        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+                        String rawToken = generateSecureToken();
+                        String tokenHash = hashToken(rawToken);
+                        Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+                        OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
+                                .userId(user.getId())
+                                .organizationId(org.getId())
+                                .tokenHash(tokenHash)
+                                .expiresAt(expiresAt)
+                                .createdByIp(clientIp)
+                                .build();
+                        organizationActivationTokenRepository.save(activationToken);
+
+                        var emp = employeeRepository.findByOrganizationIdAndUserId(org.getId(), user.getId()).get();
+                        String activationUrl = activationBaseUrl + "?token=" + rawToken;
+                        emailNotificationService.sendEmployeeInvitationEmail(
+                                user.getEmail(),
+                                emp.getFullName(),
+                                org.getName(),
+                                emp.getDesignation(),
+                                activationUrl,
+                                activationExpirationHours
+                        );
+
+                        auditService.logEvent(
+                                org.getId(),
+                                user.getId(),
+                                "EMPLOYEE_INVITATION_RESENT",
+                                "EMPLOYEE",
+                                emp.getId().toString(),
+                                null,
+                                "Employee invitation email resent from IP: " + (clientIp != null ? clientIp : "unknown")
+                        );
+                        log.info("Employee invitation email resent to user {} / emp {}", user.getId(), emp.getId());
+                    } else if (user.getStatus() == UserStatus.INACTIVE && org.getStatus() == OrganizationStatus.INACTIVE) {
+                        // Resend Organization Activation
+                        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
                         String rawToken = generateSecureToken();
                         String tokenHash = hashToken(rawToken);
                         Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);

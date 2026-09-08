@@ -16,6 +16,9 @@ import {
   ShieldAlert,
   AlertTriangle,
   RotateCcw,
+  Clock,
+  Mail,
+  Send,
 } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -40,6 +43,13 @@ export const ClientsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>('ALL');
+  const [portalStatusFilter, setPortalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'INACTIVE' | 'NOT_ENABLED'>('ALL');
+
+  // Confirmation Modal State
+  const [portalModalAction, setPortalModalAction] = useState<{
+    type: 'SUSPEND' | 'RESTORE' | 'DEACTIVATE' | 'RESEND';
+    client: Client;
+  } | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -55,7 +65,7 @@ export const ClientsPage: React.FC = () => {
 
   useEffect(() => {
     loadClients();
-  }, [page, pageSize, statusFilter]);
+  }, [page, pageSize, statusFilter, portalStatusFilter]);
 
   const loadClients = async () => {
     try {
@@ -63,6 +73,9 @@ export const ClientsPage: React.FC = () => {
       const params: any = { page, size: pageSize };
       if (statusFilter !== 'ALL') {
         params.status = statusFilter;
+      }
+      if (portalStatusFilter !== 'ALL') {
+        params.portalStatus = portalStatusFilter;
       }
       const res = await clientApi.getAll(params);
       setClients(res.content);
@@ -82,15 +95,49 @@ export const ClientsPage: React.FC = () => {
       setStatusUpdatingId(clientId);
       await clientApi.updateStatus(clientId, newStatus);
       setClients((prev) =>
-        prev.map((c) => (c.id === clientId ? { ...c, status: newStatus } : c))
+        prev.map((c) => (c.id === clientId ? { ...c, status: newStatus, ...(newStatus === 'ARCHIVED' ? { portalStatus: 'INACTIVE' } : {}) } : c))
       );
       if (selectedClient && selectedClient.id === clientId) {
-        setSelectedClient({ ...selectedClient, status: newStatus });
+        setSelectedClient({ ...selectedClient, status: newStatus, ...(newStatus === 'ARCHIVED' ? { portalStatus: 'INACTIVE' } : {}) });
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update client status');
     } finally {
       setStatusUpdatingId(null);
+    }
+  };
+
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  const handleUpdatePortalStatus = async (clientId: string, newPortalStatus: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE') => {
+    try {
+      setStatusUpdatingId(clientId);
+      const updated = await clientApi.updatePortalStatus(clientId, newPortalStatus);
+      setClients((prev) =>
+        prev.map((c) => (c.id === clientId ? { ...c, portalStatus: updated.portalStatus } : c))
+      );
+      if (selectedClient && selectedClient.id === clientId) {
+        setSelectedClient({ ...selectedClient, portalStatus: updated.portalStatus });
+      }
+      setPortalModalAction(null);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update portal access status');
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  };
+
+  const handleResendPortalInvite = async (clientId: string) => {
+    try {
+      setResendingId(clientId);
+      await clientApi.resendPortalInvitation(clientId);
+      alert('Client portal activation invitation email has been resent successfully!');
+      setPortalModalAction(null);
+      loadClients();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to resend portal invitation');
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -183,88 +230,99 @@ export const ClientsPage: React.FC = () => {
       accessor: (row) => row.email || <span className="text-slate-400">—</span>,
     },
     {
-      header: 'Lifecycle Status',
+      header: 'Client Portal',
+      accessor: (row) => {
+        const status = (row as any).portalStatus || (row.email ? 'INVITED' : 'NO_EMAIL');
+        if (status === 'ACTIVE') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              Active
+            </span>
+          );
+        }
+        if (status === 'INVITED') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              <Clock className="w-3 h-3 text-amber-600" />
+              Invite Sent
+            </span>
+          );
+        }
+        if (status === 'SUSPENDED') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+              <Ban className="w-3 h-3 text-rose-600" />
+              Suspended
+            </span>
+          );
+        }
+        if (status === 'INACTIVE') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              <PauseCircle className="w-3 h-3 text-slate-500" />
+              Inactive
+            </span>
+          );
+        }
+        return (
+          <span className="text-[10px] text-slate-400 font-medium italic">
+            {row.email ? 'Not Set Up' : 'No Email'}
+          </span>
+        );
+      },
+      align: 'center',
+    },
+    {
+      header: 'Client Status',
       accessor: (row) => <StatusBadge status={row.status} size="sm" />,
       align: 'center',
     },
     {
-      header: 'Quick Status Actions',
+      header: 'Quick Actions',
       align: 'right',
       cell: (row) => {
         const isUpdating = statusUpdatingId === row.id;
+        const isResending = resendingId === row.id;
+        const portalStatus = (row as any).portalStatus;
 
         return (
           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-            {/* Quick Status State Buttons */}
-            {row.status === 'ACTIVE' && (
-              <>
-                <button
-                  disabled={isUpdating}
-                  onClick={() => handleUpdateStatus(row.id, 'INACTIVE')}
-                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                  title="Deactivate client (Mark Inactive)"
-                >
-                  <PauseCircle className="w-3 h-3 text-slate-500" />
-                  <span>Deactivate</span>
-                </button>
-
-                <button
-                  disabled={isUpdating}
-                  onClick={() => handleUpdateStatus(row.id, 'SUSPENDED')}
-                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                  title="Suspend client account"
-                >
-                  <Ban className="w-3 h-3 text-rose-600" />
-                  <span>Suspend</span>
-                </button>
-              </>
-            )}
-
-            {row.status === 'INACTIVE' && (
-              <>
-                <button
-                  disabled={isUpdating}
-                  onClick={() => handleUpdateStatus(row.id, 'ACTIVE')}
-                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                  title="Re-activate client account"
-                >
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>Activate</span>
-                </button>
-
-                <button
-                  disabled={isUpdating}
-                  onClick={() => handleUpdateStatus(row.id, 'SUSPENDED')}
-                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                  title="Suspend client account"
-                >
-                  <Ban className="w-3 h-3 text-rose-600" />
-                  <span>Suspend</span>
-                </button>
-              </>
-            )}
-
-            {row.status === 'SUSPENDED' && (
+            {/* Resend Portal Invitation button if invited or no password */}
+            {row.email && portalStatus === 'INVITED' && (
               <button
-                disabled={isUpdating}
-                onClick={() => handleUpdateStatus(row.id, 'ACTIVE')}
-                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                title="Lift suspension & Re-activate"
+                disabled={isResending || isUpdating}
+                onClick={() => setPortalModalAction({ type: 'RESEND', client: row })}
+                className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                title="Resend portal invitation"
               >
-                <RotateCcw className="w-3 h-3 text-emerald-600" />
-                <span>Lift Suspension</span>
+                <Send className="w-3 h-3 text-sky-600" />
+                <span>Invite</span>
               </button>
             )}
 
-            {row.status === 'ARCHIVED' && (
+            {/* Portal Lifecycle Action Triggers */}
+            {portalStatus === 'ACTIVE' && (
               <button
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus(row.id, 'ACTIVE')}
-                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                title="Restore & Activate client"
+                onClick={() => setPortalModalAction({ type: 'SUSPEND', client: row })}
+                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                title="Suspend portal access"
               >
-                <RotateCcw className="w-3 h-3 text-blue-600" />
-                <span>Restore</span>
+                <Ban className="w-3 h-3 text-rose-600" />
+                <span>Suspend Portal</span>
+              </button>
+            )}
+
+            {portalStatus === 'SUSPENDED' && (
+              <button
+                disabled={isUpdating}
+                onClick={() => setPortalModalAction({ type: 'RESTORE', client: row })}
+                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                title="Restore portal access"
+              >
+                <RotateCcw className="w-3 h-3 text-emerald-600" />
+                <span>Restore Portal</span>
               </button>
             )}
 
@@ -298,7 +356,7 @@ export const ClientsPage: React.FC = () => {
           <p className="text-xs text-slate-500 mt-1">
             {isStaff
               ? 'Showing clients assigned to your department and active workflow deliverables.'
-              : 'Centralized repository for corporate and individual clients, lifecycle management, and status controls.'}
+              : 'Centralized repository for corporate and individual clients, lifecycle management, and portal controls.'}
           </p>
         </div>
         {!isStaff && (
@@ -334,57 +392,77 @@ export const ClientsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Lifecycle Status Filter Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl w-full sm:w-fit text-xs font-semibold overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setStatusFilter('ALL')}
-          className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all shrink-0',
-            statusFilter === 'ALL' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
-          )}
-        >
-          All Clients
-        </button>
-        <button
-          onClick={() => setStatusFilter('ACTIVE')}
-          className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
-            statusFilter === 'ACTIVE' ? 'bg-white text-emerald-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
-          )}
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span>Active</span>
-        </button>
-        <button
-          onClick={() => setStatusFilter('INACTIVE')}
-          className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
-            statusFilter === 'INACTIVE' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
-          )}
-        >
-          <span className="w-2 h-2 rounded-full bg-slate-400" />
-          <span>Deactivated</span>
-        </button>
-        <button
-          onClick={() => setStatusFilter('SUSPENDED')}
-          className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
-            statusFilter === 'SUSPENDED' ? 'bg-white text-rose-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
-          )}
-        >
-          <span className="w-2 h-2 rounded-full bg-rose-500" />
-          <span>Suspended</span>
-        </button>
-        <button
-          onClick={() => setStatusFilter('ARCHIVED')}
-          className={clsx(
-            'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
-            statusFilter === 'ARCHIVED' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
-          )}
-        >
-          <Archive className="w-3.5 h-3.5 text-slate-400" />
-          <span>Archived</span>
-        </button>
+      {/* Lifecycle Status Filter Bars */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Client Business Lifecycle Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setStatusFilter('ALL')}
+            className={clsx(
+              'px-3 py-1.5 rounded-lg transition-all shrink-0',
+              statusFilter === 'ALL' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
+            )}
+          >
+            All Clients
+          </button>
+          <button
+            onClick={() => setStatusFilter('ACTIVE')}
+            className={clsx(
+              'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
+              statusFilter === 'ACTIVE' ? 'bg-white text-emerald-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>Active</span>
+          </button>
+          <button
+            onClick={() => setStatusFilter('INACTIVE')}
+            className={clsx(
+              'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
+              statusFilter === 'INACTIVE' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-slate-400" />
+            <span>Deactivated</span>
+          </button>
+          <button
+            onClick={() => setStatusFilter('SUSPENDED')}
+            className={clsx(
+              'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
+              statusFilter === 'SUSPENDED' ? 'bg-white text-rose-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span>Suspended</span>
+          </button>
+          <button
+            onClick={() => setStatusFilter('ARCHIVED')}
+            className={clsx(
+              'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
+              statusFilter === 'ARCHIVED' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
+            )}
+          >
+            <Archive className="w-3.5 h-3.5 text-slate-400" />
+            <span>Archived</span>
+          </button>
+        </div>
+
+        {/* Portal Access Filter Selector */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-slate-500 font-semibold shrink-0">Portal Status:</span>
+          <select
+            value={portalStatusFilter}
+            onChange={(e) => setPortalStatusFilter(e.target.value as any)}
+            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs focus:ring-1 focus:ring-brand-500 outline-none"
+          >
+            <option value="ALL">All Portal States</option>
+            <option value="ACTIVE">Active Portal</option>
+            <option value="INVITED">Invite Pending</option>
+            <option value="SUSPENDED">Portal Suspended</option>
+            <option value="INACTIVE">Portal Inactive</option>
+            <option value="NOT_ENABLED">Not Enabled</option>
+          </select>
+        </div>
       </div>
 
       {/* Data Table */}
@@ -572,6 +650,13 @@ export const ClientsPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-800 flex items-start gap-2">
+            <Mail className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+            <p>
+              <strong>Automated Client Portal Onboarding:</strong> Providing an email address will automatically send a secure portal invitation email with a link for the client to set up their password for the first time.
+            </p>
+          </div>
+
           <div className="pt-4 flex items-center justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
               Cancel
@@ -712,6 +797,125 @@ export const ClientsPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Client Portal Access Card */}
+            <div className="p-4 rounded-xl border border-sky-200 bg-sky-50/50 space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-sky-600" />
+                  <span className="font-bold text-slate-900">Client Portal Access</span>
+                </div>
+                {((selectedClient as any).portalStatus === 'ACTIVE') ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    <CheckCircle2 className="w-3 h-3" /> Active
+                  </span>
+                ) : ((selectedClient as any).portalStatus === 'INVITED') ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                    <Clock className="w-3 h-3" /> Pending Activation
+                  </span>
+                ) : ((selectedClient as any).portalStatus === 'SUSPENDED') ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                    <Ban className="w-3 h-3" /> Suspended
+                  </span>
+                ) : ((selectedClient as any).portalStatus === 'INACTIVE') ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                    <PauseCircle className="w-3 h-3" /> Inactive
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                    Not Set Up
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-600">
+                {selectedClient.email
+                  ? `Primary contact email (${selectedClient.email}) is linked to portal access.`
+                  : 'Add an email address to this client to enable self-service portal access.'}
+              </p>
+              {selectedClient.email && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {(selectedClient as any).portalStatus === 'ACTIVE' && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<Ban className="w-3.5 h-3.5 text-rose-600" />}
+                        onClick={() => setPortalModalAction({ type: 'SUSPEND', client: selectedClient })}
+                        className="bg-white border-rose-200 text-rose-700 hover:bg-rose-50"
+                      >
+                        Suspend Access
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<PauseCircle className="w-3.5 h-3.5 text-slate-500" />}
+                        onClick={() => setPortalModalAction({ type: 'DEACTIVATE', client: selectedClient })}
+                        className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                      >
+                        Disable Access
+                      </Button>
+                    </>
+                  )}
+
+                  {(selectedClient as any).portalStatus === 'SUSPENDED' && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+                        onClick={() => setPortalModalAction({ type: 'RESTORE', client: selectedClient })}
+                      >
+                        Restore Access
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<PauseCircle className="w-3.5 h-3.5 text-slate-500" />}
+                        onClick={() => setPortalModalAction({ type: 'DEACTIVATE', client: selectedClient })}
+                        className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                      >
+                        Disable Access
+                      </Button>
+                    </>
+                  )}
+
+                  {(selectedClient as any).portalStatus === 'INACTIVE' && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+                      onClick={() => setPortalModalAction({ type: 'RESTORE', client: selectedClient })}
+                    >
+                      Restore Access
+                    </Button>
+                  )}
+
+                  {(selectedClient as any).portalStatus === 'INVITED' && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<Send className="w-3.5 h-3.5 text-sky-600" />}
+                        isLoading={resendingId === selectedClient.id}
+                        onClick={() => handleResendPortalInvite(selectedClient.id)}
+                        className="bg-white border-sky-300 text-sky-700 hover:bg-sky-50"
+                      >
+                        Resend Activation Invite
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<PauseCircle className="w-3.5 h-3.5 text-slate-500" />}
+                        onClick={() => setPortalModalAction({ type: 'DEACTIVATE', client: selectedClient })}
+                        className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                      >
+                        Disable Access
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Practice Modules Grid */}
             <div className="border-t border-slate-200 pt-4">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Client Practice Modules</h4>
@@ -739,6 +943,104 @@ export const ClientsPage: React.FC = () => {
       </div>
     )}
   </Drawer>
+
+  {/* Portal Action Confirmation Modal */}
+  <Modal
+    isOpen={!!portalModalAction}
+    onClose={() => setPortalModalAction(null)}
+    title={
+      portalModalAction?.type === 'SUSPEND'
+        ? 'Suspend Client Portal Access'
+        : portalModalAction?.type === 'RESTORE'
+        ? 'Restore Client Portal Access'
+        : portalModalAction?.type === 'DEACTIVATE'
+        ? 'Disable Client Portal Access'
+        : 'Resend Portal Activation Invite'
+    }
+  >
+    <div className="space-y-4 text-xs text-slate-600">
+      <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+        {portalModalAction?.type === 'SUSPEND' && (
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+        )}
+        {portalModalAction?.type === 'RESTORE' && (
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+        )}
+        {portalModalAction?.type === 'DEACTIVATE' && (
+          <ShieldAlert className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" />
+        )}
+        {portalModalAction?.type === 'RESEND' && (
+          <Mail className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
+        )}
+        <div>
+          <p className="font-bold text-slate-800 text-sm mb-1">
+            {portalModalAction?.client.displayName}
+          </p>
+          <p className="text-slate-600">
+            {portalModalAction?.type === 'SUSPEND' &&
+              "Are you sure you want to suspend this client's portal access? The client will no longer be able to sign in."}
+            {portalModalAction?.type === 'RESTORE' &&
+              "Are you sure you want to restore this client's portal access? The client will be able to sign in using their existing password."}
+            {portalModalAction?.type === 'DEACTIVATE' &&
+              "Are you sure you want to disable this client's portal access? The client data will be retained."}
+            {portalModalAction?.type === 'RESEND' &&
+              'Resend portal activation invitation to this client?'}
+          </p>
+        </div>
+      </div>
+
+      <div className="pt-2 flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setPortalModalAction(null)}
+          disabled={!!statusUpdatingId || !!resendingId}
+        >
+          Cancel
+        </Button>
+        {portalModalAction?.type === 'SUSPEND' && (
+          <Button
+            type="button"
+            isLoading={statusUpdatingId === portalModalAction.client.id}
+            onClick={() => handleUpdatePortalStatus(portalModalAction.client.id, 'SUSPENDED')}
+            className="bg-rose-600 hover:bg-rose-700 text-white"
+          >
+            Suspend Access
+          </Button>
+        )}
+        {portalModalAction?.type === 'RESTORE' && (
+          <Button
+            type="button"
+            isLoading={statusUpdatingId === portalModalAction.client.id}
+            onClick={() => handleUpdatePortalStatus(portalModalAction.client.id, 'ACTIVE')}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            Restore Access
+          </Button>
+        )}
+        {portalModalAction?.type === 'DEACTIVATE' && (
+          <Button
+            type="button"
+            isLoading={statusUpdatingId === portalModalAction.client.id}
+            onClick={() => handleUpdatePortalStatus(portalModalAction.client.id, 'INACTIVE')}
+            className="bg-slate-700 hover:bg-slate-800 text-white"
+          >
+            Disable Access
+          </Button>
+        )}
+        {portalModalAction?.type === 'RESEND' && (
+          <Button
+            type="button"
+            isLoading={resendingId === portalModalAction.client.id}
+            onClick={() => handleResendPortalInvite(portalModalAction.client.id)}
+            className="bg-sky-600 hover:bg-sky-700 text-white"
+          >
+            Resend Invitation
+          </Button>
+        )}
+      </div>
+    </div>
+  </Modal>
 </div>
 );
 };

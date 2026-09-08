@@ -48,10 +48,32 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import com.taxoryn.core.security.PasswordSecurityUtils;
+import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
+import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
+import com.taxoryn.module.notification.email.service.EmailNotificationService;
+import com.taxoryn.module.organization.entity.OrganizationEntity;
+import com.taxoryn.module.organization.repository.OrganizationRepository;
+import com.taxoryn.module.role.entity.RoleEntity;
+import com.taxoryn.module.role.repository.RoleRepository;
+import com.taxoryn.module.user.entity.UserEntity;
+import com.taxoryn.module.user.entity.UserEntity.UserStatus;
+import com.taxoryn.module.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
+import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
+import com.taxoryn.module.client.dto.UpdateClientPortalStatusRequest;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 
 @Slf4j
 @Service
@@ -62,11 +84,26 @@ public class ClientServiceImpl implements ClientService {
     private final ClientNoteRepository clientNoteRepository;
     private final EmployeeRepository employeeRepository;
     private final TaskRepository taskRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final OrganizationRepository organizationRepository;
+    private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final EmailNotificationService emailNotificationService;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+
+    @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
+    private String activationBaseUrl = "http://localhost:5173/activate";
+
+    @Value("${taxoryn.frontend.login-url:${taxoryn.auth.login-url:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/login}}")
+    private String portalLoginUrl = "http://localhost:5173/login";
+
+    @Value("${taxoryn.auth.activation.expiration-hours:24}")
+    private long activationExpirationHours = 24L;
 
     @Override
     @Transactional
@@ -120,6 +157,12 @@ public class ClientServiceImpl implements ClientService {
 
         ClientEntity saved = clientRepository.save(client);
         log.info("Created client: id={}, displayName={} for tenant={}", saved.getId(), saved.getDisplayName(), organizationId);
+
+        if (StringUtils.hasText(saved.getEmail())) {
+            UserEntity portalUser = provisionUserForClient(organizationId, saved);
+            sendClientPortalInvitation(saved, portalUser, organizationId);
+        }
+
         ClientDto result = enrichDto(saved);
         auditService.logEvent("CLIENT_CREATED", "CLIENT", saved.getId().toString(), null, result);
         return result;
@@ -287,6 +330,33 @@ public class ClientServiceImpl implements ClientService {
                 predicates.add(cb.equal(cb.lower(root.get("gstin")), filterRequest.getGstin().trim().toLowerCase()));
             }
 
+            if (StringUtils.hasText(filterRequest.getPortalStatus()) && !"ALL".equalsIgnoreCase(filterRequest.getPortalStatus().trim())) {
+                String portalStatusFilter = filterRequest.getPortalStatus().trim().toUpperCase();
+                if ("NOT_ENABLED".equals(portalStatusFilter)) {
+                    Subquery<UUID> sub = query.subquery(UUID.class);
+                    Root<UserEntity> userRoot = sub.from(UserEntity.class);
+                    sub.select(userRoot.get("clientId")).where(
+                            cb.equal(userRoot.get("organizationId"), organizationId),
+                            cb.isNotNull(userRoot.get("clientId"))
+                    );
+                    predicates.add(cb.not(root.get("id").in(sub)));
+                } else {
+                    try {
+                        UserStatus targetStatus = UserStatus.valueOf(portalStatusFilter);
+                        Subquery<UUID> sub = query.subquery(UUID.class);
+                        Root<UserEntity> userRoot = sub.from(UserEntity.class);
+                        sub.select(userRoot.get("clientId")).where(
+                                cb.equal(userRoot.get("organizationId"), organizationId),
+                                cb.equal(userRoot.get("status"), targetStatus),
+                                cb.isNotNull(userRoot.get("clientId"))
+                        );
+                        predicates.add(root.get("id").in(sub));
+                    } catch (IllegalArgumentException ignored) {
+                        // ignore unrecognized filter value
+                    }
+                }
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
@@ -302,12 +372,147 @@ public class ClientServiceImpl implements ClientService {
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
         ClientStatus oldStatus = client.getStatus();
-        client.setStatus(request.getStatus());
+        ClientStatus newStatus = request.getStatus();
+        client.setStatus(newStatus);
         ClientEntity saved = clientRepository.save(client);
-        log.info("Updated client status: id={}, newStatus={} for tenant={}", clientId, request.getStatus(), organizationId);
+        log.info("Updated client status: id={}, newStatus={} for tenant={}", clientId, newStatus, organizationId);
+
+        // If client is archived, disable portal access and revoke sessions
+        if (newStatus == ClientStatus.ARCHIVED) {
+            deactivatePortalAccessForClient(organizationId, client, "CLIENT_ARCHIVED");
+        }
+
         ClientDto result = enrichDto(saved);
-        auditService.logEvent("CLIENT_STATUS_UPDATED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, request.getStatus().name());
+        auditService.logEvent("CLIENT_STATUS_UPDATED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, newStatus.name());
         return result;
+    }
+
+    @Override
+    @Transactional
+    public ClientDto updateClientPortalStatus(UUID clientId, UpdateClientPortalStatusRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        UserStatus targetStatus = request.getPortalStatus();
+        List<UserEntity> portalUsers = userRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
+
+        if (portalUsers.isEmpty()) {
+            if (!StringUtils.hasText(client.getEmail())) {
+                throw new com.taxoryn.core.exception.BadRequestException("Cannot configure portal access: client does not have an email address");
+            }
+            if (targetStatus == UserStatus.INVITED || targetStatus == UserStatus.ACTIVE) {
+                UserEntity provisioned = provisionUserForClient(organizationId, client);
+                if (targetStatus == UserStatus.INVITED) {
+                    sendClientPortalInvitation(client, provisioned, organizationId);
+                } else {
+                    provisioned.setStatus(UserStatus.ACTIVE);
+                    userRepository.save(provisioned);
+                }
+                portalUsers = List.of(provisioned);
+            } else {
+                throw new ResourceNotFoundException("Client portal user", "clientId", clientId);
+            }
+        }
+
+        for (UserEntity user : portalUsers) {
+            UserStatus oldStatus = user.getStatus();
+            if (oldStatus == targetStatus) {
+                continue;
+            }
+
+            user.setStatus(targetStatus);
+            userRepository.save(user);
+
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(OrganizationEntity::getName)
+                    .orElse("Your Tax Practice");
+            String recipientName = StringUtils.hasText(user.getFullName()) ? user.getFullName() : client.getDisplayName();
+
+            if (targetStatus == UserStatus.SUSPENDED) {
+                refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "CLIENT_PORTAL_SUSPENDED");
+                log.info("Revoked refresh sessions for suspended client portal user: {}", user.getId());
+
+                try {
+                    emailNotificationService.sendClientPortalSuspendedEmail(
+                            user.getEmail(),
+                            recipientName,
+                            client.getDisplayName(),
+                            orgName
+                    );
+                } catch (Exception ex) {
+                    log.error("Failed to dispatch client portal suspension email to {}: {}", user.getEmail(), ex.getMessage());
+                }
+
+                auditService.logEvent(organizationId, currentUserId, "CLIENT_PORTAL_SUSPENDED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, targetStatus.name());
+            } else if (targetStatus == UserStatus.ACTIVE) {
+                try {
+                    emailNotificationService.sendClientPortalRestoredEmail(
+                            user.getEmail(),
+                            recipientName,
+                            client.getDisplayName(),
+                            orgName,
+                            portalLoginUrl
+                    );
+                } catch (Exception ex) {
+                    log.error("Failed to dispatch client portal restoration email to {}: {}", user.getEmail(), ex.getMessage());
+                }
+
+                auditService.logEvent(organizationId, currentUserId, "CLIENT_PORTAL_RESTORED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, targetStatus.name());
+            } else if (targetStatus == UserStatus.INACTIVE) {
+                refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "CLIENT_PORTAL_DEACTIVATED");
+                log.info("Revoked refresh sessions for deactivated client portal user: {}", user.getId());
+
+                if (oldStatus == UserStatus.ACTIVE || oldStatus == UserStatus.SUSPENDED) {
+                    try {
+                        emailNotificationService.sendClientPortalDeactivatedEmail(
+                                user.getEmail(),
+                                recipientName,
+                                client.getDisplayName(),
+                                orgName
+                        );
+                    } catch (Exception ex) {
+                        log.error("Failed to dispatch client portal deactivation email to {}: {}", user.getEmail(), ex.getMessage());
+                    }
+                }
+
+                auditService.logEvent(organizationId, currentUserId, "CLIENT_PORTAL_DEACTIVATED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, targetStatus.name());
+            }
+        }
+
+        return enrichDto(client);
+    }
+
+    private void deactivatePortalAccessForClient(UUID organizationId, ClientEntity client, String reason) {
+        List<UserEntity> portalUsers = userRepository.findAllByOrganizationIdAndClientId(organizationId, client.getId());
+        for (UserEntity user : portalUsers) {
+            UserStatus oldStatus = user.getStatus();
+            if (oldStatus != UserStatus.INACTIVE) {
+                user.setStatus(UserStatus.INACTIVE);
+                userRepository.save(user);
+                refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), reason);
+
+                if (oldStatus == UserStatus.ACTIVE) {
+                    try {
+                        String orgName = organizationRepository.findById(organizationId)
+                                .map(OrganizationEntity::getName)
+                                .orElse("Your Tax Practice");
+                        String recipientName = StringUtils.hasText(user.getFullName()) ? user.getFullName() : client.getDisplayName();
+                        emailNotificationService.sendClientPortalDeactivatedEmail(
+                                user.getEmail(),
+                                recipientName,
+                                client.getDisplayName(),
+                                orgName
+                        );
+                    } catch (Exception ex) {
+                        log.error("Failed to send client portal deactivation email on client archive for {}: {}", user.getEmail(), ex.getMessage());
+                    }
+                }
+                auditService.logEvent(organizationId, SecurityUtils.getCurrentUserId(), "CLIENT_PORTAL_DEACTIVATED", "CLIENT", client.getId().toString(), oldStatus != null ? oldStatus.name() : null, UserStatus.INACTIVE.name());
+            }
+        }
     }
 
     @Override
@@ -340,6 +545,10 @@ public class ClientServiceImpl implements ClientService {
         client.setStatus(ClientStatus.ARCHIVED);
         clientRepository.save(client);
         log.info("Archived client: id={} for tenant={}", clientId, organizationId);
+
+        // Deactivate portal user access on archive
+        deactivatePortalAccessForClient(organizationId, client, "CLIENT_ARCHIVED");
+
         auditService.logEvent("CLIENT_DELETED", "CLIENT", clientId.toString(), oldStatus != null ? oldStatus.name() : null, ClientStatus.ARCHIVED.name());
     }
 
@@ -804,6 +1013,134 @@ public class ClientServiceImpl implements ClientService {
         return result;
     }
 
+    @Override
+    @Transactional
+    public void resendPortalInvitation(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        if (!StringUtils.hasText(client.getEmail())) {
+            throw new com.taxoryn.core.exception.BadRequestException("Cannot send portal invitation: client has no registered email address");
+        }
+
+        UserEntity user = userRepository.findAllByOrganizationIdAndClientId(organizationId, client.getId())
+                .stream()
+                .findFirst()
+                .orElseGet(() -> provisionUserForClient(organizationId, client));
+
+        sendClientPortalInvitation(client, user, organizationId);
+    }
+
+    private UserEntity provisionUserForClient(UUID organizationId, ClientEntity client) {
+        String email = client.getEmail().trim().toLowerCase();
+        Optional<UserEntity> existingUserOpt = userRepository.findByEmailIgnoreCase(email);
+        if (existingUserOpt.isPresent()) {
+            UserEntity existing = existingUserOpt.get();
+            if (existing.getClientId() == null) {
+                existing.setClientId(client.getId());
+                return userRepository.save(existing);
+            }
+            return existing;
+        }
+
+        RoleEntity clientRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
+                .or(() -> roleRepository.findByCodeAndOrganizationId("CLIENT_USER", organizationId))
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("CLIENT_USER")
+                        .name("Client User")
+                        .isSystemRole(true)
+                        .build()));
+
+        String contactName = StringUtils.hasText(client.getContactPersonName())
+                ? client.getContactPersonName().trim()
+                : client.getDisplayName().trim();
+        String firstName = contactName;
+        String lastName = null;
+        if (contactName.contains(" ")) {
+            int idx = contactName.lastIndexOf(" ");
+            firstName = contactName.substring(0, idx).trim();
+            lastName = contactName.substring(idx + 1).trim();
+        }
+
+        UserEntity user = UserEntity.builder()
+                .organizationId(organizationId)
+                .clientId(client.getId())
+                .email(email)
+                .passwordHash("") // Empty password hash until first-time activation password setup
+                .firstName(firstName)
+                .lastName(lastName)
+                .phone(client.getPhone())
+                .status(UserStatus.INVITED)
+                .roles(new HashSet<>(Set.of(clientRole)))
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    private void sendClientPortalInvitation(ClientEntity client, UserEntity user, UUID organizationId) {
+        if (!StringUtils.hasText(client.getEmail())) {
+            return;
+        }
+        try {
+            // Invalidate any existing pending activation tokens for this user
+            organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+
+            // Generate Secure Activation Token (SHA-256 hashed at rest)
+            String rawToken = PasswordSecurityUtils.generateSecureToken();
+            String tokenHash = PasswordSecurityUtils.hashSha256(rawToken);
+            Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+            OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
+                    .userId(user.getId())
+                    .organizationId(organizationId)
+                    .tokenHash(tokenHash)
+                    .expiresAt(expiresAt)
+                    .build();
+            organizationActivationTokenRepository.save(activationToken);
+
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(OrganizationEntity::getName)
+                    .orElse("Your Tax Practice");
+
+            String activationUrl = activationBaseUrl + "?token=" + rawToken;
+
+            String recipientName = StringUtils.hasText(client.getContactPersonName())
+                    ? client.getContactPersonName()
+                    : client.getDisplayName();
+
+            emailNotificationService.sendClientPortalInvitationEmail(
+                    client.getEmail(),
+                    recipientName,
+                    client.getDisplayName(),
+                    orgName,
+                    activationUrl,
+                    activationExpirationHours
+            );
+
+            auditService.logEvent(
+                    organizationId,
+                    user.getId(),
+                    "CLIENT_PORTAL_INVITED",
+                    "CLIENT",
+                    client.getId().toString(),
+                    null,
+                    "Dispatched client portal invitation email to " + client.getEmail()
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send client portal invitation email to {}: {}", client.getEmail(), ex.getMessage(), ex);
+            auditService.logEvent(
+                    organizationId,
+                    user != null ? user.getId() : null,
+                    "CLIENT_PORTAL_INVITATION_FAILED",
+                    "CLIENT",
+                    client.getId().toString(),
+                    null,
+                    "Failed to dispatch client portal invitation email: " + ex.getMessage()
+            );
+        }
+    }
+
     private String normalizeIndianMobile(String phone) {
         if (!StringUtils.hasText(phone)) return null;
         String digitsOnly = phone.replaceAll("[^0-9]", "");
@@ -829,6 +1166,20 @@ public class ClientServiceImpl implements ClientService {
             employeeRepository.findByIdAndOrganizationId(client.getAssignedEmployeeId(), client.getOrganizationId())
                     .ifPresent(emp -> dto.setAssignedEmployeeName(emp.getFullName()));
         }
+
+        // Enrich with Client Portal user status
+        List<UserEntity> portalUsers = userRepository.findAllByOrganizationIdAndClientId(client.getOrganizationId(), client.getId());
+        if (!portalUsers.isEmpty()) {
+            UserEntity primaryUser = portalUsers.get(0);
+            dto.setPortalUserId(primaryUser.getId());
+            dto.setPortalUserEmail(primaryUser.getEmail());
+            dto.setPortalStatus(primaryUser.getStatus() != null ? primaryUser.getStatus().name() : "INVITED");
+        } else if (StringUtils.hasText(client.getEmail())) {
+            dto.setPortalStatus("NOT_PROVISIONED");
+        } else {
+            dto.setPortalStatus("NO_EMAIL");
+        }
+
         return dto;
     }
 }
