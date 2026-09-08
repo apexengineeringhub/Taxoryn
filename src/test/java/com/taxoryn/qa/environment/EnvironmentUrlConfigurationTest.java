@@ -68,7 +68,7 @@ class EnvironmentUrlConfigurationTest {
         assertEquals("http://localhost:5173", properties.getFrontendUrl());
         assertEquals("http://localhost:5173/activate", properties.getActivationUrl());
         assertEquals("http://localhost:5173/login", properties.getLoginUrl());
-        assertEquals("taxoryn@gmail.com", properties.getFromEmail());
+        assertEquals("info@taxoryn.com", properties.getFromEmail());
         assertEquals("Taxoryn", properties.getFromName());
 
         // Verify full activation link structure

@@ -29,7 +29,7 @@ services:
       # Real SMTP so welcome/notification emails actually send in demo — leave
       # DEMO_SMTP_HOST unset to keep the old LOG-only (no real email) behavior.
       MAIL_PROVIDER: ${DEMO_MAIL_PROVIDER:-SMTP}
-      MAIL_FROM_EMAIL: ${DEMO_MAIL_FROM_EMAIL:-notifications@taxoryn.com}
+      MAIL_FROM_EMAIL: ${DEMO_MAIL_FROM_EMAIL:-info@taxoryn.com}
       SMTP_HOST: ${DEMO_SMTP_HOST:-}
       SMTP_PORT: ${DEMO_SMTP_PORT:-587}
       SMTP_USERNAME: ${DEMO_SMTP_USERNAME:-}

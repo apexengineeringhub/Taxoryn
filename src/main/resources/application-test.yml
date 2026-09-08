@@ -46,7 +46,9 @@ taxoryn:
     enabled: false
     provider: LOG
     from-email: info@taxoryn.com
+    from-address: info@taxoryn.com
     from-name: Taxoryn
+    reply-to: info@taxoryn.com
     frontend-url: ${taxoryn.frontend-url}
     login-url: ${taxoryn.frontend.login-url}
     activation-url: ${taxoryn.frontend.activation-url}

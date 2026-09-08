@@ -115,6 +115,13 @@ class EmployeeManagementIntegrationTest {
                 .permissions(new HashSet<>())
                 .build());
 
+        roleRepository.save(RoleEntity.builder().code("PRACTITIONER").name("Practitioner").isSystemRole(true).permissions(new HashSet<>()).build());
+        roleRepository.save(RoleEntity.builder().code("TAX_PROFESSIONAL").name("Tax Professional").isSystemRole(true).permissions(new HashSet<>()).build());
+        roleRepository.save(RoleEntity.builder().code("STAFF").name("Staff").isSystemRole(true).permissions(new HashSet<>()).build());
+        roleRepository.save(RoleEntity.builder().code("SUPER_ADMIN").name("Super Admin").isSystemRole(true).permissions(new HashSet<>()).build());
+        roleRepository.save(RoleEntity.builder().code("FEEDBACK_OPS").name("Feedback Ops").isSystemRole(true).permissions(new HashSet<>()).build());
+        roleRepository.save(RoleEntity.builder().code("ENGINEERING").name("Engineering").isSystemRole(true).permissions(new HashSet<>()).build());
+
         TenantContext.setTenantId(org1.getId());
 
         adminUser1 = userRepository.save(UserEntity.builder()
@@ -364,5 +371,215 @@ class EmployeeManagementIntegrationTest {
                         .header("Authorization", org2Token))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("7. Practice Admin can update employee role to another valid practice role")
+    void testPracticeAdminCanUpdateEmployeeRole() throws Exception {
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Amit")
+                .lastName("Sharma")
+                .email("amit.sharma@vermatax.com")
+                .phone("+919876500001")
+                .department("Taxation")
+                .designation("Senior Tax Manager")
+                .status(EmployeeStatus.ACTIVE)
+                .roleCode("TAX_PROFESSIONAL")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.roleCode").value("TAX_PROFESSIONAL"))
+                .andExpect(jsonPath("$.data.roleName").value("Tax Professional"));
+    }
+
+    @Test
+    @DisplayName("8. Practice Admin CANNOT assign platform role SUPER_ADMIN (403 Forbidden)")
+    void testPracticeAdminCannotAssignSuperAdmin() throws Exception {
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Amit")
+                .lastName("Sharma")
+                .email("amit.sharma@vermatax.com")
+                .phone("+919876500001")
+                .department("Taxation")
+                .designation("Senior Tax Manager")
+                .roleCode("SUPER_ADMIN")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("9. Practice Admin CANNOT assign platform role FEEDBACK_OPS (403 Forbidden)")
+    void testPracticeAdminCannotAssignFeedbackOps() throws Exception {
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Amit")
+                .lastName("Sharma")
+                .email("amit.sharma@vermatax.com")
+                .phone("+919876500001")
+                .department("Taxation")
+                .designation("Senior Tax Manager")
+                .roleCode("FEEDBACK_OPS")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("10. Practice Admin CANNOT assign platform role ENGINEERING (403 Forbidden)")
+    void testPracticeAdminCannotAssignEngineering() throws Exception {
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Amit")
+                .lastName("Sharma")
+                .email("amit.sharma@vermatax.com")
+                .phone("+919876500001")
+                .department("Taxation")
+                .designation("Senior Tax Manager")
+                .roleCode("ENGINEERING")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("11. Updating employee role preserves INVITED status")
+    void testRoleUpdatePreservesInvitedStatus() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+        EmployeeEntity invitedEmployee;
+        try {
+            invitedEmployee = employeeRepository.save(EmployeeEntity.builder()
+                    .employeeCode("EMP-INVITED")
+                    .firstName("Kavita")
+                    .lastName("Shah")
+                    .email("kavita.s@vermatax.com")
+                    .department("Direct Tax")
+                    .designation("Tax Trainee")
+                    .status(EmployeeStatus.INVITED)
+                    .build());
+        } finally {
+            TenantContext.clear();
+        }
+
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Kavita")
+                .lastName("Shah")
+                .email("kavita.s@vermatax.com")
+                .department("Direct Tax")
+                .designation("Tax Trainee")
+                .roleCode("STAFF")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + invitedEmployee.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INVITED"))
+                .andExpect(jsonPath("$.data.roleCode").value("STAFF"));
+    }
+
+    @Test
+    @DisplayName("12. Demoting sole remaining Organization Admin throws 400 Bad Request")
+    void testDemoteSoleAdminRejected() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+        EmployeeEntity adminEmployee;
+        try {
+            adminEmployee = employeeRepository.save(EmployeeEntity.builder()
+                    .userId(adminUser1.getId())
+                    .employeeCode("EMP-ADMIN")
+                    .firstName("Suresh")
+                    .lastName("Verma")
+                    .email("admin@vermatax.com")
+                    .department("Management")
+                    .designation("Managing Partner")
+                    .status(EmployeeStatus.ACTIVE)
+                    .build());
+        } finally {
+            TenantContext.clear();
+        }
+
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Suresh")
+                .lastName("Verma")
+                .email("admin@vermatax.com")
+                .department("Management")
+                .designation("Staff Associate")
+                .roleCode("STAFF")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + adminEmployee.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Cannot demote the last remaining active Organization Administrator"));
+    }
+
+    @Test
+    @DisplayName("13. Cross-Tenant IDOR: Admin A cannot modify role of Org B employee")
+    void testCrossTenantRoleUpdateRejected() throws Exception {
+        TenantContext.setTenantId(org2.getId());
+        EmployeeEntity org2Employee;
+        try {
+            org2Employee = employeeRepository.save(EmployeeEntity.builder()
+                    .employeeCode("EMP-ORG2")
+                    .firstName("Rohit")
+                    .lastName("Sharma")
+                    .email("rohit.s@kapadiatax.com")
+                    .department("Audit")
+                    .designation("Audit Lead")
+                    .status(EmployeeStatus.ACTIVE)
+                    .build());
+        } finally {
+            TenantContext.clear();
+        }
+
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Rohit")
+                .lastName("Sharma")
+                .email("rohit.s@kapadiatax.com")
+                .department("Audit")
+                .designation("Audit Lead")
+                .roleCode("TAX_PROFESSIONAL")
+                .build();
+
+        // Org 1 admin attempts to update Org 2 employee -> 404 NOT FOUND
+        mockMvc.perform(put("/api/v1/employees/" + org2Employee.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("14. Unauthenticated role update returns 401")
+    void testUnauthenticatedRoleUpdateReturns401() throws Exception {
+        UpdateEmployeeRequest request = UpdateEmployeeRequest.builder()
+                .firstName("Amit")
+                .lastName("Sharma")
+                .email("amit.sharma@vermatax.com")
+                .roleCode("TAX_PROFESSIONAL")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
     }
 }

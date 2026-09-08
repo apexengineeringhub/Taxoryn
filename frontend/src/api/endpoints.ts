@@ -1009,8 +1009,16 @@ export const teamApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<Employee>>>('/v1/employees', { params });
     return res.data.data;
   },
-  createEmployee: async (payload: Partial<Employee>) => {
+  createEmployee: async (payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
     const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees', payload);
+    return res.data.data;
+  },
+  updateEmployee: async (employeeId: string, payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}`, payload);
+    return res.data.data;
+  },
+  updateEmployeeRole: async (employeeId: string, roleCode: string) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}`, { roleCode });
     return res.data.data;
   },
   bulkImportEmployees: async (employees: Partial<Employee>[]) => {
@@ -1021,6 +1029,10 @@ export const teamApi = {
     const res = await apiClient.get<ApiResponse<Role[]>>('/v1/roles');
     return res.data.data;
   },
+  assignUserRoles: async (userId: string, roleCodes: string[]) => {
+    const res = await apiClient.put<ApiResponse<any>>(`/v1/roles/users/${userId}`, { roleCodes });
+    return res.data.data;
+  },
 };
 
 export const employeeApi = {
@@ -1028,8 +1040,12 @@ export const employeeApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<Employee>>>('/v1/employees', { params });
     return res.data.data;
   },
-  create: async (payload: Partial<Employee>) => {
+  create: async (payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
     const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees', payload);
+    return res.data.data;
+  },
+  update: async (employeeId: string, payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}`, payload);
     return res.data.data;
   },
   bulkImport: async (employees: Partial<Employee>[]) => {

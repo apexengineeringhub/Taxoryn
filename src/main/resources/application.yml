@@ -20,6 +20,23 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: false
     locations: classpath:db/migration
+  mail:
+    host: ${SMTP_HOST:${MAIL_HOST:}}
+    port: ${SMTP_PORT:${MAIL_PORT:587}}
+    username: ${SMTP_USERNAME:${MAIL_USERNAME:}}
+    password: ${SMTP_PASSWORD:${MAIL_PASSWORD:}}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:true}
+          starttls:
+            enable: ${SMTP_STARTTLS:true}
+          ssl:
+            enable: ${SMTP_SSL:false}
+          trust: "*"
+          connectiontimeout: ${SMTP_CONNECTION_TIMEOUT:15000}
+          timeout: ${SMTP_TIMEOUT:15000}
+          writetimeout: ${SMTP_WRITE_TIMEOUT:15000}
 
 server:
   port: 8088
@@ -80,10 +97,11 @@ taxoryn:
     login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
   mail:
     enabled: ${MAIL_ENABLED:true}
-    provider: ${MAIL_PROVIDER:LOG}
+    provider: ${MAIL_PROVIDER:AUTO}
     from-email: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
+    from-address: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
     from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
-    reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:support@taxoryn.com}}
+    reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:info@taxoryn.com}}
     frontend-url: ${taxoryn.frontend-url}
     login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
     activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}

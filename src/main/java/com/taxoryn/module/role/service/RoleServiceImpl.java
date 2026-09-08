@@ -52,7 +52,7 @@ public class RoleServiceImpl implements RoleService {
         boolean isSuperAdmin = SecurityUtils.isTaxorynSuperAdmin();
         if (!isSuperAdmin) {
             roles = roles.stream()
-                    .filter(r -> !SecurityUtils.isPlatformRole(r.getCode()))
+                    .filter(r -> !SecurityUtils.isPlatformRole(r.getCode()) && !SecurityUtils.isClientRole(r.getCode()))
                     .collect(Collectors.toList());
         }
 
@@ -219,9 +219,11 @@ public class RoleServiceImpl implements RoleService {
             throw new BusinessValidationException("One or more specified role codes are invalid or not accessible");
         }
 
-        // 3. Prevent tenant lockout: If target is currently an ORG_ADMIN and new roles do not contain ORG_ADMIN
-        boolean currentlyIsOrgAdmin = user.getRoles().stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
-        boolean willBeOrgAdmin = roles.stream().anyMatch(r -> "ORG_ADMIN".equals(r.getCode()));
+        // 3. Prevent tenant lockout: If target is currently an admin and new roles do not contain an admin role
+        boolean currentlyIsOrgAdmin = user.getRoles().stream()
+                .anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()));
+        boolean willBeOrgAdmin = roles.stream()
+                .anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()));
         if (currentlyIsOrgAdmin && !willBeOrgAdmin) {
             long adminCount = userRepository.countActiveOrgAdmins(organizationId);
             if (adminCount <= 1) {
@@ -269,8 +271,8 @@ public class RoleServiceImpl implements RoleService {
             throw new ForbiddenException("Privilege boundary violation: Only SuperAdmin can modify platform role assignments");
         }
 
-        // 5. Prevent self-demotion from ORG_ADMIN unless another admin exists
-        if ("ORG_ADMIN".equals(targetRole.getCode())) {
+        // 5. Prevent self-demotion from ORG_ADMIN/PRACTICE_ADMIN/PRACTICE_OWNER unless another admin exists
+        if ("ORG_ADMIN".equals(targetRole.getCode()) || "PRACTICE_ADMIN".equals(targetRole.getCode()) || "PRACTICE_OWNER".equals(targetRole.getCode())) {
             long adminCount = userRepository.countActiveOrgAdmins(organizationId);
             if (adminCount <= 1) {
                 throw new BusinessValidationException("Cannot remove Organization Administrator role from the sole remaining active admin");

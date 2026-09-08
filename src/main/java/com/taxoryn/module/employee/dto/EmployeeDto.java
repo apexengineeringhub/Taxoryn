@@ -63,6 +63,15 @@ public class EmployeeDto {
     @Schema(description = "Reporting manager full name", example = "Vikram Verma")
     private String managerName;
 
+    @Schema(description = "Assigned role ID")
+    private UUID roleId;
+
+    @Schema(description = "Assigned role code", example = "TAX_PROFESSIONAL")
+    private String roleCode;
+
+    @Schema(description = "Assigned role display name", example = "Senior Tax Professional")
+    private String roleName;
+
     @Schema(description = "Creation timestamp")
     private Instant createdAt;
 

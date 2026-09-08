@@ -120,10 +120,10 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.mail.brevo-api-key:${BREVO_API_KEY:}}")
     private String brevoApiKey;
 
-    @Value("${taxoryn.mail.from-email:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:}}}")
+    @Value("${taxoryn.mail.from-email:${taxoryn.mail.from-address:${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}}}")
     private String mailFromEmail;
 
-    @Value("${taxoryn.mail.reply-to:${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:}}}")
+    @Value("${taxoryn.mail.reply-to:${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:info@taxoryn.com}}}")
     private String mailReplyTo;
 
     @Value("${taxoryn.whatsapp.enabled:false}")
@@ -288,7 +288,7 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             if (StringUtils.hasText(mailFromEmail)) {
                 String lowerFrom = mailFromEmail.trim().toLowerCase();
                 if (lowerFrom.contains("@gmail.com") || lowerFrom.contains("@yahoo.com") || lowerFrom.contains("@example.com")) {
-                    String error = "CRITICAL SECURITY VIOLATION: Production mail sender (MAIL_FROM_EMAIL / TAXORYN_EMAIL_FROM) cannot use consumer or example mailbox ('" + mailFromEmail + "'). Use a verified domain (e.g., notifications@taxoryn.com)";
+                    String error = "CRITICAL SECURITY VIOLATION: Production mail sender (MAIL_FROM_ADDRESS / MAIL_FROM_EMAIL / TAXORYN_EMAIL_FROM) cannot use consumer or example mailbox ('" + mailFromEmail + "'). Use a verified domain (e.g., info@taxoryn.com)";
                     log.error(error);
                     throw new IllegalStateException(error);
                 }
@@ -309,6 +309,15 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             } else if ("BREVO".equalsIgnoreCase(mailProvider)) {
                 if (!StringUtils.hasText(brevoApiKey) || INSECURE_DEFAULT_PASSWORDS.contains(brevoApiKey.toLowerCase())) {
                     String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with BREVO provider but BREVO_API_KEY is missing or weak";
+                    log.error(error);
+                    throw new IllegalStateException(error);
+                }
+            } else if ("AUTO".equalsIgnoreCase(mailProvider)) {
+                boolean hasResend = StringUtils.hasText(resendApiKey) && !INSECURE_DEFAULT_PASSWORDS.contains(resendApiKey.toLowerCase()) && !"re_123456789".equalsIgnoreCase(resendApiKey.trim());
+                boolean hasBrevo = StringUtils.hasText(brevoApiKey) && !INSECURE_DEFAULT_PASSWORDS.contains(brevoApiKey.toLowerCase());
+                boolean hasSmtp = StringUtils.hasText(mailHost) && StringUtils.hasText(mailUsername) && StringUtils.hasText(mailPassword);
+                if (!hasResend && !hasBrevo && !hasSmtp) {
+                    String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with AUTO provider but no valid provider credentials configured (RESEND_API_KEY, BREVO_API_KEY, or MAIL_HOST/USERNAME/PASSWORD)";
                     log.error(error);
                     throw new IllegalStateException(error);
                 }

@@ -560,6 +560,8 @@ export interface Employee {
   department: string;
   designation: string;
   status: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED';
+  roleId?: string;
+  roleCode?: string;
   roleName?: string;
 }
 

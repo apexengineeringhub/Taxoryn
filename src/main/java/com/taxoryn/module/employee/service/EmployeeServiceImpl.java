@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -96,7 +97,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         } else {
             UserEntity user = provisionUserForEmployee(organizationId, email, request.getFirstName().trim(),
                     request.getLastName() != null ? request.getLastName().trim() : null,
-                    request.getPhone(), request.getDesignation());
+                    request.getPhone(), request.getDesignation(), request.getRoleCode(), request.getRoleId());
             targetUserId = user.getId();
         }
 
@@ -134,19 +135,49 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private UserEntity provisionUserForEmployee(UUID organizationId, String email, String firstName, String lastName, String phone, String designation) {
+        return provisionUserForEmployee(organizationId, email, firstName, lastName, phone, designation, null, null);
+    }
+
+    private UserEntity provisionUserForEmployee(UUID organizationId, String email, String firstName, String lastName, String phone, String designation, String requestedRoleCode, UUID requestedRoleId) {
         return userRepository.findByEmailIgnoreCase(email)
                 .orElseGet(() -> {
-                    String roleCode = "PRACTITIONER";
-                    String desLower = designation != null ? designation.toLowerCase() : "";
-                    if (desLower.contains("article") || desLower.contains("trainee") || desLower.contains("intern")) {
-                        roleCode = "ARTICLE_ASSISTANT";
+                    RoleEntity role = null;
+                    if (requestedRoleId != null) {
+                        role = roleRepository.findById(requestedRoleId).orElse(null);
+                    } else if (requestedRoleCode != null && !requestedRoleCode.isBlank()) {
+                        String clean = requestedRoleCode.trim().toUpperCase();
+                        if (clean.startsWith("ROLE_")) {
+                            clean = clean.substring(5);
+                        }
+                        final String cleanCode = clean;
+                        if (SecurityUtils.isPlatformRole(cleanCode) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                            throw new com.taxoryn.core.exception.ForbiddenException(
+                                    "Privilege escalation denied: Platform role '" + cleanCode + "' cannot be assigned by tenant users"
+                            );
+                        }
+                        if (SecurityUtils.isClientRole(cleanCode) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                            throw new com.taxoryn.core.exception.ForbiddenException(
+                                    "Invalid role assignment: Client role '" + cleanCode + "' cannot be assigned as a practice employee role"
+                            );
+                        }
+                        role = roleRepository.findByCodeAndOrganizationId(cleanCode, organizationId)
+                                .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue(cleanCode))
+                                .orElse(null);
                     }
 
-                    final String finalRoleCode = roleCode;
-                    RoleEntity role = roleRepository.findByCodeAndIsSystemRoleTrue(finalRoleCode)
-                            .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER"))
-                            .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN"))
-                            .orElse(null);
+                    if (role == null) {
+                        String roleCode = "PRACTITIONER";
+                        String desLower = designation != null ? designation.toLowerCase() : "";
+                        if (desLower.contains("article") || desLower.contains("trainee") || desLower.contains("intern")) {
+                            roleCode = "ARTICLE_ASSISTANT";
+                        }
+
+                        final String finalRoleCode = roleCode;
+                        role = roleRepository.findByCodeAndIsSystemRoleTrue(finalRoleCode)
+                                .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER"))
+                                .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN"))
+                                .orElse(null);
+                    }
 
                     Set<RoleEntity> userRoles = new HashSet<>();
                     if (role != null) userRoles.add(role);
@@ -162,7 +193,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .build();
                     user.setOrganizationId(organizationId);
                     UserEntity saved = userRepository.save(user);
-                    log.info("Auto-provisioned UserEntity for employee: {} with role {} in INACTIVE status", email, finalRoleCode);
+                    log.info("Auto-provisioned UserEntity for employee: {} with role {} in INACTIVE status", email, role != null ? role.getCode() : "none");
                     return saved;
                 });
     }
@@ -209,6 +240,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         employee.setUserId(request.getUserId());
         employee.setManagerId(request.getManagerId());
+
+        // Handle Role Update
+        if (request.getRoleCode() != null || request.getRoleId() != null) {
+            applyEmployeeRoleChange(employee, request.getRoleCode(), request.getRoleId(), organizationId);
+        }
 
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Updated employee: id={} for tenant={}", saved.getId(), organizationId);
@@ -350,7 +386,118 @@ public class EmployeeServiceImpl implements EmployeeService {
                     .ifPresent(manager -> dto.setManagerName(manager.getFullName()));
         }
 
+        // Populate Role details from linked UserEntity
+        UserEntity user = null;
+        if (employee.getUserId() != null) {
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), employee.getOrganizationId()).orElse(null);
+        }
+        if (user == null && employee.getEmail() != null) {
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(employee.getOrganizationId(), employee.getEmail()).orElse(null);
+        }
+
+        if (user != null && user.getRoles() != null && !user.getRoles().isEmpty()) {
+            RoleEntity primaryRole = user.getRoles().iterator().next();
+            // Prefer an admin role if user has multiple roles
+            for (RoleEntity r : user.getRoles()) {
+                if ("ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode())) {
+                    primaryRole = r;
+                    break;
+                }
+            }
+            dto.setRoleId(primaryRole.getId());
+            dto.setRoleCode(primaryRole.getCode());
+            dto.setRoleName(primaryRole.getName());
+            if (dto.getUserId() == null) {
+                dto.setUserId(user.getId());
+            }
+        }
+
         return dto;
+    }
+
+    private void applyEmployeeRoleChange(EmployeeEntity employee, String requestedRoleCode, UUID requestedRoleId, UUID organizationId) {
+        // Resolve linked user
+        UserEntity user = null;
+        if (employee.getUserId() != null) {
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId).orElse(null);
+        }
+        if (user == null && employee.getEmail() != null) {
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail()).orElse(null);
+        }
+
+        if (user == null) {
+            // Provision user if not yet linked
+            user = provisionUserForEmployee(organizationId, employee.getEmail(), employee.getFirstName(), employee.getLastName(), employee.getPhone(), employee.getDesignation(), requestedRoleCode, requestedRoleId);
+            employee.setUserId(user.getId());
+        }
+
+        // Find target role
+        RoleEntity targetRole = null;
+        if (requestedRoleId != null) {
+            targetRole = roleRepository.findById(requestedRoleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Role", "id", requestedRoleId));
+        } else if (requestedRoleCode != null && !requestedRoleCode.isBlank()) {
+            String cleanCode = requestedRoleCode.trim().toUpperCase();
+            if (cleanCode.startsWith("ROLE_")) {
+                cleanCode = cleanCode.substring(5);
+            }
+            final String codeToFind = cleanCode;
+
+            // 1. HARD SECURITY RULE: Platform role assignment rejection
+            if (SecurityUtils.isPlatformRole(codeToFind) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Privilege escalation denied: Platform role '" + codeToFind + "' cannot be assigned by tenant users"
+                );
+            }
+
+            // 2. Reject client roles for practice staff
+            if (SecurityUtils.isClientRole(codeToFind) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Invalid role assignment: Client role '" + codeToFind + "' cannot be assigned as a practice employee role"
+                );
+            }
+
+            targetRole = roleRepository.findByCodeAndOrganizationId(codeToFind, organizationId)
+                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue(codeToFind))
+                    .orElseThrow(() -> new BusinessValidationException("Role '" + codeToFind + "' is not a valid practice role"));
+        }
+
+        if (targetRole == null) {
+            throw new BusinessValidationException("Target role must be specified");
+        }
+
+        // Check if custom role belongs to another organization
+        if (!targetRole.isSystemRole() && (targetRole.getOrganizationId() == null || !targetRole.getOrganizationId().equals(organizationId))) {
+            throw new com.taxoryn.core.exception.ForbiddenException("Access denied: Custom role belongs to another organization");
+        }
+
+        // Check if platform role
+        if (SecurityUtils.isPlatformRole(targetRole.getCode()) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new com.taxoryn.core.exception.ForbiddenException(
+                    "Privilege escalation denied: Platform role '" + targetRole.getCode() + "' cannot be assigned by tenant users"
+            );
+        }
+
+        // Privilege escalation and delegation validation
+        SecurityUtils.validateRoleDelegation(Set.of(targetRole.getCode()), user.getId());
+
+        // Lockout prevention: Check if demoting sole active practice admin
+        boolean currentlyIsOrgAdmin = user.getRoles().stream()
+                .anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()));
+        boolean willBeOrgAdmin = "ORG_ADMIN".equals(targetRole.getCode()) || "PRACTICE_ADMIN".equals(targetRole.getCode()) || "PRACTICE_OWNER".equals(targetRole.getCode());
+        if (currentlyIsOrgAdmin && !willBeOrgAdmin) {
+            long adminCount = userRepository.countActiveOrgAdmins(organizationId);
+            if (adminCount <= 1) {
+                throw new BusinessValidationException("Cannot demote the last remaining active Organization Administrator");
+            }
+        }
+
+        Set<String> oldRoles = user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet());
+        user.setRoles(new HashSet<>(List.of(targetRole)));
+        userRepository.save(user);
+
+        log.info("Updated role for employee {} (user {}) to {} in org {}", employee.getId(), user.getId(), targetRole.getCode(), organizationId);
+        auditService.logEvent(organizationId, user.getId(), "EMPLOYEE_ROLE_UPDATED", "EMPLOYEE", employee.getId().toString(), oldRoles, targetRole.getCode());
     }
 
     @Override

@@ -32,8 +32,8 @@ services:
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
       MAIL_PROVIDER: ${MAIL_PROVIDER:-RESEND}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      TAXORYN_EMAIL_FROM: ${TAXORYN_EMAIL_FROM:-notifications@taxoryn.com}
-      TAXORYN_EMAIL_REPLY_TO: ${TAXORYN_EMAIL_REPLY_TO:-support@taxoryn.com}
+      TAXORYN_EMAIL_FROM: ${TAXORYN_EMAIL_FROM:-info@taxoryn.com}
+      TAXORYN_EMAIL_REPLY_TO: ${TAXORYN_EMAIL_REPLY_TO:-info@taxoryn.com}
     volumes:
       - taxoryn_documents:/app/data/documents
       - taxoryn_logs:/app/logs

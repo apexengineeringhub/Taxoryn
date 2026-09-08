@@ -143,27 +143,52 @@ public final class SecurityUtils {
             "TAXORYN_CONTENT_ADMIN",
             "TAXORYN_SECURITY_ADMIN",
             "TAXORYN_ENGINEERING_ADMIN",
-            "PLATFORM_ADMIN"
+            "PLATFORM_ADMIN",
+            "FEEDBACK_OPS",
+            "FEEDBACK_ADMIN",
+            "OPERATIONS",
+            "OPERATIONS_ADMIN",
+            "SUPPORT",
+            "SUPPORT_ADMIN",
+            "CUSTOMER_SUPPORT",
+            "FINANCE",
+            "FINANCE_ADMIN",
+            "MARKETPLACE_OPERATIONS",
+            "MARKETPLACE_ADMIN",
+            "PRODUCT",
+            "PRODUCT_ADMIN",
+            "ENGINEERING",
+            "ENGINEERING_ADMIN",
+            "MARKETING",
+            "MARKETING_ADMIN",
+            "SECURITY_ADMIN",
+            "CONTENT_ADMIN"
     );
 
     public static final Set<String> TENANT_ROLE_CODES = Set.of(
             "ORG_ADMIN",
             "PRACTICE_OWNER",
             "PRACTICE_ADMIN",
+            "PARTNER",
+            "CA_PARTNER",
             "MANAGER",
+            "TAX_MANAGER",
             "TAX_PROFESSIONAL",
             "PRACTITIONER",
             "ACCOUNTANT",
+            "TAX_ASSOCIATE",
+            "SENIOR_TAX_ASSOCIATE",
+            "ASSOCIATE",
             "EMPLOYEE",
             "PRACTICE_EMPLOYEE",
             "STAFF",
             "ARTICLE_ASSISTANT",
             "TRAINEE",
-            "VIEWER",
-            "PARTNER"
+            "VIEWER"
     );
 
     public static final Set<String> CLIENT_ROLE_CODES = Set.of(
+            "CLIENT",
             "CLIENT_ADMIN",
             "CLIENT_USER",
             "PRACTICE_CLIENT",
@@ -379,8 +404,8 @@ public final class SecurityUtils {
             }
         }
 
-        // 2. Prevent self-escalation (caller modifying their own roles unless they are a SuperAdmin)
-        if (!isSuperAdmin && currentUserId != null && currentUserId.equals(targetUserId)) {
+        // 2. Prevent self-escalation (caller modifying their own roles unless they are a SuperAdmin or TenantAdmin)
+        if (!isSuperAdmin && !isTenantAdmin() && currentUserId != null && currentUserId.equals(targetUserId)) {
             Set<String> callerRoles = getCurrentRoles().stream()
                     .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
                     .collect(Collectors.toSet());

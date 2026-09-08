@@ -69,4 +69,10 @@ public class CreateEmployeeRequest {
 
     @Schema(description = "Reporting manager employee ID")
     private UUID managerId;
+
+    @Schema(description = "Optional assigned role ID")
+    private UUID roleId;
+
+    @Schema(description = "Optional assigned role code (e.g. TAX_PROFESSIONAL, PRACTITIONER, MANAGER, STAFF)")
+    private String roleCode;
 }

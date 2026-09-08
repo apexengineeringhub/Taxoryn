@@ -12,12 +12,12 @@ public class EmailProperties {
     /**
      * Whether real email dispatch is enabled.
      */
-    private boolean enabled = false;
+    private boolean enabled = true;
 
     /**
-     * Email provider: LOG or SMTP.
+     * Email provider: AUTO, SMTP, RESEND, BREVO, or LOG.
      */
-    private String provider = "LOG";
+    private String provider = "AUTO";
 
     /**
      * From email address.
@@ -25,14 +25,47 @@ public class EmailProperties {
     private String fromEmail = "info@taxoryn.com";
 
     /**
+     * Optional alias for from email address (supports MAIL_FROM_ADDRESS / taxoryn.mail.from-address).
+     */
+    private String fromAddress;
+
+    /**
      * Reply-To email address.
      */
-    private String replyTo = "support@taxoryn.com";
+    private String replyTo = "info@taxoryn.com";
 
     /**
      * From display name.
      */
     private String fromName = "Taxoryn";
+
+    public String getFromEmail() {
+        if (org.springframework.util.StringUtils.hasText(fromAddress)) {
+            return fromAddress.trim();
+        }
+        if (org.springframework.util.StringUtils.hasText(fromEmail)) {
+            return fromEmail.trim();
+        }
+        return "info@taxoryn.com";
+    }
+
+    public String getFromAddress() {
+        return getFromEmail();
+    }
+
+    public String getReplyTo() {
+        if (org.springframework.util.StringUtils.hasText(replyTo)) {
+            return replyTo.trim();
+        }
+        return getFromEmail();
+    }
+
+    public String getFromName() {
+        if (org.springframework.util.StringUtils.hasText(fromName)) {
+            return fromName.trim();
+        }
+        return "Taxoryn";
+    }
 
     /**
      * Centralized Frontend base URL.

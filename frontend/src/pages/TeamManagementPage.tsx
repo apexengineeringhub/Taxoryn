@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { UserCheck, Shield, Plus, Mail, Phone, Sparkles } from 'lucide-react';
+import { UserCheck, Shield, Plus, Mail, Phone, Sparkles, Camera, KeyRound } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -9,6 +9,7 @@ import { Employee, Role } from '../types';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { AddTeamMemberModal } from '../components/team/AddTeamMemberModal';
+import { ChangeRoleModal } from '../components/team/ChangeRoleModal';
 
 export const TeamManagementPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -16,10 +17,12 @@ export const TeamManagementPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'employees' | 'roles'>('employees');
   const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isChangeRoleModalOpen, setIsChangeRoleModalOpen] = useState(false);
+  const [selectedEmployeeForRole, setSelectedEmployeeForRole] = useState<Employee | null>(null);
 
   const { user } = useAuth();
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
+  const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER', 'PRACTICE_OWNER', 'PRACTICE_ADMIN'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
 
   useEffect(() => {
@@ -57,6 +60,11 @@ export const TeamManagementPage: React.FC = () => {
     }
   };
 
+  const handleChangeRoleClick = (employee: Employee) => {
+    setSelectedEmployeeForRole(employee);
+    setIsChangeRoleModalOpen(true);
+  };
+
   const employeeColumns: Column<Employee>[] = [
     {
       header: 'Staff Member',
@@ -89,6 +97,30 @@ export const TeamManagementPage: React.FC = () => {
       },
     },
     {
+      header: 'Practice Role',
+      accessor: (row) => {
+        const roleDisplay = row.roleName || (
+          roles.find((r) => r.code === row.roleCode)?.name || row.roleCode || 'Practitioner'
+        );
+        const isAdminRole = ['ORG_ADMIN', 'PRACTICE_ADMIN', 'PRACTICE_OWNER', 'PARTNER'].includes(row.roleCode || '');
+
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                isAdminRole
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200/80'
+                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+              }`}
+            >
+              <Shield className="w-3 h-3 text-brand-600 shrink-0" />
+              {roleDisplay}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
       header: 'Email Address',
       accessor: (row) => <span className="text-xs text-slate-700">{row.email}</span>,
     },
@@ -105,15 +137,29 @@ export const TeamManagementPage: React.FC = () => {
       header: 'Actions',
       align: 'right',
       cell: (row) => (
-        <button
-          onClick={() => {
-            setTargetEmployeeEmail(row.email || row.id);
-            fileInputRef.current?.click();
-          }}
-          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold inline-flex items-center gap-1 transition-colors"
-        >
-          Change Photo
-        </button>
+        <div className="flex items-center justify-end gap-1.5">
+          {isFirmAdmin && (
+            <button
+              onClick={() => handleChangeRoleClick(row)}
+              className="px-2.5 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-2xs"
+              title="Change practice role and access permissions"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-brand-600" />
+              Change Role
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setTargetEmployeeEmail(row.email || row.id);
+              fileInputRef.current?.click();
+            }}
+            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+            title="Upload staff profile picture"
+          >
+            <Camera className="w-3.5 h-3.5 text-slate-500" />
+            Photo
+          </button>
+        </div>
       ),
     },
   ];
@@ -167,7 +213,7 @@ export const TeamManagementPage: React.FC = () => {
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            Roles & Permissions Matrix ({roles.length})
+            Practice Roles & Permissions Matrix ({roles.length})
           </button>
         )}
       </div>
@@ -178,31 +224,41 @@ export const TeamManagementPage: React.FC = () => {
           columns={employeeColumns}
           data={employees}
           isLoading={isLoading}
-          searchPlaceholder="Search employees by name, email, or code..."
+          searchPlaceholder="Search employees by name, email, role, or code..."
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {roles.map((role) => (
-            <div key={role.id} className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">
-                  {role.code}
-                </span>
-                {role.isSystemRole && (
-                  <span className="text-[10px] text-brand-600 font-semibold bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full">
-                    System Role
-                  </span>
-                )}
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">{role.name}</h4>
-                <p className="text-xs text-slate-500 mt-0.5">{role.description || 'Pre-configured access role'}</p>
-              </div>
-              <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-500">
-                <span className="font-semibold text-slate-700">{role.permissions?.length || 0}</span> Permissions Configured
-              </div>
+        <div className="space-y-4">
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-brand-600" />
+              <span>
+                These roles and permission boundaries apply strictly within your practice organization. Platform-internal administrator roles are segregated and not visible here.
+              </span>
             </div>
-          ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {roles.map((role) => (
+              <div key={role.id} className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">
+                    {role.code}
+                  </span>
+                  {role.isSystemRole && (
+                    <span className="text-[10px] text-brand-600 font-semibold bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full">
+                      Practice Standard Role
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">{role.name}</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">{role.description || 'Practice role and capability definition'}</p>
+                </div>
+                <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-500">
+                  <span className="font-semibold text-slate-700">{role.permissions?.length || 0}</span> Permissions Configured
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -210,6 +266,18 @@ export const TeamManagementPage: React.FC = () => {
       <AddTeamMemberModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        onSuccess={loadData}
+      />
+
+      {/* Change Role Modal */}
+      <ChangeRoleModal
+        isOpen={isChangeRoleModalOpen}
+        employee={selectedEmployeeForRole}
+        availableRoles={roles}
+        onClose={() => {
+          setIsChangeRoleModalOpen(false);
+          setSelectedEmployeeForRole(null);
+        }}
         onSuccess={loadData}
       />
 

@@ -35,8 +35,54 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
     @Autowired(required = false)
     private JavaMailSender javaMailSender;
 
-    void setHttpClient(HttpClient httpClient) {
+    @Autowired(required = false)
+    private org.springframework.core.env.Environment environment;
+
+    @jakarta.annotation.PostConstruct
+    public void logEmailStartupConfiguration() {
+        String activeProfiles = environment != null && environment.getActiveProfiles().length > 0
+                ? String.join(",", environment.getActiveProfiles())
+                : "default";
+        String mailHost = environment != null ? environment.getProperty("spring.mail.host", "not configured") : "not configured";
+        String mailUsername = environment != null ? environment.getProperty("spring.mail.username", "not configured") : "not configured";
+        String fromAddress = emailProperties != null ? emailProperties.getFromEmail() : "info@taxoryn.com";
+        String fromName = emailProperties != null ? emailProperties.getFromName() : "Taxoryn";
+        String replyTo = emailProperties != null ? emailProperties.getReplyTo() : "info@taxoryn.com";
+        String provider = emailProperties != null ? emailProperties.getProvider() : "AUTO";
+
+        String maskedUsername = maskEmailOrUser(mailUsername);
+
+        log.info("==================================================");
+        log.info("TAXORYN EMAIL CONFIGURATION INITIALIZATION");
+        log.info("Active profile     : {}", activeProfiles);
+        log.info("Mail Provider      : {} (resolved: {})", provider, resolveProvider());
+        log.info("Mail Host          : {}", mailHost);
+        log.info("Mail Username      : {}", maskedUsername);
+        log.info("Effective From     : {} <{}>", fromName, fromAddress);
+        log.info("Effective Reply-To : {}", replyTo);
+        log.info("JavaMailSender     : {}", (javaMailSender != null ? "INITIALIZED (ready)" : "NOT CONFIGURED"));
+        log.info("==================================================");
+    }
+
+    private String maskEmailOrUser(String val) {
+        if (val == null || val.isBlank() || "not configured".equalsIgnoreCase(val)) {
+            return "not configured";
+        }
+        int atIndex = val.indexOf('@');
+        if (atIndex > 2) {
+            return val.substring(0, 2) + "****" + val.substring(atIndex);
+        } else if (val.length() > 4) {
+            return val.substring(0, 2) + "****" + val.substring(val.length() - 2);
+        }
+        return "****";
+    }
+
+    public void setHttpClient(HttpClient httpClient) {
         this.httpClient = httpClient;
+    }
+
+    public void setJavaMailSender(JavaMailSender javaMailSender) {
+        this.javaMailSender = javaMailSender;
     }
 
     @Override
@@ -64,24 +110,51 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             return sendViaSmtp(recipientEmail, recipientName, subject, content);
         }
 
-        // Fallback: Log email
-        log.info("[EMAIL_LOG_FALLBACK] Provider '{}' not configured. To: '{}' <{}> | Subject: '{}'",
-                provider, recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
-        return true;
+        // 4. Fallback: If no real provider configured, check if LOG mode was intended
+        if ("LOG".equalsIgnoreCase(provider)) {
+            log.info("[EMAIL_LOG] To: '{}' <{}> | Subject: '{}' | Provider: LOG (No live email transport configured)",
+                    recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
+            return true;
+        }
+
+        log.warn("[EMAIL_DELIVERY_FAILED] No active email transport configured. To: '{}' <{}> | Subject: '{}'",
+                recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
+        return false;
     }
 
     private String resolveProvider() {
         String configured = emailProperties.getProvider();
         if (StringUtils.hasText(configured) && !"AUTO".equalsIgnoreCase(configured)) {
-            return configured.trim().toUpperCase();
+            String upper = configured.trim().toUpperCase();
+            if ("RESEND".equals(upper)) {
+                String apiKey = StringUtils.hasText(emailProperties.getResendApiKey()) ? emailProperties.getResendApiKey() : emailProperties.getApiKey();
+                if (!StringUtils.hasText(apiKey) && javaMailSender != null) {
+                    log.info("RESEND provider requested but RESEND_API_KEY is not set; falling back to SMTP");
+                    return "SMTP";
+                }
+            } else if ("BREVO".equals(upper) || "BREVO_API".equals(upper)) {
+                String apiKey = StringUtils.hasText(emailProperties.getBrevoApiKey()) ? emailProperties.getBrevoApiKey() : emailProperties.getApiKey();
+                if (!StringUtils.hasText(apiKey) && javaMailSender != null) {
+                    log.info("BREVO provider requested but BREVO_API_KEY is not set; falling back to SMTP");
+                    return "SMTP";
+                }
+            }
+            return upper;
         }
-        if (StringUtils.hasText(emailProperties.getResendApiKey())) {
+
+        // AUTO detection: check available transports in priority order
+        String resendKey = StringUtils.hasText(emailProperties.getResendApiKey()) ? emailProperties.getResendApiKey() : emailProperties.getApiKey();
+        if (StringUtils.hasText(resendKey)) {
             return "RESEND";
         }
-        if (StringUtils.hasText(emailProperties.getBrevoApiKey())) {
+        String brevoKey = StringUtils.hasText(emailProperties.getBrevoApiKey()) ? emailProperties.getBrevoApiKey() : emailProperties.getApiKey();
+        if (StringUtils.hasText(brevoKey)) {
             return "BREVO";
         }
-        return "SMTP";
+        if (javaMailSender != null) {
+            return "SMTP";
+        }
+        return "LOG";
     }
 
     private boolean sendViaResend(String recipientEmail, String recipientName, String subject, String htmlContent) {
@@ -92,7 +165,11 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             }
 
             if (!StringUtils.hasText(apiKey)) {
-                log.warn("Resend provider selected but RESEND_API_KEY is missing. Logging email instead.");
+                if (javaMailSender != null) {
+                    log.info("Resend API key missing; falling back to SMTP for recipient {}", recipientEmail);
+                    return sendViaSmtp(recipientEmail, recipientName, subject, htmlContent);
+                }
+                log.warn("Resend provider selected but RESEND_API_KEY is missing. Falling back to log dispatch.");
                 log.info("[EMAIL_LOG_FALLBACK] To: '{}' <{}> | Subject: '{}'", recipientName, recipientEmail, subject);
                 return true;
             }
@@ -145,7 +222,11 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             }
 
             if (!StringUtils.hasText(apiKey)) {
-                log.warn("Brevo provider selected but BREVO_API_KEY is missing. Logging email instead.");
+                if (javaMailSender != null) {
+                    log.info("Brevo API key missing; falling back to SMTP for recipient {}", recipientEmail);
+                    return sendViaSmtp(recipientEmail, recipientName, subject, htmlContent);
+                }
+                log.warn("Brevo provider selected but BREVO_API_KEY is missing. Falling back to log dispatch.");
                 log.info("[EMAIL_LOG_FALLBACK] To: '{}' <{}> | Subject: '{}'", recipientName, recipientEmail, subject);
                 return true;
             }
@@ -204,9 +285,14 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
 
     private boolean sendViaSmtp(String recipientEmail, String recipientName, String subject, String content) {
         if (javaMailSender == null) {
-            log.info("[EMAIL_LOG_FALLBACK] SMTP selected but no mail host configured. Dispatched to logs. To: '{}' <{}> | Subject: '{}'",
+            if ("LOG".equalsIgnoreCase(emailProperties.getProvider())) {
+                log.info("[EMAIL_LOG] To: '{}' <{}> | Subject: '{}' | Provider: LOG (Simulated dispatch)",
+                        recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
+                return true;
+            }
+            log.warn("[EMAIL_DELIVERY_FAILED] SMTP selected but no JavaMailSender is configured. To: '{}' <{}> | Subject: '{}'",
                     recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
-            return true;
+            return false;
         }
 
         try {
@@ -224,6 +310,22 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             if (StringUtils.hasText(emailProperties.getReplyTo())) {
                 helper.setReplyTo(emailProperties.getReplyTo().trim());
             }
+
+            String activeProfiles = environment != null && environment.getActiveProfiles().length > 0
+                    ? String.join(",", environment.getActiveProfiles())
+                    : "default";
+            String mailHost = environment != null ? environment.getProperty("spring.mail.host", "not configured") : "not configured";
+            String mailUsername = environment != null ? environment.getProperty("spring.mail.username", "not configured") : "not configured";
+
+            log.info("========== EMAIL DIAGNOSTIC DEBUG ==========");
+            log.info("profile        : {}", activeProfiles);
+            log.info("smtpHost       : {}", mailHost);
+            log.info("smtpUsername   : {}", maskEmailOrUser(mailUsername));
+            log.info("from           : {} <{}>", fromName, fromAddress);
+            log.info("replyTo        : {}", (emailProperties.getReplyTo() != null ? emailProperties.getReplyTo() : "none"));
+            log.info("ACTUAL MIME FROM = {}", Arrays.toString(message.getFrom()));
+            log.info("ACTUAL MIME REPLY-TO = {}", Arrays.toString(message.getReplyTo()));
+            log.info("============================================");
 
             javaMailSender.send(message);
             log.info("[EMAIL_SENT] Successfully dispatched SMTP email to '{}' <{}> | Subject: '{}'",

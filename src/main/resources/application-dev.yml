@@ -38,6 +38,13 @@ taxoryn:
   jwt:
     # DEV ONLY: Known default secret used strictly for local developer convenience
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    provider: ${MAIL_PROVIDER:AUTO}
+    from-email: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
+    from-address: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
+    from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
+    reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:info@taxoryn.com}}
   storage:
     provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:LOCAL}}
     presigned-url-duration-minutes: ${STORAGE_PRESIGNED_URL_DURATION_MINUTES:15}
