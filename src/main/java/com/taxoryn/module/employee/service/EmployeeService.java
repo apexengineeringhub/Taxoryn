@@ -24,6 +24,8 @@ public interface EmployeeService {
 
     void deleteEmployee(UUID employeeId);
 
+    void resendInvitation(UUID employeeId);
+
     EmployeeWorkloadDto getEmployeeWorkload(UUID employeeId);
 
     com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto bulkCreateEmployees(java.util.List<CreateEmployeeRequest> requests);

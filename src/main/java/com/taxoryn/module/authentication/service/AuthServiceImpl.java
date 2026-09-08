@@ -89,6 +89,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
 
@@ -321,8 +322,20 @@ public class AuthServiceImpl implements AuthService {
         organization.setStatus(OrganizationStatus.ACTIVE);
         organizationRepository.save(organization);
 
+        // If a password was provided during activation (e.g. Employee password setup), update password hash
+        String effectivePassword = request.getEffectivePassword();
+        if (StringUtils.hasText(effectivePassword)) {
+            user.setPasswordHash(passwordEncoder.encode(effectivePassword));
+        }
+
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
+
+        // If employee record exists for this user in this organization, update employee status to ACTIVE
+        employeeRepository.findByOrganizationIdAndUserId(organization.getId(), user.getId()).ifPresent(emp -> {
+            emp.setStatus(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE);
+            employeeRepository.save(emp);
+        });
 
         // Invalidate any other pending activation tokens for this user
         organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), now);
@@ -335,7 +348,7 @@ public class AuthServiceImpl implements AuthService {
                 "ORGANIZATION",
                 organization.getId().toString(),
                 null,
-                "Organization and administrator account successfully activated from IP: " + (clientIp != null ? clientIp : "unknown")
+                "Organization and user account successfully activated with password setup from IP: " + (clientIp != null ? clientIp : "unknown")
         );
 
         // Publish UserRegisteredEvent for post-activation welcome workflow
@@ -350,7 +363,45 @@ public class AuthServiceImpl implements AuthService {
                 .phone(user.getPhone())
                 .build());
 
-        log.info("Organization {} and admin user {} successfully activated", organization.getId(), user.getId());
+        log.info("Organization {} and user {} successfully activated", organization.getId(), user.getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse validateActivationToken(String rawToken) {
+        if (!StringUtils.hasText(rawToken)) {
+            throw new BadCredentialsException("Activation token is missing");
+        }
+        String tokenHash = hashToken(rawToken.trim());
+        OrganizationActivationTokenEntity token = organizationActivationTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new BadCredentialsException("Invalid or expired activation link"));
+
+        if (!token.isValid()) {
+            if (token.isUsed()) {
+                throw new BadCredentialsException("Activation link has already been used. Please log in.");
+            }
+            if (token.isExpired()) {
+                throw new BadCredentialsException("Activation link has expired. Please request a new activation email.");
+            }
+            throw new BadCredentialsException("Invalid or expired activation link");
+        }
+
+        UserEntity user = userRepository.findById(token.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", token.getUserId()));
+
+        OrganizationEntity org = organizationRepository.findById(token.getOrganizationId())
+                .orElse(null);
+        String orgName = org != null ? org.getName() : "Taxoryn Practice";
+        boolean isEmployee = employeeRepository.findByOrganizationIdAndUserId(token.getOrganizationId(), user.getId()).isPresent();
+        boolean requiresPassword = isEmployee || user.getStatus() == UserStatus.INVITED || !StringUtils.hasText(user.getPasswordHash());
+
+        return com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse.builder()
+                .valid(true)
+                .email(user.getEmail())
+                .organizationName(orgName)
+                .userFullName(user.getFullName())
+                .requiresPasswordSetup(requiresPassword)
+                .build();
     }
 
     @Override

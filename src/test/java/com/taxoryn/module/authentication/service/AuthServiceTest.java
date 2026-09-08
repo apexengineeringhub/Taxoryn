@@ -139,6 +139,9 @@ class AuthServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -368,6 +371,109 @@ class AuthServiceTest {
         verify(organizationRepository).save(organization);
         verify(userRepository).save(user);
         verify(organizationActivationTokenRepository).invalidateAllPendingTokensForUser(eq(adminUserId), any(Instant.class));
+    }
+
+    @Test
+    @DisplayName("Validate Activation Token returns valid response with employee details")
+    void testValidateActivationTokenSuccess() {
+        String rawToken = "valid-raw-token";
+        UUID userId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+
+        OrganizationActivationTokenEntity token = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .organizationId(orgId)
+                .tokenHash("hash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(token));
+
+        OrganizationEntity org = OrganizationEntity.builder().name("Apex Tax").build();
+        org.setId(orgId);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(org));
+
+        UserEntity user = UserEntity.builder()
+                .email("pooja@apextax.in")
+                .firstName("Pooja")
+                .lastName("Nair")
+                .status(UserEntity.UserStatus.INVITED)
+                .passwordHash(null)
+                .build();
+        user.setId(userId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse response =
+                authService.validateActivationToken(rawToken);
+
+        assertNotNull(response);
+        assertTrue(response.isValid());
+        assertEquals("pooja@apextax.in", response.getEmail());
+        assertEquals("Apex Tax", response.getOrganizationName());
+        assertEquals("Pooja Nair", response.getUserFullName());
+        assertTrue(response.isRequiresPasswordSetup());
+    }
+
+    @Test
+    @DisplayName("Employee Activation with password sets password and activates employee")
+    void testActivateEmployeeWithPassword() {
+        String rawToken = "valid-employee-token";
+        String newPassword = "SecureEmployeePass123!";
+        UUID employeeUserId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+
+        when(organizationActivationTokenRepository.consumeTokenAtomic(anyString(), any(Instant.class))).thenReturn(1);
+
+        OrganizationActivationTokenEntity token = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(employeeUserId)
+                .organizationId(orgId)
+                .tokenHash("hash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(token));
+
+        OrganizationEntity organization = OrganizationEntity.builder()
+                .name("Apex Tax")
+                .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                .build();
+        organization.setId(orgId);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+
+        UserEntity user = UserEntity.builder()
+                .email("employee@apextax.in")
+                .firstName("John")
+                .lastName("Doe")
+                .status(UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(employeeUserId);
+        when(userRepository.findById(employeeUserId)).thenReturn(Optional.of(user));
+
+        com.taxoryn.module.employee.entity.EmployeeEntity employeeEntity =
+                com.taxoryn.module.employee.entity.EmployeeEntity.builder()
+                        .userId(employeeUserId)
+                        .firstName("John")
+                        .lastName("Doe")
+                        .email("employee@apextax.in")
+                        .status(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.INVITED)
+                        .build();
+        employeeEntity.setOrganizationId(orgId);
+        when(employeeRepository.findByOrganizationIdAndUserId(orgId, employeeUserId))
+                .thenReturn(Optional.of(employeeEntity));
+        when(passwordEncoder.encode(newPassword)).thenReturn("$2a$12$hashedPassword");
+
+        ActivateOrganizationRequest request = ActivateOrganizationRequest.builder()
+                .token(rawToken)
+                .password(newPassword)
+                .build();
+
+        authService.activateOrganization(request, "127.0.0.1");
+
+        assertEquals(UserEntity.UserStatus.ACTIVE, user.getStatus());
+        assertEquals("$2a$12$hashedPassword", user.getPasswordHash());
+        assertEquals(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE, employeeEntity.getStatus());
+        verify(userRepository).save(user);
+        verify(employeeRepository).save(employeeEntity);
     }
 
     @Test

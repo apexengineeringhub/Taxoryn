@@ -24,6 +24,8 @@ public interface AuthService {
 
     void activateOrganization(ActivateOrganizationRequest request, String clientIp);
 
+    com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse validateActivationToken(String rawToken);
+
     void resendActivation(ResendActivationRequest request, String clientIp);
 
     UserDto registerUserByAdmin(RegisterUserByAdminRequest request);

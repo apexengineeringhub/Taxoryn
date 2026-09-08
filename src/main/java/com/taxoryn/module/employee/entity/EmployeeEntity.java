@@ -68,6 +68,8 @@ public class EmployeeEntity extends TenantAuditableEntity {
 
     public enum EmployeeStatus {
         ACTIVE,
+        INVITED,
+        PENDING,
         INACTIVE,
         ON_LEAVE,
         RESIGNED,

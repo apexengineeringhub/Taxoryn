@@ -33,7 +33,17 @@ import com.taxoryn.module.role.repository.RoleRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.taxoryn.module.organization.entity.OrganizationEntity;
+import com.taxoryn.module.organization.repository.OrganizationRepository;
+import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
+import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
+import com.taxoryn.module.notification.email.service.EmailNotificationService;
+import com.taxoryn.core.security.PasswordSecurityUtils;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -49,10 +59,19 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final OrganizationRepository organizationRepository;
+    private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
+    private final EmailNotificationService emailNotificationService;
     private final PasswordEncoder passwordEncoder;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final EmployeeMapper employeeMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+
+    @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
+    private String activationBaseUrl = "http://localhost:5173/activate";
+
+    @Value("${taxoryn.auth.activation.expiration-hours:24}")
+    private long activationExpirationHours = 24L;
 
     @Override
     @Transactional
@@ -103,6 +122,12 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Created employee record: id={}, code={} for tenant={}", saved.getId(), saved.getEmployeeCode(), organizationId);
+
+        UserEntity user = userRepository.findById(targetUserId).orElse(null);
+        if (user != null) {
+            sendEmployeeInvitation(saved, user, organizationId);
+        }
+
         EmployeeDto result = enrichDto(saved);
         auditService.logEvent("EMPLOYEE_CREATED", "EMPLOYEE", saved.getId().toString(), null, result);
         return result;
@@ -132,12 +157,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .firstName(firstName)
                             .lastName(lastName)
                             .phone(phone)
-                            .status(UserEntity.UserStatus.ACTIVE)
+                            .status(UserEntity.UserStatus.INACTIVE)
                             .roles(userRoles)
                             .build();
                     user.setOrganizationId(organizationId);
                     UserEntity saved = userRepository.save(user);
-                    log.info("Auto-provisioned UserEntity for employee: {} with role {}", email, finalRoleCode);
+                    log.info("Auto-provisioned UserEntity for employee: {} with role {} in INACTIVE status", email, finalRoleCode);
                     return saved;
                 });
     }
@@ -394,6 +419,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 employee.setOrganizationId(organizationId);
 
                 EmployeeEntity saved = employeeRepository.save(employee);
+                UserEntity user = userRepository.findById(targetUserId).orElse(null);
+                if (user != null) {
+                    sendEmployeeInvitation(saved, user, organizationId);
+                }
                 result.getCreatedEmployees().add(enrichDto(saved));
                 result.setTotalCreated(result.getTotalCreated() + 1);
 
@@ -414,5 +443,78 @@ public class EmployeeServiceImpl implements EmployeeService {
                 organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
 
         return result;
+    }
+
+    @Override
+    @Transactional
+    public void resendInvitation(UUID employeeId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+
+        if (employee.getUserId() == null) {
+            throw new BusinessValidationException("Cannot resend invitation: employee has no linked user account");
+        }
+
+        UserEntity user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", employee.getUserId()));
+
+        sendEmployeeInvitation(employee, user, organizationId);
+    }
+
+    private void sendEmployeeInvitation(EmployeeEntity employee, UserEntity user, UUID organizationId) {
+        try {
+            // Invalidate any existing pending activation tokens for this user
+            organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+
+            // Generate Secure Activation Token (SHA-256 hashed at rest)
+            String rawToken = PasswordSecurityUtils.generateSecureToken();
+            String tokenHash = PasswordSecurityUtils.hashSha256(rawToken);
+            Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+            OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
+                    .userId(user.getId())
+                    .organizationId(organizationId)
+                    .tokenHash(tokenHash)
+                    .expiresAt(expiresAt)
+                    .build();
+            organizationActivationTokenRepository.save(activationToken);
+
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(OrganizationEntity::getName)
+                    .orElse("Your Practice");
+
+            String activationUrl = activationBaseUrl + "?token=" + rawToken;
+
+            emailNotificationService.sendEmployeeInvitationEmail(
+                    employee.getEmail(),
+                    employee.getFullName(),
+                    orgName,
+                    employee.getDesignation(),
+                    activationUrl,
+                    activationExpirationHours
+            );
+
+            auditService.logEvent(
+                    organizationId,
+                    user.getId(),
+                    "EMPLOYEE_INVITATION_SENT",
+                    "EMPLOYEE",
+                    employee.getId().toString(),
+                    null,
+                    "Dispatched invitation email with activation link to " + employee.getEmail()
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send employee invitation email to {}: {}", employee.getEmail(), ex.getMessage(), ex);
+            auditService.logEvent(
+                    organizationId,
+                    user.getId(),
+                    "EMPLOYEE_INVITATION_FAILED",
+                    "EMPLOYEE",
+                    employee.getId().toString(),
+                    null,
+                    "Failed to dispatch invitation email to " + employee.getEmail() + ": " + ex.getMessage()
+            );
+        }
     }
 }

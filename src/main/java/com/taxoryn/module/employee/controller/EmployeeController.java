@@ -103,4 +103,12 @@ public class EmployeeController {
         EmployeeWorkloadDto workload = employeeService.getEmployeeWorkload(employeeId);
         return ResponseEntity.ok(ApiResponse.success("Employee workload retrieved successfully", workload));
     }
+
+    @PostMapping("/{employeeId}/resend-invitation")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_CREATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Resend employee invitation email", description = "Generates a fresh activation token and dispatches an invitation email to the employee.")
+    public ResponseEntity<ApiResponse<Void>> resendInvitation(@PathVariable UUID employeeId) {
+        employeeService.resendInvitation(employeeId);
+        return ResponseEntity.ok(ApiResponse.success("Invitation email dispatched successfully", null));
+    }
 }

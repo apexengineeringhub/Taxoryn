@@ -173,6 +173,33 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
     }
 
     @Override
+    public void sendEmployeeInvitationEmail(String recipientEmail, String recipientName, String practiceName, String designation, String activationUrl, long expiryHours) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send employee invitation email: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "Team Member";
+        String firmName = StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Practice";
+        String jobTitle = StringUtils.hasText(designation) ? designation.trim() : "Team Member";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("practiceName", firmName);
+        data.put("designation", jobTitle);
+        data.put("email", recipientEmail.trim());
+        data.put("activationUrl", activationUrl);
+        data.put("expiryHours", String.valueOf(expiryHours));
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.EMPLOYEE_INVITATION, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.EMPLOYEE_INVITATION, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Employee invitation email dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
+    @Override
     public void sendDocumentRequestEmail(String recipientEmail, String clientName, String purpose, String practiceName, java.time.LocalDate dueDate, String message, java.util.List<String> itemTitles) {
         if (!StringUtils.hasText(recipientEmail)) {
             return;

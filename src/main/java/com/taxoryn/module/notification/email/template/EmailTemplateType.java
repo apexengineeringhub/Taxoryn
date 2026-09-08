@@ -16,7 +16,8 @@ public enum EmailTemplateType {
     DOCUMENT_REQUEST("Documents Required — {{purpose}}"),
     DOCUMENT_REMINDER("Reminder: Documents Required — {{purpose}}"),
     DOCUMENT_REJECTED("Action Required: Document Needs Correction — {{purpose}}"),
-    ORGANIZATION_ACTIVATION("Activate Your Taxoryn Practice Account");
+    ORGANIZATION_ACTIVATION("Activate Your Taxoryn Practice Account"),
+    EMPLOYEE_INVITATION("You've been invited to join {{practiceName}} on Taxoryn");
 
     private final String defaultSubject;
 }

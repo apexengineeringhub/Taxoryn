@@ -22,6 +22,7 @@ import {
   Role,
   AuditLog,
   AuthTokens,
+  ValidateActivationTokenResponse,
   ClientPortalDashboard,
   ClientPortalProfile,
   ClientGstStatus,
@@ -157,8 +158,14 @@ export const authApi = {
     const res = await apiClient.post<ApiResponse<{ organizationId: string; organizationName: string; adminEmail: string; status: string; message: string }>>('/v1/auth/register-organization', payload);
     return res.data.data;
   },
-  activateOrg: async (token: string) => {
-    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/activate-organization', { token });
+  validateActivationToken: async (token: string) => {
+    const res = await apiClient.get<ApiResponse<ValidateActivationTokenResponse>>('/v1/auth/validate-activation-token', {
+      params: { token }
+    });
+    return res.data.data;
+  },
+  activateOrg: async (token: string, password?: string) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/activate-organization', { token, password, newPassword: password });
     return res.data;
   },
   resendActivation: async (email: string) => {

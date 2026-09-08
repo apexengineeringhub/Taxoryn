@@ -62,6 +62,14 @@ export interface AuthTokens {
   organization?: Organization;
 }
 
+export interface ValidateActivationTokenResponse {
+  valid: boolean;
+  email?: string;
+  organizationName?: string;
+  userFullName?: string;
+  requiresPasswordSetup?: boolean;
+}
+
 // 2. Organization Dashboard
 export interface OrganizationDashboard {
   clients: {

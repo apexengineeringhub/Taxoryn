@@ -60,6 +60,15 @@ class EmployeeServiceTest {
     private com.taxoryn.module.role.repository.RoleRepository roleRepository;
 
     @Mock
+    private com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
+
+    @Mock
+    private com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository organizationActivationTokenRepository;
+
+    @Mock
+    private com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
+
+    @Mock
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Mock
@@ -136,6 +145,16 @@ class EmployeeServiceTest {
             u.setId(UUID.randomUUID());
             return u;
         });
+        when(userRepository.findById(any())).thenAnswer(invocation -> {
+            com.taxoryn.module.user.entity.UserEntity u = com.taxoryn.module.user.entity.UserEntity.builder()
+                    .email("rohan.d@taxpractice.com")
+                    .firstName("Rohan")
+                    .lastName("Deshmukh")
+                    .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INACTIVE)
+                    .build();
+            u.setId(invocation.getArgument(0));
+            return Optional.of(u);
+        });
 
         when(employeeRepository.save(any(EmployeeEntity.class))).thenReturn(saved);
         when(employeeMapper.toDto(saved)).thenReturn(EmployeeDto.builder()
@@ -154,6 +173,41 @@ class EmployeeServiceTest {
         assertNotNull(result);
         assertEquals("EMP-001", result.getEmployeeCode());
         assertEquals("Rohan Deshmukh", result.getFullName());
+        verify(organizationActivationTokenRepository).save(any());
+        verify(emailNotificationService).sendEmployeeInvitationEmail(eq("rohan.d@taxpractice.com"), eq("Rohan Deshmukh"), any(), eq("Senior Associate"), any(), eq(24L));
+    }
+
+    @Test
+    @DisplayName("Resend employee invitation dispatches fresh token and email")
+    void testResendInvitationSuccess() {
+        EmployeeEntity employee = EmployeeEntity.builder()
+                .employeeCode("EMP-001")
+                .firstName("Rohan")
+                .lastName("Deshmukh")
+                .email("rohan.d@taxpractice.com")
+                .designation("Senior Associate")
+                .userId(UUID.randomUUID())
+                .build();
+        employee.setId(employeeId);
+        employee.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity user = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("rohan.d@taxpractice.com")
+                .firstName("Rohan")
+                .lastName("Deshmukh")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(employee.getUserId());
+        user.setOrganizationId(tenantId);
+
+        when(employeeRepository.findByIdAndOrganizationId(employeeId, tenantId)).thenReturn(Optional.of(employee));
+        when(userRepository.findByIdAndOrganizationId(employee.getUserId(), tenantId)).thenReturn(Optional.of(user));
+
+        employeeService.resendInvitation(employeeId);
+
+        verify(organizationActivationTokenRepository).invalidateAllPendingTokensForUser(eq(user.getId()), any());
+        verify(organizationActivationTokenRepository).save(any());
+        verify(emailNotificationService).sendEmployeeInvitationEmail(eq("rohan.d@taxpractice.com"), eq("Rohan Deshmukh"), any(), eq("Senior Associate"), any(), eq(24L));
     }
 
     @Test

@@ -82,6 +82,12 @@ class EmployeeWorkflowIntegrationTest {
         tokenPractitionerA = factory.generateBearerToken(practitionerA);
     }
 
+    @Autowired
+    private com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository activationTokenRepository;
+
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
@@ -89,7 +95,7 @@ class EmployeeWorkflowIntegrationTest {
     }
 
     @Test
-    @DisplayName("EMP-001: Add employee - Admin creates employee successfully")
+    @DisplayName("EMP-001: Add employee - Admin creates employee successfully with activation token and INACTIVE status")
     void shouldAddEmployeeSuccessfully() throws Exception {
         String unique = UUID.randomUUID().toString().substring(0, 6);
         CreateEmployeeRequest request = CreateEmployeeRequest.builder()
@@ -114,7 +120,158 @@ class EmployeeWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.data.email", is("vikram." + unique + "@alpha.in")));
 
         assertTrue(employeeRepository.existsByOrganizationIdAndEmail(orgA.getId(), "vikram." + unique + "@alpha.in"));
-        assertTrue(userRepository.findByEmailIgnoreCase("vikram." + unique + "@alpha.in").isPresent());
+        UserEntity user = userRepository.findByEmailIgnoreCase("vikram." + unique + "@alpha.in").orElseThrow();
+        assertEquals(UserEntity.UserStatus.INACTIVE, user.getStatus());
+
+        // Verify activation token created for user and org
+        var tokens = activationTokenRepository.findAllByUserIdAndUsedAtIsNull(user.getId());
+        assertFalse(tokens.isEmpty());
+        assertEquals(orgA.getId(), tokens.get(0).getOrganizationId());
+    }
+
+    @Test
+    @DisplayName("EMP-002: Employee Invitation & Activation Full Lifecycle with Password Setup")
+    void shouldCompleteEmployeeInvitationAndActivationFlow() throws Exception {
+        String unique = UUID.randomUUID().toString().substring(0, 6);
+        String employeeEmail = "invitee." + unique + "@alpha.in";
+
+        // 1. Practice Admin creates employee
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-" + unique)
+                .firstName("Pooja")
+                .lastName("Nair")
+                .email(employeeEmail)
+                .phone("+919876543221")
+                .department("Audit")
+                .designation("Audit Senior")
+                .joiningDate(LocalDate.now())
+                .build();
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .header("Authorization", "Bearer " + tokenAdminA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+
+        UserEntity user = userRepository.findByEmailIgnoreCase(employeeEmail).orElseThrow();
+        assertEquals(UserEntity.UserStatus.INACTIVE, user.getStatus());
+
+        // 2. INACTIVE employee cannot log in
+        LoginRequest failedLogin = LoginRequest.builder()
+                .email(employeeEmail)
+                .password("AnyPassword123!")
+                .build();
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(failedLogin)))
+                .andExpect(status().isUnauthorized());
+
+        // 3. Obtain raw token by creating a deterministic activation token test case
+        String rawToken = com.taxoryn.core.security.PasswordSecurityUtils.generateSecureToken();
+        String tokenHash = com.taxoryn.core.security.PasswordSecurityUtils.hashSha256(rawToken);
+
+        com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity testToken =
+                com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity.builder()
+                        .userId(user.getId())
+                        .organizationId(orgA.getId())
+                        .tokenHash(tokenHash)
+                        .expiresAt(java.time.Instant.now().plus(24, java.time.temporal.ChronoUnit.HOURS))
+                        .build();
+        activationTokenRepository.save(testToken);
+
+        // 4. Validate activation token via validation endpoint
+        mockMvc.perform(get("/api/v1/auth/validate-activation-token")
+                        .param("token", rawToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.valid", is(true)))
+                .andExpect(jsonPath("$.data.email", is(employeeEmail)))
+                .andExpect(jsonPath("$.data.userFullName", is("Pooja Nair")))
+                .andExpect(jsonPath("$.data.requiresPasswordSetup", is(true)));
+
+        // 5. Invalid token validation returns 401
+        mockMvc.perform(get("/api/v1/auth/validate-activation-token")
+                        .param("token", "invalid_random_token_123"))
+                .andExpect(status().isUnauthorized());
+
+        // 6. Employee sets password and activates account via activation endpoint
+        String newPassword = "NewEmployeePass123!";
+        com.taxoryn.module.authentication.dto.ActivateOrganizationRequest activateReq =
+                new com.taxoryn.module.authentication.dto.ActivateOrganizationRequest(rawToken, newPassword, newPassword);
+
+        mockMvc.perform(post("/api/v1/auth/activate-organization")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(activateReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)));
+
+        // 7. Verify user status is now ACTIVE and password is updated
+        UserEntity activatedUser = userRepository.findById(user.getId()).orElseThrow();
+        assertEquals(UserEntity.UserStatus.ACTIVE, activatedUser.getStatus());
+        assertTrue(passwordEncoder.matches(newPassword, activatedUser.getPasswordHash()));
+
+        // 8. Employee can now successfully log in with new password
+        LoginRequest successfulLogin = LoginRequest.builder()
+                .email(employeeEmail)
+                .password(newPassword)
+                .build();
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(successfulLogin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.accessToken", notNullValue()))
+                .andExpect(jsonPath("$.data.user.email", is(employeeEmail)));
+
+        // 9. Token reuse is rejected
+        mockMvc.perform(post("/api/v1/auth/activate-organization")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(activateReq)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("EMP-003: Resend employee invitation generates new token")
+    void shouldResendEmployeeInvitationSuccessfully() throws Exception {
+        String unique = UUID.randomUUID().toString().substring(0, 6);
+        String employeeEmail = "resend." + unique + "@alpha.in";
+
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-" + unique)
+                .firstName("Ankit")
+                .lastName("Sharma")
+                .email(employeeEmail)
+                .phone("+919876543222")
+                .department("GST")
+                .designation("Consultant")
+                .build();
+
+        String res = mockMvc.perform(post("/api/v1/employees")
+                        .header("Authorization", "Bearer " + tokenAdminA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID employeeId = UUID.fromString(objectMapper.readTree(res).path("data").path("id").asText());
+
+        // Resend invitation as Admin A
+        mockMvc.perform(post("/api/v1/employees/" + employeeId + "/resend-invitation")
+                        .header("Authorization", "Bearer " + tokenAdminA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)));
+
+        // Resend from another org Admin B is rejected (404 not found)
+        mockMvc.perform(post("/api/v1/employees/" + employeeId + "/resend-invitation")
+                        .header("Authorization", "Bearer " + tokenAdminB))
+                .andExpect(status().isNotFound());
+
+        // Resend by non-admin employee is forbidden (403)
+        mockMvc.perform(post("/api/v1/employees/" + employeeId + "/resend-invitation")
+                        .header("Authorization", "Bearer " + tokenPractitionerA))
+                .andExpect(status().isForbidden());
     }
 
     @Test

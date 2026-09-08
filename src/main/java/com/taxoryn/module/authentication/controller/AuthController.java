@@ -57,16 +57,24 @@ public class AuthController {
     }
 
     @PostMapping({"/activate-organization", "/activate"})
-    @Operation(summary = "Activate organization & admin account", description = "Validates the activation token, activates tenant organization and primary administrator.")
+    @Operation(summary = "Activate organization & admin / employee account", description = "Validates the activation token, updates password if provided, and activates the tenant organization and user.")
     public ResponseEntity<ApiResponse<Void>> activateOrganization(
             @Valid @RequestBody ActivateOrganizationRequest request,
             HttpServletRequest servletRequest) {
         String clientIp = extractClientIp(servletRequest);
         authService.activateOrganization(request, clientIp);
         return ResponseEntity.ok(ApiResponse.success(
-                "Organization and administrator account activated successfully. You can now log in.",
+                "Account activated successfully. You can now log in.",
                 null
         ));
+    }
+
+    @GetMapping({"/validate-activation-token", "/activate/verify"})
+    @Operation(summary = "Validate activation token", description = "Verifies token validity and retrieves user/practice context for the onboarding activation page.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse>> validateActivationToken(
+            @org.springframework.web.bind.annotation.RequestParam("token") String token) {
+        com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse response = authService.validateActivationToken(token);
+        return ResponseEntity.ok(ApiResponse.success("Activation token is valid", response));
     }
 
     @PostMapping("/resend-activation")
