@@ -333,6 +333,7 @@ class DefaultCredentialsAndDemoSecurityTest {
                 mock(com.taxoryn.module.marketplace.repository.MarketplaceProfileRepository.class),
                 mock(com.taxoryn.module.marketplace.repository.MarketplaceServiceRepository.class),
                 mock(com.taxoryn.module.marketplace.repository.MarketplaceLeadRepository.class),
+                mock(com.taxoryn.module.employee.repository.OrganizationEmployeeCounterRepository.class),
                 environment
         );
 

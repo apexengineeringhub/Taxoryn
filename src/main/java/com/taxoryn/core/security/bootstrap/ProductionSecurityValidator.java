@@ -120,6 +120,12 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.mail.brevo-api-key:${BREVO_API_KEY:}}")
     private String brevoApiKey;
 
+    @Value("${taxoryn.mail.from-email:${taxoryn.mail.from-address:${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}}}")
+    private String mailFromEmail;
+
+    @Value("${taxoryn.mail.reply-to:${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:info@taxoryn.com}}}")
+    private String mailReplyTo;
+
     @Value("${taxoryn.whatsapp.enabled:false}")
     private boolean whatsappEnabled;
 
@@ -279,6 +285,15 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
 
     private void validateNotificationConfiguration() {
         if (mailEnabled) {
+            if (StringUtils.hasText(mailFromEmail)) {
+                String lowerFrom = mailFromEmail.trim().toLowerCase();
+                if (lowerFrom.contains("@gmail.com") || lowerFrom.contains("@yahoo.com") || lowerFrom.contains("@example.com")) {
+                    String error = "CRITICAL SECURITY VIOLATION: Production mail sender (MAIL_FROM_ADDRESS / MAIL_FROM_EMAIL / TAXORYN_EMAIL_FROM) cannot use consumer or example mailbox ('" + mailFromEmail + "'). Use a verified domain (e.g., info@taxoryn.com)";
+                    log.error(error);
+                    throw new IllegalStateException(error);
+                }
+            }
+
             if ("SMTP".equalsIgnoreCase(mailProvider)) {
                 if (!StringUtils.hasText(mailHost) || !StringUtils.hasText(mailUsername) || !StringUtils.hasText(mailPassword)) {
                     String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with SMTP provider but MAIL_HOST, MAIL_USERNAME, or MAIL_PASSWORD is missing";
@@ -286,14 +301,23 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
                     throw new IllegalStateException(error);
                 }
             } else if ("RESEND".equalsIgnoreCase(mailProvider)) {
-                if (!StringUtils.hasText(resendApiKey)) {
-                    String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with RESEND provider but RESEND_API_KEY is missing";
+                if (!StringUtils.hasText(resendApiKey) || INSECURE_DEFAULT_PASSWORDS.contains(resendApiKey.toLowerCase()) || "re_123456789".equalsIgnoreCase(resendApiKey.trim())) {
+                    String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with RESEND provider but RESEND_API_KEY is missing or weak";
                     log.error(error);
                     throw new IllegalStateException(error);
                 }
             } else if ("BREVO".equalsIgnoreCase(mailProvider)) {
-                if (!StringUtils.hasText(brevoApiKey)) {
-                    String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with BREVO provider but BREVO_API_KEY is missing";
+                if (!StringUtils.hasText(brevoApiKey) || INSECURE_DEFAULT_PASSWORDS.contains(brevoApiKey.toLowerCase())) {
+                    String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with BREVO provider but BREVO_API_KEY is missing or weak";
+                    log.error(error);
+                    throw new IllegalStateException(error);
+                }
+            } else if ("AUTO".equalsIgnoreCase(mailProvider)) {
+                boolean hasResend = StringUtils.hasText(resendApiKey) && !INSECURE_DEFAULT_PASSWORDS.contains(resendApiKey.toLowerCase()) && !"re_123456789".equalsIgnoreCase(resendApiKey.trim());
+                boolean hasBrevo = StringUtils.hasText(brevoApiKey) && !INSECURE_DEFAULT_PASSWORDS.contains(brevoApiKey.toLowerCase());
+                boolean hasSmtp = StringUtils.hasText(mailHost) && StringUtils.hasText(mailUsername) && StringUtils.hasText(mailPassword);
+                if (!hasResend && !hasBrevo && !hasSmtp) {
+                    String error = "CRITICAL SECURITY VIOLATION: Production mail is enabled with AUTO provider but no valid provider credentials configured (RESEND_API_KEY, BREVO_API_KEY, or MAIL_HOST/USERNAME/PASSWORD)";
                     log.error(error);
                     throw new IllegalStateException(error);
                 }

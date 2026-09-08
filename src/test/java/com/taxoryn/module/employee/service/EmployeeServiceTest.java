@@ -4,6 +4,7 @@ import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.security.SecurityUser;
+import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.core.security.TenantContext;
 import com.taxoryn.module.employee.dto.CreateEmployeeRequest;
 import com.taxoryn.module.employee.dto.EmployeeDto;
@@ -60,7 +61,19 @@ class EmployeeServiceTest {
     private com.taxoryn.module.role.repository.RoleRepository roleRepository;
 
     @Mock
+    private com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
+
+    @Mock
+    private com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository organizationActivationTokenRepository;
+
+    @Mock
+    private com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
+
+    @Mock
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Mock
+    private com.taxoryn.module.authentication.repository.RefreshTokenRepository refreshTokenRepository;
 
     @Mock
     private com.taxoryn.module.audit.service.AuditService auditService;
@@ -136,6 +149,16 @@ class EmployeeServiceTest {
             u.setId(UUID.randomUUID());
             return u;
         });
+        when(userRepository.findById(any())).thenAnswer(invocation -> {
+            com.taxoryn.module.user.entity.UserEntity u = com.taxoryn.module.user.entity.UserEntity.builder()
+                    .email("rohan.d@taxpractice.com")
+                    .firstName("Rohan")
+                    .lastName("Deshmukh")
+                    .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INACTIVE)
+                    .build();
+            u.setId(invocation.getArgument(0));
+            return Optional.of(u);
+        });
 
         when(employeeRepository.save(any(EmployeeEntity.class))).thenReturn(saved);
         when(employeeMapper.toDto(saved)).thenReturn(EmployeeDto.builder()
@@ -154,6 +177,41 @@ class EmployeeServiceTest {
         assertNotNull(result);
         assertEquals("EMP-001", result.getEmployeeCode());
         assertEquals("Rohan Deshmukh", result.getFullName());
+        verify(organizationActivationTokenRepository).save(any());
+        verify(emailNotificationService).sendEmployeeInvitationEmail(eq("rohan.d@taxpractice.com"), eq("Rohan Deshmukh"), any(), eq("Senior Associate"), any(), eq(24L));
+    }
+
+    @Test
+    @DisplayName("Resend employee invitation dispatches fresh token and email")
+    void testResendInvitationSuccess() {
+        EmployeeEntity employee = EmployeeEntity.builder()
+                .employeeCode("EMP-001")
+                .firstName("Rohan")
+                .lastName("Deshmukh")
+                .email("rohan.d@taxpractice.com")
+                .designation("Senior Associate")
+                .userId(UUID.randomUUID())
+                .build();
+        employee.setId(employeeId);
+        employee.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity user = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("rohan.d@taxpractice.com")
+                .firstName("Rohan")
+                .lastName("Deshmukh")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(employee.getUserId());
+        user.setOrganizationId(tenantId);
+
+        when(employeeRepository.findByIdAndOrganizationId(employeeId, tenantId)).thenReturn(Optional.of(employee));
+        when(userRepository.findByIdAndOrganizationId(employee.getUserId(), tenantId)).thenReturn(Optional.of(user));
+
+        employeeService.resendInvitation(employeeId);
+
+        verify(organizationActivationTokenRepository).invalidateAllPendingTokensForUser(eq(user.getId()), any());
+        verify(organizationActivationTokenRepository).save(any());
+        verify(emailNotificationService).sendEmployeeInvitationEmail(eq("rohan.d@taxpractice.com"), eq("Rohan Deshmukh"), any(), eq("Senior Associate"), any(), eq(24L));
     }
 
     @Test
@@ -224,16 +282,59 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("Update employee status updates state")
-    void testUpdateEmployeeStatus() {
+    @DisplayName("Update employee status to SUSPENDED revokes tokens and sets user status")
+    void testUpdateEmployeeStatusToSuspended_RevokesTokensAndSetsUserStatus() {
+        UUID targetUserId = UUID.randomUUID();
         EmployeeEntity employee = EmployeeEntity.builder()
                 .firstName("Rohan")
+                .userId(targetUserId)
                 .status(EmployeeStatus.ACTIVE)
                 .build();
         employee.setId(employeeId);
         employee.setOrganizationId(tenantId);
 
+        com.taxoryn.module.user.entity.UserEntity user = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("rohan@practice.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
         when(employeeRepository.findByIdAndOrganizationId(employeeId, tenantId)).thenReturn(Optional.of(employee));
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(employeeRepository.save(employee)).thenReturn(employee);
+        when(employeeMapper.toDto(employee)).thenReturn(EmployeeDto.builder().id(employeeId).status(EmployeeStatus.SUSPENDED).build());
+
+        EmployeeDto result = employeeService.updateEmployeeStatus(employeeId, new UpdateEmployeeStatusRequest(EmployeeStatus.SUSPENDED));
+
+        assertNotNull(result);
+        assertEquals(EmployeeStatus.SUSPENDED, result.getStatus());
+        assertEquals(com.taxoryn.module.user.entity.UserEntity.UserStatus.SUSPENDED, user.getStatus());
+        verify(userRepository).save(user);
+        verify(refreshTokenRepository).revokeAllByUserId(eq(targetUserId), any(), eq("ACCOUNT_SUSPENDED"));
+    }
+
+    @Test
+    @DisplayName("Update employee status to INACTIVE revokes tokens and sets user status")
+    void testUpdateEmployeeStatusToInactive_RevokesTokensAndSetsUserStatus() {
+        UUID targetUserId = UUID.randomUUID();
+        EmployeeEntity employee = EmployeeEntity.builder()
+                .firstName("Rohan")
+                .userId(targetUserId)
+                .status(EmployeeStatus.ACTIVE)
+                .build();
+        employee.setId(employeeId);
+        employee.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity user = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("rohan@practice.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(employeeRepository.findByIdAndOrganizationId(employeeId, tenantId)).thenReturn(Optional.of(employee));
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
         when(employeeRepository.save(employee)).thenReturn(employee);
         when(employeeMapper.toDto(employee)).thenReturn(EmployeeDto.builder().id(employeeId).status(EmployeeStatus.INACTIVE).build());
 
@@ -241,5 +342,91 @@ class EmployeeServiceTest {
 
         assertNotNull(result);
         assertEquals(EmployeeStatus.INACTIVE, result.getStatus());
+        assertEquals(com.taxoryn.module.user.entity.UserEntity.UserStatus.INACTIVE, user.getStatus());
+        verify(userRepository).save(user);
+        verify(refreshTokenRepository).revokeAllByUserId(eq(targetUserId), any(), eq("ACCOUNT_DEACTIVATED"));
+    }
+
+    @Test
+    @DisplayName("Update employee status to ACTIVE reactivates user")
+    void testUpdateEmployeeStatusToActive_ReactivatesUser() {
+        UUID targetUserId = UUID.randomUUID();
+        EmployeeEntity employee = EmployeeEntity.builder()
+                .firstName("Rohan")
+                .userId(targetUserId)
+                .status(EmployeeStatus.SUSPENDED)
+                .build();
+        employee.setId(employeeId);
+        employee.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity user = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("rohan@practice.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.SUSPENDED)
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(employeeRepository.findByIdAndOrganizationId(employeeId, tenantId)).thenReturn(Optional.of(employee));
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(employeeRepository.save(employee)).thenReturn(employee);
+        when(employeeMapper.toDto(employee)).thenReturn(EmployeeDto.builder().id(employeeId).status(EmployeeStatus.ACTIVE).build());
+
+        EmployeeDto result = employeeService.updateEmployeeStatus(employeeId, new UpdateEmployeeStatusRequest(EmployeeStatus.ACTIVE));
+
+        assertNotNull(result);
+        assertEquals(EmployeeStatus.ACTIVE, result.getStatus());
+        assertEquals(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE, user.getStatus());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    @DisplayName("Self status update is blocked")
+    void testUpdateEmployeeStatus_SelfUpdateBlocked() {
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+        EmployeeEntity employee = EmployeeEntity.builder()
+                .firstName("Admin")
+                .userId(currentUserId)
+                .status(EmployeeStatus.ACTIVE)
+                .build();
+        employee.setId(employeeId);
+        employee.setOrganizationId(tenantId);
+
+        when(employeeRepository.findByIdAndOrganizationId(employeeId, tenantId)).thenReturn(Optional.of(employee));
+
+        assertThrows(BusinessValidationException.class, () ->
+                employeeService.updateEmployeeStatus(employeeId, new UpdateEmployeeStatusRequest(EmployeeStatus.SUSPENDED)));
+    }
+
+    @Test
+    @DisplayName("Last active practice admin protection prevents suspension")
+    void testUpdateEmployeeStatus_LastActiveAdminProtection() {
+        UUID targetUserId = UUID.randomUUID();
+        EmployeeEntity employee = EmployeeEntity.builder()
+                .firstName("Sole Admin")
+                .userId(targetUserId)
+                .status(EmployeeStatus.ACTIVE)
+                .build();
+        employee.setId(employeeId);
+        employee.setOrganizationId(tenantId);
+
+        com.taxoryn.module.role.entity.RoleEntity adminRole = com.taxoryn.module.role.entity.RoleEntity.builder()
+                .code("ORG_ADMIN")
+                .name("Organization Administrator")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity user = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("soleadmin@practice.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                .roles(Set.of(adminRole))
+                .build();
+        user.setId(targetUserId);
+        user.setOrganizationId(tenantId);
+
+        when(employeeRepository.findByIdAndOrganizationId(employeeId, tenantId)).thenReturn(Optional.of(employee));
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(userRepository.countActiveOrgAdmins(tenantId)).thenReturn(1L);
+
+        assertThrows(BusinessValidationException.class, () ->
+                employeeService.updateEmployeeStatus(employeeId, new UpdateEmployeeStatusRequest(EmployeeStatus.SUSPENDED)));
     }
 }

@@ -62,6 +62,14 @@ export interface AuthTokens {
   organization?: Organization;
 }
 
+export interface ValidateActivationTokenResponse {
+  valid: boolean;
+  email?: string;
+  organizationName?: string;
+  userFullName?: string;
+  requiresPasswordSetup?: boolean;
+}
+
 // 2. Organization Dashboard
 export interface OrganizationDashboard {
   clients: {
@@ -135,6 +143,9 @@ export interface Client {
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   portalEnabled?: boolean;
+  portalStatus?: string;
+  portalUserEmail?: string;
+  portalUserId?: string;
   createdAt?: string;
 }
 
@@ -544,6 +555,7 @@ export interface Employee {
   id: string;
   userId?: string;
   employeeCode: string;
+  employeeNumber?: string;
   firstName: string;
   lastName?: string;
   fullName?: string;
@@ -552,6 +564,8 @@ export interface Employee {
   department: string;
   designation: string;
   status: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED';
+  roleId?: string;
+  roleCode?: string;
   roleName?: string;
 }
 

@@ -8,6 +8,7 @@ import com.taxoryn.module.client.dto.ClientNoteDto;
 import com.taxoryn.module.client.dto.ClientOverviewDto;
 import com.taxoryn.module.client.dto.CreateClientNoteRequest;
 import com.taxoryn.module.client.dto.CreateClientRequest;
+import com.taxoryn.module.client.dto.UpdateClientPortalStatusRequest;
 import com.taxoryn.module.client.dto.UpdateClientRequest;
 import com.taxoryn.module.client.dto.UpdateClientStatusRequest;
 
@@ -26,6 +27,8 @@ public interface ClientService {
 
     ClientDto updateClientStatus(UUID clientId, UpdateClientStatusRequest request);
 
+    ClientDto updateClientPortalStatus(UUID clientId, UpdateClientPortalStatusRequest request);
+
     ClientDto assignEmployee(UUID clientId, AssignClientEmployeeRequest request);
 
     void deleteClient(UUID clientId);
@@ -35,6 +38,8 @@ public interface ClientService {
     ClientNoteDto addClientNote(UUID clientId, CreateClientNoteRequest request);
 
     List<ClientNoteDto> getClientNotes(UUID clientId);
+
+    void resendPortalInvitation(UUID clientId);
 
     com.taxoryn.module.client.dto.BulkImportResultDto bulkCreateClients(List<CreateClientRequest> requests);
 }

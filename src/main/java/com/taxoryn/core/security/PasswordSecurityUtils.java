@@ -91,4 +91,33 @@ public final class PasswordSecurityUtils {
 
         return hasUpper && hasLower && hasDigit && hasSpecial;
     }
+
+    /**
+     * Generates a 32-byte cryptographically secure URL-safe token.
+     */
+    public static String generateSecureToken() {
+        byte[] randomBytes = new byte[32];
+        RANDOM.nextBytes(randomBytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+    }
+
+    /**
+     * Hashes a raw token using SHA-256.
+     */
+    public static String hashSha256(String rawToken) {
+        if (rawToken == null) return null;
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(rawToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not available", e);
+        }
+    }
 }

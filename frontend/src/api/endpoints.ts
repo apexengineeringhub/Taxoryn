@@ -22,6 +22,7 @@ import {
   Role,
   AuditLog,
   AuthTokens,
+  ValidateActivationTokenResponse,
   ClientPortalDashboard,
   ClientPortalProfile,
   ClientGstStatus,
@@ -154,8 +155,22 @@ export const authApi = {
     return res.data.data;
   },
   registerOrg: async (payload: any) => {
-    const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/register-organization', payload);
+    const res = await apiClient.post<ApiResponse<{ organizationId: string; organizationName: string; adminEmail: string; status: string; message: string }>>('/v1/auth/register-organization', payload);
     return res.data.data;
+  },
+  validateActivationToken: async (token: string) => {
+    const res = await apiClient.get<ApiResponse<ValidateActivationTokenResponse>>('/v1/auth/validate-activation-token', {
+      params: { token }
+    });
+    return res.data.data;
+  },
+  activateOrg: async (token: string, password?: string) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/activate-organization', { token, password, newPassword: password });
+    return res.data;
+  },
+  resendActivation: async (email: string) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/auth/resend-activation', { email });
+    return res.data;
   },
   refreshToken: async () => {
     const res = await apiClient.post<ApiResponse<AuthTokens>>('/v1/auth/refresh', {});
@@ -193,7 +208,7 @@ export const dashboardApi = {
 
 // --- 3. Clients ---
 export const clientApi = {
-  getAll: async (params?: { page?: number; size?: number; status?: string; search?: string }) => {
+  getAll: async (params?: { page?: number; size?: number; status?: string; search?: string; portalStatus?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<Client>>>('/v1/clients', { params });
     return res.data.data;
   },
@@ -216,6 +231,26 @@ export const clientApi = {
   updateStatus: async (id: string, status: string) => {
     const res = await apiClient.patch<ApiResponse<Client>>(`/v1/clients/${id}/status`, { status });
     return res.data.data;
+  },
+  updatePortalStatus: async (id: string, portalStatus: string, reason?: string) => {
+    const res = await apiClient.patch<ApiResponse<Client>>(`/v1/clients/${id}/portal-status`, { portalStatus, reason });
+    return res.data.data;
+  },
+  suspendPortal: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<Client>>(`/v1/clients/${id}/portal-status/suspend`);
+    return res.data.data;
+  },
+  restorePortal: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<Client>>(`/v1/clients/${id}/portal-status/restore`);
+    return res.data.data;
+  },
+  deactivatePortal: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<Client>>(`/v1/clients/${id}/portal-status/deactivate`);
+    return res.data.data;
+  },
+  resendPortalInvitation: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/clients/${id}/portal-invitation/resend`);
+    return res.data;
   },
   bulkImport: async (clients: Partial<Client>[]) => {
     const res = await apiClient.post<ApiResponse<any>>('/v1/clients/bulk', clients);
@@ -990,13 +1025,33 @@ export const subscriptionApi = {
 
 // --- 11. Team & Roles ---
 export const teamApi = {
-  getEmployees: async (params?: { status?: string }) => {
+  getEmployees: async (params?: { status?: string; search?: string; department?: string; page?: number; size?: number }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<Employee>>>('/v1/employees', { params });
     return res.data.data;
   },
-  createEmployee: async (payload: Partial<Employee>) => {
+  createEmployee: async (payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
     const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees', payload);
     return res.data.data;
+  },
+  updateEmployee: async (employeeId: string, payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}`, payload);
+    return res.data.data;
+  },
+  updateEmployeeRole: async (employeeId: string, roleCode: string, roleId?: string) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}/role`, { roleCode, roleId });
+    return res.data.data;
+  },
+  updateEmployeeStatus: async (employeeId: string, status: string) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}/status`, { status });
+    return res.data.data;
+  },
+  resendInvitation: async (employeeId: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/employees/${employeeId}/resend-invitation`);
+    return res.data;
+  },
+  deleteEmployee: async (employeeId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/employees/${employeeId}`);
+    return res.data;
   },
   bulkImportEmployees: async (employees: Partial<Employee>[]) => {
     const res = await apiClient.post<ApiResponse<any>>('/v1/employees/bulk', employees);
@@ -1006,16 +1061,36 @@ export const teamApi = {
     const res = await apiClient.get<ApiResponse<Role[]>>('/v1/roles');
     return res.data.data;
   },
+  assignUserRoles: async (userId: string, roleCodes: string[]) => {
+    const res = await apiClient.put<ApiResponse<any>>(`/v1/roles/users/${userId}`, { roleCodes });
+    return res.data.data;
+  },
 };
 
 export const employeeApi = {
-  getAll: async (params?: { page?: number; size?: number; status?: string; department?: string }) => {
+  getAll: async (params?: { page?: number; size?: number; status?: string; department?: string; search?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<Employee>>>('/v1/employees', { params });
     return res.data.data;
   },
-  create: async (payload: Partial<Employee>) => {
+  create: async (payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
     const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees', payload);
     return res.data.data;
+  },
+  update: async (employeeId: string, payload: Partial<Employee> & { roleCode?: string; roleId?: string }) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (employeeId: string, status: string) => {
+    const res = await apiClient.put<ApiResponse<Employee>>(`/v1/employees/${employeeId}/status`, { status });
+    return res.data.data;
+  },
+  resendInvitation: async (employeeId: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/employees/${employeeId}/resend-invitation`);
+    return res.data;
+  },
+  delete: async (employeeId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/employees/${employeeId}`);
+    return res.data;
   },
   bulkImport: async (employees: Partial<Employee>[]) => {
     const res = await apiClient.post<ApiResponse<any>>('/v1/employees/bulk', employees);

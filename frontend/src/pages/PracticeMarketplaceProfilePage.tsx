@@ -43,7 +43,7 @@ import {
   PublicTaxServiceCategory,
   PracticeService,
 } from '../types';
-import { buildTenantSubdomainUrl, formatTenantDisplayUrl, getProductionSubdomainUrl } from '../utils/tenantUrl';
+import { buildPracticePathUrl, formatPracticeDisplayUrl, getPracticePublicUrl } from '../utils/tenantUrl';
 import clsx from 'clsx';
 
 export const PracticeMarketplaceProfilePage: React.FC = () => {
@@ -407,20 +407,20 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     }
   };
 
-  // Copy production tenant subdomain link (e.g. https://apex.taxoryn.com)
+  const activeSlug = profile?.publicSlug || profile?.slug || 'my-practice';
+  const practiceProfileUrl = buildPracticePathUrl(activeSlug);
+  const productionUrl = getPracticePublicUrl(activeSlug);
+  const practiceDisplayPath = formatPracticeDisplayUrl(activeSlug);
+
   const copyPublicUrl = () => {
-    const slugVal = profile?.publicSlug || profile?.slug;
-    if (!slugVal) return;
-    const url = getProductionSubdomainUrl(slugVal);
+    const url = typeof window !== 'undefined'
+      ? `${window.location.origin}${practiceProfileUrl}`
+      : productionUrl;
     navigator.clipboard.writeText(url);
     setCopiedSlug(true);
     setTimeout(() => setCopiedSlug(false), 2500);
   };
 
-  const activeSlug = profile?.publicSlug || profile?.slug || 'my-practice';
-  const tenantUrl = buildTenantSubdomainUrl(activeSlug);
-  const productionUrl = getProductionSubdomainUrl(activeSlug);
-  const tenantDisplayDomain = formatTenantDisplayUrl(activeSlug);
   const isLocalDev = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   const handleToggleTaxService = (serviceId: string) => {
@@ -505,13 +505,13 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
 
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <a
-              href={tenantUrl}
+              href={practiceProfileUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs shadow-md transition-all"
             >
               <Eye className="w-3.5 h-3.5 text-indigo-600" />
-              Preview Branded Site
+              Preview Public Profile
               <ArrowRight className="w-3 h-3 text-slate-400" />
             </a>
             <button
@@ -519,7 +519,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-xs border border-white/20 backdrop-blur-xs transition-all"
             >
               {copiedSlug ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Link className="w-3.5 h-3.5 text-indigo-200" />}
-              {copiedSlug ? 'Subdomain Copied!' : 'Copy Branded URL'}
+              {copiedSlug ? 'Profile Link Copied!' : 'Copy Profile Link'}
             </button>
           </div>
         </div>
@@ -564,19 +564,19 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
 
       {/* Main Settings Section */}
       <div className="space-y-6">
-        {/* Dedicated Practitioner Subdomain & Direct URL Card */}
+        {/* Dedicated Practitioner Public Profile & Direct URL Card */}
         <Card className="p-6 sm:p-7 border border-indigo-200 bg-gradient-to-r from-indigo-50/50 via-white to-indigo-50/30 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Globe className="w-5 h-5 text-indigo-600" />
-                <h2 className="text-base font-bold text-slate-900">Your Dedicated Branded Subdomain</h2>
+                <h2 className="text-base font-bold text-slate-900">Public Practice Directory Profile</h2>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                  Tenant Subdomain
+                  Public Profile
                 </span>
               </div>
               <p className="text-xs text-slate-600 max-w-2xl">
-                Clients can access your firm's dedicated home, service catalog, and consultation booking directly at your branded domain.
+                Clients can discover your practice, service catalog, branch locations, and consultation booking directly via your public profile directory path.
               </p>
             </div>
 
@@ -588,30 +588,30 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 className="text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
               >
                 {copiedSlug ? <Check className="w-3.5 h-3.5 text-emerald-600 mr-1" /> : <Link className="w-3.5 h-3.5 mr-1" />}
-                {copiedSlug ? 'Copied Subdomain!' : 'Copy URL'}
+                {copiedSlug ? 'Copied Profile Link!' : 'Copy Link'}
               </Button>
               <a
-                href={tenantUrl}
+                href={practiceProfileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-xs shadow-xs transition"
               >
                 <Eye className="w-3.5 h-3.5" />
-                Preview Site
+                Preview Profile
               </a>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-indigo-100 text-xs">
             <div className="flex flex-wrap items-center gap-2 min-w-0">
-              <span className="text-slate-400 font-medium">Production Domain:</span>
+              <span className="text-slate-400 font-medium">Public Profile Path:</span>
               <span className="font-mono font-bold text-indigo-600 truncate">
-                https://{tenantDisplayDomain}
+                {practiceDisplayPath}
               </span>
             </div>
             {isLocalDev ? (
               <span className="text-[11px] text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 shrink-0">
-                Local Dev Preview Active
+                Local Dev Path Active
               </span>
             ) : (
               <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">

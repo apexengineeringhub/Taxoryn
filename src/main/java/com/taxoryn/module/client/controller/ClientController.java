@@ -101,6 +101,57 @@ public class ClientController {
         return ResponseEntity.ok(ApiResponse.success("Employee assigned to client successfully", updated));
     }
 
+    @PatchMapping("/{clientId}/portal-status")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Update client portal access status", description = "Updates the client's portal access lifecycle (ACTIVE, SUSPENDED, INACTIVE). Revokes sessions and dispatches access notifications.")
+    public ResponseEntity<ApiResponse<ClientDto>> updateClientPortalStatus(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody com.taxoryn.module.client.dto.UpdateClientPortalStatusRequest request) {
+        ClientDto updated = clientService.updateClientPortalStatus(clientId, request);
+        return ResponseEntity.ok(ApiResponse.success("Client portal status updated successfully to " + updated.getPortalStatus(), updated));
+    }
+
+    @PostMapping("/{clientId}/portal-status/suspend")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Suspend client portal access", description = "Temporarily blocks client portal login and access while retaining all historical documents and records.")
+    public ResponseEntity<ApiResponse<ClientDto>> suspendClientPortal(@PathVariable UUID clientId) {
+        ClientDto updated = clientService.updateClientPortalStatus(clientId,
+                com.taxoryn.module.client.dto.UpdateClientPortalStatusRequest.builder()
+                        .portalStatus(com.taxoryn.module.user.entity.UserEntity.UserStatus.SUSPENDED)
+                        .build());
+        return ResponseEntity.ok(ApiResponse.success("Client portal access suspended successfully", updated));
+    }
+
+    @PostMapping("/{clientId}/portal-status/restore")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Restore client portal access", description = "Restores client portal login access for suspended or inactive accounts.")
+    public ResponseEntity<ApiResponse<ClientDto>> restoreClientPortal(@PathVariable UUID clientId) {
+        ClientDto updated = clientService.updateClientPortalStatus(clientId,
+                com.taxoryn.module.client.dto.UpdateClientPortalStatusRequest.builder()
+                        .portalStatus(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                        .build());
+        return ResponseEntity.ok(ApiResponse.success("Client portal access restored successfully", updated));
+    }
+
+    @PostMapping("/{clientId}/portal-status/deactivate")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Deactivate client portal access", description = "Permanently disables client portal access while keeping all data intact.")
+    public ResponseEntity<ApiResponse<ClientDto>> deactivateClientPortal(@PathVariable UUID clientId) {
+        ClientDto updated = clientService.updateClientPortalStatus(clientId,
+                com.taxoryn.module.client.dto.UpdateClientPortalStatusRequest.builder()
+                        .portalStatus(com.taxoryn.module.user.entity.UserEntity.UserStatus.INACTIVE)
+                        .build());
+        return ResponseEntity.ok(ApiResponse.success("Client portal access deactivated successfully", updated));
+    }
+
+    @PostMapping("/{clientId}/portal-invitation/resend")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Resend client portal invitation email", description = "Invalidates previous activation tokens and dispatches a fresh client portal setup invitation.")
+    public ResponseEntity<ApiResponse<Void>> resendPortalInvitation(@PathVariable UUID clientId) {
+        clientService.resendPortalInvitation(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client portal activation email resent successfully", null));
+    }
+
     @DeleteMapping("/{clientId}")
     @PreAuthorize("hasAuthority('CLIENT_DELETE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Archive client", description = "Archives client record within the authenticated tenant.")

@@ -27,8 +27,18 @@ public class EmployeeDto {
     @Schema(description = "Optional linked user account ID")
     private UUID userId;
 
-    @Schema(description = "Employee identifier code", example = "EMP-001")
+    @Schema(description = "Employee identifier code", example = "EMP-0001")
     private String employeeCode;
+
+    @Schema(description = "Organization-scoped employee number", example = "EMP-0001")
+    private String employeeNumber;
+
+    public String getEmployeeNumber() {
+        if (employeeNumber != null && !employeeNumber.isBlank()) {
+            return employeeNumber;
+        }
+        return employeeCode;
+    }
 
     @Schema(description = "First name", example = "Rohan")
     private String firstName;
@@ -62,6 +72,15 @@ public class EmployeeDto {
 
     @Schema(description = "Reporting manager full name", example = "Vikram Verma")
     private String managerName;
+
+    @Schema(description = "Assigned role ID")
+    private UUID roleId;
+
+    @Schema(description = "Assigned role code", example = "TAX_PROFESSIONAL")
+    private String roleCode;
+
+    @Schema(description = "Assigned role display name", example = "Senior Tax Professional")
+    private String roleName;
 
     @Schema(description = "Creation timestamp")
     private Instant createdAt;

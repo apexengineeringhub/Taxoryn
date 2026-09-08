@@ -73,17 +73,41 @@ public class EmployeeController {
     }
 
     @PutMapping("/{employeeId}")
-    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
     @Operation(summary = "Update employee", description = "Updates employee profile and reporting hierarchy within the authenticated tenant.")
     public ResponseEntity<ApiResponse<EmployeeDto>> updateEmployee(@PathVariable UUID employeeId, @Valid @RequestBody UpdateEmployeeRequest request) {
         EmployeeDto updated = employeeService.updateEmployee(employeeId, request);
         return ResponseEntity.ok(ApiResponse.success("Employee updated successfully", updated));
     }
 
+    @PutMapping("/{employeeId}/role")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Update employee practice role", description = "Updates the assigned practice RBAC role for the employee.")
+    public ResponseEntity<ApiResponse<EmployeeDto>> updateEmployeeRole(@PathVariable UUID employeeId, @Valid @RequestBody com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest request) {
+        EmployeeDto updated = employeeService.updateEmployeeRole(employeeId, request);
+        return ResponseEntity.ok(ApiResponse.success("Employee practice role updated successfully", updated));
+    }
+
+    @PatchMapping("/{employeeId}/role")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Patch employee practice role", description = "Updates the assigned practice RBAC role for the employee.")
+    public ResponseEntity<ApiResponse<EmployeeDto>> patchEmployeeRole(@PathVariable UUID employeeId, @Valid @RequestBody com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest request) {
+        EmployeeDto updated = employeeService.updateEmployeeRole(employeeId, request);
+        return ResponseEntity.ok(ApiResponse.success("Employee practice role updated successfully", updated));
+    }
+
     @PatchMapping("/{employeeId}/status")
-    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Update employment status", description = "Updates employee lifecycle status (ACTIVE, INACTIVE, ON_LEAVE, RESIGNED, TERMINATED).")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Update employment status (PATCH)", description = "Updates employee lifecycle status (INVITED, ACTIVE, SUSPENDED, INACTIVE, TERMINATED).")
     public ResponseEntity<ApiResponse<EmployeeDto>> updateEmployeeStatus(@PathVariable UUID employeeId, @Valid @RequestBody UpdateEmployeeStatusRequest request) {
+        EmployeeDto updated = employeeService.updateEmployeeStatus(employeeId, request);
+        return ResponseEntity.ok(ApiResponse.success("Employee status updated successfully to " + updated.getStatus(), updated));
+    }
+
+    @PutMapping("/{employeeId}/status")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Update employment status (PUT)", description = "Updates employee lifecycle status (INVITED, ACTIVE, SUSPENDED, INACTIVE, TERMINATED).")
+    public ResponseEntity<ApiResponse<EmployeeDto>> putEmployeeStatus(@PathVariable UUID employeeId, @Valid @RequestBody UpdateEmployeeStatusRequest request) {
         EmployeeDto updated = employeeService.updateEmployeeStatus(employeeId, request);
         return ResponseEntity.ok(ApiResponse.success("Employee status updated successfully to " + updated.getStatus(), updated));
     }
@@ -102,5 +126,13 @@ public class EmployeeController {
     public ResponseEntity<ApiResponse<EmployeeWorkloadDto>> getEmployeeWorkload(@PathVariable UUID employeeId) {
         EmployeeWorkloadDto workload = employeeService.getEmployeeWorkload(employeeId);
         return ResponseEntity.ok(ApiResponse.success("Employee workload retrieved successfully", workload));
+    }
+
+    @PostMapping("/{employeeId}/resend-invitation")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_CREATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Resend employee invitation email", description = "Generates a fresh activation token and dispatches an invitation email to the employee.")
+    public ResponseEntity<ApiResponse<Void>> resendInvitation(@PathVariable UUID employeeId) {
+        employeeService.resendInvitation(employeeId);
+        return ResponseEntity.ok(ApiResponse.success("Invitation email dispatched successfully", null));
     }
 }

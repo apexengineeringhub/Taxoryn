@@ -76,6 +76,11 @@ public class SecurityConfig {
                         // Public Auth & Onboarding endpoints
                         .requestMatchers(
                                 "/api/auth/register-organization",
+                                "/api/auth/activate-organization",
+                                "/api/auth/activate",
+                                "/api/auth/validate-activation-token",
+                                "/api/auth/activate/verify",
+                                "/api/auth/resend-activation",
                                 "/api/auth/login",
                                 "/api/auth/logout",
                                 "/api/auth/refresh",
@@ -83,6 +88,11 @@ public class SecurityConfig {
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
                                 "/api/v1/auth/register-organization",
+                                "/api/v1/auth/activate-organization",
+                                "/api/v1/auth/activate",
+                                "/api/v1/auth/validate-activation-token",
+                                "/api/v1/auth/activate/verify",
+                                "/api/v1/auth/resend-activation",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/refresh",

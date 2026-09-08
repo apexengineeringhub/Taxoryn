@@ -143,27 +143,52 @@ public final class SecurityUtils {
             "TAXORYN_CONTENT_ADMIN",
             "TAXORYN_SECURITY_ADMIN",
             "TAXORYN_ENGINEERING_ADMIN",
-            "PLATFORM_ADMIN"
+            "PLATFORM_ADMIN",
+            "FEEDBACK_OPS",
+            "FEEDBACK_ADMIN",
+            "OPERATIONS",
+            "OPERATIONS_ADMIN",
+            "SUPPORT",
+            "SUPPORT_ADMIN",
+            "CUSTOMER_SUPPORT",
+            "FINANCE",
+            "FINANCE_ADMIN",
+            "MARKETPLACE_OPERATIONS",
+            "MARKETPLACE_ADMIN",
+            "PRODUCT",
+            "PRODUCT_ADMIN",
+            "ENGINEERING",
+            "ENGINEERING_ADMIN",
+            "MARKETING",
+            "MARKETING_ADMIN",
+            "SECURITY_ADMIN",
+            "CONTENT_ADMIN"
     );
 
     public static final Set<String> TENANT_ROLE_CODES = Set.of(
             "ORG_ADMIN",
             "PRACTICE_OWNER",
             "PRACTICE_ADMIN",
+            "PARTNER",
+            "CA_PARTNER",
             "MANAGER",
+            "TAX_MANAGER",
             "TAX_PROFESSIONAL",
             "PRACTITIONER",
             "ACCOUNTANT",
+            "TAX_ASSOCIATE",
+            "SENIOR_TAX_ASSOCIATE",
+            "ASSOCIATE",
             "EMPLOYEE",
             "PRACTICE_EMPLOYEE",
             "STAFF",
             "ARTICLE_ASSISTANT",
             "TRAINEE",
-            "VIEWER",
-            "PARTNER"
+            "VIEWER"
     );
 
     public static final Set<String> CLIENT_ROLE_CODES = Set.of(
+            "CLIENT",
             "CLIENT_ADMIN",
             "CLIENT_USER",
             "PRACTICE_CLIENT",
@@ -219,6 +244,12 @@ public final class SecurityUtils {
             "USER_DISABLE",
             "ONBOARDING_VIEW",
             "ONBOARDING_MANAGE",
+            "FEEDBACK_VIEW",
+            "FEEDBACK_REVIEW",
+            "FEEDBACK_ASSIGN",
+            "FEEDBACK_RESOLVE",
+            "FEEDBACK_ESCALATE",
+            "FEEDBACK_MANAGE",
             "SUPPORT_VIEW",
             "SUPPORT_ASSIGN",
             "SUPPORT_RESOLVE",
@@ -227,8 +258,11 @@ public final class SecurityUtils {
             "FINANCE_REPORT_VIEW",
             "SUBSCRIPTION_MANAGE",
             "PAYMENT_MANAGE",
+            "CONTENT_VIEW",
+            "CONTENT_CREATE",
             "CONTENT_MANAGE",
             "CONTENT_PUBLISH",
+            "CONTENT_REVIEW",
             "ARTICLE_PUBLISH",
             "ARTICLE_ARCHIVE",
             "VIDEO_PUBLISH",
@@ -338,7 +372,15 @@ public final class SecurityUtils {
                 || clean.startsWith("TECHNICAL_")
                 || clean.startsWith("SECURITY_")
                 || clean.startsWith("AUDIT_")
-                || clean.startsWith("ONBOARDING_");
+                || clean.startsWith("ONBOARDING_")
+                || clean.startsWith("FEEDBACK_")
+                || clean.startsWith("SUPPORT_")
+                || clean.startsWith("CONTENT_")
+                || clean.startsWith("PAYMENT_")
+                || clean.startsWith("REFUND_")
+                || clean.startsWith("MRR_")
+                || clean.startsWith("FINANCE_")
+                || clean.startsWith("MARKETPLACE_");
     }
 
     /**
@@ -362,8 +404,8 @@ public final class SecurityUtils {
             }
         }
 
-        // 2. Prevent self-escalation (caller modifying their own roles unless they are a SuperAdmin)
-        if (!isSuperAdmin && currentUserId != null && currentUserId.equals(targetUserId)) {
+        // 2. Prevent self-escalation (caller modifying their own roles unless they are a SuperAdmin or TenantAdmin)
+        if (!isSuperAdmin && !isTenantAdmin() && currentUserId != null && currentUserId.equals(targetUserId)) {
             Set<String> callerRoles = getCurrentRoles().stream()
                     .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
                     .collect(Collectors.toSet());

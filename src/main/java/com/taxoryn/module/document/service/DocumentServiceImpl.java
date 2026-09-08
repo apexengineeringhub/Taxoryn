@@ -206,7 +206,19 @@ public class DocumentServiceImpl implements DocumentService {
                 .build();
         entity.setOrganizationId(organizationId);
 
-        DocumentEntity saved = documentRepository.save(entity);
+        DocumentEntity saved;
+        try {
+            saved = documentRepository.save(entity);
+        } catch (Exception e) {
+            log.error("Database save failed after storing document at key [{}]. Attempting orphan object cleanup...", storageKey);
+            try {
+                storageService.delete(storageKey);
+            } catch (Exception cleanupEx) {
+                log.warn("Failed to cleanup orphaned storage file at key [{}]: {}", storageKey, cleanupEx.getMessage());
+            }
+            throw e;
+        }
+
         log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={}, scanStatus={} for tenant={}",
                 saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), saved.getScanStatus(), organizationId);
 

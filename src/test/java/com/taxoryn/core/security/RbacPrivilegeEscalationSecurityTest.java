@@ -83,6 +83,20 @@ class RbacPrivilegeEscalationSecurityTest {
                 SecurityUtils.validateRoleDelegation(Set.of("TAXORYN_OPERATIONS_ADMIN"), targetUserId));
         assertThrows(ForbiddenException.class, () ->
                 SecurityUtils.validateRoleDelegation(Set.of("TAXORYN_SECURITY_ADMIN"), targetUserId));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validateRoleDelegation(Set.of("FEEDBACK_OPS"), targetUserId));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validateRoleDelegation(Set.of("ENGINEERING"), targetUserId));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validateRoleDelegation(Set.of("MARKETING"), targetUserId));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validateRoleDelegation(Set.of("FINANCE"), targetUserId));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validateRoleDelegation(Set.of("SUPPORT"), targetUserId));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validateRoleDelegation(Set.of("MARKETPLACE_OPERATIONS"), targetUserId));
+        assertThrows(ForbiddenException.class, () ->
+                SecurityUtils.validateRoleDelegation(Set.of("PRODUCT"), targetUserId));
     }
 
     @Test

@@ -121,7 +121,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: isFirmAdmin },
     { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
     { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },
-    { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck, visible: isFirmAdmin },
     { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
     { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
     { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, visible: isFirmAdmin },

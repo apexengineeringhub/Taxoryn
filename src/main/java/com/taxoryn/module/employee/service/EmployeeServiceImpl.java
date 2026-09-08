@@ -33,12 +33,25 @@ import com.taxoryn.module.role.repository.RoleRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.taxoryn.module.organization.entity.OrganizationEntity;
+import com.taxoryn.module.organization.repository.OrganizationRepository;
+import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
+import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
+import com.taxoryn.module.notification.email.service.EmailNotificationService;
+import com.taxoryn.core.security.PasswordSecurityUtils;
+import org.springframework.beans.factory.annotation.Value;
+
+import com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -49,21 +62,34 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final OrganizationRepository organizationRepository;
+    private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
+    private final com.taxoryn.module.authentication.repository.RefreshTokenRepository refreshTokenRepository;
+    private final EmailNotificationService emailNotificationService;
     private final PasswordEncoder passwordEncoder;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final EmployeeMapper employeeMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+    private final OrganizationEmployeeNumberGenerator employeeNumberGenerator;
+
+    @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
+    private String activationBaseUrl = "http://localhost:5173/activate";
+
+    @Value("${taxoryn.auth.activation.expiration-hours:24}")
+    private long activationExpirationHours = 24L;
 
     @Override
     @Transactional
     public EmployeeDto createEmployee(CreateEmployeeRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        String code = request.getEmployeeCode().trim();
-        String email = request.getEmail().toLowerCase().trim();
-
-        if (employeeRepository.existsByOrganizationIdAndEmployeeCode(organizationId, code)) {
+        String code = request.getEmployeeCode() != null ? request.getEmployeeCode().trim() : null;
+        if (!StringUtils.hasText(code)) {
+            code = employeeNumberGenerator.generateNextEmployeeCode(organizationId);
+        } else if (employeeRepository.existsByOrganizationIdAndEmployeeCode(organizationId, code)) {
             throw new DuplicateResourceException("Employee", "employeeCode", code);
         }
+
+        String email = request.getEmail().toLowerCase().trim();
 
         if (employeeRepository.existsByOrganizationIdAndEmail(organizationId, email)) {
             throw new DuplicateResourceException("Employee", "email", email);
@@ -77,7 +103,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         } else {
             UserEntity user = provisionUserForEmployee(organizationId, email, request.getFirstName().trim(),
                     request.getLastName() != null ? request.getLastName().trim() : null,
-                    request.getPhone(), request.getDesignation());
+                    request.getPhone(), request.getDesignation(), request.getRoleCode(), request.getRoleId());
             targetUserId = user.getId();
         }
 
@@ -96,50 +122,111 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .department(request.getDepartment().trim())
                 .designation(request.getDesignation().trim())
                 .joiningDate(request.getJoiningDate() != null ? request.getJoiningDate() : LocalDate.now())
-                .status(request.getStatus() != null ? request.getStatus() : EmployeeStatus.ACTIVE)
+                .status(request.getStatus() != null ? request.getStatus() : EmployeeStatus.INVITED)
                 .managerId(request.getManagerId())
                 .build();
         employee.setOrganizationId(organizationId);
 
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Created employee record: id={}, code={} for tenant={}", saved.getId(), saved.getEmployeeCode(), organizationId);
+
+        UserEntity user = userRepository.findById(targetUserId).orElse(null);
+        if (user != null) {
+            sendEmployeeInvitation(saved, user, organizationId);
+        }
+
         EmployeeDto result = enrichDto(saved);
         auditService.logEvent("EMPLOYEE_CREATED", "EMPLOYEE", saved.getId().toString(), null, result);
         return result;
     }
 
     private UserEntity provisionUserForEmployee(UUID organizationId, String email, String firstName, String lastName, String phone, String designation) {
-        return userRepository.findByEmailIgnoreCase(email)
-                .orElseGet(() -> {
-                    String roleCode = "PRACTITIONER";
-                    String desLower = designation != null ? designation.toLowerCase() : "";
-                    if (desLower.contains("article") || desLower.contains("trainee") || desLower.contains("intern")) {
-                        roleCode = "ARTICLE_ASSISTANT";
-                    }
+        return provisionUserForEmployee(organizationId, email, firstName, lastName, phone, designation, null, null);
+    }
 
-                    final String finalRoleCode = roleCode;
-                    RoleEntity role = roleRepository.findByCodeAndIsSystemRoleTrue(finalRoleCode)
-                            .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER"))
-                            .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN"))
-                            .orElse(null);
+    private UserEntity provisionUserForEmployee(UUID organizationId, String email, String firstName, String lastName, String phone, String designation, String requestedRoleCode, UUID requestedRoleId) {
+        RoleEntity role = null;
+        if (requestedRoleId != null) {
+            role = roleRepository.findById(requestedRoleId).orElse(null);
+        } else if (requestedRoleCode != null && !requestedRoleCode.isBlank()) {
+            String clean = requestedRoleCode.trim().toUpperCase();
+            if (clean.startsWith("ROLE_")) {
+                clean = clean.substring(5);
+            }
+            final String cleanCode = clean;
+            if (SecurityUtils.isPlatformRole(cleanCode) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Privilege escalation denied: Platform role '" + cleanCode + "' cannot be assigned by tenant users"
+                );
+            }
+            if (SecurityUtils.isClientRole(cleanCode) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Invalid role assignment: Client role '" + cleanCode + "' cannot be assigned as a practice employee role"
+                );
+            }
+            role = roleRepository.findByCodeAndOrganizationId(cleanCode, organizationId)
+                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue(cleanCode))
+                    .orElse(null);
+        }
 
-                    Set<RoleEntity> userRoles = new HashSet<>();
-                    if (role != null) userRoles.add(role);
+        if (role == null) {
+            String roleCode = "TAX_ASSOCIATE";
+            String desLower = designation != null ? designation.toLowerCase() : "";
+            if (desLower.contains("article") || desLower.contains("trainee") || desLower.contains("intern")) {
+                roleCode = "ARTICLE_ASSISTANT";
+            } else if (desLower.contains("manager") || desLower.contains("lead")) {
+                roleCode = "TAX_MANAGER";
+            } else if (desLower.contains("senior") || desLower.contains("sr")) {
+                roleCode = "SENIOR_TAX_ASSOCIATE";
+            } else if (desLower.contains("partner")) {
+                roleCode = "PARTNER";
+            } else if (desLower.contains("accountant")) {
+                roleCode = "ACCOUNTANT";
+            } else if (desLower.contains("practitioner")) {
+                roleCode = "PRACTITIONER";
+            }
 
-                    UserEntity user = UserEntity.builder()
-                            .email(email.toLowerCase().trim())
-                            .passwordHash(passwordEncoder.encode(com.taxoryn.core.security.PasswordSecurityUtils.generateSecureTemporaryPassword()))
-                            .firstName(firstName)
-                            .lastName(lastName)
-                            .phone(phone)
-                            .status(UserEntity.UserStatus.ACTIVE)
-                            .roles(userRoles)
-                            .build();
-                    user.setOrganizationId(organizationId);
-                    UserEntity saved = userRepository.save(user);
-                    log.info("Auto-provisioned UserEntity for employee: {} with role {}", email, finalRoleCode);
-                    return saved;
-                });
+            final String finalRoleCode = roleCode;
+            role = roleRepository.findByCodeAndIsSystemRoleTrue(finalRoleCode)
+                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("TAX_ASSOCIATE"))
+                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER"))
+                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN"))
+                    .orElse(null);
+        }
+
+        final RoleEntity resolvedRole = role;
+
+        Optional<UserEntity> existing = userRepository.findByEmailIgnoreCase(email);
+        if (existing.isPresent()) {
+            UserEntity u = existing.get();
+            if (u.getOrganizationId() == null) {
+                u.setOrganizationId(organizationId);
+            }
+            if (u.getRoles() == null || u.getRoles().isEmpty()) {
+                u.setRoles(new HashSet<>());
+                if (resolvedRole != null) {
+                    u.getRoles().add(resolvedRole);
+                }
+            }
+            return userRepository.save(u);
+        }
+
+        Set<RoleEntity> userRoles = new HashSet<>();
+        if (resolvedRole != null) userRoles.add(resolvedRole);
+
+        UserEntity user = UserEntity.builder()
+                .email(email.toLowerCase().trim())
+                .passwordHash(passwordEncoder.encode(com.taxoryn.core.security.PasswordSecurityUtils.generateSecureTemporaryPassword()))
+                .firstName(firstName)
+                .lastName(lastName)
+                .phone(phone)
+                .status(UserEntity.UserStatus.INVITED)
+                .roles(userRoles)
+                .build();
+        user.setOrganizationId(organizationId);
+        UserEntity saved = userRepository.save(user);
+        log.info("Auto-provisioned UserEntity for employee: {} with role {} in INVITED status", email, resolvedRole != null ? resolvedRole.getCode() : "none");
+        return saved;
     }
 
     @Override
@@ -185,10 +272,37 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setUserId(request.getUserId());
         employee.setManagerId(request.getManagerId());
 
+        // Handle Role Update
+        if (request.getRoleCode() != null || request.getRoleId() != null) {
+            applyEmployeeRoleChange(employee, request.getRoleCode(), request.getRoleId(), organizationId);
+        }
+
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Updated employee: id={} for tenant={}", saved.getId(), organizationId);
         EmployeeDto result = enrichDto(saved);
         auditService.logEvent("EMPLOYEE_UPDATED", "EMPLOYEE", saved.getId().toString(), oldSnapshot, result);
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public EmployeeDto updateEmployeeRole(UUID employeeId, com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest request) {
+        if (request == null || (!StringUtils.hasText(request.getRoleCode()) && request.getRoleId() == null)) {
+            throw new BusinessValidationException("Target role code or role ID must be provided");
+        }
+
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+
+        EmployeeDto oldSnapshot = enrichDto(employee);
+
+        applyEmployeeRoleChange(employee, request.getRoleCode(), request.getRoleId(), organizationId);
+
+        EmployeeEntity saved = employeeRepository.save(employee);
+        log.info("Updated role for employee: id={} for tenant={}", saved.getId(), organizationId);
+        EmployeeDto result = enrichDto(saved);
+        auditService.logEvent("EMPLOYEE_ROLE_UPDATED", "EMPLOYEE", saved.getId().toString(), oldSnapshot, result);
         return result;
     }
 
@@ -255,16 +369,88 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeDto updateEmployeeStatus(UUID employeeId, UpdateEmployeeStatusRequest request) {
+        if (request == null || request.getStatus() == null) {
+            throw new BusinessValidationException("Target employment status is required");
+        }
+
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
 
+        // 1. Block self-status update (Practice admin or staff cannot suspend / deactivate themselves)
+        if (employee.getUserId() != null && employee.getUserId().equals(currentUserId)) {
+            throw new BusinessValidationException("You cannot modify your own employee account status");
+        }
+        if (employee.getEmail() != null) {
+            String currentUserEmail = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUsername).orElse(null);
+            if (employee.getEmail().equalsIgnoreCase(currentUserEmail)) {
+                throw new BusinessValidationException("You cannot modify your own employee account status");
+            }
+        }
+
         EmployeeStatus oldStatus = employee.getStatus();
-        employee.setStatus(request.getStatus());
+        EmployeeStatus newStatus = request.getStatus();
+
+        if (oldStatus == newStatus) {
+            return enrichDto(employee);
+        }
+
+        // 2. Resolve linked UserEntity
+        UserEntity user = null;
+        if (employee.getUserId() != null) {
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId)
+                    .or(() -> userRepository.findById(employee.getUserId()))
+                    .orElse(null);
+        }
+        if (user == null && employee.getEmail() != null) {
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail())
+                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
+                    .orElse(null);
+        }
+
+        // 3. Last Active Practice Admin Lockout Protection
+        boolean isDeactivatingOrSuspending = (newStatus == EmployeeStatus.SUSPENDED || newStatus == EmployeeStatus.INACTIVE || newStatus == EmployeeStatus.TERMINATED);
+        if (isDeactivatingOrSuspending && user != null && user.getStatus() == UserEntity.UserStatus.ACTIVE) {
+            boolean hasAdminRole = user.getRoles() != null && user.getRoles().stream()
+                    .anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()));
+            if (hasAdminRole) {
+                long activeAdminCount = userRepository.countActiveOrgAdmins(organizationId);
+                if (activeAdminCount <= 1) {
+                    throw new BusinessValidationException("Cannot suspend or deactivate the last remaining active Organization Administrator");
+                }
+            }
+        }
+
+        // 4. Update Employee Status
+        employee.setStatus(newStatus);
         EmployeeEntity saved = employeeRepository.save(employee);
-        log.info("Updated employee status: id={}, newStatus={} for tenant={}", employeeId, request.getStatus(), organizationId);
+
+        // 5. Synchronize UserEntity status and session tokens
+        if (user != null) {
+            if (newStatus == EmployeeStatus.ACTIVE) {
+                user.setStatus(UserEntity.UserStatus.ACTIVE);
+                userRepository.save(user);
+            } else if (newStatus == EmployeeStatus.SUSPENDED) {
+                user.setStatus(UserEntity.UserStatus.SUSPENDED);
+                userRepository.save(user);
+                refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "ACCOUNT_SUSPENDED");
+                log.info("Revoked all active refresh sessions for suspended employee user: {}", user.getId());
+            } else if (newStatus == EmployeeStatus.INACTIVE || newStatus == EmployeeStatus.TERMINATED || newStatus == EmployeeStatus.RESIGNED) {
+                user.setStatus(UserEntity.UserStatus.INACTIVE);
+                userRepository.save(user);
+                refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "ACCOUNT_DEACTIVATED");
+                log.info("Revoked all active refresh sessions for deactivated employee user: {}", user.getId());
+            } else if (newStatus == EmployeeStatus.INVITED) {
+                user.setStatus(UserEntity.UserStatus.INVITED);
+                userRepository.save(user);
+            }
+        }
+
+        log.info("Updated employee status: id={}, oldStatus={}, newStatus={} for tenant={}", employeeId, oldStatus, newStatus, organizationId);
         EmployeeDto result = enrichDto(saved);
-        auditService.logEvent("EMPLOYEE_STATUS_UPDATED", "EMPLOYEE", employeeId.toString(), oldStatus != null ? oldStatus.name() : null, request.getStatus().name());
+        auditService.logEvent(organizationId, currentUserId, "EMPLOYEE_STATUS_UPDATED", "EMPLOYEE", employeeId.toString(), oldStatus != null ? oldStatus.name() : null, newStatus.name());
         return result;
     }
 
@@ -272,14 +458,50 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public void deleteEmployee(UUID employeeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+
+        if (employee.getUserId() != null && employee.getUserId().equals(currentUserId)) {
+            throw new BusinessValidationException("You cannot terminate your own employee account");
+        }
+
+        UserEntity user = null;
+        if (employee.getUserId() != null) {
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId)
+                    .or(() -> userRepository.findById(employee.getUserId()))
+                    .orElse(null);
+        }
+        if (user == null && employee.getEmail() != null) {
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail())
+                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
+                    .orElse(null);
+        }
+
+        if (user != null && user.getStatus() == UserEntity.UserStatus.ACTIVE) {
+            boolean hasAdminRole = user.getRoles() != null && user.getRoles().stream()
+                    .anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()));
+            if (hasAdminRole) {
+                long activeAdminCount = userRepository.countActiveOrgAdmins(organizationId);
+                if (activeAdminCount <= 1) {
+                    throw new BusinessValidationException("Cannot terminate the last remaining active Organization Administrator");
+                }
+            }
+        }
 
         EmployeeStatus oldStatus = employee.getStatus();
         employee.setStatus(EmployeeStatus.TERMINATED);
         employeeRepository.save(employee);
+
+        if (user != null) {
+            user.setStatus(UserEntity.UserStatus.INACTIVE);
+            userRepository.save(user);
+            refreshTokenRepository.revokeAllByUserId(user.getId(), Instant.now(), "ACCOUNT_TERMINATED");
+        }
+
         log.info("Deactivated/Terminated employee: id={} for tenant={}", employeeId, organizationId);
-        auditService.logEvent("EMPLOYEE_DELETED", "EMPLOYEE", employeeId.toString(), oldStatus != null ? oldStatus.name() : null, EmployeeStatus.TERMINATED.name());
+        auditService.logEvent(organizationId, currentUserId, "EMPLOYEE_DELETED", "EMPLOYEE", employeeId.toString(), oldStatus != null ? oldStatus.name() : null, EmployeeStatus.TERMINATED.name());
     }
 
     @Override
@@ -318,6 +540,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (dto == null) {
             return null;
         }
+        dto.setEmployeeCode(employee.getEmployeeCode());
+        dto.setEmployeeNumber(employee.getEmployeeCode());
         dto.setFullName(employee.getFullName());
 
         if (employee.getManagerId() != null) {
@@ -325,7 +549,163 @@ public class EmployeeServiceImpl implements EmployeeService {
                     .ifPresent(manager -> dto.setManagerName(manager.getFullName()));
         }
 
+        // Populate Role details from linked UserEntity
+        UserEntity user = null;
+        if (employee.getUserId() != null) {
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), employee.getOrganizationId()).orElse(null);
+            if (user == null) {
+                user = userRepository.findById(employee.getUserId()).orElse(null);
+            }
+        }
+        if (user == null && employee.getEmail() != null) {
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(employee.getOrganizationId(), employee.getEmail())
+                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
+                    .orElse(null);
+        }
+
+        if (user != null && user.getRoles() != null && !user.getRoles().isEmpty()) {
+            RoleEntity primaryRole = user.getRoles().iterator().next();
+            // Prefer an admin role if user has multiple roles
+            for (RoleEntity r : user.getRoles()) {
+                if ("ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()) || "PARTNER".equals(r.getCode())) {
+                    primaryRole = r;
+                    break;
+                }
+            }
+            dto.setRoleId(primaryRole.getId());
+            dto.setRoleCode(primaryRole.getCode());
+            dto.setRoleName(primaryRole.getName());
+            if (dto.getUserId() == null) {
+                dto.setUserId(user.getId());
+            }
+        } else {
+            // Default fallback based on designation if user has no role assigned
+            String des = employee.getDesignation() != null ? employee.getDesignation().toLowerCase() : "";
+            String code = "TAX_ASSOCIATE";
+            String name = "Tax Associate";
+            if (des.contains("article") || des.contains("trainee") || des.contains("intern")) {
+                code = "ARTICLE_ASSISTANT";
+                name = "Article Assistant";
+            } else if (des.contains("manager") || des.contains("lead")) {
+                code = "TAX_MANAGER";
+                name = "Tax Manager";
+            } else if (des.contains("partner")) {
+                code = "PARTNER";
+                name = "Practice Partner / CA";
+            } else if (des.contains("practitioner")) {
+                code = "PRACTITIONER";
+                name = "Tax Practitioner / CA";
+            } else if (des.contains("senior") || des.contains("sr")) {
+                code = "SENIOR_TAX_ASSOCIATE";
+                name = "Senior Tax Associate";
+            } else if (des.contains("accountant")) {
+                code = "ACCOUNTANT";
+                name = "Senior Accountant";
+            }
+            dto.setRoleCode(code);
+            dto.setRoleName(name);
+        }
+
         return dto;
+    }
+
+    private void applyEmployeeRoleChange(EmployeeEntity employee, String requestedRoleCode, UUID requestedRoleId, UUID organizationId) {
+        // Resolve target role first
+        RoleEntity targetRole = null;
+        if (requestedRoleId != null) {
+            targetRole = roleRepository.findById(requestedRoleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Role", "id", requestedRoleId));
+        } else if (requestedRoleCode != null && !requestedRoleCode.isBlank()) {
+            String cleanCode = requestedRoleCode.trim().toUpperCase();
+            if (cleanCode.startsWith("ROLE_")) {
+                cleanCode = cleanCode.substring(5);
+            }
+            final String codeToFind = cleanCode;
+
+            // 1. HARD SECURITY RULE: Platform role assignment rejection
+            if (SecurityUtils.isPlatformRole(codeToFind) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Privilege escalation denied: Platform role '" + codeToFind + "' cannot be assigned by tenant users"
+                );
+            }
+
+            // 2. Reject client roles for practice staff
+            if (SecurityUtils.isClientRole(codeToFind) && !SecurityUtils.isTaxorynSuperAdmin()) {
+                throw new com.taxoryn.core.exception.ForbiddenException(
+                        "Invalid role assignment: Client role '" + codeToFind + "' cannot be assigned as a practice employee role"
+                );
+            }
+
+            targetRole = roleRepository.findByCodeAndOrganizationId(codeToFind, organizationId)
+                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue(codeToFind))
+                    .orElseThrow(() -> new BusinessValidationException("Role '" + codeToFind + "' is not a valid practice role"));
+        }
+
+        if (targetRole == null) {
+            throw new BusinessValidationException("Target role must be specified");
+        }
+
+        // Check if custom role belongs to another organization
+        if (!targetRole.isSystemRole() && (targetRole.getOrganizationId() == null || !targetRole.getOrganizationId().equals(organizationId))) {
+            throw new com.taxoryn.core.exception.ForbiddenException("Access denied: Custom role belongs to another organization");
+        }
+
+        // Check if platform role
+        if (SecurityUtils.isPlatformRole(targetRole.getCode()) && !SecurityUtils.isTaxorynSuperAdmin()) {
+            throw new com.taxoryn.core.exception.ForbiddenException(
+                    "Privilege escalation denied: Platform role '" + targetRole.getCode() + "' cannot be assigned by tenant users"
+            );
+        }
+
+        // Resolve linked user
+        UserEntity user = null;
+        if (employee.getUserId() != null) {
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId).orElse(null);
+            if (user == null) {
+                user = userRepository.findById(employee.getUserId()).orElse(null);
+            }
+        }
+        if (user == null && employee.getEmail() != null) {
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail())
+                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
+                    .orElse(null);
+        }
+
+        if (user == null) {
+            // Provision user if not yet linked
+            user = provisionUserForEmployee(organizationId, employee.getEmail(), employee.getFirstName(), employee.getLastName(), employee.getPhone(), employee.getDesignation(), requestedRoleCode, requestedRoleId);
+            employee.setUserId(user.getId());
+        } else {
+            if (user.getOrganizationId() == null) {
+                user.setOrganizationId(organizationId);
+            }
+            if (employee.getUserId() == null) {
+                employee.setUserId(user.getId());
+            }
+        }
+
+        // Privilege escalation and delegation validation
+        SecurityUtils.validateRoleDelegation(Set.of(targetRole.getCode()), user.getId());
+
+        // Lockout prevention: Check if demoting sole active practice admin
+        boolean currentlyIsOrgAdmin = user.getRoles() != null && user.getRoles().stream()
+                .anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()));
+        boolean willBeOrgAdmin = "ORG_ADMIN".equals(targetRole.getCode()) || "PRACTICE_ADMIN".equals(targetRole.getCode()) || "PRACTICE_OWNER".equals(targetRole.getCode());
+        if (currentlyIsOrgAdmin && !willBeOrgAdmin) {
+            long adminCount = userRepository.countActiveOrgAdmins(organizationId);
+            if (adminCount <= 1) {
+                throw new BusinessValidationException("Cannot demote the last remaining active Organization Administrator");
+            }
+        }
+
+        Set<String> oldRoles = user.getRoles() != null
+                ? user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet())
+                : Set.of();
+        user.setRoles(new HashSet<>(List.of(targetRole)));
+        userRepository.save(user);
+
+        log.info("Updated role for employee {} (user {}) to {} in org {}", employee.getId(), user.getId(), targetRole.getCode(), organizationId);
+        auditService.logEvent(organizationId, user.getId(), "EMPLOYEE_ROLE_UPDATED", "EMPLOYEE", employee.getId().toString(), oldRoles, targetRole.getCode());
     }
 
     @Override
@@ -344,16 +724,17 @@ public class EmployeeServiceImpl implements EmployeeService {
         for (CreateEmployeeRequest req : requests) {
             row++;
             try {
-                String code = req.getEmployeeCode() != null ? req.getEmployeeCode().trim() : ("EMP-" + (System.currentTimeMillis() % 100000));
                 String email = req.getEmail() != null ? req.getEmail().toLowerCase().trim() : null;
-
                 if (email == null || email.isBlank()) {
                     result.getErrors().add("Row " + row + ": Email is required");
                     result.setTotalFailed(result.getTotalFailed() + 1);
                     continue;
                 }
 
-                if (employeeRepository.existsByOrganizationIdAndEmployeeCode(organizationId, code)) {
+                String code = req.getEmployeeCode() != null ? req.getEmployeeCode().trim() : null;
+                if (!StringUtils.hasText(code)) {
+                    code = employeeNumberGenerator.generateNextEmployeeCode(organizationId);
+                } else if (employeeRepository.existsByOrganizationIdAndEmployeeCode(organizationId, code)) {
                     result.getErrors().add("Row " + row + " (Code: " + code + "): Employee code already exists, skipped");
                     result.setTotalSkipped(result.getTotalSkipped() + 1);
                     continue;
@@ -394,6 +775,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 employee.setOrganizationId(organizationId);
 
                 EmployeeEntity saved = employeeRepository.save(employee);
+                UserEntity user = userRepository.findById(targetUserId).orElse(null);
+                if (user != null) {
+                    sendEmployeeInvitation(saved, user, organizationId);
+                }
                 result.getCreatedEmployees().add(enrichDto(saved));
                 result.setTotalCreated(result.getTotalCreated() + 1);
 
@@ -414,5 +799,78 @@ public class EmployeeServiceImpl implements EmployeeService {
                 organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
 
         return result;
+    }
+
+    @Override
+    @Transactional
+    public void resendInvitation(UUID employeeId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+
+        if (employee.getUserId() == null) {
+            throw new BusinessValidationException("Cannot resend invitation: employee has no linked user account");
+        }
+
+        UserEntity user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", employee.getUserId()));
+
+        sendEmployeeInvitation(employee, user, organizationId);
+    }
+
+    private void sendEmployeeInvitation(EmployeeEntity employee, UserEntity user, UUID organizationId) {
+        try {
+            // Invalidate any existing pending activation tokens for this user
+            organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+
+            // Generate Secure Activation Token (SHA-256 hashed at rest)
+            String rawToken = PasswordSecurityUtils.generateSecureToken();
+            String tokenHash = PasswordSecurityUtils.hashSha256(rawToken);
+            Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+            OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
+                    .userId(user.getId())
+                    .organizationId(organizationId)
+                    .tokenHash(tokenHash)
+                    .expiresAt(expiresAt)
+                    .build();
+            organizationActivationTokenRepository.save(activationToken);
+
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(OrganizationEntity::getName)
+                    .orElse("Your Practice");
+
+            String activationUrl = activationBaseUrl + "?token=" + rawToken;
+
+            emailNotificationService.sendEmployeeInvitationEmail(
+                    employee.getEmail(),
+                    employee.getFullName(),
+                    orgName,
+                    employee.getDesignation(),
+                    activationUrl,
+                    activationExpirationHours
+            );
+
+            auditService.logEvent(
+                    organizationId,
+                    user.getId(),
+                    "EMPLOYEE_INVITATION_SENT",
+                    "EMPLOYEE",
+                    employee.getId().toString(),
+                    null,
+                    "Dispatched invitation email with activation link to " + employee.getEmail()
+            );
+        } catch (Exception ex) {
+            log.error("Failed to send employee invitation email to {}: {}", employee.getEmail(), ex.getMessage(), ex);
+            auditService.logEvent(
+                    organizationId,
+                    user.getId(),
+                    "EMPLOYEE_INVITATION_FAILED",
+                    "EMPLOYEE",
+                    employee.getId().toString(),
+                    null,
+                    "Failed to dispatch invitation email to " + employee.getEmail() + ": " + ex.getMessage()
+            );
+        }
     }
 }

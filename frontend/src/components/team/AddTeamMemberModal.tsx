@@ -53,6 +53,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
   const [employeeCode, setEmployeeCode] = useState('');
   const [department, setDepartment] = useState('Taxation');
   const [designation, setDesignation] = useState('Tax Associate');
+  const [roleCode, setRoleCode] = useState('TAX_ASSOCIATE');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -67,6 +68,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
     setEmployeeCode('');
     setDepartment('Taxation');
     setDesignation('Tax Associate');
+    setRoleCode('TAX_ASSOCIATE');
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -91,10 +93,8 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
       return;
     }
 
-    // Auto-generate employee code if left blank
-    const finalCode = employeeCode.trim()
-      ? employeeCode.trim().toUpperCase()
-      : `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+    // Pass employee code if user explicitly entered one, otherwise let backend auto-generate sequential EMP-0001
+    const finalCode = employeeCode.trim() ? employeeCode.trim().toUpperCase() : undefined;
 
     setIsSubmitting(true);
     try {
@@ -103,9 +103,10 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
         lastName: lastName.trim() || undefined,
         email: email.trim().toLowerCase(),
         phone: phone.trim() || undefined,
-        employeeCode: finalCode,
+        employeeCode: finalCode as any,
         department: department.trim(),
         designation: designation.trim(),
+        roleCode: roleCode,
       });
 
       setSuccessMessage(`Successfully added ${firstName.trim()} to your practice team!`);
@@ -222,10 +223,10 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Employee Code</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Employee ID / Code</label>
               <input
                 type="text"
-                placeholder="e.g. EMP-101 (or auto)"
+                placeholder="Auto (e.g. EMP-0001)"
                 value={employeeCode}
                 onChange={(e) => setEmployeeCode(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-hidden uppercase font-mono"
@@ -264,10 +265,34 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Practice Role (RBAC) <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={roleCode}
+              onChange={(e) => setRoleCode(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-hidden bg-white"
+            >
+              <option value="TAX_ASSOCIATE">Tax Associate (TAX_ASSOCIATE)</option>
+              <option value="SENIOR_TAX_ASSOCIATE">Senior Tax Associate (SENIOR_TAX_ASSOCIATE)</option>
+              <option value="TAX_MANAGER">Tax Manager (TAX_MANAGER)</option>
+              <option value="PRACTITIONER">Tax Practitioner / CA (PRACTITIONER)</option>
+              <option value="PARTNER">Practice Partner / CA (PARTNER)</option>
+              <option value="ARTICLE_ASSISTANT">Article Assistant (ARTICLE_ASSISTANT)</option>
+              <option value="ACCOUNTANT">Senior Accountant (ACCOUNTANT)</option>
+              <option value="STAFF">Practice Staff (STAFF)</option>
+              <option value="ORG_ADMIN">Organization Administrator (ORG_ADMIN)</option>
+            </select>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Determines security privileges and access control within your practice organization.
+            </p>
+          </div>
+
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-brand-600 shrink-0" />
             <span>
-              Tenant isolation active. User will automatically be provisioned with practitioner rights scoped to this practice.
+              Tenant isolation active. User will be provisioned with selected practice role scoped strictly to this tenant.
             </span>
           </div>
 

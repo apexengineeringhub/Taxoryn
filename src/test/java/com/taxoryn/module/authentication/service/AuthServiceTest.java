@@ -47,9 +47,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import com.taxoryn.module.authentication.dto.ActivateOrganizationRequest;
+import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
+import com.taxoryn.module.authentication.dto.ResendActivationRequest;
+import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
+import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
 import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
 import com.taxoryn.module.authentication.repository.PasswordResetTokenRepository;
@@ -63,6 +65,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -80,6 +83,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -124,6 +128,9 @@ class AuthServiceTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Mock
+    private OrganizationActivationTokenRepository organizationActivationTokenRepository;
+
+    @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
     @Mock
@@ -131,6 +138,9 @@ class AuthServiceTest {
 
     @Mock
     private AuditService auditService;
+
+    @Mock
+    private com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -142,6 +152,8 @@ class AuthServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(authService, "jwtExpirationMs", 86400000L);
         ReflectionTestUtils.setField(authService, "jwtRefreshExpirationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "activationBaseUrl", "https://app.taxoryn.com/activate");
+        ReflectionTestUtils.setField(authService, "activationExpirationHours", 24L);
         userId = UUID.randomUUID();
         tenantId = UUID.randomUUID();
 
@@ -261,7 +273,7 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Register Organization creates organization, admin user, and returns tokens")
+    @DisplayName("Register Organization creates organization and user in INACTIVE status and dispatches activation email")
     void testRegisterOrganizationSuccess() {
         UUID orgId = UUID.randomUUID();
         UUID newUserId = UUID.randomUUID();
@@ -281,7 +293,7 @@ class AuthServiceTest {
         OrganizationEntity savedOrg = OrganizationEntity.builder()
                 .name(request.getOrganizationName())
                 .email(request.getOrganizationEmail())
-                .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                .status(OrganizationEntity.OrganizationStatus.INACTIVE)
                 .build();
         savedOrg.setId(orgId);
         when(organizationRepository.save(any(OrganizationEntity.class))).thenReturn(savedOrg);
@@ -294,20 +306,195 @@ class AuthServiceTest {
                 .email(request.getAdminEmail())
                 .firstName(request.getAdminFirstName())
                 .roles(new HashSet<>(Set.of(role)))
-                .status(UserEntity.UserStatus.ACTIVE)
+                .status(UserEntity.UserStatus.INACTIVE)
                 .build();
         savedUser.setId(newUserId);
         savedUser.setOrganizationId(orgId);
         when(userRepository.save(any(UserEntity.class))).thenReturn(savedUser);
 
-        when(jwtTokenProvider.generateAccessToken(any(), any(), any(), any(), any(), any())).thenReturn("access.jwt");
-
-        LoginResponse response = authService.registerOrganization(request);
+        RegisterOrganizationResponse response = authService.registerOrganization(request);
 
         assertNotNull(response);
-        assertEquals("access.jwt", response.getAccessToken());
-        assertNotNull(response.getRefreshToken());
-        verify(refreshTokenRepository).save(any(RefreshTokenEntity.class));
+        assertEquals(orgId, response.getOrganizationId());
+        assertEquals("INACTIVE", response.getStatus());
+        assertEquals(request.getAdminEmail(), response.getAdminEmail());
+        verify(organizationActivationTokenRepository).save(any(OrganizationActivationTokenEntity.class));
+        verify(emailNotificationService).sendOrganizationActivationEmail(
+                eq(request.getAdminEmail()),
+                eq(request.getAdminFirstName()),
+                eq(request.getOrganizationName()),
+                anyString(),
+                eq(24L)
+        );
+    }
+
+    @Test
+    @DisplayName("Activate Organization consumes token atomically and sets organization and user to ACTIVE")
+    void testActivateOrganizationSuccess() {
+        UUID orgId = UUID.randomUUID();
+        UUID adminUserId = UUID.randomUUID();
+        String rawToken = "valid-activation-token-string";
+
+        when(organizationActivationTokenRepository.consumeTokenAtomic(anyString(), any(Instant.class))).thenReturn(1);
+
+        OrganizationActivationTokenEntity tokenEntity = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(adminUserId)
+                .organizationId(orgId)
+                .tokenHash("somehash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .usedAt(Instant.now())
+                .build();
+
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(tokenEntity));
+
+        OrganizationEntity organization = OrganizationEntity.builder()
+                .name("Acme Tax Advisors")
+                .status(OrganizationEntity.OrganizationStatus.INACTIVE)
+                .build();
+        organization.setId(orgId);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+
+        UserEntity user = UserEntity.builder()
+                .email("admin@acmetax.com")
+                .firstName("Admin")
+                .status(UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(adminUserId);
+        when(userRepository.findById(adminUserId)).thenReturn(Optional.of(user));
+
+        ActivateOrganizationRequest request = new ActivateOrganizationRequest(rawToken);
+        authService.activateOrganization(request, "127.0.0.1");
+
+        assertEquals(OrganizationEntity.OrganizationStatus.ACTIVE, organization.getStatus());
+        assertEquals(UserEntity.UserStatus.ACTIVE, user.getStatus());
+        verify(organizationRepository).save(organization);
+        verify(userRepository).save(user);
+        verify(organizationActivationTokenRepository).invalidateAllPendingTokensForUser(eq(adminUserId), any(Instant.class));
+    }
+
+    @Test
+    @DisplayName("Validate Activation Token returns valid response with employee details")
+    void testValidateActivationTokenSuccess() {
+        String rawToken = "valid-raw-token";
+        UUID userId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+
+        OrganizationActivationTokenEntity token = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .organizationId(orgId)
+                .tokenHash("hash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(token));
+
+        OrganizationEntity org = OrganizationEntity.builder().name("Apex Tax").build();
+        org.setId(orgId);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(org));
+
+        UserEntity user = UserEntity.builder()
+                .email("pooja@apextax.in")
+                .firstName("Pooja")
+                .lastName("Nair")
+                .status(UserEntity.UserStatus.INVITED)
+                .passwordHash(null)
+                .build();
+        user.setId(userId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse response =
+                authService.validateActivationToken(rawToken);
+
+        assertNotNull(response);
+        assertTrue(response.isValid());
+        assertEquals("pooja@apextax.in", response.getEmail());
+        assertEquals("Apex Tax", response.getOrganizationName());
+        assertEquals("Pooja Nair", response.getUserFullName());
+        assertTrue(response.isRequiresPasswordSetup());
+    }
+
+    @Test
+    @DisplayName("Employee Activation with password sets password and activates employee")
+    void testActivateEmployeeWithPassword() {
+        String rawToken = "valid-employee-token";
+        String newPassword = "SecureEmployeePass123!";
+        UUID employeeUserId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+
+        when(organizationActivationTokenRepository.consumeTokenAtomic(anyString(), any(Instant.class))).thenReturn(1);
+
+        OrganizationActivationTokenEntity token = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(employeeUserId)
+                .organizationId(orgId)
+                .tokenHash("hash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(token));
+
+        OrganizationEntity organization = OrganizationEntity.builder()
+                .name("Apex Tax")
+                .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                .build();
+        organization.setId(orgId);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+
+        UserEntity user = UserEntity.builder()
+                .email("employee@apextax.in")
+                .firstName("John")
+                .lastName("Doe")
+                .status(UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(employeeUserId);
+        when(userRepository.findById(employeeUserId)).thenReturn(Optional.of(user));
+
+        com.taxoryn.module.employee.entity.EmployeeEntity employeeEntity =
+                com.taxoryn.module.employee.entity.EmployeeEntity.builder()
+                        .userId(employeeUserId)
+                        .firstName("John")
+                        .lastName("Doe")
+                        .email("employee@apextax.in")
+                        .status(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.INVITED)
+                        .build();
+        employeeEntity.setOrganizationId(orgId);
+        when(employeeRepository.findByOrganizationIdAndUserId(orgId, employeeUserId))
+                .thenReturn(Optional.of(employeeEntity));
+        when(passwordEncoder.encode(newPassword)).thenReturn("$2a$12$hashedPassword");
+
+        ActivateOrganizationRequest request = ActivateOrganizationRequest.builder()
+                .token(rawToken)
+                .password(newPassword)
+                .build();
+
+        authService.activateOrganization(request, "127.0.0.1");
+
+        assertEquals(UserEntity.UserStatus.ACTIVE, user.getStatus());
+        assertEquals("$2a$12$hashedPassword", user.getPasswordHash());
+        assertEquals(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE, employeeEntity.getStatus());
+        verify(userRepository).save(user);
+        verify(employeeRepository).save(employeeEntity);
+    }
+
+    @Test
+    @DisplayName("Activate Organization fails when token is already used or expired")
+    void testActivateOrganizationTokenFailure() {
+        String rawToken = "already-used-or-expired-token";
+        when(organizationActivationTokenRepository.consumeTokenAtomic(anyString(), any(Instant.class))).thenReturn(0);
+
+        OrganizationActivationTokenEntity usedToken = OrganizationActivationTokenEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(UUID.randomUUID())
+                .organizationId(UUID.randomUUID())
+                .tokenHash("hash")
+                .usedAt(Instant.now().minusSeconds(100))
+                .build();
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(usedToken));
+
+        ActivateOrganizationRequest request = new ActivateOrganizationRequest(rawToken);
+        assertThrows(BadCredentialsException.class, () -> authService.activateOrganization(request, "127.0.0.1"));
+        verify(organizationRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
     }
 
     @Test

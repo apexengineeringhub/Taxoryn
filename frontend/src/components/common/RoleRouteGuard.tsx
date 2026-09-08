@@ -27,13 +27,27 @@ export const RoleRouteGuard: React.FC<RoleRouteGuardProps> = ({
     return <>{children}</>;
   }
 
-  // Check roles if specified
-  const roleAllowed = !allowedRoles || allowedRoles.some((r) => userRoleCodes.includes(r));
+  let isAuthorized = false;
 
-  // Check permissions if specified
-  const permissionAllowed = !requiredPermissions || requiredPermissions.some((p) => userPermissions.includes(p));
+  if (!allowedRoles && !requiredPermissions) {
+    isAuthorized = true;
+  } else {
+    const hasAllowedRoles = !!(allowedRoles && allowedRoles.length > 0);
+    const hasRequiredPermissions = !!(requiredPermissions && requiredPermissions.length > 0);
 
-  if (!roleAllowed && !permissionAllowed) {
+    const roleMatches = hasAllowedRoles ? allowedRoles!.some((r) => userRoleCodes.includes(r)) : true;
+    const permissionMatches = hasRequiredPermissions ? requiredPermissions!.some((p) => userPermissions.includes(p)) : true;
+
+    if (hasAllowedRoles && hasRequiredPermissions) {
+      isAuthorized = roleMatches && permissionMatches;
+    } else if (hasAllowedRoles) {
+      isAuthorized = roleMatches;
+    } else if (hasRequiredPermissions) {
+      isAuthorized = permissionMatches;
+    }
+  }
+
+  if (!isAuthorized) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center animate-fade-in">
         <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-4 shadow-sm border border-rose-200">

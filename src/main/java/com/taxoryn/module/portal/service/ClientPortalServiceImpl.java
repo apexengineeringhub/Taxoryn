@@ -61,6 +61,18 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.taxoryn.core.security.PasswordSecurityUtils;
+import com.taxoryn.module.audit.service.AuditService;
+import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
+import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
+import com.taxoryn.module.notification.email.service.EmailNotificationService;
+import com.taxoryn.module.organization.entity.OrganizationEntity;
+import com.taxoryn.module.organization.repository.OrganizationRepository;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -71,6 +83,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmployeeRepository employeeRepository;
+    private final OrganizationRepository organizationRepository;
+    private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
+    private final EmailNotificationService emailNotificationService;
     private final GstReturnFilingRepository gstReturnFilingRepository;
     private final ItrReturnRepository itrReturnRepository;
     private final DocumentService documentService;
@@ -82,9 +97,16 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final com.taxoryn.module.billing.mapper.InvoiceMapper invoiceMapper;
     private final ClientPortalMapper mapper;
     private final NotificationService notificationService;
+    private final AuditService auditService;
     private final com.taxoryn.module.docrequest.service.DocumentRequestService multiItemDocRequestService;
     private final com.taxoryn.module.docrequest.repository.DocumentRequestRepository multiItemDocRequestRepository;
     private final com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository multiItemDocRequestItemRepository;
+
+    @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
+    private String activationBaseUrl = "http://localhost:5173/activate";
+
+    @Value("${taxoryn.auth.activation.expiration-hours:24}")
+    private long activationExpirationHours = 24L;
 
     @Override
     @Transactional
@@ -107,21 +129,65 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                         .isSystemRole(true)
                         .build()));
 
+        String passwordHash = StringUtils.hasText(request.getPassword()) ? passwordEncoder.encode(request.getPassword()) : "";
+
         UserEntity user = UserEntity.builder()
                 .email(normalizedEmail)
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .passwordHash(passwordHash)
                 .firstName(request.getFirstName().trim())
                 .lastName(request.getLastName() != null ? request.getLastName().trim() : null)
                 .phone(request.getPhone())
                 .clientId(client.getId())
-                .status(UserStatus.ACTIVE)
+                .status(UserStatus.INVITED)
                 .roles(new HashSet<>(Set.of(role)))
                 .build();
         user.setOrganizationId(organizationId);
 
         UserEntity saved = userRepository.save(user);
-        log.info("Registered client portal user: id={}, email={}, clientId={}, role={} in tenant={}",
+        log.info("Registered client portal user in INVITED status: id={}, email={}, clientId={}, role={} in tenant={}",
                 saved.getId(), saved.getEmail(), client.getId(), roleCode, organizationId);
+
+        // Generate Activation Token and dispatch email
+        try {
+            organizationActivationTokenRepository.invalidateAllPendingTokensForUser(saved.getId(), Instant.now());
+            String rawToken = PasswordSecurityUtils.generateSecureToken();
+            String tokenHash = PasswordSecurityUtils.hashSha256(rawToken);
+            Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+            OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
+                    .userId(saved.getId())
+                    .organizationId(organizationId)
+                    .tokenHash(tokenHash)
+                    .expiresAt(expiresAt)
+                    .build();
+            organizationActivationTokenRepository.save(activationToken);
+
+            String orgName = organizationRepository.findById(organizationId)
+                    .map(OrganizationEntity::getName)
+                    .orElse("Your Tax Practice");
+            String activationUrl = activationBaseUrl + "?token=" + rawToken;
+
+            emailNotificationService.sendClientPortalInvitationEmail(
+                    saved.getEmail(),
+                    saved.getFullName(),
+                    client.getDisplayName(),
+                    orgName,
+                    activationUrl,
+                    activationExpirationHours
+            );
+
+            auditService.logEvent(
+                    organizationId,
+                    saved.getId(),
+                    "CLIENT_PORTAL_INVITED",
+                    "CLIENT",
+                    client.getId().toString(),
+                    null,
+                    "Dispatched client portal invitation email to " + saved.getEmail()
+            );
+        } catch (Exception ex) {
+            log.error("Failed to dispatch portal invitation email for user {}: {}", saved.getId(), ex.getMessage(), ex);
+        }
 
         return ClientPortalUserDto.builder()
                 .userId(saved.getId())

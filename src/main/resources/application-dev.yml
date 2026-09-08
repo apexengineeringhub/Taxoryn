@@ -20,15 +20,44 @@ spring:
       hibernate:
         format_sql: true
 
+app:
+  frontend-url: ${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:http://localhost:5173}}}
+
 # Development Environment Settings & Local Defaults
 taxoryn:
+  frontend-url: ${app.frontend-url}
+  frontend:
+    activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
+    reset-password-url: ${TAXORYN_RESET_PASSWORD_URL:${taxoryn.frontend-url}/reset-password}
+    login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
+  auth:
+    activation-url: ${taxoryn.frontend.activation-url}
+    activation-base-url: ${taxoryn.frontend.activation-url}
+    reset-password-url: ${taxoryn.frontend.reset-password-url}
+    reset-password-base-url: ${taxoryn.frontend.reset-password-url}
   jwt:
     # DEV ONLY: Known default secret used strictly for local developer convenience
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    provider: ${MAIL_PROVIDER:AUTO}
+    from-email: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
+    from-address: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
+    from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
+    reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:info@taxoryn.com}}
   storage:
-    provider: LOCAL
+    provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:LOCAL}}
+    presigned-url-duration-minutes: ${STORAGE_PRESIGNED_URL_DURATION_MINUTES:15}
     local:
-      base-dir: ./data/documents
+      base-dir: ${STORAGE_LOCAL_BASE_DIR:./data/documents}
+    s3:
+      bucket: ${STORAGE_BUCKET:${STORAGE_S3_BUCKET:${R2_BUCKET:${R2_BUCKET_NAME:${CLOUDFLARE_R2_BUCKET:${S3_BUCKET:${AWS_S3_BUCKET:${AWS_BUCKET:taxoryn-documents}}}}}}}}
+      region: ${STORAGE_REGION:${STORAGE_S3_REGION:${R2_REGION:${AWS_REGION:${AWS_DEFAULT_REGION:auto}}}}}
+      access-key: ${STORAGE_ACCESS_KEY:${STORAGE_S3_ACCESS_KEY:${R2_ACCESS_KEY_ID:${R2_ACCESS_KEY:${CLOUDFLARE_R2_ACCESS_KEY_ID:${AWS_ACCESS_KEY_ID:${AWS_ACCESS_KEY:${AWS_KEY:}}}}}}}}
+      secret-key: ${STORAGE_SECRET_KEY:${STORAGE_SECRET_ACCESS_KEY:${STORAGE_S3_SECRET_KEY:${R2_SECRET_ACCESS_KEY:${R2_SECRET_KEY:${CLOUDFLARE_R2_SECRET_ACCESS_KEY:${AWS_SECRET_ACCESS_KEY:${AWS_SECRET_KEY:${AWS_SECRET:}}}}}}}}}}
+      endpoint: ${STORAGE_ENDPOINT:${STORAGE_S3_ENDPOINT:${R2_ENDPOINT:${CLOUDFLARE_R2_ENDPOINT:${AWS_ENDPOINT:${S3_ENDPOINT:}}}}}}
+      account-id: ${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}
+      path-style-access: ${STORAGE_PATH_STYLE_ACCESS:false}
 
 logging:
   level:

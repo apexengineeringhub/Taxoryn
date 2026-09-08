@@ -121,14 +121,17 @@ class PlatformVsTenantIsolationSecurityTest {
     }
 
     @Test
-    @DisplayName("Tenant Admin: Platform permissions are filtered out from getAllPermissions()")
+    @DisplayName("Tenant Admin: Platform permissions (including Feedback Ops & Support) are filtered out from getAllPermissions()")
     void testTenantAdminCannotViewPlatformPermissions() {
         authenticateTenantAdmin();
 
         PermissionEntity p1 = PermissionEntity.builder().code("CLIENT_VIEW").name("View Clients").build();
         PermissionEntity p2 = PermissionEntity.builder().code("PLATFORM_USER_CREATE").name("Create Platform User").build();
+        PermissionEntity p3 = PermissionEntity.builder().code("FEEDBACK_VIEW").name("Feedback View").build();
+        PermissionEntity p4 = PermissionEntity.builder().code("FEEDBACK_MANAGE").name("Feedback Manage").build();
+        PermissionEntity p5 = PermissionEntity.builder().code("SUPPORT_VIEW").name("Support View").build();
 
-        when(permissionRepository.findAll()).thenReturn(List.of(p1, p2));
+        when(permissionRepository.findAll()).thenReturn(List.of(p1, p2, p3, p4, p5));
         when(roleMapper.toPermissionDtoList(List.of(p1)))
                 .thenReturn(List.of(PermissionDto.builder().code("CLIENT_VIEW").build()));
 

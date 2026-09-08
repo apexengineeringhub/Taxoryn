@@ -9,6 +9,7 @@ const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ defa
 const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const RegisterOrgPage = React.lazy(() => import('./pages/RegisterOrgPage').then(m => ({ default: m.RegisterOrgPage })));
+const ActivateOrgPage = React.lazy(() => import('./pages/ActivateOrgPage').then(m => ({ default: m.ActivateOrgPage })));
 const AccountSecurityPage = React.lazy(() => import('./pages/AccountSecurityPage').then(m => ({ default: m.AccountSecurityPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
@@ -58,7 +59,6 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').t
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
-import { getTenantSubdomain } from './utils/tenantUrl';
 
 // Sleek Skeleton Page Fallback
 const PageLoadingFallback: React.FC = () => (
@@ -69,15 +69,6 @@ const PageLoadingFallback: React.FC = () => (
     </div>
   </div>
 );
-
-// Dynamic Multi-Tenant Subdomain Resolver
-const TenantRootResolver: React.FC = () => {
-  const tenantSubdomain = getTenantSubdomain();
-  if (tenantSubdomain) {
-    return <PracticePublicProfilePage overrideSlug={tenantSubdomain} />;
-  }
-  return <Navigate to="/dashboard" replace />;
-};
 
 // Protected Route Guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -111,13 +102,15 @@ export const App: React.FC = () => {
         <BrowserRouter>
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>
-            {/* Root Route: Tenant Subdomain Resolution (e.g., https://apex.taxoryn.com) or Dashboard */}
-            <Route path="/" element={<TenantRootResolver />} />
+            {/* Central SaaS Root Route */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             {/* Public Auth & Discovery Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<RegisterOrgPage />} />
+            <Route path="/activate" element={<ActivateOrgPage />} />
+            <Route path="/activate-organization" element={<ActivateOrgPage />} />
             <Route path="/marketplace/register" element={<RegisterCustomerPage />} />
             <Route path="/marketplace" element={<MarketplaceExplorePage />} />
             <Route path="/practice/:slug" element={<PracticePublicProfilePage />} />
@@ -202,24 +195,87 @@ export const App: React.FC = () => {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/clients" element={<ClientsPage />} />
-              <Route path="/clients/migration" element={<ClientMigrationHubPage />} />
+              <Route
+                path="/clients/migration"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                    <ClientMigrationHubPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/tasks" element={<TasksPage />} />
-              <Route path="/tasks/bulk" element={<BulkTasksGeneratorPage />} />
+              <Route
+                path="/tasks/bulk"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                    <BulkTasksGeneratorPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/gst" element={<GstCompliancePage />} />
-              <Route path="/gst/migration" element={<GstDataMigrationHubPage />} />
+              <Route
+                path="/gst/migration"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                    <GstDataMigrationHubPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/itr" element={<ItrCompliancePage />} />
-              <Route path="/itr/migration" element={<ItrDataMigrationHubPage />} />
+              <Route
+                path="/itr/migration"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                    <ItrDataMigrationHubPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/tds" element={<TdsCompliancePage />} />
-              <Route path="/tds/migration" element={<TdsDataMigrationHubPage />} />
+              <Route
+                path="/tds/migration"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                    <TdsDataMigrationHubPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/billing" element={<BillingPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/marketplace/leads" element={<MarketplaceLeadsPage />} />
-              <Route path="/marketplace/onboarding" element={<MarketplaceOnboardingHubPage />} />
-              <Route path="/marketplace/practice-profile" element={<PracticeMarketplaceProfilePage />} />
-              <Route path="/admin/overview" element={<PlatformOverviewPage />} />
+              <Route
+                path="/marketplace/leads"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                    <MarketplaceLeadsPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/marketplace/onboarding"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                    <MarketplaceOnboardingHubPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/marketplace/practice-profile"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                    <PracticeMarketplaceProfilePage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/admin/overview"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN']}>
+                    <PlatformOverviewPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route
                 path="/admin/practices"
                 element={
@@ -268,18 +324,46 @@ export const App: React.FC = () => {
                   </RoleRouteGuard>
                 }
               />
-              <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
+              <Route
+                path="/admin/feedback"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_ENGINEERING_ADMIN']} requiredPermissions={['FEEDBACK_VIEW', 'FEEDBACK_MANAGE']}>
+                    <AdminFeedbackPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route
                 path="/admin/audit"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['AUDIT_VIEW']}>
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN']} requiredPermissions={['AUDIT_VIEW']}>
                     <AuditLogsPage />
                   </RoleRouteGuard>
                 }
               />
-              <Route path="/portal" element={<ClientPortalManagementPage />} />
-              <Route path="/team" element={<TeamManagementPage />} />
-              <Route path="/team/bulk" element={<BulkEmployeeOnboardingPage />} />
+              <Route
+                path="/portal"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT', 'CLIENT_ADMIN', 'CLIENT_USER', 'PRACTICE_CLIENT', 'MARKETPLACE_CUSTOMER']}>
+                    <ClientPortalManagementPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/team"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                    <TeamManagementPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/team/bulk"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                    <BulkEmployeeOnboardingPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route
                 path="/audit-logs"
                 element={
@@ -288,11 +372,46 @@ export const App: React.FC = () => {
                   </RoleRouteGuard>
                 }
               />
-              <Route path="/settings/branding" element={<PracticeBrandingPage />} />
-              <Route path="/settings/marketplace" element={<PracticeMarketplaceProfilePage />} />
-              <Route path="/settings/whatsapp" element={<WhatsAppMessagesPage />} />
-              <Route path="/admin/whatsapp" element={<WhatsAppMessagesPage />} />
-              <Route path="/settings/subscription" element={<SubscriptionsPage />} />
+              <Route
+                path="/settings/branding"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                    <PracticeBrandingPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/marketplace"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                    <PracticeMarketplaceProfilePage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/whatsapp"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'TAXORYN_SUPPORT_ADMIN']}>
+                    <WhatsAppMessagesPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/admin/whatsapp"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN']}>
+                    <WhatsAppMessagesPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/subscription"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                    <SubscriptionsPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route path="/settings/security" element={<AccountSecurityPage />} />
               <Route path="/profile/security" element={<AccountSecurityPage />} />
               <Route path="/feedback" element={<ApplicationFeedbackPage />} />

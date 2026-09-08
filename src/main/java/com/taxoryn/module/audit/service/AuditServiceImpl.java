@@ -399,6 +399,10 @@ public class AuditServiceImpl implements AuditService {
             case "SUBSCRIPTION_CREATED", "SUBSCRIPTION_UPDATED" -> "Subscription updated";
             case "SUBSCRIPTION_UPGRADED" -> "Subscription upgraded";
             case "ROLE_CREATED", "USER_ROLES_ASSIGNED", "ROLE_CHANGED" -> "Administrator role changed";
+            case "EMPLOYEE_ROLE_UPDATED" -> "Employee role updated";
+            case "EMPLOYEE_CREATED" -> "Employee onboarded";
+            case "EMPLOYEE_UPDATED" -> "Employee profile updated";
+            case "EMPLOYEE_STATUS_UPDATED" -> "Employee status changed";
             case "SECURITY_EVENT", "SECURITY_ALERT" -> "Security event detected";
             case "USER_CREATED" -> "New user registered";
             case "USER_UPDATED" -> "User account updated";
@@ -418,6 +422,7 @@ public class AuditServiceImpl implements AuditService {
         return switch (entityType) {
             case "ORGANIZATION", "PRACTICE" -> "Practice";
             case "USER" -> "User";
+            case "EMPLOYEE" -> "Employee";
             case "CUSTOMER", "MARKETPLACE_CUSTOMER_PROFILE" -> "Customer";
             case "APPLICATION_FEEDBACK", "FEEDBACK" -> "Feedback";
             case "MARKETPLACE_LEAD", "MARKETPLACE_REQUIREMENT" -> "Marketplace";

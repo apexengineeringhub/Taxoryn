@@ -30,6 +30,12 @@ public class EmailTemplateRenderer {
             case DOCUMENT_REQUEST -> renderDocumentRequestHtml(data);
             case DOCUMENT_REMINDER -> renderDocumentReminderHtml(data);
             case DOCUMENT_REJECTED -> renderDocumentRejectedHtml(data);
+            case ORGANIZATION_ACTIVATION -> renderOrganizationActivationHtml(data);
+            case EMPLOYEE_INVITATION -> renderEmployeeInvitationHtml(data);
+            case CLIENT_PORTAL_INVITATION -> renderClientPortalInvitationHtml(data);
+            case CLIENT_PORTAL_SUSPENDED -> renderClientPortalSuspendedHtml(data);
+            case CLIENT_PORTAL_RESTORED -> renderClientPortalRestoredHtml(data);
+            case CLIENT_PORTAL_DEACTIVATED -> renderClientPortalDeactivatedHtml(data);
         };
     }
 
@@ -38,7 +44,7 @@ public class EmailTemplateRenderer {
         String practiceName = getString(data, "practiceName", "Your Practice");
         String email = getString(data, "email", "");
         String mobile = getString(data, "mobile", "");
-        String loginUrl = getString(data, "loginUrl", "https://taxoryn.com/login");
+        String loginUrl = getString(data, "loginUrl", "http://localhost:5173/login");
 
         return """
         <!DOCTYPE html>
@@ -139,7 +145,7 @@ public class EmailTemplateRenderer {
         String name = getString(data, "name", "Valued Customer");
         String email = getString(data, "email", "");
         String mobile = getString(data, "mobile", "");
-        String loginUrl = getString(data, "loginUrl", "https://taxoryn.com/login");
+        String loginUrl = getString(data, "loginUrl", "http://localhost:5173/login");
 
         return """
         <!DOCTYPE html>
@@ -227,7 +233,7 @@ public class EmailTemplateRenderer {
         String practiceName = getString(data, "organizationName", "Tax Practice");
         String totalAmount = getString(data, "totalAmount", "0.00");
         String dueDate = getString(data, "dueDate", "");
-        String invoiceUrl = getString(data, "invoiceUrl", "https://taxoryn.com/login");
+        String invoiceUrl = getString(data, "invoiceUrl", "http://localhost:5173/login");
 
         return """
         <!DOCTYPE html>
@@ -289,7 +295,7 @@ public class EmailTemplateRenderer {
         String invoiceNumber = getString(data, "invoiceNumber", "");
         String balanceAmount = getString(data, "balanceAmount", "0.00");
         String dueDate = getString(data, "dueDate", "Overdue");
-        String invoiceUrl = getString(data, "invoiceUrl", "https://taxoryn.com/login");
+        String invoiceUrl = getString(data, "invoiceUrl", "http://localhost:5173/login");
 
         return """
         <!DOCTYPE html>
@@ -316,7 +322,7 @@ public class EmailTemplateRenderer {
 
     private String renderPasswordResetHtml(Map<String, Object> data) {
         String name = getString(data, "name", "Taxoryn User");
-        String resetUrl = getString(data, "resetUrl", "https://taxoryn.com/reset-password");
+        String resetUrl = getString(data, "resetUrl", "http://localhost:5173/reset-password");
         String expiryMinutes = getString(data, "expiryMinutes", "30");
 
         return """
@@ -396,7 +402,7 @@ public class EmailTemplateRenderer {
         String dueDate = getString(data, "dueDate", "Promptly");
         String message = getString(data, "message", "");
         String itemsListHtml = getString(data, "itemsListHtml", "<li>Standard tax compliance documents</li>");
-        String uploadUrl = getString(data, "uploadUrl", "https://taxoryn.com/login");
+        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
 
         return """
         <!DOCTYPE html>
@@ -489,7 +495,7 @@ public class EmailTemplateRenderer {
         String practiceName = getString(data, "practiceName", "Your Tax Consultant");
         String dueDate = getString(data, "dueDate", "Promptly");
         String itemsListHtml = getString(data, "itemsListHtml", "<li>Pending documents</li>");
-        String uploadUrl = getString(data, "uploadUrl", "https://taxoryn.com/login");
+        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
 
         return """
         <!DOCTYPE html>
@@ -566,7 +572,7 @@ public class EmailTemplateRenderer {
         String purpose = getString(data, "purpose", "Tax Preparation");
         String reason = getString(data, "reason", "Document could not be verified.");
         String practiceName = getString(data, "practiceName", "Your Tax Consultant");
-        String uploadUrl = getString(data, "uploadUrl", "https://taxoryn.com/login");
+        String uploadUrl = getString(data, "uploadUrl", "http://localhost:5173/login");
 
         return """
         <!DOCTYPE html>
@@ -626,6 +632,475 @@ public class EmailTemplateRenderer {
                 escape(reason),
                 escape(uploadUrl)
         );
+    }
+
+    private String renderOrganizationActivationHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Practitioner");
+        String practiceName = getString(data, "practiceName", "Your Practice");
+        String email = getString(data, "email", "");
+        String activationUrl = getString(data, "activationUrl", "http://localhost:5173/activate");
+        String expiryHours = getString(data, "expiryHours", "24");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Activate Your Taxoryn Practice Account</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #00d1a3; }
+            .logo-badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; letter-spacing: 0.5px; }
+            .motto-bar { color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 22px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .account-box { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
+            .account-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+            .account-item:last-child { margin-bottom: 0; }
+            .account-label { color: #64748b; font-weight: 500; }
+            .account-value { color: #082e5b; font-weight: 700; }
+            .btn-wrapper { text-align: center; margin: 32px 0 16px; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; box-shadow: 0 2px 4px rgba(0, 209, 163, 0.2); }
+            .btn:hover { background-color: #00b388; }
+            .security-box { background: #f8fafc; border-left: 4px solid #00d1a3; border-radius: 4px; padding: 16px; margin: 24px 0; font-size: 13px; color: #64748b; }
+            .raw-link { word-break: break-all; font-size: 12px; color: #0284c7; }
+            .footer { background: #f8fafc; padding: 28px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
+            .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 12px; }
+            .footer a { color: #64748b; text-decoration: underline; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                TAXO<span class="logo-accent">RYN</span>
+                <span class="logo-badge">Practitioner Suite</span>
+              </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            </div>
+            <div class="content">
+              <h1>Welcome to Taxoryn, %s! 👋</h1>
+              <p>Thank you for registering your tax practice <strong>%s</strong>. To complete your registration and activate your practice workspace, please verify your email address below:</p>
+              
+              <div class="account-box">
+                <div class="account-item">
+                  <span class="account-label">Practice Name:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Administrator Email:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Account Status:</span>
+                  <span class="account-value" style="color: #d97706;">Pending Activation</span>
+                </div>
+              </div>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn" target="_blank">Activate Practice Account &rarr;</a>
+              </div>
+
+              <div class="security-box">
+                <strong>Important Activation Notice:</strong>
+                <ul style="margin: 6px 0 0; padding-left: 18px;">
+                  <li>This activation link is valid for <strong>%s hours</strong> and can only be used once.</li>
+                  <li>Once activated, you can log in to your Taxoryn Practice Dashboard and configure team roles.</li>
+                  <li>If you did not register this practice, please disregard this email.</li>
+                </ul>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                If the button above does not work, copy and paste this link into your browser:<br>
+                <a href="%s" class="raw-link">%s</a>
+              </p>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <div class="footer-motto">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+              <p>Need assistance? Contact our team at <a href="mailto:support@taxoryn.com">support@taxoryn.com</a></p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name), escape(practiceName), escape(practiceName), escape(email), escape(activationUrl), escape(expiryHours), escape(activationUrl), escape(activationUrl));
+    }
+
+    private String renderEmployeeInvitationHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Team Member");
+        String practiceName = getString(data, "practiceName", "Your Practice");
+        String designation = getString(data, "designation", "Team Member");
+        String email = getString(data, "email", "");
+        String activationUrl = getString(data, "activationUrl", "http://localhost:5173/activate");
+        String expiryHours = getString(data, "expiryHours", "24");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Join %s on Taxoryn</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #00d1a3; }
+            .logo-badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; letter-spacing: 0.5px; }
+            .motto-bar { color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 22px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .account-box { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
+            .account-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+            .account-item:last-child { margin-bottom: 0; }
+            .account-label { color: #64748b; font-weight: 500; }
+            .account-value { color: #082e5b; font-weight: 700; }
+            .btn-wrapper { text-align: center; margin: 32px 0 16px; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; box-shadow: 0 2px 4px rgba(0, 209, 163, 0.2); }
+            .btn:hover { background-color: #00b388; }
+            .security-box { background: #f8fafc; border-left: 4px solid #00d1a3; border-radius: 4px; padding: 16px; margin: 24px 0; font-size: 13px; color: #64748b; }
+            .raw-link { word-break: break-all; font-size: 12px; color: #0284c7; }
+            .footer { background: #f8fafc; padding: 28px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
+            .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 12px; }
+            .footer a { color: #64748b; text-decoration: underline; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                TAXO<span class="logo-accent">RYN</span>
+                <span class="logo-badge">Team Invitation</span>
+              </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            </div>
+            <div class="content">
+              <h1>Welcome to the Team, %s! 👋</h1>
+              <p>You have been invited by <strong>%s</strong> to join their workspace on the Taxoryn Platform as <strong>%s</strong>.</p>
+              
+              <div class="account-box">
+                <div class="account-item">
+                  <span class="account-label">Practice:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Designation:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Employee Email:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Account Status:</span>
+                  <span class="account-value" style="color: #d97706;">Pending Activation</span>
+                </div>
+              </div>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn" target="_blank">Activate Your Account &rarr;</a>
+              </div>
+
+              <div class="security-box">
+                <strong>Important Notice:</strong>
+                <ul style="margin: 6px 0 0; padding-left: 18px;">
+                  <li>This invitation link is valid for <strong>%s hours</strong> and can only be used once.</li>
+                  <li>Once activated, you can log in to access your assigned clients, filings, and practice workflows.</li>
+                  <li>If you were not expecting this invitation, please contact your practice administrator.</li>
+                </ul>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                If the button above does not work, copy and paste this link into your browser:<br>
+                <a href="%s" class="raw-link">%s</a>
+              </p>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <div class="footer-motto">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+              <p>Need assistance? Contact our team at <a href="mailto:support@taxoryn.com">support@taxoryn.com</a></p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(practiceName), escape(name), escape(practiceName), escape(designation), escape(practiceName), escape(designation), escape(email), escape(activationUrl), escape(expiryHours), escape(activationUrl), escape(activationUrl));
+    }
+
+    private String renderClientPortalInvitationHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Client");
+        String clientName = getString(data, "clientName", "Your Account");
+        String practiceName = getString(data, "practiceName", "Your Tax Practice");
+        String email = getString(data, "email", "");
+        String activationUrl = getString(data, "activationUrl", "http://localhost:5173/activate");
+        String expiryHours = getString(data, "expiryHours", "24");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Activate Your Taxoryn Client Portal</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; display: inline-flex; align-items: center; }
+            .logo-accent { color: #00d1a3; }
+            .logo-badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 12px; letter-spacing: 0.5px; }
+            .motto-bar { color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 22px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .account-box { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 24px 0; }
+            .account-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+            .account-item:last-child { margin-bottom: 0; }
+            .account-label { color: #64748b; font-weight: 500; }
+            .account-value { color: #082e5b; font-weight: 700; }
+            .btn-wrapper { text-align: center; margin: 32px 0 16px; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 800; font-size: 15px; display: inline-block; box-shadow: 0 2px 4px rgba(0, 209, 163, 0.2); }
+            .btn:hover { background-color: #00b388; }
+            .security-box { background: #f8fafc; border-left: 4px solid #00d1a3; border-radius: 4px; padding: 16px; margin: 24px 0; font-size: 13px; color: #64748b; }
+            .raw-link { word-break: break-all; font-size: 12px; color: #0284c7; }
+            .feature-list { margin: 20px 0; padding-left: 0; list-style: none; }
+            .feature-item { font-size: 14px; color: #334155; margin-bottom: 10px; display: flex; align-items: flex-start; }
+            .feature-icon { color: #00d1a3; margin-right: 10px; font-weight: bold; }
+            .footer { background: #f8fafc; padding: 28px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; margin-bottom: 2px; }
+            .footer-motto { font-weight: 700; font-size: 9px; color: #00b388; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 12px; }
+            .footer a { color: #64748b; text-decoration: underline; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">
+                TAXO<span class="logo-accent">RYN</span>
+                <span class="logo-badge">Client Portal</span>
+              </div>
+              <div class="motto-bar">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+            </div>
+            <div class="content">
+              <h1>Welcome, %s! 👋</h1>
+              <p>Your tax consultant at <strong>%s</strong> has set up your secure <strong>Taxoryn Client Portal</strong> profile for <strong>%s</strong>.</p>
+              
+              <div class="account-box">
+                <div class="account-item">
+                  <span class="account-label">Client Account:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Tax Practice:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Portal Login Email:</span>
+                  <span class="account-value">%s</span>
+                </div>
+                <div class="account-item">
+                  <span class="account-label">Portal Status:</span>
+                  <span class="account-value" style="color: #d97706;">Pending Password Setup</span>
+                </div>
+              </div>
+
+              <p><strong>Through your Client Portal, you can:</strong></p>
+              <ul class="feature-list">
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Track Filings:</strong> View live GST returns, ITR acknowledgements, and TDS compliance status.</li>
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Document Vault:</strong> Securely upload requested tax records and access filed certificates.</li>
+                <li class="feature-item"><span class="feature-icon">✓</span> <strong>Billing & Invoices:</strong> Review issued service invoices and download payment receipts.</li>
+              </ul>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn" target="_blank">Activate Portal & Set Password &rarr;</a>
+              </div>
+
+              <div class="security-box">
+                <strong>Important Notice:</strong>
+                <ul style="margin: 6px 0 0; padding-left: 18px;">
+                  <li>This invitation link is valid for <strong>%s hours</strong> and can only be used once.</li>
+                  <li>You will be prompted to set your password upon clicking the button above.</li>
+                  <li>If you were not expecting this invitation, please contact your tax consultant at %s.</li>
+                </ul>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                If the button above does not work, copy and paste this link into your browser:<br>
+                <a href="%s" class="raw-link">%s</a>
+              </p>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <div class="footer-motto">SIMPLIFYING TAX PRACTICE MANAGEMENT</div>
+              <p>&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+              <p>Need assistance? Contact our team at <a href="mailto:support@taxoryn.com">support@taxoryn.com</a></p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name), escape(practiceName), escape(clientName), escape(clientName), escape(practiceName), escape(email), escape(activationUrl), escape(expiryHours), escape(practiceName), escape(activationUrl), escape(activationUrl));
+    }
+
+    private String renderClientPortalSuspendedHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Client");
+        String practiceName = getString(data, "practiceName", "your tax practice");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Portal Access Suspended</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; }
+            .logo-accent { color: #00d1a3; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 20px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .notice-box { background: #fffbeb; border-radius: 8px; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; padding: 18px 20px; margin: 24px 0; font-size: 14px; color: #92400e; line-height: 1.6; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">TAXO<span class="logo-accent">RYN</span></div>
+            </div>
+            <div class="content">
+              <h1>Hello %s,</h1>
+              <p>Your Taxoryn Client Portal access has been temporarily suspended by <strong>%s</strong>.</p>
+              
+              <div class="notice-box">
+                You will not be able to sign in while your portal access is suspended. All your historical records, documents, and compliance data remain safe and intact.
+              </div>
+
+              <p>If you believe this was done in error or require immediate access, please contact your tax practice directly.</p>
+              <p style="margin-top: 28px;">Regards,<br><strong>Taxoryn Team</strong></p>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <p style="margin-top: 6px;">&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name), escape(practiceName));
+    }
+
+    private String renderClientPortalRestoredHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Client");
+        String loginUrl = getString(data, "loginUrl", "http://localhost:5173/login");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Portal Access Restored</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; }
+            .logo-accent { color: #00d1a3; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 20px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .btn-wrapper { text-align: center; margin: 28px 0; }
+            .btn { background-color: #00d1a3; color: #07152b !important; text-decoration: none; padding: 13px 30px; border-radius: 8px; font-weight: 800; font-size: 14px; display: inline-block; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">TAXO<span class="logo-accent">RYN</span></div>
+            </div>
+            <div class="content">
+              <h1>Hello %s,</h1>
+              <p>Your Taxoryn Client Portal access has been restored.</p>
+              <p>You can now sign in using your existing password. If you have forgotten your password, use the <em>Forgot Password</em> link on the login page.</p>
+
+              <div class="btn-wrapper">
+                <a href="%s" class="btn" target="_blank">Sign In to Client Portal &rarr;</a>
+              </div>
+
+              <p style="margin-top: 28px;">Regards,<br><strong>Taxoryn Team</strong></p>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <p style="margin-top: 6px;">&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name), escape(loginUrl));
+    }
+
+    private String renderClientPortalDeactivatedHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Valued Client");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Portal Access Notice</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; text-align: left; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; }
+            .logo-accent { color: #00d1a3; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 20px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .notice-box { background: #f1f5f9; border-radius: 8px; border: 1px solid #e2e8f0; padding: 18px 20px; margin: 24px 0; font-size: 14px; color: #334155; line-height: 1.6; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            .footer-brand { font-weight: 900; font-size: 14px; color: #082e5b; letter-spacing: 1.5px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">TAXO<span class="logo-accent">RYN</span></div>
+            </div>
+            <div class="content">
+              <h1>Hello %s,</h1>
+              <p>Your Taxoryn Client Portal access is no longer active.</p>
+
+              <div class="notice-box">
+                Please contact your tax practice if you need assistance or require copies of your tax filings and documents.
+              </div>
+
+              <p style="margin-top: 28px;">Regards,<br><strong>Taxoryn Team</strong></p>
+            </div>
+            <div class="footer">
+              <div class="footer-brand">TAXO<span style="color: #00d1a3;">RYN</span></div>
+              <p style="margin-top: 6px;">&copy; 2026 Taxoryn Technologies Pvt Ltd. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """.formatted(escape(name));
     }
 
     private String getString(Map<String, Object> data, String key, String defaultValue) {

@@ -51,7 +51,7 @@ public class EmployeeEntity extends TenantAuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     @Builder.Default
-    private EmployeeStatus status = EmployeeStatus.ACTIVE;
+    private EmployeeStatus status = EmployeeStatus.INVITED;
 
     @Column(name = "joining_date")
     private LocalDate joiningDate;
@@ -67,8 +67,11 @@ public class EmployeeEntity extends TenantAuditableEntity {
     }
 
     public enum EmployeeStatus {
+        INVITED,
         ACTIVE,
+        SUSPENDED,
         INACTIVE,
+        PENDING,
         ON_LEAVE,
         RESIGNED,
         TERMINATED
