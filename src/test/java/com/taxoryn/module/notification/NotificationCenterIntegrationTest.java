@@ -333,4 +333,33 @@ public class NotificationCenterIntegrationTest {
                         .header("Authorization", "Bearer " + tokenB))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("Test client user is forbidden from sending manual notifications")
+    void testClientUserCannotSendManualNotification() throws Exception {
+        UUID clientId = UUID.randomUUID();
+        String clientUserToken = jwtTokenProvider.generateAccessToken(
+                UUID.randomUUID(),
+                testOrgA.getId(),
+                "clientuser@taxpayer.com",
+                Set.of("CLIENT_USER"),
+                Set.of("CLIENT_PORTAL_READ")
+        );
+
+        SendNotificationRequest sendReq = SendNotificationRequest.builder()
+                .userId(practitionerA.getId())
+                .notificationType(NotificationType.GENERAL)
+                .severity(Severity.INFO)
+                .category(Category.SYSTEM)
+                .title("Unauthorized Client Dispatch")
+                .message("Client attempting to invoke administrative send endpoint")
+                .channels(Set.of(NotificationChannel.IN_APP))
+                .build();
+
+        mockMvc.perform(post("/api/v1/notifications/send")
+                        .header("Authorization", "Bearer " + clientUserToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sendReq)))
+                .andExpect(status().isForbidden());
+    }
 }

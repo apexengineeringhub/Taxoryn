@@ -94,7 +94,7 @@ public class NotificationController {
     }
 
     @PostMapping("/send")
-    @PreAuthorize("hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN', 'SUPER_ADMIN', 'TAXORYN_SUPERADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'PARTNER', 'PRACTITIONER', 'MANAGER', 'STAFF')")
     @Operation(summary = "Send a notification", description = "Manually dispatches a notification to a firm user or client on one or more channels (IN_APP, EMAIL, SMS, WHATSAPP). Intended for administrative/manual use; automated flows call the NotificationService directly.")
     public ResponseEntity<ApiResponse<NotificationDto>> sendNotification(@Valid @RequestBody SendNotificationRequest request) {
         NotificationDto sent = notificationService.send(request);
