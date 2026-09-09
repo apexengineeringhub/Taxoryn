@@ -40,7 +40,7 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler accessDeniedHandler;
     private final CustomUserDetailsService userDetailsService;
 
-    @Value("${taxoryn.cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
+    @Value("${taxoryn.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8088,http://localhost:8089,https://taxoryn.com,https://*.taxoryn.com,https://app.taxoryn.com,https://taxoryn-7x7f.vercel.app,https://*.vercel.app}")
     private String allowedOrigins;
 
     @Bean
@@ -75,30 +75,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public Auth & Onboarding endpoints
                         .requestMatchers(
-                                "/api/auth/register-organization",
-                                "/api/auth/activate-organization",
-                                "/api/auth/activate",
-                                "/api/auth/validate-activation-token",
-                                "/api/auth/activate/verify",
-                                "/api/auth/resend-activation",
-                                "/api/auth/login",
-                                "/api/auth/logout",
-                                "/api/auth/refresh",
-                                "/api/auth/refresh-token",
-                                "/api/auth/forgot-password",
-                                "/api/auth/reset-password",
-                                "/api/v1/auth/register-organization",
-                                "/api/v1/auth/activate-organization",
-                                "/api/v1/auth/activate",
-                                "/api/v1/auth/validate-activation-token",
-                                "/api/v1/auth/activate/verify",
-                                "/api/v1/auth/resend-activation",
-                                "/api/v1/auth/login",
-                                "/api/v1/auth/logout",
-                                "/api/v1/auth/refresh",
-                                "/api/v1/auth/refresh-token",
-                                "/api/v1/auth/forgot-password",
-                                "/api/v1/auth/reset-password",
+                                "/api/auth/**",
+                                "/api/v1/auth/**",
                                 "/api/subscriptions/plans",
                                 "/api/v1/subscriptions/plans",
                                 "/api/marketplace/search",
@@ -167,11 +145,12 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
+                .filter(org.springframework.util.StringUtils::hasText)
                 .toList();
 
         configuration.setAllowedOriginPatterns(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Trace-Id", "Accept", "Origin"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("X-Trace-Id", "Authorization", "Set-Cookie"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
