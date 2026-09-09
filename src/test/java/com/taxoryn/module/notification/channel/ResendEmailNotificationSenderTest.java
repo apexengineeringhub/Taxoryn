@@ -128,8 +128,27 @@ class ResendEmailNotificationSenderTest {
     }
 
     @Test
-    @DisplayName("Resend Dispatch: Handles HTTP 403 unverified domain rejection gracefully and returns false")
+    @DisplayName("Resend Dispatch: Handles HTTP 403 Case A unverified domain rejection gracefully and returns false")
     void testResend403DomainNotVerifiedReturnsFalse() throws Exception {
+        when(mockHttpResponse.statusCode()).thenReturn(403);
+        when(mockHttpResponse.body()).thenReturn("{\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"The domain taxoryn.com is not verified. Please verify your domain at resend.com/domains\"}");
+        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(mockHttpResponse);
+
+        boolean result = sender.sendEmail(
+                "unverified-recipient@example.com",
+                "Customer",
+                "Account Activation",
+                "<p>Activate your account</p>",
+                Map.of()
+        );
+
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Resend Dispatch: Handles HTTP 403 Case B test mode sandbox restriction gracefully and returns false")
+    void testResend403TestModeSandboxRestrictionReturnsFalse() throws Exception {
         when(mockHttpResponse.statusCode()).thenReturn(403);
         when(mockHttpResponse.body()).thenReturn("{\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails to your own email address. To send emails to other recipients, please verify a domain at resend.com\"}");
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))

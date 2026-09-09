@@ -293,7 +293,21 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "mailFromEmail", "taxoryn@gmail.com");
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
-        assertTrue(ex.getMessage().contains("cannot use consumer or example mailbox"));
+        assertTrue(ex.getMessage().contains("cannot use consumer, test, or example mailbox"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Mail sender is onboarding@resend.dev test sender")
+    void testProductionFailsWhenSenderIsOnboardingResendDevInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "mailEnabled", true);
+        ReflectionTestUtils.setField(validator, "mailProvider", "RESEND");
+        ReflectionTestUtils.setField(validator, "resendApiKey", "re_987654321_ValidResendApiKeyProduction123");
+        ReflectionTestUtils.setField(validator, "mailFromEmail", "onboarding@resend.dev");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("cannot use consumer, test, or example mailbox"));
     }
 
     @Test

@@ -225,13 +225,19 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
                         isDevRedirected ? ", dev_redirect=true" : "");
                 return true;
             } else if (response.statusCode() == 403) {
-                log.warn("[RESEND_DOMAIN_NOT_VERIFIED] Resend rejected email dispatch (HTTP 403 Forbidden). "
-                        + "Reason: Sending domain for '{}' is not verified in Resend dashboard (https://resend.com/domains), "
-                        + "or account is in testing mode and target recipient <{}> is not the verified account owner. "
-                        + "Provider error: {}",
-                        fromAddress,
-                        maskEmailOrUser(targetRecipient),
-                        response.body());
+                String responseBody = response.body() != null ? response.body() : "";
+                String lowerBody = responseBody.toLowerCase();
+                if (lowerBody.contains("testing emails") || lowerBody.contains("only send testing") || lowerBody.contains("own email address")) {
+                    log.warn("[RESEND_TEST_MODE_RECIPIENT_RESTRICTED] Resend rejected email dispatch (HTTP 403 Forbidden). "
+                            + "Reason (CASE B): Resend account is operating in testing sandbox mode and recipient <{}> is not the verified account owner. "
+                            + "Action: Verify 'taxoryn.com' at https://resend.com/domains or configure 'taxoryn.mail.dev-recipient' in development.",
+                            maskEmailOrUser(targetRecipient));
+                } else {
+                    log.warn("[RESEND_DOMAIN_NOT_VERIFIED] Resend rejected email dispatch (HTTP 403 Forbidden). "
+                            + "Reason (CASE A): Sending domain for '{}' is not verified in Resend dashboard (https://resend.com/domains). "
+                            + "Action: Complete DKIM/SPF/MX DNS record verification for 'taxoryn.com'.",
+                            fromAddress);
+                }
                 return false;
             } else if (response.statusCode() == 401) {
                 log.warn("[RESEND_UNAUTHORIZED] Resend API rejected dispatch (HTTP 401 Unauthorized). Check RESEND_API_KEY.");
