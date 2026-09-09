@@ -56,6 +56,7 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "storageS3AccessKey", "AKIAIOSFODNN7EXAMPLE");
         ReflectionTestUtils.setField(validator, "storageS3SecretKey", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
         ReflectionTestUtils.setField(validator, "mailEnabled", false);
+        ReflectionTestUtils.setField(validator, "mailDevMode", false);
         ReflectionTestUtils.setField(validator, "whatsappEnabled", false);
     }
 
@@ -293,6 +294,21 @@ class ProductionConfigurationSecurityTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
         assertTrue(ex.getMessage().contains("cannot use consumer or example mailbox"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Mail dev-mode is enabled in production")
+    void testProductionFailsWhenMailDevModeEnabledInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "mailEnabled", true);
+        ReflectionTestUtils.setField(validator, "mailProvider", "RESEND");
+        ReflectionTestUtils.setField(validator, "resendApiKey", "re_987654321_ValidResendApiKeyProduction123");
+        ReflectionTestUtils.setField(validator, "mailFromEmail", "info@taxoryn.com");
+        ReflectionTestUtils.setField(validator, "mailDevMode", true);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("'taxoryn.mail.dev-mode' cannot be true in a production environment"));
     }
 
     @Test

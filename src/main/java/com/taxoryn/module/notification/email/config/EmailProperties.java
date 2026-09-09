@@ -39,6 +39,18 @@ public class EmailProperties {
      */
     private String fromName = "Taxoryn";
 
+    /**
+     * Explicit development email mode for testing unverified domains.
+     * When true and devRecipient is configured, emails are redirected to devRecipient.
+     * Must never be enabled in production.
+     */
+    private boolean devMode = false;
+
+    /**
+     * Target recipient in development testing mode (e.g. verified Resend account owner email).
+     */
+    private String devRecipient;
+
     public String getFromEmail() {
         if (org.springframework.util.StringUtils.hasText(fromAddress)) {
             return fromAddress.trim();
