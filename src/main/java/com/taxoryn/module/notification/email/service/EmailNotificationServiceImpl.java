@@ -258,7 +258,7 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
 
         String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : (StringUtils.hasText(clientName) ? clientName.trim() : "Valued Client");
         String firmName = StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Practice";
-        String targetLoginUrl = StringUtils.hasText(loginUrl) ? loginUrl : "http://localhost:5173/login";
+        String targetLoginUrl = StringUtils.hasText(loginUrl) ? loginUrl.trim() : emailProperties.getLoginUrl();
 
         Map<String, Object> data = new HashMap<>();
         data.put("name", displayName);
@@ -319,7 +319,7 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         data.put("dueDate", dueDate != null ? dueDate.toString() : "Promptly");
         data.put("message", message != null ? message : "");
         data.put("itemsListHtml", itemsListHtml.toString());
-        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "https://taxoryn.com/login");
+        data.put("uploadUrl", emailProperties.getLoginUrl());
 
         String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REQUEST, data);
         String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REQUEST, data);
@@ -348,7 +348,7 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Consultant");
         data.put("dueDate", dueDate != null ? dueDate.toString() : "Immediate");
         data.put("itemsListHtml", itemsListHtml.toString());
-        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "https://taxoryn.com/login");
+        data.put("uploadUrl", emailProperties.getLoginUrl());
 
         String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REMINDER, data);
         String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REMINDER, data);
@@ -368,7 +368,7 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         data.put("documentTitle", StringUtils.hasText(documentTitle) ? documentTitle.trim() : "Document");
         data.put("reason", StringUtils.hasText(reason) ? reason.trim() : "Correction required by practitioner");
         data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Tax Consultant");
-        data.put("uploadUrl", emailProperties.getLoginUrl() != null ? emailProperties.getLoginUrl() : "https://taxoryn.com/login");
+        data.put("uploadUrl", emailProperties.getLoginUrl());
 
         String subject = templateRenderer.renderSubject(EmailTemplateType.DOCUMENT_REJECTED, data);
         String htmlBody = templateRenderer.renderHtml(EmailTemplateType.DOCUMENT_REJECTED, data);

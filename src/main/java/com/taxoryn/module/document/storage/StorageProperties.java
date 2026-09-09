@@ -110,7 +110,8 @@ public class StorageProperties {
         private String secretKey;
         private String endpoint;
         private String accountId;
-        private boolean pathStyleAccess = false;
+        private boolean pathStyleAccess = true;
+        private boolean chunkedEncodingEnabled = false;
 
         public String getResolvedEndpoint() {
             if (StringUtils.hasText(endpoint)) {

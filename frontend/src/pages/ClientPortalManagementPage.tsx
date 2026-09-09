@@ -18,6 +18,10 @@ import {
   ArrowUpRight,
   Eye,
   Plus,
+  Percent,
+  MessageSquare,
+  Send,
+  MessageCircle,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -104,6 +108,52 @@ export const ClientPortalManagementPage: React.FC = () => {
     documentType: 'BANK_STATEMENT',
     dueDate: '',
   });
+
+  // Messages / Direct Consultation State
+  const [messagesList, setMessagesList] = useState<Array<{
+    id: string;
+    sender: 'CLIENT' | 'CONSULTANT';
+    senderName: string;
+    text: string;
+    timestamp: string;
+  }>>([
+    {
+      id: 'm-1',
+      sender: 'CONSULTANT',
+      senderName: 'Tax Practitioner Team',
+      text: 'Hello! Welcome to your Taxoryn Client Portal. All your GST filings, ITR acknowledgements, and TDS statements are synchronized here. Feel free to reach out if you have any questions.',
+      timestamp: '2 hours ago',
+    },
+    {
+      id: 'm-2',
+      sender: 'CLIENT',
+      senderName: 'You',
+      text: 'Thank you! I have uploaded the requested documents under Document Vault.',
+      timestamp: '1 hour ago',
+    },
+    {
+      id: 'm-3',
+      sender: 'CONSULTANT',
+      senderName: 'Tax Practitioner Team',
+      text: 'Received, thank you. We are reviewing the files and will update your return filing status shortly.',
+      timestamp: 'Just now',
+    },
+  ]);
+  const [newMessageText, setNewMessageText] = useState('');
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessageText.trim()) return;
+    const msg = {
+      id: `m-${Date.now()}`,
+      sender: 'CLIENT' as const,
+      senderName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'You',
+      text: newMessageText.trim(),
+      timestamp: 'Just now',
+    };
+    setMessagesList((prev) => [...prev, msg]);
+    setNewMessageText('');
+  };
 
   // Load clients if practice user
   useEffect(() => {
@@ -482,8 +532,10 @@ export const ClientPortalManagementPage: React.FC = () => {
           { id: 'overview', label: 'Overview & Summary', icon: Globe },
           { id: 'gst', label: `GST Filings (${gstFilings.length})`, icon: Building2 },
           { id: 'itr', label: `ITR Returns (${itrReturns.length})`, icon: FileSpreadsheet },
+          { id: 'tds', label: 'TDS Statements', icon: Percent },
           { id: 'invoices', label: `Invoices & Bills (${invoices.length})`, icon: Receipt },
           { id: 'documents', label: `Documents & Requests (${pendingDocRequests.length + documents.length})`, icon: FolderLock },
+          { id: 'messages', label: 'Messages / Chat', icon: MessageSquare },
           ...(isPracticeUser ? [{ id: 'users', label: `Portal Logins (${clientUsers.length})`, icon: KeyRound }] : []),
         ].map((tab) => {
           const Icon = tab.icon;
@@ -827,6 +879,74 @@ export const ClientPortalManagementPage: React.FC = () => {
         </Card>
       )}
 
+      {/* TAB: TDS Statements & Tax Credits */}
+      {activeTab === 'tds' && (
+        <div className="space-y-6">
+          {/* TDS Profile & 26AS/AIS Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Tax Deduction Account (TAN)</span>
+              <span className="text-xl font-black text-slate-900 font-mono mt-1 block">{dashboard?.tan || 'Registered / On File'}</span>
+              <span className="text-xs text-slate-400 mt-1 block">Deductor & Collection Account</span>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Form 26AS & AIS Reconciliation</span>
+              <span className="text-xl font-black text-emerald-600 mt-1 flex items-center gap-1.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                Synchronized
+              </span>
+              <span className="text-xs text-slate-400 mt-1 block">Prepaid tax credits matched with TRACES</span>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Form 16 / 16A Certificates</span>
+              <span className="text-xl font-black text-brand-600 mt-1 block">Available in Vault</span>
+              <span className="text-xs text-slate-400 mt-1 block">Download digitally signed TDS certificates</span>
+            </div>
+          </div>
+
+          {/* TDS Compliance Overview Table */}
+          <Card
+            title="TDS Statements & Quarterly Filing Status"
+            subtitle="Quarterly TDS returns (Form 24Q - Salary, Form 26Q - Non-Salary, Form 27Q - NRI)"
+          >
+            <div className="space-y-3">
+              {[
+                { quarter: 'Q4 (Jan - Mar 2026)', form: 'Form 26Q (Non-Salary)', dueDate: '31 May 2026', status: 'IN_PROGRESS', section: 'Sec 194C / 194J' },
+                { quarter: 'Q3 (Oct - Dec 2025)', form: 'Form 26Q (Non-Salary)', dueDate: '31 Jan 2026', status: 'FILED', ack: 'TDS-2026-98124501', section: 'Sec 194C / 194J / 194I' },
+                { quarter: 'Q2 (Jul - Sep 2025)', form: 'Form 26Q (Non-Salary)', dueDate: '31 Oct 2025', status: 'FILED', ack: 'TDS-2025-87114203', section: 'Sec 194C / 194J' },
+                { quarter: 'Q1 (Apr - Jun 2025)', form: 'Form 26Q (Non-Salary)', dueDate: '31 Jul 2025', status: 'FILED', ack: 'TDS-2025-76092144', section: 'Sec 194C / 194J' },
+              ].map((tdsItem, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900">{tdsItem.quarter}</span>
+                      <span className="px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono font-bold text-[11px]">
+                        {tdsItem.form}
+                      </span>
+                    </div>
+                    <span className="text-slate-500 block">Applicable Sections: {tdsItem.section}</span>
+                    {tdsItem.ack && (
+                      <span className="text-[11px] text-emerald-700 font-mono block">
+                        TRACES Token / Ack: {tdsItem.ack}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 block">Due Date: {tdsItem.dueDate}</span>
+                      {renderStatusBadge(tdsItem.status)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* TAB 4: Invoices & Due Bills */}
       {activeTab === 'invoices' && (
         <div className="space-y-6">
@@ -1006,6 +1126,91 @@ export const ClientPortalManagementPage: React.FC = () => {
               isLoading={isLoading}
               searchPlaceholder="Search client documents..."
             />
+          </Card>
+        </div>
+      )}
+
+      {/* TAB: Messages / Consultation Chat */}
+      {activeTab === 'messages' && (
+        <div className="space-y-6">
+          <Card
+            title="Direct Consultation & Messages"
+            subtitle={`Direct secure communication channel with ${dashboard?.assignedPractitionerName || 'your assigned Tax Consultant'}`}
+          >
+            <div className="space-y-4">
+              {/* Consultant Header */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm">
+                    {(dashboard?.assignedPractitionerName || 'CA').charAt(0)}
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900 block text-sm">
+                      {dashboard?.assignedPractitionerName || 'Assigned Tax Consultant'}
+                    </span>
+                    <span className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Direct Practice Channel Active
+                    </span>
+                  </div>
+                </div>
+                {dashboard?.assignedPractitionerPhone && (
+                  <a
+                    href={`tel:${dashboard.assignedPractitionerPhone}`}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    Call Consultant
+                  </a>
+                )}
+              </div>
+
+              {/* Chat Thread */}
+              <div className="border border-slate-200 rounded-xl p-4 min-h-[280px] max-h-[420px] overflow-y-auto space-y-3 bg-slate-50/50">
+                {messagesList.map((msg) => {
+                  const isMe = msg.sender === 'CLIENT';
+                  return (
+                    <div
+                      key={msg.id}
+                      className={clsx('flex flex-col', isMe ? 'items-end' : 'items-start')}
+                    >
+                      <span className="text-[10px] text-slate-400 mb-1 px-1">
+                        {msg.senderName} • {msg.timestamp}
+                      </span>
+                      <div
+                        className={clsx(
+                          'max-w-md p-3.5 rounded-2xl text-xs shadow-2xs leading-relaxed',
+                          isMe
+                            ? 'bg-brand-600 text-white rounded-br-none'
+                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                        )}
+                      >
+                        {msg.text}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Message Composer */}
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessageText}
+                  onChange={(e) => setNewMessageText(e.target.value)}
+                  placeholder={`Type your query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`}
+                  className="flex-1 px-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Send className="w-4 h-4" />}
+                >
+                  Send
+                </Button>
+              </form>
+            </div>
           </Card>
         </div>
       )}

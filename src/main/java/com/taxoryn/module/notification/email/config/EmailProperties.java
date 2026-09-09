@@ -87,12 +87,33 @@ public class EmailProperties {
     /**
      * Application login portal URL.
      */
-    private String loginUrl = "http://localhost:5173/login";
+    private String loginUrl;
 
     /**
      * Application activation URL.
      */
-    private String activationUrl = "http://localhost:5173/activate";
+    private String activationUrl;
+
+    public String getFrontendUrl() {
+        if (org.springframework.util.StringUtils.hasText(frontendUrl)) {
+            return frontendUrl.trim().replaceAll("/+$", "");
+        }
+        return "http://localhost:5173";
+    }
+
+    public String getLoginUrl() {
+        if (org.springframework.util.StringUtils.hasText(loginUrl)) {
+            return loginUrl.trim();
+        }
+        return getFrontendUrl() + "/login";
+    }
+
+    public String getActivationUrl() {
+        if (org.springframework.util.StringUtils.hasText(activationUrl)) {
+            return activationUrl.trim();
+        }
+        return getFrontendUrl() + "/activate";
+    }
 
     /**
      * Organization activation token expiration in hours.

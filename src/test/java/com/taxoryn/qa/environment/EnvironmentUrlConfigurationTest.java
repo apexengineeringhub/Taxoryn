@@ -175,4 +175,47 @@ class EnvironmentUrlConfigurationTest {
         assertEquals("http://localhost:5173/activate", properties.getActivationUrl());
         assertEquals("http://localhost:5173/login", properties.getLoginUrl());
     }
+
+    @Test
+    @DisplayName("Dynamic derivation: getLoginUrl() and getActivationUrl() dynamically derive from frontendUrl")
+    void testDynamicUrlDerivationFromFrontendUrl() {
+        EmailProperties custom = new EmailProperties();
+        custom.setFrontendUrl("https://app.taxoryn.com");
+
+        assertEquals("https://app.taxoryn.com", custom.getFrontendUrl());
+        assertEquals("https://app.taxoryn.com/login", custom.getLoginUrl());
+        assertEquals("https://app.taxoryn.com/activate", custom.getActivationUrl());
+
+        // Also test trailing slash trimming
+        custom.setFrontendUrl("https://app.taxoryn.com/");
+        assertEquals("https://app.taxoryn.com", custom.getFrontendUrl());
+        assertEquals("https://app.taxoryn.com/login", custom.getLoginUrl());
+        assertEquals("https://app.taxoryn.com/activate", custom.getActivationUrl());
+    }
+
+    @Test
+    @DisplayName("Customer Portal URLs: Verify Production resolves strictly to app.taxoryn.com without marketing host or Vercel")
+    void testCustomerPortalUrlsAcrossEnvironments() throws Exception {
+        // 1. Production
+        EmailProperties prodProps = bindEmailProperties("application-prod.yml");
+        String prodInviteToken = "cust-invite-tok-123";
+        String prodActivationUrl = prodProps.getActivationUrl() + "?token=" + prodInviteToken;
+        assertEquals("https://app.taxoryn.com/activate?token=cust-invite-tok-123", prodActivationUrl);
+        assertEquals("https://app.taxoryn.com/login", prodProps.getLoginUrl());
+        assertFalse(prodActivationUrl.startsWith("https://taxoryn.com/")); // Must NOT use apex marketing domain
+        assertTrue(prodActivationUrl.startsWith("https://app.taxoryn.com/activate"));
+        assertFalse(prodActivationUrl.contains("vercel.app"));
+
+        // 2. Demo
+        EmailProperties demoProps = bindEmailProperties("application-demo.yml");
+        String demoActivationUrl = demoProps.getActivationUrl() + "?token=cust-demo-456";
+        assertEquals("https://taxoryn-7x7f.vercel.app/activate?token=cust-demo-456", demoActivationUrl);
+        assertEquals("https://taxoryn-7x7f.vercel.app/login", demoProps.getLoginUrl());
+
+        // 3. Local / Dev
+        EmailProperties localProps = bindEmailProperties("application-local.yml");
+        String localActivationUrl = localProps.getActivationUrl() + "?token=cust-local-789";
+        assertEquals("http://localhost:5173/activate?token=cust-local-789", localActivationUrl);
+        assertEquals("http://localhost:5173/login", localProps.getLoginUrl());
+    }
 }
