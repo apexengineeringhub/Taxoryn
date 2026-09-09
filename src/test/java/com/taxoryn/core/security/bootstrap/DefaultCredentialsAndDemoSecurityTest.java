@@ -210,6 +210,8 @@ class DefaultCredentialsAndDemoSecurityTest {
         ReflectionTestUtils.setField(validator, "storageS3Bucket", "taxoryn-production-docs");
         ReflectionTestUtils.setField(validator, "storageS3AccessKey", "AKIAIOSFODNN7EXAMPLE");
         ReflectionTestUtils.setField(validator, "storageS3SecretKey", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://app.taxoryn.com");
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://taxoryn.com");
 
         UserEntity disabledLegacyUser = UserEntity.builder()
                 .email("superadmin@taxoryn.com")

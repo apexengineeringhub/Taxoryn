@@ -144,6 +144,12 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.whatsapp.business-account-id:${WHATSAPP_BUSINESS_ACCOUNT_ID:}}")
     private String whatsappBusinessAccountId;
 
+    @Value("${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:https://app.taxoryn.com}}}}}")
+    private String frontendUrl;
+
+    @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:https://app.taxoryn.com,https://taxoryn.com}}")
+    private String corsAllowedOrigins;
+
     @Override
     public void afterSingletonsInstantiated() {
         validateEnvironmentSecurity();
@@ -191,6 +197,12 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
 
         // 7. Insecure Known Default Credential Check in Production DB
         validateDatabaseUserSecurity();
+
+        // 8. Production Frontend Base URL Validation
+        validateFrontendConfiguration();
+
+        // 9. Production CORS Configuration Validation
+        validateCorsConfiguration();
 
         log.info("Phase 10 production environment configuration & secrets verification PASSED.");
     }
@@ -349,6 +361,49 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             UserEntity user = legacySuperAdmin.get();
             if (user.getStatus() == UserStatus.ACTIVE && passwordEncoder.matches(KNOWN_DEMO_PASSWORD, user.getPasswordHash())) {
                 String error = "CRITICAL SECURITY VIOLATION: Active Super Admin user 'superadmin@taxoryn.com' with known default password detected in production database";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+        }
+    }
+
+    private void validateFrontendConfiguration() {
+        if (!StringUtils.hasText(frontendUrl)) {
+            String error = "CRITICAL SECURITY VIOLATION: Production frontend URL (TAXORYN_FRONTEND_URL / FRONTEND_URL / taxoryn.frontend-url) is missing or empty";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        String trimmed = frontendUrl.trim().toLowerCase();
+        if (trimmed.contains("localhost") || trimmed.contains("127.0.0.1")) {
+            String error = "CRITICAL SECURITY VIOLATION: Production frontend URL cannot be localhost ('" + frontendUrl + "'). Expected 'https://app.taxoryn.com'";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        if (trimmed.contains("vercel.app") || trimmed.contains("taxoryn-7x7f")) {
+            String error = "CRITICAL SECURITY VIOLATION: Production frontend URL cannot use demo Vercel domain ('" + frontendUrl + "'). Expected 'https://app.taxoryn.com'";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        if (!trimmed.startsWith("https://")) {
+            String error = "CRITICAL SECURITY VIOLATION: Production frontend URL must use HTTPS ('" + frontendUrl + "')";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+    }
+
+    private void validateCorsConfiguration() {
+        if (StringUtils.hasText(corsAllowedOrigins)) {
+            String trimmed = corsAllowedOrigins.trim().toLowerCase();
+            if (trimmed.contains("*.vercel.app") || trimmed.contains("taxoryn-7x7f.vercel.app")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include Vercel demo origins or wildcard Vercel domains ('" + corsAllowedOrigins + "')";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+            if (trimmed.contains("http://localhost") || trimmed.contains("http://127.0.0.1")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include localhost HTTP origins in production ('" + corsAllowedOrigins + "')";
                 log.error(error);
                 throw new IllegalStateException(error);
             }

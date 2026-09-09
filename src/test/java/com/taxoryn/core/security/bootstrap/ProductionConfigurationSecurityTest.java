@@ -58,6 +58,8 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "mailEnabled", false);
         ReflectionTestUtils.setField(validator, "mailDevMode", false);
         ReflectionTestUtils.setField(validator, "whatsappEnabled", false);
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://app.taxoryn.com");
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://taxoryn.com");
     }
 
     // =========================================================================
@@ -362,7 +364,66 @@ class ProductionConfigurationSecurityTest {
     }
 
     // =========================================================================
-    // 5. Dev, Demo & Valid Production Success Tests
+    // 5. Frontend URL & CORS Fail-Fast Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when frontend URL is missing")
+    void testProductionFailsWhenFrontendUrlMissing() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "frontendUrl", "");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production frontend URL"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when frontend URL is localhost")
+    void testProductionFailsWhenFrontendUrlIsLocalhost() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "frontendUrl", "http://localhost:5173");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production frontend URL cannot be localhost"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when frontend URL is a demo Vercel domain")
+    void testProductionFailsWhenFrontendUrlIsVercelDemo() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://taxoryn-7x7f.vercel.app");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production frontend URL cannot use demo Vercel domain"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains *.vercel.app wildcard")
+    void testProductionFailsWhenCorsContainsVercelWildcard() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://*.vercel.app");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS cannot include Vercel demo origins or wildcard Vercel domains"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains localhost HTTP origin in production")
+    void testProductionFailsWhenCorsContainsLocalhostInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,http://localhost:5173");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS cannot include localhost HTTP origins"));
+    }
+
+    // =========================================================================
+    // 6. Dev, Demo & Valid Production Success Tests
     // =========================================================================
 
     @Test

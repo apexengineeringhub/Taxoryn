@@ -128,6 +128,42 @@ class EnvironmentUrlConfigurationTest {
         assertEquals("https://app.taxoryn.com/activate?token=prod-test-token-12345", fullActivationUrl);
         assertFalse(fullActivationUrl.contains("localhost"));
         assertFalse(fullActivationUrl.contains("vercel.app"));
+        assertFalse(fullActivationUrl.contains("taxoryn-7x7f"));
+    }
+
+    @Test
+    @DisplayName("Production Profile: Password reset and login URLs resolve to app.taxoryn.com")
+    void testProductionPasswordResetAndLoginUrls() throws Exception {
+        EmailProperties properties = bindEmailProperties("application-prod.yml");
+
+        String resetToken = "reset-tok-998877";
+        String fullResetUrl = properties.getFrontendUrl() + "/reset-password?token=" + resetToken;
+        assertEquals("https://app.taxoryn.com/reset-password?token=reset-tok-998877", fullResetUrl);
+        assertEquals("https://app.taxoryn.com/login", properties.getLoginUrl());
+    }
+
+    @Test
+    @DisplayName("Production Profile: CORS origins in application-prod.yml allow app.taxoryn.com and do NOT contain *.vercel.app")
+    void testProductionCorsOrigins() throws Exception {
+        MutablePropertySources propertySources = new MutablePropertySources();
+        List<PropertySource<?>> baseSources = loader.load("application.yml", new ClassPathResource("application.yml"));
+        for (PropertySource<?> source : baseSources) {
+            propertySources.addLast(source);
+        }
+        List<PropertySource<?>> prodSources = loader.load("application-prod.yml", new ClassPathResource("application-prod.yml"));
+        for (PropertySource<?> source : prodSources) {
+            propertySources.addFirst(source);
+        }
+
+        PropertySourcesPropertyResolver resolver = new PropertySourcesPropertyResolver(propertySources);
+        String corsOrigins = resolver.getProperty("taxoryn.cors.allowed-origins");
+
+        assertNotNull(corsOrigins);
+        assertTrue(corsOrigins.contains("https://app.taxoryn.com"));
+        assertTrue(corsOrigins.contains("https://taxoryn.com"));
+        assertFalse(corsOrigins.contains("*.vercel.app"));
+        assertFalse(corsOrigins.contains("taxoryn-7x7f.vercel.app"));
+        assertFalse(corsOrigins.contains("localhost"));
     }
 
     @Test

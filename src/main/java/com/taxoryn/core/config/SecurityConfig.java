@@ -40,7 +40,7 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler accessDeniedHandler;
     private final CustomUserDetailsService userDetailsService;
 
-    @Value("${taxoryn.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8088,http://localhost:8089,https://taxoryn.com,https://*.taxoryn.com,https://app.taxoryn.com,https://taxoryn-7x7f.vercel.app,https://*.vercel.app}")
+    @Value("${taxoryn.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8088,http://localhost:8089,https://taxoryn.com,https://*.taxoryn.com,https://app.taxoryn.com}")
     private String allowedOrigins;
 
     @Bean

@@ -1,10 +1,10 @@
 # Render Blueprint for the Taxoryn backend (Spring Boot API).
 # Docs: https://render.com/docs/blueprint-spec
 #
-# This file manages deployment/runtime settings for the public demo service (SPRING_PROFILES_ACTIVE=demo).
+# This file manages deployment/runtime settings for the Taxoryn production service (SPRING_PROFILES_ACTIVE=prod).
 # For production deployments, deploy with SPRING_PROFILES_ACTIVE=prod and inject required secrets
-# (DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET) via the Render dashboard Environment tab.
-# Production strictly fails fast at startup if any required secret is missing or insecure.
+# (DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET, RESEND_API_KEY) via the Render dashboard Environment tab.
+# Production strictly fails fast at startup if any required secret is missing, weak, or insecure.
 #
 # See docs/RENDER_KEEPALIVE.md for the full explanation of the health check and keep-alive setup.
 
@@ -17,7 +17,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
-        value: demo
+        value: prod
       - key: SERVER_PORT
         value: 8088
       - key: JAVA_OPTS
