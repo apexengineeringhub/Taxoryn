@@ -18,10 +18,12 @@ import {
   Settings
 } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuth } from '../../context/AuthContext';
 import { notificationApi } from '../../api/endpoints';
 import { NotificationItem, NotificationSeverity, NotificationCategory } from '../../types';
 
 export const NotificationBellDropdown: React.FC = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -30,8 +32,12 @@ export const NotificationBellDropdown: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'UNREAD'>('ALL');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
+
   // 1. Fetch unread count
   const fetchUnreadCount = async () => {
+    if (isClientUser) return;
     try {
       const data = await notificationApi.getUnreadCount();
       setUnreadCount(data.unreadCount || 0);
@@ -42,6 +48,7 @@ export const NotificationBellDropdown: React.FC = () => {
 
   // 2. Fetch preview notifications when opened
   const fetchPreviewNotifications = async () => {
+    if (isClientUser) return;
     setIsLoading(true);
     try {
       const res = await notificationApi.getAll({
@@ -58,10 +65,11 @@ export const NotificationBellDropdown: React.FC = () => {
   };
 
   useEffect(() => {
+    if (isClientUser) return;
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000); // 30s poll
     return () => clearInterval(interval);
-  }, []);
+  }, [isClientUser]);
 
   useEffect(() => {
     if (isOpen) {
@@ -192,6 +200,10 @@ export const NotificationBellDropdown: React.FC = () => {
       return '';
     }
   };
+
+  if (isClientUser) {
+    return null;
+  }
 
   return (
     <div className="relative" ref={dropdownRef}>

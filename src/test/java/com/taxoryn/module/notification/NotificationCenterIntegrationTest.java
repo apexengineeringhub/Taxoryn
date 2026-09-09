@@ -335,17 +335,47 @@ public class NotificationCenterIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test client user is forbidden from sending manual notifications")
-    void testClientUserCannotSendManualNotification() throws Exception {
-        UUID clientId = UUID.randomUUID();
+    @DisplayName("Test client user is forbidden from accessing internal notification center endpoints")
+    void testClientUserCannotAccessNotificationCenter() throws Exception {
         String clientUserToken = jwtTokenProvider.generateAccessToken(
                 UUID.randomUUID(),
                 testOrgA.getId(),
                 "clientuser@taxpayer.com",
                 Set.of("CLIENT_USER"),
-                Set.of("CLIENT_PORTAL_READ")
+                Set.of("CLIENT_PORTAL_ACCESS")
         );
 
+        // 1. GET /api/v1/notifications
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header("Authorization", "Bearer " + clientUserToken))
+                .andExpect(status().isForbidden());
+
+        // 2. GET /api/v1/notifications/unread-count
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .header("Authorization", "Bearer " + clientUserToken))
+                .andExpect(status().isForbidden());
+
+        // 3. PATCH /api/v1/notifications/{id}/read
+        mockMvc.perform(patch("/api/v1/notifications/" + UUID.randomUUID() + "/read")
+                        .header("Authorization", "Bearer " + clientUserToken))
+                .andExpect(status().isForbidden());
+
+        // 4. PATCH /api/v1/notifications/{id}/unread
+        mockMvc.perform(patch("/api/v1/notifications/" + UUID.randomUUID() + "/unread")
+                        .header("Authorization", "Bearer " + clientUserToken))
+                .andExpect(status().isForbidden());
+
+        // 5. POST /api/v1/notifications/mark-all-read
+        mockMvc.perform(post("/api/v1/notifications/mark-all-read")
+                        .header("Authorization", "Bearer " + clientUserToken))
+                .andExpect(status().isForbidden());
+
+        // 6. DELETE /api/v1/notifications/{id}
+        mockMvc.perform(delete("/api/v1/notifications/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + clientUserToken))
+                .andExpect(status().isForbidden());
+
+        // 7. POST /api/v1/notifications/send
         SendNotificationRequest sendReq = SendNotificationRequest.builder()
                 .userId(practitionerA.getId())
                 .notificationType(NotificationType.GENERAL)
