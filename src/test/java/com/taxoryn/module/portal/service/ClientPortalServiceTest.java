@@ -77,6 +77,14 @@ class ClientPortalServiceTest {
     @Mock
     private TaskRepository taskRepository;
     @Mock
+    private com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
+    @Mock
+    private com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository organizationActivationTokenRepository;
+    @Mock
+    private com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
+    @Mock
+    private com.taxoryn.module.audit.service.AuditService auditService;
+    @Mock
     private ClientNotificationRepository notificationRepository;
     @Mock
     private ClientDocumentRequestRepository docRequestRepository;
@@ -131,7 +139,7 @@ class ClientPortalServiceTest {
     }
 
     @Test
-    @DisplayName("Register client portal user successfully")
+    @DisplayName("Register client portal user successfully for new email")
     void testRegisterClientPortalUser() {
         RegisterClientPortalUserRequest request = RegisterClientPortalUserRequest.builder()
                 .clientId(clientId)
@@ -148,6 +156,7 @@ class ClientPortalServiceTest {
         client.setId(clientId);
 
         when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "finance@abctraders.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmailIgnoreCase("finance@abctraders.com")).thenReturn(Optional.empty());
         when(roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")).thenReturn(Optional.of(RoleEntity.builder().code("CLIENT_USER").build()));
         when(passwordEncoder.encode("SecretPass123!")).thenReturn("encodedHash");
@@ -168,6 +177,143 @@ class ClientPortalServiceTest {
         assertNotNull(result);
         assertEquals("finance@abctraders.com", result.getEmail());
         assertEquals("ABC Traders", result.getClientName());
+    }
+
+    @Test
+    @DisplayName("Case B: Register client portal user reconciles existing orphan CLIENT_USER")
+    void testRegisterClientPortalUser_CaseB_OrphanReconcile() {
+        RegisterClientPortalUserRequest request = RegisterClientPortalUserRequest.builder()
+                .clientId(clientId)
+                .email("orphan@abctraders.com")
+                .firstName("Rohan")
+                .lastName("Verma")
+                .role("CLIENT_USER")
+                .build();
+
+        ClientEntity client = ClientEntity.builder()
+                .displayName("ABC Traders")
+                .build();
+        client.setId(clientId);
+
+        UserEntity orphanUser = UserEntity.builder()
+                .email("orphan@abctraders.com")
+                .firstName("Rohan")
+                .lastName("Verma")
+                .clientId(null) // Orphan!
+                .status(UserEntity.UserStatus.INVITED)
+                .roles(Set.of(RoleEntity.builder().code("CLIENT_USER").build()))
+                .build();
+        orphanUser.setId(UUID.randomUUID());
+        orphanUser.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "orphan@abctraders.com")).thenReturn(Optional.of(orphanUser));
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ClientPortalUserDto result = portalService.registerClientPortalUser(request);
+
+        assertNotNull(result);
+        assertEquals("orphan@abctraders.com", result.getEmail());
+        assertEquals(clientId, result.getClientId());
+        assertEquals(clientId, orphanUser.getClientId());
+    }
+
+    @Test
+    @DisplayName("Case C: Register client portal user throws when email is already linked to another client in same practice")
+    void testRegisterClientPortalUser_CaseC_LinkedToAnotherClient() {
+        UUID otherClientId = UUID.randomUUID();
+        RegisterClientPortalUserRequest request = RegisterClientPortalUserRequest.builder()
+                .clientId(clientId)
+                .email("otherclient@abctraders.com")
+                .firstName("Rohan")
+                .build();
+
+        ClientEntity client = ClientEntity.builder()
+                .displayName("ABC Traders")
+                .build();
+        client.setId(clientId);
+
+        UserEntity existingUser = UserEntity.builder()
+                .email("otherclient@abctraders.com")
+                .clientId(otherClientId)
+                .roles(Set.of(RoleEntity.builder().code("CLIENT_USER").build()))
+                .build();
+        existingUser.setId(UUID.randomUUID());
+        existingUser.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "otherclient@abctraders.com")).thenReturn(Optional.of(existingUser));
+
+        com.taxoryn.core.exception.DuplicateResourceException ex = assertThrows(
+                com.taxoryn.core.exception.DuplicateResourceException.class,
+                () -> portalService.registerClientPortalUser(request)
+        );
+        assertEquals("This email address is already associated with another client portal account in this practice. Please use the existing account or another email address.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Case D: Register client portal user throws when email belongs to internal staff")
+    void testRegisterClientPortalUser_CaseD_InternalStaff() {
+        RegisterClientPortalUserRequest request = RegisterClientPortalUserRequest.builder()
+                .clientId(clientId)
+                .email("admin@practice.com")
+                .firstName("Admin")
+                .build();
+
+        ClientEntity client = ClientEntity.builder()
+                .displayName("ABC Traders")
+                .build();
+        client.setId(clientId);
+
+        UserEntity staffUser = UserEntity.builder()
+                .email("admin@practice.com")
+                .clientId(null)
+                .roles(Set.of(RoleEntity.builder().code("ORG_ADMIN").build()))
+                .build();
+        staffUser.setId(UUID.randomUUID());
+        staffUser.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "admin@practice.com")).thenReturn(Optional.of(staffUser));
+
+        com.taxoryn.core.exception.DuplicateResourceException ex = assertThrows(
+                com.taxoryn.core.exception.DuplicateResourceException.class,
+                () -> portalService.registerClientPortalUser(request)
+        );
+        assertEquals("This email address is already registered as an internal practice user. A separate client portal email address is required.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Case F: Register client portal user throws when email is registered in different organization")
+    void testRegisterClientPortalUser_CaseF_DifferentOrganization() {
+        UUID foreignOrgId = UUID.randomUUID();
+        RegisterClientPortalUserRequest request = RegisterClientPortalUserRequest.builder()
+                .clientId(clientId)
+                .email("foreign@external.com")
+                .firstName("Foreign")
+                .build();
+
+        ClientEntity client = ClientEntity.builder()
+                .displayName("ABC Traders")
+                .build();
+        client.setId(clientId);
+
+        UserEntity foreignUser = UserEntity.builder()
+                .email("foreign@external.com")
+                .organizationId(foreignOrgId)
+                .build();
+        foreignUser.setId(UUID.randomUUID());
+        foreignUser.setOrganizationId(foreignOrgId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "foreign@external.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("foreign@external.com")).thenReturn(Optional.of(foreignUser));
+
+        com.taxoryn.core.exception.DuplicateResourceException ex = assertThrows(
+                com.taxoryn.core.exception.DuplicateResourceException.class,
+                () -> portalService.registerClientPortalUser(request)
+        );
+        assertEquals("The email address is already registered and cannot be used for this client portal account.", ex.getMessage());
     }
 
     @Test

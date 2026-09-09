@@ -1050,7 +1050,7 @@ public class ClientServiceImpl implements ClientService {
     private UserEntity provisionUserForClient(UUID organizationId, ClientEntity client) {
         String email = client.getEmail().trim().toLowerCase();
 
-        // 1. Check if a portal user already exists for this exact organization + client
+        // 1. Check if a portal user already exists for this exact organization + client (CASE A)
         List<UserEntity> existingClientUsers = userRepository.findAllByOrganizationIdAndClientId(organizationId, client.getId());
         if (!existingClientUsers.isEmpty()) {
             return existingClientUsers.get(0);
@@ -1061,29 +1061,58 @@ public class ClientServiceImpl implements ClientService {
         if (orgUserOpt.isPresent()) {
             UserEntity orgUser = orgUserOpt.get();
 
-            // Safety Check: If user belongs to another client, reject
+            // Safety Check (CASE C): If user belongs to another client, reject
             if (orgUser.getClientId() != null && !orgUser.getClientId().equals(client.getId())) {
                 log.warn("Cannot attach user {} to client {} because user is already linked to client {}",
                         orgUser.getId(), client.getId(), orgUser.getClientId());
-                throw new DuplicateResourceException("A portal user with this email is already associated with another client account in this organization");
+                throw new DuplicateResourceException("This email address is already associated with another client portal account in this practice. Please use the existing account or another email address.");
             }
 
-            // Safety Check: If user is an internal practice staff/admin, reject conversion
-            boolean isPracticeStaff = orgUser.getRoles() != null && orgUser.getRoles().stream()
-                    .anyMatch(r -> !"CLIENT_USER".equals(r.getCode()) && !"CLIENT_ADMIN".equals(r.getCode()) && !"CLIENT_VIEWER".equals(r.getCode()));
-            if (isPracticeStaff && orgUser.getClientId() == null) {
-                log.warn("Cannot convert practice staff user {} to client portal user for client {}", orgUser.getId(), client.getId());
-                throw new DuplicateResourceException("This email belongs to an active practice employee or administrator and cannot be provisioned as a client portal account");
+            // Safety Check (CASE D & E): If user is an internal practice staff/admin or platform user, reject conversion
+            boolean isPracticeStaffOrPlatform = orgUser.getRoles() != null && orgUser.getRoles().stream()
+                    .anyMatch(r -> !"CLIENT_USER".equals(r.getCode()) && !"CLIENT_ADMIN".equals(r.getCode()) && !"CLIENT_VIEWER".equals(r.getCode()) && !"ROLE_CLIENT_USER".equals(r.getCode()));
+            if (isPracticeStaffOrPlatform && orgUser.getClientId() == null) {
+                log.warn("Cannot convert practice staff/platform user {} to client portal user for client {}", orgUser.getId(), client.getId());
+                throw new DuplicateResourceException("This email address is already registered as an internal practice user. A separate client portal email address is required.");
             }
 
+            // CASE B: Orphan client portal user in the same organization
             if (orgUser.getClientId() == null) {
                 orgUser.setClientId(client.getId());
-                return userRepository.save(orgUser);
+                if (orgUser.getRoles() == null || orgUser.getRoles().isEmpty()) {
+                    RoleEntity clientRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
+                            .or(() -> roleRepository.findByCodeAndOrganizationId("CLIENT_USER", organizationId))
+                            .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                                    .code("CLIENT_USER")
+                                    .name("Client User")
+                                    .isSystemRole(true)
+                                    .build()));
+                    orgUser.setRoles(new HashSet<>(Set.of(clientRole)));
+                }
+                UserEntity saved = userRepository.save(orgUser);
+                log.info("Reconciled orphan client portal user {} for client {} in tenant {}", saved.getId(), client.getId(), organizationId);
+                auditService.logEvent(
+                        organizationId,
+                        saved.getId(),
+                        "CLIENT_PORTAL_USER_RECONCILED",
+                        "CLIENT",
+                        client.getId().toString(),
+                        null,
+                        "Reconciled orphan client portal user " + saved.getEmail() + " for client " + client.getDisplayName()
+                );
+                return saved;
             }
             return orgUser;
         }
 
-        // 3. Create fresh CLIENT_USER within this organization
+        // 3. Safety Check (CASE F): Check if email exists in another organization
+        Optional<UserEntity> globalUserOpt = userRepository.findByEmailIgnoreCase(email);
+        if (globalUserOpt.isPresent() && !globalUserOpt.get().getOrganizationId().equals(organizationId)) {
+            log.warn("Email {} belongs to another organization {}", email, globalUserOpt.get().getOrganizationId());
+            throw new DuplicateResourceException("The email address is already registered and cannot be used for this client portal account.");
+        }
+
+        // 4. Create fresh CLIENT_USER within this organization
         RoleEntity clientRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
                 .or(() -> roleRepository.findByCodeAndOrganizationId("CLIENT_USER", organizationId))
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
@@ -1115,7 +1144,20 @@ public class ClientServiceImpl implements ClientService {
                 .roles(new HashSet<>(Set.of(clientRole)))
                 .build();
 
-        return userRepository.save(user);
+        try {
+            return userRepository.save(user);
+        } catch (org.springframework.dao.DataIntegrityViolationException dive) {
+            return userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, email)
+                    .filter(u -> u.getClientId() == null || u.getClientId().equals(client.getId()))
+                    .map(u -> {
+                        if (u.getClientId() == null) {
+                            u.setClientId(client.getId());
+                            return userRepository.save(u);
+                        }
+                        return u;
+                    })
+                    .orElseThrow(() -> new DuplicateResourceException("User already exists with email: '" + email + "'"));
+        }
     }
 
     private void sendClientPortalInvitation(ClientEntity client, UserEntity user, UUID organizationId) {

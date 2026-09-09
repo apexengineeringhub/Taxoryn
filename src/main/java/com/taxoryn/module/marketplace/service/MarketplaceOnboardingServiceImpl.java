@@ -586,43 +586,81 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
     }
 
     private UUID provisionClientPortalUser(UUID organizationId, ClientEntity client, String explicitPassword) {
-        String email = client.getEmail();
+        String email = client.getEmail() != null ? client.getEmail().toLowerCase().trim() : null;
         if (!StringUtils.hasText(email)) {
             return null;
         }
 
-        Optional<UserEntity> existingUser = userRepository.findByEmailIgnoreCase(email);
-        if (existingUser.isPresent()) {
-            UserEntity user = existingUser.get();
-            user.setClientId(client.getId());
-            userRepository.save(user);
+        Optional<UserEntity> existingOrgUser = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, email);
+        if (existingOrgUser.isPresent()) {
+            UserEntity user = existingOrgUser.get();
+            // Check if user is an internal staff/platform user
+            boolean isStaff = user.getRoles() != null && user.getRoles().stream()
+                    .anyMatch(r -> !"CLIENT_USER".equalsIgnoreCase(r.getCode())
+                            && !"ROLE_CLIENT_USER".equalsIgnoreCase(r.getCode())
+                            && !"CLIENT_ADMIN".equalsIgnoreCase(r.getCode())
+                            && !"ROLE_CLIENT_ADMIN".equalsIgnoreCase(r.getCode()));
+            if (isStaff) {
+                log.warn("Email {} is an internal practice user in organization {}", email, organizationId);
+                return user.getId();
+            }
+            if (user.getClientId() != null && !user.getClientId().equals(client.getId())) {
+                log.warn("Email {} is already linked to another client {} in organization {}", email, user.getClientId(), organizationId);
+                return user.getId();
+            }
+            if (user.getClientId() == null) {
+                user.setClientId(client.getId());
+                user = userRepository.save(user);
+                auditService.logEvent(
+                        organizationId,
+                        user.getId(),
+                        "CLIENT_PORTAL_USER_RECONCILED",
+                        "CLIENT",
+                        client.getId().toString(),
+                        null,
+                        "Reconciled orphan client portal user " + user.getEmail() + " for client " + client.getDisplayName()
+                );
+            }
             return user.getId();
         }
 
-        String rawPassword = StringUtils.hasText(explicitPassword) ? explicitPassword : "ClientPass@" + UUID.randomUUID().toString().substring(0, 6);
+        Optional<UserEntity> globalUserOpt = userRepository.findByEmailIgnoreCase(email);
+        if (globalUserOpt.isPresent() && !globalUserOpt.get().getOrganizationId().equals(organizationId)) {
+            log.warn("Email {} belongs to another organization {}", email, globalUserOpt.get().getOrganizationId());
+            return null;
+        }
+
+        String rawPassword = StringUtils.hasText(explicitPassword) ? explicitPassword : "";
         String name = client.getDisplayName();
         String[] parts = name.split(" ", 2);
         String first = parts[0];
         String last = parts.length > 1 ? parts[1] : "";
 
         Set<RoleEntity> roles = new HashSet<>();
-        roleRepository.findByCodeAndIsSystemRoleTrue("ROLE_CLIENT_USER").ifPresent(roles::add);
+        roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
+                .or(() -> roleRepository.findByCodeAndOrganizationId("CLIENT_USER", organizationId))
+                .ifPresent(roles::add);
 
         UserEntity user = UserEntity.builder()
+                .organizationId(organizationId)
                 .email(email)
-                .passwordHash(passwordEncoder.encode(rawPassword))
+                .passwordHash(StringUtils.hasText(rawPassword) ? passwordEncoder.encode(rawPassword) : "")
                 .firstName(first)
                 .lastName(last)
                 .phone(client.getPhone())
                 .clientId(client.getId())
-                .status(UserStatus.ACTIVE)
+                .status(StringUtils.hasText(rawPassword) ? UserStatus.ACTIVE : UserStatus.INVITED)
                 .roles(roles)
                 .build();
-        user.setOrganizationId(organizationId);
 
-        user = userRepository.save(user);
-        log.info("Provisioned Client Portal user account {} for client {}", user.getId(), client.getId());
-        return user.getId();
+        try {
+            user = userRepository.save(user);
+            log.info("Provisioned Client Portal user account {} for client {}", user.getId(), client.getId());
+            return user.getId();
+        } catch (Exception ex) {
+            log.error("Failed to provision client portal user for {}: {}", email, ex.getMessage());
+            return null;
+        }
     }
 
     private MarketplaceProposalDto enrichProposalDto(
