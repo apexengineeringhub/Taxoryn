@@ -14,6 +14,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -86,8 +87,22 @@ public class S3DocumentStorageService implements DocumentStorageService {
 
         try {
             Region region = Region.of(regionStr);
-            S3ClientBuilder clientBuilder = S3Client.builder().region(region);
-            S3Presigner.Builder presignerBuilder = S3Presigner.builder().region(region);
+
+            boolean pathStyle = s3Props.isPathStyleAccess();
+            boolean chunked = s3Props.isChunkedEncodingEnabled();
+
+            S3Configuration s3Configuration = S3Configuration.builder()
+                    .pathStyleAccessEnabled(pathStyle)
+                    .chunkedEncodingEnabled(chunked)
+                    .build();
+
+            S3ClientBuilder clientBuilder = S3Client.builder()
+                    .region(region)
+                    .serviceConfiguration(s3Configuration);
+
+            S3Presigner.Builder presignerBuilder = S3Presigner.builder()
+                    .region(region)
+                    .serviceConfiguration(s3Configuration);
 
             StaticCredentialsProvider creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey.trim(), secretKey.trim()));
             clientBuilder.credentialsProvider(creds);
@@ -99,15 +114,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
                 presignerBuilder.endpointOverride(endpointUri);
             }
 
-            if (s3Props.isPathStyleAccess()) {
-                clientBuilder.forcePathStyle(true);
-            }
-
             this.s3Client = clientBuilder.build();
             this.s3Presigner = presignerBuilder.build();
 
-            log.info("Initialized S3DocumentStorageService (bucket: {}, region: {}, endpoint: {})",
-                    bucket, regionStr, StringUtils.hasText(endpoint) ? endpoint : "AWS Default");
+            String endpointHost = StringUtils.hasText(endpoint) ? URI.create(endpoint.trim()).getHost() : "AWS Default";
+            log.info("Initialized S3DocumentStorageService for Cloudflare R2 / S3 [provider=S3, bucket={}, region={}, endpointHost={}, accessKeyConfigured={}, secretKeyConfigured={}, chunkedEncoding={}, pathStyleAccess={}]",
+                    bucket, regionStr, endpointHost, StringUtils.hasText(accessKey), StringUtils.hasText(secretKey), chunked, pathStyle);
         } catch (Exception e) {
             log.error("Failed to initialize AWS S3 / Cloudflare R2 client: {}", e.getMessage(), e);
             throw new IllegalStateException("Failed to initialize S3/R2 storage client: " + e.getMessage(), e);

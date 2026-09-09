@@ -244,4 +244,34 @@ class S3DocumentStorageServiceTest {
         props.getS3().setEndpoint("https://account123.r2.cloudflarestorage.com");
         assertDoesNotThrow(() -> props.validateS3Configuration(true));
     }
+
+    @Test
+    @DisplayName("S3/R2 Configuration: Verify default R2 settings (chunkedEncoding=false, pathStyle=true)")
+    void testR2ConfigurationDefaults() {
+        StorageProperties.S3 s3 = new StorageProperties.S3();
+        assertTrue(s3.isPathStyleAccess(), "Path-style access must default to true for Cloudflare R2 compatibility");
+        assertFalse(s3.isChunkedEncodingEnabled(), "Chunked encoding must default to false for Cloudflare R2 PutObject signature compatibility");
+        assertEquals("auto", s3.getRegion());
+    }
+
+    @Test
+    @DisplayName("S3/R2 Initialization: Successfully builds S3Client and S3Presigner with R2 S3Configuration")
+    void testR2InitializationWithS3Configuration() {
+        StorageProperties props = new StorageProperties();
+        props.setProvider("S3");
+        props.getS3().setBucket("taxoryn-documents");
+        props.getS3().setRegion("auto");
+        props.getS3().setAccessKey("r2-access-key-id-12345");
+        props.getS3().setSecretKey("r2-secret-access-key-67890");
+        props.getS3().setEndpoint("https://abc123def456.r2.cloudflarestorage.com");
+        props.getS3().setPathStyleAccess(true);
+        props.getS3().setChunkedEncodingEnabled(false);
+
+        S3DocumentStorageService service = new S3DocumentStorageService(props);
+        assertDoesNotThrow(service::init, "Service init should succeed with valid R2 endpoint and credentials");
+        assertEquals("S3", service.getStorageProviderName());
+        assertTrue(service.supportsPresignedUrls());
+
+        assertDoesNotThrow(service::destroy, "Service destroy should cleanly close resources");
+    }
 }
