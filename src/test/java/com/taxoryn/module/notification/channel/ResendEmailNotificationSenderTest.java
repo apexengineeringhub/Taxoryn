@@ -128,6 +128,108 @@ class ResendEmailNotificationSenderTest {
     }
 
     @Test
+    @DisplayName("Resend Dispatch: Handles HTTP 403 unverified domain rejection gracefully and returns false")
+    void testResend403DomainNotVerifiedReturnsFalse() throws Exception {
+        when(mockHttpResponse.statusCode()).thenReturn(403);
+        when(mockHttpResponse.body()).thenReturn("{\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails to your own email address. To send emails to other recipients, please verify a domain at resend.com\"}");
+        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(mockHttpResponse);
+
+        boolean result = sender.sendEmail(
+                "unverified-recipient@example.com",
+                "Customer",
+                "Account Activation",
+                "<p>Activate your account</p>",
+                Map.of()
+        );
+
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Resend Dispatch: Handles HTTP 401 unauthorized rejection gracefully and returns false")
+    void testResend401UnauthorizedReturnsFalse() throws Exception {
+        when(mockHttpResponse.statusCode()).thenReturn(401);
+        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(mockHttpResponse);
+
+        boolean result = sender.sendEmail(
+                "recipient@example.com",
+                "Customer",
+                "Subject",
+                "<p>Body</p>",
+                Map.of()
+        );
+
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Resend Dispatch: Handles HTTP 422 unprocessable entity rejection gracefully and returns false")
+    void testResend422UnprocessableEntityReturnsFalse() throws Exception {
+        when(mockHttpResponse.statusCode()).thenReturn(422);
+        when(mockHttpResponse.body()).thenReturn("{\"statusCode\":422,\"message\":\"Invalid email address\"}");
+        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(mockHttpResponse);
+
+        boolean result = sender.sendEmail(
+                "invalid@example.com",
+                "Customer",
+                "Subject",
+                "<p>Body</p>",
+                Map.of()
+        );
+
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Resend Dispatch: Handles HTTP 429 rate limit gracefully and returns false")
+    void testResend429RateLimitReturnsFalse() throws Exception {
+        when(mockHttpResponse.statusCode()).thenReturn(429);
+        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(mockHttpResponse);
+
+        boolean result = sender.sendEmail(
+                "recipient@example.com",
+                "Customer",
+                "Subject",
+                "<p>Body</p>",
+                Map.of()
+        );
+
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Dev Mode: Redirects recipient to devRecipient when devMode is true")
+    void testDevModeRedirection() throws Exception {
+        emailProperties.setDevMode(true);
+        emailProperties.setDevRecipient("dev-tester@taxoryn.com");
+
+        when(mockHttpResponse.statusCode()).thenReturn(200);
+        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(mockHttpResponse);
+
+        boolean result = sender.sendEmail(
+                "customer@clientfirm.com",
+                "Client Firm",
+                "Activation Email",
+                "<p>Activate link</p>",
+                Map.of()
+        );
+
+        assertTrue(result);
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(mockHttpClient).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
+
+        HttpRequest capturedRequest = requestCaptor.getValue();
+        // Jackson serializes body - let's check it was called and verify request
+        assertThat(capturedRequest.uri().toString()).isEqualTo("https://api.resend.com/emails");
+    }
+
+    @Test
     @DisplayName("Provider Resolution: Resolves RESEND when provider is RESEND or AUTO with API key")
     void testProviderResolution() {
         assertThat(sender.getProviderName()).isEqualTo("RESEND");

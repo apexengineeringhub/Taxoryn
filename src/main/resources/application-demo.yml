@@ -91,6 +91,8 @@ taxoryn:
     activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
+    dev-mode: ${TAXORYN_MAIL_DEV_MODE:${MAIL_DEV_MODE:false}}
+    dev-recipient: ${TAXORYN_MAIL_DEV_RECIPIENT:${MAIL_DEV_RECIPIENT:}}
   jwt:
     # SECURITY: no default here on purpose - see application-prod.yml note. The demo
     # environment is public-facing, so it must not fall back to the known repo default either.

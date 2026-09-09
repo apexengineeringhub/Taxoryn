@@ -79,6 +79,8 @@ taxoryn:
     activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
+    dev-mode: false
+    dev-recipient: ""
   jwt:
     # SECURITY: Injected via JWT_SECRET runtime variable.
     # ProductionSecurityValidator ensures secret is non-null, >= 256 bits, and not a known default.

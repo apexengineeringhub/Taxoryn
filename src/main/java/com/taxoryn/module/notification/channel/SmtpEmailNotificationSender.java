@@ -49,6 +49,9 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
         String fromName = emailProperties != null ? emailProperties.getFromName() : "Taxoryn";
         String replyTo = emailProperties != null ? emailProperties.getReplyTo() : "info@taxoryn.com";
         String provider = emailProperties != null ? emailProperties.getProvider() : "AUTO";
+        boolean hasResendKey = emailProperties != null && org.springframework.util.StringUtils.hasText(emailProperties.getResendApiKey());
+        boolean hasBrevoKey = emailProperties != null && org.springframework.util.StringUtils.hasText(emailProperties.getBrevoApiKey());
+        boolean devMode = emailProperties != null && emailProperties.isDevMode();
 
         String maskedUsername = maskEmailOrUser(mailUsername);
 
@@ -60,6 +63,9 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
         log.info("Mail Username      : {}", maskedUsername);
         log.info("Effective From     : {} <{}>", fromName, fromAddress);
         log.info("Effective Reply-To : {}", replyTo);
+        log.info("Dev Email Mode     : {}", devMode);
+        log.info("Resend API Key     : {}", (hasResendKey ? "CONFIGURED" : "NOT CONFIGURED"));
+        log.info("Brevo API Key      : {}", (hasBrevoKey ? "CONFIGURED" : "NOT CONFIGURED"));
         log.info("JavaMailSender     : {}", (javaMailSender != null ? "INITIALIZED (ready)" : "NOT CONFIGURED"));
         log.info("==================================================");
     }
@@ -89,7 +95,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
     public boolean sendEmail(String recipientEmail, String recipientName, String subject, String content, Map<String, Object> templateData) {
         if (!emailProperties.isEnabled() || "LOG".equalsIgnoreCase(emailProperties.getProvider())) {
             log.info("[EMAIL_LOG] To: '{}' <{}> | Subject: '{}' | Provider: LOG (Simulated dispatch)",
-                    recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
+                    recipientName != null ? recipientName : "Recipient", maskEmailOrUser(recipientEmail), subject);
             return true;
         }
 
@@ -113,12 +119,12 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
         // 4. Fallback: If no real provider configured, check if LOG mode was intended
         if ("LOG".equalsIgnoreCase(provider)) {
             log.info("[EMAIL_LOG] To: '{}' <{}> | Subject: '{}' | Provider: LOG (No live email transport configured)",
-                    recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
+                    recipientName != null ? recipientName : "Recipient", maskEmailOrUser(recipientEmail), subject);
             return true;
         }
 
         log.warn("[EMAIL_DELIVERY_FAILED] No active email transport configured. To: '{}' <{}> | Subject: '{}'",
-                recipientName != null ? recipientName : "Recipient", recipientEmail, subject);
+                recipientName != null ? recipientName : "Recipient", maskEmailOrUser(recipientEmail), subject);
         return false;
     }
 
@@ -166,12 +172,23 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
 
             if (!StringUtils.hasText(apiKey)) {
                 if (javaMailSender != null) {
-                    log.info("Resend API key missing; falling back to SMTP for recipient {}", recipientEmail);
+                    log.info("Resend API key missing; falling back to SMTP for recipient {}", maskEmailOrUser(recipientEmail));
                     return sendViaSmtp(recipientEmail, recipientName, subject, htmlContent);
                 }
                 log.warn("Resend provider selected but RESEND_API_KEY is missing. Falling back to log dispatch.");
-                log.info("[EMAIL_LOG_FALLBACK] To: '{}' <{}> | Subject: '{}'", recipientName, recipientEmail, subject);
+                log.info("[EMAIL_LOG_FALLBACK] To: '{}' <{}> | Subject: '{}'", recipientName, maskEmailOrUser(recipientEmail), subject);
                 return true;
+            }
+
+            String targetRecipient = recipientEmail.trim();
+            boolean isDevRedirected = false;
+            if (emailProperties.isDevMode() && StringUtils.hasText(emailProperties.getDevRecipient())) {
+                targetRecipient = emailProperties.getDevRecipient().trim();
+                isDevRedirected = true;
+                log.info("[DEV_EMAIL_MODE] Redirecting email intended for '{}' <{}> to dev recipient <{}>",
+                        recipientName != null ? recipientName : "Recipient",
+                        maskEmailOrUser(recipientEmail),
+                        maskEmailOrUser(targetRecipient));
             }
 
             String fromAddress = StringUtils.hasText(emailProperties.getFromEmail()) ? emailProperties.getFromEmail() : "info@taxoryn.com";
@@ -180,7 +197,7 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("from", formattedFrom);
-            payload.put("to", Collections.singletonList(recipientEmail));
+            payload.put("to", Collections.singletonList(targetRecipient));
             payload.put("subject", subject);
             payload.put("html", htmlContent);
 
@@ -201,15 +218,36 @@ public class SmtpEmailNotificationSender implements EmailNotificationSender {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info("[EMAIL_SENT_RESEND] Successfully dispatched email via Resend API to '{}' <{}> (status={})",
-                        recipientName != null ? recipientName : "Recipient", recipientEmail, response.statusCode());
+                log.info("[EMAIL_SENT_RESEND] Successfully dispatched email via Resend API to '{}' <{}> (status={}{})",
+                        recipientName != null ? recipientName : "Recipient",
+                        maskEmailOrUser(targetRecipient),
+                        response.statusCode(),
+                        isDevRedirected ? ", dev_redirect=true" : "");
                 return true;
+            } else if (response.statusCode() == 403) {
+                log.warn("[RESEND_DOMAIN_NOT_VERIFIED] Resend rejected email dispatch (HTTP 403 Forbidden). "
+                        + "Reason: Sending domain for '{}' is not verified in Resend dashboard (https://resend.com/domains), "
+                        + "or account is in testing mode and target recipient <{}> is not the verified account owner. "
+                        + "Provider error: {}",
+                        fromAddress,
+                        maskEmailOrUser(targetRecipient),
+                        response.body());
+                return false;
+            } else if (response.statusCode() == 401) {
+                log.warn("[RESEND_UNAUTHORIZED] Resend API rejected dispatch (HTTP 401 Unauthorized). Check RESEND_API_KEY.");
+                return false;
+            } else if (response.statusCode() == 422) {
+                log.warn("[RESEND_UNPROCESSABLE_ENTITY] Resend rejected email payload (HTTP 422 Unprocessable Entity): {}", response.body());
+                return false;
+            } else if (response.statusCode() == 429) {
+                log.warn("[RESEND_RATE_LIMITED] Resend API rate limit exceeded (HTTP 429).");
+                return false;
             } else {
-                log.warn("Resend API rejected dispatch (HTTP {}): {}", response.statusCode(), response.body());
+                log.warn("[RESEND_DELIVERY_FAILED] Resend API rejected dispatch (HTTP {}): {}", response.statusCode(), response.body());
                 return false;
             }
         } catch (Exception ex) {
-            log.error("Failed sending email via Resend HTTPS API to {}: {}", recipientEmail, ex.getMessage(), ex);
+            log.error("Failed sending email via Resend HTTPS API to {}: {}", maskEmailOrUser(recipientEmail), ex.getMessage(), ex);
             return false;
         }
     }

@@ -126,6 +126,9 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.mail.reply-to:${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:info@taxoryn.com}}}")
     private String mailReplyTo;
 
+    @Value("${taxoryn.mail.dev-mode:false}")
+    private boolean mailDevMode;
+
     @Value("${taxoryn.whatsapp.enabled:false}")
     private boolean whatsappEnabled;
 
@@ -285,6 +288,12 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
 
     private void validateNotificationConfiguration() {
         if (mailEnabled) {
+            if (mailDevMode) {
+                String error = "CRITICAL SECURITY VIOLATION: 'taxoryn.mail.dev-mode' cannot be true in a production environment";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
             if (StringUtils.hasText(mailFromEmail)) {
                 String lowerFrom = mailFromEmail.trim().toLowerCase();
                 if (lowerFrom.contains("@gmail.com") || lowerFrom.contains("@yahoo.com") || lowerFrom.contains("@example.com")) {

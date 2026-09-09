@@ -45,6 +45,8 @@ taxoryn:
     from-address: ${MAIL_FROM_ADDRESS:${MAIL_FROM_EMAIL:${TAXORYN_EMAIL_FROM:info@taxoryn.com}}}
     from-name: ${MAIL_FROM_NAME:${TAXORYN_EMAIL_FROM_NAME:Taxoryn}}
     reply-to: ${MAIL_REPLY_TO:${TAXORYN_EMAIL_REPLY_TO:info@taxoryn.com}}
+    dev-mode: ${TAXORYN_MAIL_DEV_MODE:${MAIL_DEV_MODE:false}}
+    dev-recipient: ${TAXORYN_MAIL_DEV_RECIPIENT:${MAIL_DEV_RECIPIENT:}}
   storage:
     provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:LOCAL}}
     presigned-url-duration-minutes: ${STORAGE_PRESIGNED_URL_DURATION_MINUTES:15}
