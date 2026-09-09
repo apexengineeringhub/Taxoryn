@@ -107,6 +107,8 @@ taxoryn:
     activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
     resend-api-key: ${RESEND_API_KEY:}
     brevo-api-key: ${BREVO_API_KEY:}
+    dev-mode: ${TAXORYN_MAIL_DEV_MODE:${MAIL_DEV_MODE:false}}
+    dev-recipient: ${TAXORYN_MAIL_DEV_RECIPIENT:${MAIL_DEV_RECIPIENT:}}
 
 # OpenAPI / Swagger
 springdoc:
