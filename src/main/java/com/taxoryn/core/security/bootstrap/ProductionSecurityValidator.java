@@ -296,8 +296,9 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
 
             if (StringUtils.hasText(mailFromEmail)) {
                 String lowerFrom = mailFromEmail.trim().toLowerCase();
-                if (lowerFrom.contains("@gmail.com") || lowerFrom.contains("@yahoo.com") || lowerFrom.contains("@example.com")) {
-                    String error = "CRITICAL SECURITY VIOLATION: Production mail sender (MAIL_FROM_ADDRESS / MAIL_FROM_EMAIL / TAXORYN_EMAIL_FROM) cannot use consumer or example mailbox ('" + mailFromEmail + "'). Use a verified domain (e.g., info@taxoryn.com)";
+                if (lowerFrom.contains("@gmail.com") || lowerFrom.contains("@yahoo.com") || lowerFrom.contains("@example.com")
+                        || lowerFrom.contains("onboarding@resend.dev") || lowerFrom.contains("@resend.dev")) {
+                    String error = "CRITICAL SECURITY VIOLATION: Production mail sender (MAIL_FROM_ADDRESS / MAIL_FROM_EMAIL / TAXORYN_EMAIL_FROM) cannot use consumer, test, or example mailbox ('" + mailFromEmail + "'). Use a verified domain (e.g., info@taxoryn.com)";
                     log.error(error);
                     throw new IllegalStateException(error);
                 }
