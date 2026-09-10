@@ -32,6 +32,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { TaxorynLogo } from '../common/TaxorynLogo';
+import { filterNavigationByPermissions, NavigationItem } from '../../utils/permissionUtils';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -43,7 +44,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
-  const { user, logout, practiceName, practiceInitials, subscriptionPlan } = useAuth();
+  const { user, logout, practiceName, practiceInitials, subscriptionPlan, isLoading } = useAuth();
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
 
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
@@ -63,8 +64,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   const isFirmAdmin = !isSuperAdmin && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
   const isStaff = !isSuperAdmin && !isFirmAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
-  const userPermissions = user?.permissions || [];
-  const hasBillingAccess = isFirmAdmin || userPermissions.includes('BILLING_VIEW') || userPermissions.includes('BILLING_READ');
 
   // Dynamic Workspace Definition
   const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
@@ -82,55 +81,53 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   };
 
   // 1. Platform SuperAdmin & Platform Role Nav Items (Strictly role-resolved)
-  const platformNavItems = platformWorkspace?.navigation?.map(item => ({
+  const platformNavItems: NavigationItem[] = platformWorkspace?.navigation?.map(item => ({
     ...item,
-    visible: true,
   })) || [
-    { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard, visible: true },
+    { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
   ];
 
   // 2. Client / Taxpayer Customer Portal Nav Items
-  const clientNavItems = [
-    { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard, visible: true },
-    { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2, visible: true },
-    { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet, visible: true },
-    { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent, visible: true },
-    { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
-    { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
-    { label: 'Find CA / CS / Advocates', path: '/marketplace/explore', icon: Store, visible: true },
-    { label: 'Security & Password', path: '/settings/security', icon: Lock, visible: true },
-    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
+  const clientNavItems: NavigationItem[] = [
+    { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard },
+    { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2 },
+    { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet },
+    { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent },
+    { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt },
+    { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock },
+    { label: 'Find CA / CS / Advocates', path: '/marketplace/explore', icon: Store },
+    { label: 'Security & Password', path: '/settings/security', icon: Lock },
+    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
   ];
 
-  // 3. Practice Operations Suite (Tenant Admin & Practice Staff)
-  const practiceNavItems = [
-    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, visible: true },
-    { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, visible: true },
-    { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, visible: true },
-    { label: 'GST Compliance', path: '/gst', icon: Building2, visible: true },
-    { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, visible: true },
-    { label: 'TDS Compliance', path: '/tds', icon: Percent, visible: true },
-    { label: 'Tax Calendar', path: '/calendar', icon: Calendar, visible: true },
-    { label: 'Document Vault', path: '/documents', icon: FolderLock, visible: true },
-    { label: 'Billing & Invoices', path: '/billing', icon: Receipt, visible: hasBillingAccess },
-    { label: 'Reports', path: '/reports', icon: BarChart3, visible: true },
-    { label: 'Notification Center', path: '/notifications', icon: Bell, visible: true },
-    { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, visible: isFirmAdmin },
-    { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, visible: isFirmAdmin },
-    { label: 'Client Portal Hub', path: '/portal', icon: Globe, visible: isFirmAdmin },
-    { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, visible: true },
-    { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, visible: isFirmAdmin },
-    { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, visible: isFirmAdmin },
-    { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, visible: isFirmAdmin },
-    { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, visible: isFirmAdmin },
-    { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, visible: isFirmAdmin },
-    { label: 'Security & Password', path: '/settings/security', icon: Lock, visible: true },
-    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
+  // 3. Practice Operations Suite (Tenant Admin & Practice Staff) - Permission & Role aware
+  const practiceNavItems: NavigationItem[] = [
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'] },
+    { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'] },
+    { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'] },
+    { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'] },
+    { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
+    { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
+    { label: 'Document Vault', path: '/documents', icon: FolderLock, requiredPermissions: ['DOCUMENT_VIEW'] },
+    { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
+    { label: 'Notification Center', path: '/notifications', icon: Bell },
+    { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, requiredPermissions: ['AUDIT_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Security & Password', path: '/settings/security', icon: Lock },
+    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
   ];
 
-  const navItems = (
-    isSuperAdmin ? platformNavItems : isClientUser ? clientNavItems : practiceNavItems
-  ).filter((item) => item.visible);
+  const rawNavItems = isSuperAdmin ? platformNavItems : isClientUser ? clientNavItems : practiceNavItems;
+  const navItems = filterNavigationByPermissions(rawNavItems, user);
 
   const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(
     currentTheme.sidebarHeaderBg.toUpperCase()
@@ -235,31 +232,51 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            onClick={onClose}
-            style={({ isActive }) =>
-              isActive ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}
-            }
-            className={({ isActive }) =>
-              clsx(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all group',
-                isActive
-                  ? 'text-white shadow-sm font-bold'
-                  : isLight
-                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
-                  : 'text-slate-400 hover:text-white hover:bg-white/10'
-              )
-            }
-          >
-            <item.icon className="w-4 h-4 shrink-0 transition-colors" />
-            <span className="truncate">{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {isLoading ? (
+        <div className="flex-1 px-3 py-4 space-y-2 animate-pulse">
+          {Array.from({ length: 9 }).map((_, idx) => (
+            <div
+              key={idx}
+              className={clsx(
+                'h-8 rounded-lg flex items-center px-3 gap-3',
+                isLight ? 'bg-slate-100/70' : 'bg-white/5'
+              )}
+            >
+              <div className={clsx('w-4 h-4 rounded', isLight ? 'bg-slate-200' : 'bg-white/10')} />
+              <div
+                className={clsx('h-3 rounded', isLight ? 'bg-slate-200' : 'bg-white/10')}
+                style={{ width: `${60 + (idx % 4) * 15}%` }}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={onClose}
+              style={({ isActive }) =>
+                isActive ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}
+              }
+              className={({ isActive }) =>
+                clsx(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all group',
+                  isActive
+                    ? 'text-white shadow-sm font-bold'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                )
+              }
+            >
+              <item.icon className="w-4 h-4 shrink-0 transition-colors" />
+              <span className="truncate">{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
       {/* User Footer */}
       <div

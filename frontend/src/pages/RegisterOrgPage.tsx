@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, ArrowRight, AlertCircle, Sparkles, Mail, CheckCircle2 } from 'lucide-react';
+import { Building2, ArrowRight, AlertCircle, Sparkles, Mail, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { authApi } from '../api/endpoints';
+import { evaluatePasswordStrength } from '../utils/passwordUtils';
 
 export const RegisterOrgPage: React.FC = () => {
   const isDemoEnvironment = Boolean(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true');
@@ -20,12 +21,21 @@ export const RegisterOrgPage: React.FC = () => {
     adminPassword: '',
   });
 
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const navigate = useNavigate();
+
+  const passwordStrength = evaluatePasswordStrength(formData.adminPassword);
+  const passwordsMatch = formData.adminPassword.length > 0 && formData.adminPassword === confirmPassword;
+  const passwordMismatch = confirmPasswordTouched && confirmPassword.length > 0 && formData.adminPassword !== confirmPassword;
 
   const handleQuickFillSample = () => {
     if (!isDemoEnvironment) return;
@@ -40,6 +50,8 @@ export const RegisterOrgPage: React.FC = () => {
       adminPhone: '+919876543210',
       adminPassword: 'Password123!',
     });
+    setConfirmPassword('Password123!');
+    setConfirmPasswordTouched(true);
     setFieldErrors({});
     setGeneralError('');
   };
@@ -50,7 +62,7 @@ export const RegisterOrgPage: React.FC = () => {
     setGeneralError('');
     setIsLoading(true);
 
-    // Client-side quick check
+    // Client-side validation
     const errors: Record<string, string> = {};
     if (formData.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.pan.trim().toUpperCase())) {
       errors.pan = 'Invalid PAN format. Must be 5 letters, 4 digits, 1 letter (e.g. AABFA1234K)';
@@ -58,8 +70,15 @@ export const RegisterOrgPage: React.FC = () => {
     if (formData.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gstin.trim().toUpperCase())) {
       errors.gstin = 'Invalid GSTIN format (e.g. 27AABFA1234K1Z5)';
     }
-    if (formData.adminPassword && formData.adminPassword.length < 8) {
+    if (!formData.adminPassword) {
+      errors.adminPassword = 'Admin password is required';
+    } else if (formData.adminPassword.length < 8) {
       errors.adminPassword = 'Password must be at least 8 characters long';
+    }
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Confirm password is required';
+    } else if (formData.adminPassword !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -304,23 +323,113 @@ export const RegisterOrgPage: React.FC = () => {
             )}
           </div>
 
-          {/* Password */}
+          {/* Admin Password */}
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              Admin Password * <span className="text-[10px] text-slate-400 font-normal">(Min 8 chars, e.g. Password123!)</span>
-            </label>
-            <input
-              type="password"
-              required
-              placeholder="••••••••••••"
-              value={formData.adminPassword}
-              onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                fieldErrors.adminPassword ? 'border-rose-400 focus:ring-rose-500/20 bg-rose-50/20' : 'border-slate-200 focus:ring-brand-500'
-              }`}
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-slate-700">
+                Admin Password * <span className="text-[10px] text-slate-400 font-normal">(Min 8 chars)</span>
+              </label>
+              {formData.adminPassword.length > 0 && (
+                <span className={`text-[11px] font-semibold ${passwordStrength.colorClass}`}>
+                  {passwordStrength.label}
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type={showAdminPassword ? 'text' : 'password'}
+                required
+                autoComplete="new-password"
+                placeholder="••••••••••••"
+                value={formData.adminPassword}
+                onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
+                className={`w-full px-3 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 ${
+                  fieldErrors.adminPassword ? 'border-rose-400 focus:ring-rose-500/20 bg-rose-50/20' : 'border-slate-200 focus:ring-brand-500'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowAdminPassword(!showAdminPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                aria-label={showAdminPassword ? 'Hide admin password' : 'Show admin password'}
+                title={showAdminPassword ? 'Hide password' : 'Show password'}
+              >
+                {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {/* Strength meter bar */}
+            {formData.adminPassword.length > 0 && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden flex gap-1">
+                  {[1, 2, 3, 4].map((step) => (
+                    <div
+                      key={step}
+                      className={`h-full flex-1 rounded-full transition-all duration-300 ${
+                        passwordStrength.score >= step
+                          ? passwordStrength.bgColorClass
+                          : 'bg-slate-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             {fieldErrors.adminPassword && (
               <p className="text-rose-600 text-[11px] font-medium mt-1">{fieldErrors.adminPassword}</p>
+            )}
+          </div>
+
+          {/* Confirm Admin Password */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              Confirm Admin Password *
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                required
+                autoComplete="new-password"
+                placeholder="••••••••••••"
+                value={confirmPassword}
+                onBlur={() => setConfirmPasswordTouched(true)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (!confirmPasswordTouched) setConfirmPasswordTouched(true);
+                }}
+                className={`w-full px-3 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 ${
+                  fieldErrors.confirmPassword || passwordMismatch
+                    ? 'border-rose-400 focus:ring-rose-500/20 bg-rose-50/20'
+                    : passwordsMatch && confirmPassword.length > 0
+                    ? 'border-emerald-400 focus:ring-emerald-500/20 bg-emerald-50/20'
+                    : 'border-slate-200 focus:ring-brand-500'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                title={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {/* Real-time match indicator */}
+            {confirmPassword.length > 0 && (
+              <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium" role="status">
+                {passwordsMatch ? (
+                  <span className="text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Passwords match
+                  </span>
+                ) : (
+                  <span className="text-rose-600 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" /> Passwords do not match
+                  </span>
+                )}
+              </div>
+            )}
+            {fieldErrors.confirmPassword && !confirmPassword && (
+              <p className="text-rose-600 text-[11px] font-medium mt-1">{fieldErrors.confirmPassword}</p>
             )}
           </div>
 
