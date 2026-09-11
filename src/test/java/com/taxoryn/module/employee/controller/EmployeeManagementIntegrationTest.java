@@ -117,6 +117,7 @@ class EmployeeManagementIntegrationTest {
 
         roleRepository.save(RoleEntity.builder().code("PRACTITIONER").name("Practitioner").isSystemRole(true).permissions(new HashSet<>()).build());
         roleRepository.save(RoleEntity.builder().code("TAX_PROFESSIONAL").name("Tax Professional").isSystemRole(true).permissions(new HashSet<>()).build());
+        roleRepository.save(RoleEntity.builder().code("ACCOUNTANT").name("Staff Accountant").isSystemRole(true).permissions(new HashSet<>()).build());
         roleRepository.save(RoleEntity.builder().code("STAFF").name("Staff").isSystemRole(true).permissions(new HashSet<>()).build());
         roleRepository.save(RoleEntity.builder().code("SUPER_ADMIN").name("Super Admin").isSystemRole(true).permissions(new HashSet<>()).build());
         roleRepository.save(RoleEntity.builder().code("FEEDBACK_OPS").name("Feedback Ops").isSystemRole(true).permissions(new HashSet<>()).build());
@@ -626,4 +627,30 @@ class EmployeeManagementIntegrationTest {
                         .content(objectMapper.writeValueAsString(roleRequest)))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("18. Verify Role vs Designation distinctness: ACCOUNTANT role maps to 'Staff Accountant' while designation remains 'Senior Tax Associate'")
+    void testRoleVsDesignationDistinctness() throws Exception {
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .firstName("Ani")
+                .lastName("Vedant")
+                .email("ani.vedant@vermatax.com")
+                .phone("+919876543299")
+                .department("Taxation")
+                .designation("Senior Tax Associate")
+                .roleCode("ACCOUNTANT")
+                .build();
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.roleCode").value("ACCOUNTANT"))
+                .andExpect(jsonPath("$.data.roleName").value("Staff Accountant"))
+                .andExpect(jsonPath("$.data.designation").value("Senior Tax Associate"))
+                .andExpect(jsonPath("$.data.department").value("Taxation"));
+    }
 }
+

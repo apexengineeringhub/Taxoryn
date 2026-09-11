@@ -204,14 +204,14 @@ export const TeamManagementPage: React.FC = () => {
             </div>
             <div>
               <span className="font-bold text-slate-900 block">{row.firstName} {row.lastName || ''}</span>
-              <span className="font-mono text-[10px] text-slate-500 font-semibold block">{row.employeeNumber || row.employeeCode} • <span className="font-normal text-slate-400">{row.designation}</span></span>
+              <span className="font-mono text-[10px] text-slate-500 font-semibold block">{row.employeeNumber || row.employeeCode}</span>
             </div>
           </div>
         );
       },
     },
     {
-      header: 'Practice Role',
+      header: 'Practice Role (RBAC)',
       accessor: (row) => {
         const roleDisplay = row.roleName || (
           roles.find((r) => r.code === row.roleCode)?.name || row.roleCode || 'Practitioner'
@@ -235,12 +235,18 @@ export const TeamManagementPage: React.FC = () => {
       },
     },
     {
-      header: 'Email Address',
-      accessor: (row) => <span className="text-xs text-slate-700">{row.email}</span>,
+      header: 'Designation',
+      accessor: (row) => (
+        <span className="text-xs font-medium text-slate-800">{row.designation || 'Staff Associate'}</span>
+      ),
     },
     {
       header: 'Department',
       accessor: (row) => <span className="text-xs font-medium text-slate-700">{row.department || 'General Tax'}</span>,
+    },
+    {
+      header: 'Email Address',
+      accessor: (row) => <span className="text-xs text-slate-700">{row.email}</span>,
     },
     {
       header: 'Status',

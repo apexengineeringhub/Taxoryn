@@ -250,7 +250,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Designation</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Designation (Job Title)</label>
               <select
                 value={designation}
                 onChange={(e) => setDesignation(e.target.value)}
@@ -280,7 +280,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
               <option value="PRACTITIONER">Tax Practitioner / CA (PRACTITIONER)</option>
               <option value="PARTNER">Practice Partner / CA (PARTNER)</option>
               <option value="ARTICLE_ASSISTANT">Article Assistant (ARTICLE_ASSISTANT)</option>
-              <option value="ACCOUNTANT">Senior Accountant (ACCOUNTANT)</option>
+              <option value="ACCOUNTANT">Staff Accountant (ACCOUNTANT)</option>
               <option value="STAFF">Practice Staff (STAFF)</option>
               <option value="ORG_ADMIN">Organization Administrator (ORG_ADMIN)</option>
             </select>
