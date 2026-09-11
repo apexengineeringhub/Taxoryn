@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   FileSpreadsheet,
   CheckCircle2,
@@ -44,6 +44,7 @@ import {
 import clsx from 'clsx';
 
 export const TdsCompliancePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   // Main State
   const [activeMainTab, setActiveMainTab] = useState<'RETURNS' | 'PROFILES' | 'CHALLANS' | 'CALCULATOR' | 'CERTIFICATES'>('RETURNS');
   const [selectedQuarter, setSelectedQuarter] = useState<string>('Q1');
@@ -123,6 +124,16 @@ export const TdsCompliancePage: React.FC = () => {
   useEffect(() => {
     loadAllData();
   }, [selectedQuarter, financialYear]);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
+      const targetClientId = searchParams.get('clientId');
+      if (targetClientId) {
+        setNewProfileClientId(targetClientId);
+      }
+      setIsBatchModalOpen(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     runCalculation();

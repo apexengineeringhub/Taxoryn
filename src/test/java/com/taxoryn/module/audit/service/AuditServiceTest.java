@@ -8,6 +8,7 @@ import com.taxoryn.module.audit.dto.AuditLogFilterRequest;
 import com.taxoryn.module.audit.dto.AuditRecordRequest;
 import com.taxoryn.module.audit.entity.AuditLogEntity;
 import com.taxoryn.module.audit.repository.AuditLogRepository;
+import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -50,6 +51,9 @@ class AuditServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ClientRepository clientRepository;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -195,5 +199,53 @@ class AuditServiceTest {
         assertEquals("GST_PROFILE_CREATED", response.getContent().get(0).getAction());
         assertEquals("GST_PROFILE", response.getContent().get(0).getEntityType());
         assertEquals("trace-gst-1", response.getContent().get(0).getRequestId());
+        assertEquals("BUSINESS", response.getContent().get(0).getCategory());
+    }
+
+    @Test
+    @DisplayName("Should correctly classify actions into categories")
+    void testResolveCategory() {
+        assertEquals("SECURITY", AuditServiceImpl.resolveCategory("REFRESH_TOKEN_ROTATED"));
+        assertEquals("SECURITY", AuditServiceImpl.resolveCategory("TOKEN_REUSE_DETECTED"));
+        assertEquals("SECURITY", AuditServiceImpl.resolveCategory("SESSION_REVOKED"));
+        assertEquals("ACCESS", AuditServiceImpl.resolveCategory("LOGIN_SUCCESS"));
+        assertEquals("ACCESS", AuditServiceImpl.resolveCategory("CLIENT_PORTAL_USER_INVITED"));
+        assertEquals("SYSTEM", AuditServiceImpl.resolveCategory("SYSTEM_INITIALIZED"));
+        assertEquals("SYSTEM", AuditServiceImpl.resolveCategory("DATABASE_MIGRATION"));
+        assertEquals("BUSINESS", AuditServiceImpl.resolveCategory("CLIENT_CREATED"));
+        assertEquals("BUSINESS", AuditServiceImpl.resolveCategory("GST_FILING_SUBMITTED"));
+        assertEquals("BUSINESS", AuditServiceImpl.resolveCategory("INVOICE_CREATED"));
+    }
+
+    @Test
+    @DisplayName("Should sanitize and mask sensitive tokens and passwords in audit log payloads")
+    void testPayloadSanitization() {
+        UUID entityId = UUID.randomUUID();
+        AuditRecordRequest request = AuditRecordRequest.builder()
+                .organizationId(tenantId)
+                .userId(userId)
+                .action("REFRESH_TOKEN_ROTATED")
+                .entityType("AUTH")
+                .entityId(entityId.toString())
+                .oldValue("{\"refreshToken\": \"raw-old-token-secret-123\", \"userId\": \"user-1\"}")
+                .newValue("{\"refreshToken\": \"raw-new-token-secret-456\", \"password\": \"secret123\", \"userId\": \"user-1\"}")
+                .build();
+
+        when(auditLogRepository.save(any(AuditLogEntity.class))).thenAnswer(invocation -> {
+            AuditLogEntity saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        AuditLogDto result = auditService.recordAudit(request);
+
+        assertNotNull(result);
+        assertEquals("SECURITY", result.getCategory());
+        // Verify raw secrets are not present
+        org.junit.jupiter.api.Assertions.assertFalse(result.getOldValue().contains("raw-old-token-secret-123"));
+        org.junit.jupiter.api.Assertions.assertFalse(result.getNewValue().contains("raw-new-token-secret-456"));
+        org.junit.jupiter.api.Assertions.assertFalse(result.getNewValue().contains("secret123"));
+        org.junit.jupiter.api.Assertions.assertTrue(result.getOldValue().contains("***MASKED***"));
+        org.junit.jupiter.api.Assertions.assertTrue(result.getNewValue().contains("***MASKED***"));
     }
 }

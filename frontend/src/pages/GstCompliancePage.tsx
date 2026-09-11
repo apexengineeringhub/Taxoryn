@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Building2,
   CheckCircle2,
@@ -34,6 +34,7 @@ import { GstReturnFiling, GstProfile, Client } from '../types';
 import clsx from 'clsx';
 
 export const GstCompliancePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [filings, setFilings] = useState<GstReturnFiling[]>([]);
   const [profiles, setProfiles] = useState<GstProfile[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
@@ -45,7 +46,9 @@ export const GstCompliancePage: React.FC = () => {
   const [detailTab, setDetailTab] = useState<'OVERVIEW' | 'WORKFLOW' | 'TASK' | 'DOCUMENTS' | 'DOC_REQUEST'>('WORKFLOW');
   const [isFilingModalOpen, setIsFilingModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [isNewFilingModalOpen, setIsNewFilingModalOpen] = useState(false);
+  const [isNewFilingModalOpen, setIsNewFilingModalOpen] = useState(
+    () => searchParams.get('action') === 'new' || searchParams.get('create') === 'true'
+  );
   const [isDocReqModalOpen, setIsDocReqModalOpen] = useState(false);
 
   // Record Filing Form
@@ -98,6 +101,12 @@ export const GstCompliancePage: React.FC = () => {
     loadProfiles();
   }, [activeTab]);
 
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
+      setIsNewFilingModalOpen(true);
+    }
+  }, [searchParams]);
+
   const loadFilings = async () => {
     try {
       setIsLoading(true);
@@ -115,7 +124,15 @@ export const GstCompliancePage: React.FC = () => {
   const loadProfiles = async () => {
     try {
       const res = await gstApi.getProfiles();
-      setProfiles(res.content || []);
+      const profList = res.content || [];
+      setProfiles(profList);
+      const paramClientId = searchParams.get('clientId');
+      if (paramClientId) {
+        const matchingProfile = profList.find((p: GstProfile) => p.clientId === paramClientId);
+        if (matchingProfile) {
+          setNewProfileId(matchingProfile.id);
+        }
+      }
     } catch (err) {
       console.error('Failed to load GST profiles', err);
     }

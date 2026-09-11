@@ -45,6 +45,8 @@ interface PracticePublicProfilePageProps {
 
 export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps> = ({ overrideSlug }) => {
   const { user, isAuthenticated } = useAuth();
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code));
+  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN', 'PRACTICE_CLIENT'].includes(r));
   const { slug: routeSlug, id } = useParams<{ slug?: string; id?: string }>();
   const slug = overrideSlug || routeSlug;
   const navigate = useNavigate();
@@ -110,6 +112,10 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
   const isProfessionalRoute = location.pathname.startsWith('/professional');
 
   const fetchProfileData = async () => {
+    if (slug === 'explore') {
+      navigate('/marketplace/explore', { replace: true });
+      return;
+    }
     setIsLoading(true);
     setErrorStatus(null);
     try {
@@ -379,13 +385,13 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
             <Building2 className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Practice Profile Unavailable</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Practice profile unavailable</h1>
             <p className="text-slate-600 text-sm mt-2">
-              The requested practice profile is either private, under verification, or does not exist.
+              This practice profile isn't currently available. It may be private, under verification, or no longer active.
             </p>
           </div>
           <div className="pt-2 flex flex-col gap-3">
-            <Button variant="primary" onClick={() => navigate('/marketplace')} className="w-full">
+            <Button variant="primary" onClick={() => navigate('/marketplace/explore')} className="w-full">
               Explore Verified Tax Practices
             </Button>
             <Button variant="outline" onClick={() => navigate('/learn')} className="w-full">
@@ -465,9 +471,17 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
             <span className="truncate max-w-[200px] sm:max-w-none">{profile.displayName} • Official Portal</span>
           </div>
 
-          {searchParams.get('from') === 'marketplace' ? (
+          {isAuthenticated && user ? (
             <Link
-              to="/marketplace"
+              to={isClientUser ? '/portal' : '/dashboard'}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
+            >
+              <User className="w-3.5 h-3.5 text-indigo-300" />
+              {isClientUser ? 'My Client Portal' : 'Dashboard'}
+            </Link>
+          ) : searchParams.get('from') === 'marketplace' ? (
+            <Link
+              to="/marketplace/explore"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-md text-xs font-medium transition-all"
             >
               <ArrowLeft className="w-3.5 h-3.5" />

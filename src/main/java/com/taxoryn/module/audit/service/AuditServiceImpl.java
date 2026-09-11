@@ -3,6 +3,7 @@ package com.taxoryn.module.audit.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taxoryn.core.dto.PageRequestDto;
+import com.taxoryn.core.exception.ForbiddenException;
 import com.taxoryn.core.filter.MdcLoggingFilter;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.SecurityUtils;
@@ -12,6 +13,8 @@ import com.taxoryn.module.audit.dto.AuditLogFilterRequest;
 import com.taxoryn.module.audit.dto.AuditRecordRequest;
 import com.taxoryn.module.audit.entity.AuditLogEntity;
 import com.taxoryn.module.audit.repository.AuditLogRepository;
+import com.taxoryn.module.client.entity.ClientEntity;
+import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.dashboard.dto.PlatformDashboardSummaryDto.RecentPlatformActivityDto;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
@@ -35,6 +38,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -45,7 +49,105 @@ public class AuditServiceImpl implements AuditService {
     private final AuditLogRepository auditLogRepository;
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
+    private final ClientRepository clientRepository;
     private final ObjectMapper objectMapper;
+
+    private static final Set<String> SECURITY_ACTIONS = Set.of(
+            "REFRESH_TOKEN_ROTATED",
+            "REFRESH_TOKEN_EXPIRED",
+            "REFRESH_TOKEN_REVOKED",
+            "TOKEN_REUSE_DETECTED",
+            "SESSION_REVOKED",
+            "ALL_SESSIONS_REVOKED",
+            "SESSION_ROTATED",
+            "SESSION_EXPIRED",
+            "JWT_VALIDATION_FAILURE",
+            "PASSWORD_HASH_UPDATED",
+            "SECURITY_EVENT",
+            "SECURITY_ALERT",
+            "SUSPICIOUS_LOGIN",
+            "ACCESS_REVOKED"
+    );
+
+    private static final Set<String> ACCESS_ACTIONS = Set.of(
+            "LOGIN_SUCCESS",
+            "LOGIN_FAILURE",
+            "LOGOUT",
+            "LOGOUT_SUCCESS",
+            "PASSWORD_CHANGED",
+            "PASSWORD_RESET_REQUESTED",
+            "PASSWORD_RESET_COMPLETED",
+            "CLIENT_PORTAL_USER_INVITED",
+            "CLIENT_PORTAL_USER_REGISTERED",
+            "CLIENT_PORTAL_ACCESS_ENABLED",
+            "CLIENT_PORTAL_ACCESS_DISABLED",
+            "USER_ROLES_ASSIGNED",
+            "EMPLOYEE_ROLE_UPDATED",
+            "ROLE_CREATED",
+            "ROLE_UPDATED",
+            "ROLE_DELETED",
+            "USER_CREATED",
+            "USER_UPDATED",
+            "USER_STATUS_UPDATED",
+            "USER_DISABLED",
+            "PORTAL_USER_CREATED",
+            "PORTAL_USER_UPDATED"
+    );
+
+    private static final Set<String> SYSTEM_ACTIONS = Set.of(
+            "SYSTEM_INITIALIZED",
+            "DATABASE_MIGRATION",
+            "BATCH_CLEANUP_JOB",
+            "WELCOME_EMAIL_SENT"
+    );
+
+    private static final Pattern SENSITIVE_KEY_PATTERN = Pattern.compile(
+            "\"(refreshToken|accessToken|password|passwordHash|secret|jwt|token|clientSecret|apiKey)\"\\s*:\\s*\"([^\"]*)\"",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    public static String resolveCategory(String action) {
+        if (!StringUtils.hasText(action)) {
+            return "BUSINESS";
+        }
+        String upper = action.trim().toUpperCase();
+        if (SECURITY_ACTIONS.contains(upper)
+                || upper.startsWith("REFRESH_TOKEN_")
+                || upper.startsWith("TOKEN_REUSE_")
+                || upper.startsWith("SESSION_")
+                || upper.startsWith("SECURITY_")) {
+            return "SECURITY";
+        }
+        if (ACCESS_ACTIONS.contains(upper)
+                || upper.startsWith("LOGIN_")
+                || upper.startsWith("LOGOUT")
+                || upper.startsWith("PASSWORD_")
+                || upper.startsWith("CLIENT_PORTAL_")
+                || upper.startsWith("PORTAL_USER_")
+                || upper.startsWith("USER_ROLES_")
+                || upper.startsWith("EMPLOYEE_ROLE_")
+                || upper.startsWith("ROLE_")) {
+            return "ACCESS";
+        }
+        if (SYSTEM_ACTIONS.contains(upper)
+                || upper.startsWith("SYSTEM_")
+                || upper.startsWith("DATABASE_")
+                || upper.startsWith("BATCH_")) {
+            return "SYSTEM";
+        }
+        return "BUSINESS";
+    }
+
+    private boolean canViewSecurityAudit() {
+        return SecurityUtils.isTaxorynPlatformUser()
+                || SecurityUtils.isTaxorynSuperAdmin()
+                || SecurityUtils.hasRole("PRACTICE_ADMIN")
+                || SecurityUtils.hasRole("ORG_ADMIN")
+                || SecurityUtils.hasRole("PRACTICE_OWNER")
+                || SecurityUtils.hasRole("TAXORYN_SECURITY_ADMIN")
+                || SecurityUtils.hasAuthority("SECURITY_VIEW")
+                || SecurityUtils.hasAuthority("AUDIT_SECURITY_VIEW");
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -53,8 +155,15 @@ public class AuditServiceImpl implements AuditService {
         boolean isPlatformUser = SecurityUtils.isTaxorynPlatformUser() || SecurityUtils.isTaxorynSuperAdmin();
         UUID currentOrgId = SecurityUtils.getCurrentOrganizationId();
 
-        log.debug("Fetching audit logs: isPlatformUser={}, currentOrgId={}, search={}, action={}, entityType={}",
-                isPlatformUser, currentOrgId, filterRequest.getSearch(), filterRequest.getAction(), filterRequest.getEntityType());
+        // Enforce role authorization if SECURITY category is requested
+        if (StringUtils.hasText(filterRequest.getCategory()) && "SECURITY".equalsIgnoreCase(filterRequest.getCategory().trim())) {
+            if (!canViewSecurityAudit()) {
+                throw new ForbiddenException("You do not have permission to view security audit logs");
+            }
+        }
+
+        log.debug("Fetching audit logs: isPlatformUser={}, currentOrgId={}, category={}, clientId={}, search={}, action={}",
+                isPlatformUser, currentOrgId, filterRequest.getCategory(), filterRequest.getClientId(), filterRequest.getSearch(), filterRequest.getAction());
 
         Specification<AuditLogEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -69,13 +178,91 @@ public class AuditServiceImpl implements AuditService {
                 }
             } else {
                 // Platform SuperAdmin / Operations Admin:
-                // Platform-wide visibility by default, or filtered by practice if explicitly requested
                 if (filterRequest.getOrganizationId() != null) {
                     predicates.add(cb.equal(root.get("organizationId"), filterRequest.getOrganizationId()));
                 }
             }
 
-            // 2. Entity Type filter
+            // 2. Category Filter
+            if (StringUtils.hasText(filterRequest.getCategory())) {
+                String cat = filterRequest.getCategory().trim().toUpperCase();
+                if ("SECURITY".equals(cat)) {
+                    List<Predicate> secPreds = new ArrayList<>();
+                    for (String secAct : SECURITY_ACTIONS) {
+                        secPreds.add(cb.equal(cb.upper(root.get("action")), secAct));
+                    }
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "REFRESH_TOKEN_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "TOKEN_REUSE_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "SESSION_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "SECURITY_%"));
+                    predicates.add(cb.or(secPreds.toArray(new Predicate[0])));
+                } else if ("PRACTICE_ACTIVITY".equals(cat) || "PRACTICE".equals(cat)) {
+                    List<Predicate> secPreds = new ArrayList<>();
+                    for (String secAct : SECURITY_ACTIONS) {
+                        secPreds.add(cb.equal(cb.upper(root.get("action")), secAct));
+                    }
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "REFRESH_TOKEN_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "TOKEN_REUSE_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "SESSION_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "SECURITY_%"));
+                    predicates.add(cb.not(cb.or(secPreds.toArray(new Predicate[0]))));
+                } else if ("ACCESS".equals(cat)) {
+                    List<Predicate> accPreds = new ArrayList<>();
+                    for (String accAct : ACCESS_ACTIONS) {
+                        accPreds.add(cb.equal(cb.upper(root.get("action")), accAct));
+                    }
+                    accPreds.add(cb.like(cb.upper(root.get("action")), "LOGIN_%"));
+                    accPreds.add(cb.like(cb.upper(root.get("action")), "LOGOUT%"));
+                    accPreds.add(cb.like(cb.upper(root.get("action")), "PASSWORD_%"));
+                    accPreds.add(cb.like(cb.upper(root.get("action")), "CLIENT_PORTAL_%"));
+                    predicates.add(cb.or(accPreds.toArray(new Predicate[0])));
+                } else if ("SYSTEM".equals(cat)) {
+                    List<Predicate> sysPreds = new ArrayList<>();
+                    for (String sysAct : SYSTEM_ACTIONS) {
+                        sysPreds.add(cb.equal(cb.upper(root.get("action")), sysAct));
+                    }
+                    sysPreds.add(cb.like(cb.upper(root.get("action")), "SYSTEM_%"));
+                    predicates.add(cb.or(sysPreds.toArray(new Predicate[0])));
+                } else if ("BUSINESS".equals(cat)) {
+                    List<Predicate> excludePreds = new ArrayList<>();
+                    for (String secAct : SECURITY_ACTIONS) {
+                        excludePreds.add(cb.equal(cb.upper(root.get("action")), secAct));
+                    }
+                    for (String accAct : ACCESS_ACTIONS) {
+                        excludePreds.add(cb.equal(cb.upper(root.get("action")), accAct));
+                    }
+                    for (String sysAct : SYSTEM_ACTIONS) {
+                        excludePreds.add(cb.equal(cb.upper(root.get("action")), sysAct));
+                    }
+                    excludePreds.add(cb.like(cb.upper(root.get("action")), "REFRESH_TOKEN_%"));
+                    excludePreds.add(cb.like(cb.upper(root.get("action")), "TOKEN_REUSE_%"));
+                    excludePreds.add(cb.like(cb.upper(root.get("action")), "SESSION_%"));
+                    excludePreds.add(cb.like(cb.upper(root.get("action")), "SECURITY_%"));
+                    excludePreds.add(cb.like(cb.upper(root.get("action")), "LOGIN_%"));
+                    excludePreds.add(cb.like(cb.upper(root.get("action")), "LOGOUT%"));
+                    predicates.add(cb.not(cb.or(excludePreds.toArray(new Predicate[0]))));
+                }
+            } else {
+                // If no category specified and caller is a practice user, exclude raw security events by default
+                if (!isPlatformUser) {
+                    List<Predicate> secPreds = new ArrayList<>();
+                    for (String secAct : SECURITY_ACTIONS) {
+                        secPreds.add(cb.equal(cb.upper(root.get("action")), secAct));
+                    }
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "REFRESH_TOKEN_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "TOKEN_REUSE_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "SESSION_%"));
+                    secPreds.add(cb.like(cb.upper(root.get("action")), "SECURITY_%"));
+                    predicates.add(cb.not(cb.or(secPreds.toArray(new Predicate[0]))));
+                }
+            }
+
+            // 3. Client ID filter
+            if (filterRequest.getClientId() != null) {
+                predicates.add(cb.equal(root.get("entityId"), filterRequest.getClientId().toString()));
+            }
+
+            // 4. Entity Type filter
             if (StringUtils.hasText(filterRequest.getEntityType())) {
                 String typePattern = filterRequest.getEntityType().trim().toUpperCase();
                 predicates.add(cb.or(
@@ -84,28 +271,28 @@ public class AuditServiceImpl implements AuditService {
                 ));
             }
 
-            // 3. Entity ID filter
+            // 5. Entity ID filter
             if (StringUtils.hasText(filterRequest.getEntityId())) {
                 predicates.add(cb.equal(root.get("entityId"), filterRequest.getEntityId().trim()));
             }
 
-            // 4. Action filter
+            // 6. Action filter
             if (StringUtils.hasText(filterRequest.getAction())) {
                 String actionPattern = "%" + filterRequest.getAction().trim().toUpperCase() + "%";
                 predicates.add(cb.like(cb.upper(root.get("action")), actionPattern));
             }
 
-            // 5. User ID filter
+            // 7. User ID filter
             if (filterRequest.getUserId() != null) {
                 predicates.add(cb.equal(root.get("userId"), filterRequest.getUserId()));
             }
 
-            // 6. Request / Correlation ID filter
+            // 8. Request / Correlation ID filter
             if (StringUtils.hasText(filterRequest.getRequestId())) {
                 predicates.add(cb.equal(root.get("requestId"), filterRequest.getRequestId().trim()));
             }
 
-            // 7. Date Range filter (createdAt)
+            // 9. Date Range filter (createdAt)
             if (filterRequest.getStartDate() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filterRequest.getStartDate()));
             }
@@ -113,7 +300,7 @@ public class AuditServiceImpl implements AuditService {
                 predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), filterRequest.getEndDate()));
             }
 
-            // 8. Universal Search keyword filter
+            // 10. Universal Search keyword filter
             if (StringUtils.hasText(filterRequest.getSearch())) {
                 String searchPattern = "%" + filterRequest.getSearch().trim().toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -141,13 +328,26 @@ public class AuditServiceImpl implements AuditService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
+        Set<UUID> clientCandidateIds = new HashSet<>();
+        for (AuditLogEntity logEntity : page.getContent()) {
+            if (logEntity.getEntityId() != null) {
+                try {
+                    clientCandidateIds.add(UUID.fromString(logEntity.getEntityId()));
+                } catch (Exception ignored) {}
+            }
+        }
+
         Map<UUID, String> orgNames = organizationRepository.findAllById(orgIds).stream()
                 .collect(Collectors.toMap(OrganizationEntity::getId, OrganizationEntity::getName, (a, b) -> a));
 
         Map<UUID, UserEntity> userMap = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(UserEntity::getId, u -> u, (a, b) -> a));
 
-        return PagedResponse.of(page, logEntity -> toEnrichedDto(logEntity, orgNames, userMap));
+        Map<UUID, String> clientNames = clientCandidateIds.isEmpty() ? Collections.emptyMap() :
+                clientRepository.findAllById(clientCandidateIds).stream()
+                        .collect(Collectors.toMap(ClientEntity::getId, ClientEntity::getDisplayName, (a, b) -> a));
+
+        return PagedResponse.of(page, logEntity -> toEnrichedDto(logEntity, orgNames, userMap, clientNames));
     }
 
     @Override
@@ -399,6 +599,8 @@ public class AuditServiceImpl implements AuditService {
             case "SUBSCRIPTION_CREATED", "SUBSCRIPTION_UPDATED" -> "Subscription updated";
             case "SUBSCRIPTION_UPGRADED" -> "Subscription upgraded";
             case "ROLE_CREATED", "USER_ROLES_ASSIGNED", "ROLE_CHANGED" -> "Administrator role changed";
+            case "ROLE_UPDATED" -> "Role updated";
+            case "ROLE_DELETED" -> "Role deleted";
             case "EMPLOYEE_ROLE_UPDATED" -> "Employee role updated";
             case "EMPLOYEE_CREATED" -> "Employee onboarded";
             case "EMPLOYEE_UPDATED" -> "Employee profile updated";
@@ -407,12 +609,47 @@ public class AuditServiceImpl implements AuditService {
             case "USER_CREATED" -> "New user registered";
             case "USER_UPDATED" -> "User account updated";
             case "USER_STATUS_UPDATED" -> "User status changed";
+            case "USER_DISABLED" -> "User disabled";
+            case "LOGIN_SUCCESS" -> "User logged in";
+            case "LOGIN_FAILURE" -> "Failed login attempt";
+            case "LOGOUT", "LOGOUT_SUCCESS" -> "User logged out";
+            case "PASSWORD_CHANGED" -> "Password changed";
+            case "PASSWORD_RESET_REQUESTED" -> "Password reset requested";
+            case "PASSWORD_RESET_COMPLETED" -> "Password reset completed";
+            case "CLIENT_PORTAL_USER_INVITED" -> "Client portal invitation sent";
+            case "CLIENT_PORTAL_USER_REGISTERED" -> "Client portal user registered";
+            case "CLIENT_PORTAL_ACCESS_ENABLED" -> "Client portal access enabled";
+            case "CLIENT_PORTAL_ACCESS_DISABLED" -> "Client portal access disabled";
             case "CLIENT_CREATED" -> "Client record created";
             case "CLIENT_UPDATED" -> "Client record updated";
+            case "CLIENT_STATUS_UPDATED" -> "Client status changed";
+            case "DOCUMENT_UPLOADED" -> "Document uploaded";
+            case "DOCUMENT_VERIFIED" -> "Document verified";
+            case "DOCUMENT_SHARED" -> "Document shared";
+            case "DOCUMENT_DELETED" -> "Document deleted";
+            case "TASK_CREATED" -> "Task created";
+            case "TASK_STATUS_UPDATED" -> "Task status updated";
+            case "TASK_ASSIGNED" -> "Task assigned";
             case "INVOICE_CREATED" -> "Invoice issued";
             case "INVOICE_UPDATED" -> "Invoice status updated";
+            case "INVOICE_PAYMENT_RECORDED" -> "Payment recorded";
+            case "BILLING_INVOICE_GENERATED" -> "Billing invoice generated";
+            case "BILLING_PAYMENT_PROCESSED" -> "Billing payment processed";
+            case "GST_PROFILE_UPDATED" -> "GST profile updated";
             case "GST_FILING_SUBMITTED" -> "GST return submitted";
+            case "ITR_PROFILE_UPDATED" -> "ITR profile updated";
             case "ITR_RETURN_SUBMITTED" -> "ITR computation prepared";
+            case "TDS_RETURN_SUBMITTED" -> "TDS return submitted";
+            case "REFRESH_TOKEN_ROTATED" -> "Refresh token rotated";
+            case "REFRESH_TOKEN_EXPIRED" -> "Refresh token expired";
+            case "REFRESH_TOKEN_REVOKED" -> "Refresh token revoked";
+            case "TOKEN_REUSE_DETECTED" -> "Token reuse detected";
+            case "SESSION_REVOKED" -> "Session revoked";
+            case "ALL_SESSIONS_REVOKED" -> "All sessions revoked";
+            case "SESSION_ROTATED" -> "Session rotated";
+            case "SESSION_EXPIRED" -> "Session expired";
+            case "JWT_VALIDATION_FAILURE" -> "JWT validation failure";
+            case "PASSWORD_HASH_UPDATED" -> "Password hash updated";
             default -> action.replace('_', ' ').toLowerCase().replaceFirst("^\\w", String.valueOf(Character.toUpperCase(action.replace('_', ' ').charAt(0))));
         };
     }
@@ -434,8 +671,17 @@ public class AuditServiceImpl implements AuditService {
             case "GST_PROFILE", "GST_RETURN" -> "GST";
             case "ITR_PROFILE", "ITR_RETURN" -> "ITR";
             case "DOCUMENT" -> "Document";
+            case "TASK" -> "Task";
+            case "SESSION", "TOKEN", "AUTH" -> "Security Session";
             default -> entityType.replace('_', ' ').toLowerCase().replaceFirst("^\\w", String.valueOf(Character.toUpperCase(entityType.replace('_', ' ').charAt(0))));
         };
+    }
+
+    private String sanitizePayload(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            return payload;
+        }
+        return SENSITIVE_KEY_PATTERN.matcher(payload).replaceAll("\"$1\": \"***MASKED***\"");
     }
 
     private UUID resolveOrganizationId() {
@@ -546,14 +792,15 @@ public class AuditServiceImpl implements AuditService {
                 .id(entity.getId())
                 .organizationId(entity.getOrganizationId())
                 .userId(entity.getUserId())
+                .category(resolveCategory(entity.getAction()))
                 .action(entity.getAction())
                 .displayAction(formatDisplayAction(entity.getAction()))
                 .entityType(entityType)
                 .displayEntityType(formatDisplayEntityType(entityType))
                 .entityName(entityType)
                 .entityId(entity.getEntityId())
-                .oldValue(entity.getOldValue())
-                .newValue(entity.getNewValue())
+                .oldValue(sanitizePayload(entity.getOldValue()))
+                .newValue(sanitizePayload(entity.getNewValue()))
                 .ipAddress(entity.getIpAddress())
                 .requestId(entity.getRequestId())
                 .userAgent(entity.getUserAgent())
@@ -564,7 +811,7 @@ public class AuditServiceImpl implements AuditService {
                 .build();
     }
 
-    private AuditLogDto toEnrichedDto(AuditLogEntity entity, Map<UUID, String> orgNames, Map<UUID, UserEntity> userMap) {
+    private AuditLogDto toEnrichedDto(AuditLogEntity entity, Map<UUID, String> orgNames, Map<UUID, UserEntity> userMap, Map<UUID, String> clientNames) {
         String entityType = StringUtils.hasText(entity.getEntityType())
                 ? entity.getEntityType()
                 : entity.getEntityName();
@@ -583,15 +830,39 @@ public class AuditServiceImpl implements AuditService {
         String status = "SUCCESS";
         String severity = "INFO";
         String action = entity.getAction() != null ? entity.getAction() : "";
+        String category = resolveCategory(action);
 
         if (action.contains("SUSPEND") || action.contains("FAIL") || action.contains("ALERT") || action.contains("REJECT")) {
             status = "ALERT";
             severity = "WARNING";
         } else if (action.contains("VERIF") || action.contains("RESOLV") || action.contains("CONVERT")) {
             severity = "SUCCESS";
-        } else if (action.contains("SECURITY")) {
+        } else if ("SECURITY".equals(category) || action.contains("SECURITY")) {
             severity = "CRITICAL";
             status = "ALERT";
+        }
+
+        UUID entityUuid = null;
+        if (entity.getEntityId() != null) {
+            try {
+                entityUuid = UUID.fromString(entity.getEntityId());
+            } catch (Exception ignored) {}
+        }
+
+        String clientName = null;
+        if (entityUuid != null && clientNames.containsKey(entityUuid)) {
+            clientName = clientNames.get(entityUuid);
+        }
+
+        String targetDisplayName;
+        if (clientName != null) {
+            targetDisplayName = clientName;
+        } else if ("CLIENT".equalsIgnoreCase(entityType) && entity.getEntityId() != null) {
+            targetDisplayName = "Client (" + entity.getEntityId().substring(0, Math.min(8, entity.getEntityId().length())) + ")";
+        } else if (orgNames.containsKey(entity.getOrganizationId())) {
+            targetDisplayName = orgNames.get(entity.getOrganizationId());
+        } else {
+            targetDisplayName = orgName;
         }
 
         return AuditLogDto.builder()
@@ -604,18 +875,20 @@ public class AuditServiceImpl implements AuditService {
                 .actorName(actorName)
                 .actorEmail(actorEmail)
                 .actorRole(actorRole)
+                .category(category)
+                .clientName(clientName)
                 .action(entity.getAction())
                 .displayAction(formatDisplayAction(entity.getAction()))
                 .entityType(entityType)
                 .displayEntityType(formatDisplayEntityType(entityType))
                 .entityName(entityType)
                 .entityId(entity.getEntityId())
-                .targetDisplayName(orgName)
+                .targetDisplayName(targetDisplayName)
                 .status(status)
                 .severity(severity)
                 .description("Action " + formatDisplayAction(entity.getAction()) + " on " + formatDisplayEntityType(entityType))
-                .oldValue(entity.getOldValue())
-                .newValue(entity.getNewValue())
+                .oldValue(sanitizePayload(entity.getOldValue()))
+                .newValue(sanitizePayload(entity.getNewValue()))
                 .ipAddress(entity.getIpAddress())
                 .requestId(entity.getRequestId())
                 .userAgent(entity.getUserAgent())

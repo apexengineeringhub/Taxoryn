@@ -44,6 +44,9 @@ export const MarketplaceExplorePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuth();
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code));
+  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN', 'PRACTICE_CLIENT'].includes(r));
+  const isCustomerUser = userRoleCodes.some((r: string) => ['MARKETPLACE_CUSTOMER'].includes(r));
 
   // State
   const [profiles, setProfiles] = useState<MarketplaceProfile[]>([]);
@@ -463,14 +466,30 @@ export const MarketplaceExplorePage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => navigate('/marketplace/customer/dashboard')}
+                  onClick={() => {
+                    if (isClientUser) {
+                      navigate('/portal');
+                    } else if (isCustomerUser) {
+                      navigate('/marketplace/customer/dashboard');
+                    } else {
+                      navigate('/dashboard');
+                    }
+                  }}
                   className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5"
                 >
-                  <span>Dashboard</span>
+                  <span>{isClientUser ? 'My Portal' : 'Dashboard'}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/marketplace/customer/profile')}
+                  onClick={() => {
+                    if (isClientUser) {
+                      navigate('/portal');
+                    } else if (isCustomerUser) {
+                      navigate('/marketplace/customer/profile');
+                    } else {
+                      navigate('/settings/security');
+                    }
+                  }}
                   className="bg-white/10 hover:bg-white/20 text-white font-medium px-3 py-1.5 rounded-lg border border-white/10 transition-all flex items-center gap-1.5"
                 >
                   <span className="max-w-[120px] truncate">{user.firstName || 'Profile'}</span>

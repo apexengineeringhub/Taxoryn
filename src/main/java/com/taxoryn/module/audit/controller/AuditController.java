@@ -29,8 +29,10 @@ public class AuditController {
     @GetMapping
     @PreAuthorize("hasAuthority('AUDIT_READ') or hasAuthority('AUDIT_VIEW') or hasAuthority('SECURITY_VIEW') " +
             "or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') " +
-            "or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') " +
-            "or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+            "or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') " +
+            "or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') " +
+            "or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('MANAGER') or hasRole('STAFF') " +
+            "or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "List audit logs with filtering and pagination", description = "Retrieves paginated, immutable audit trail records with role-aware scope.")
     public ResponseEntity<ApiResponse<PagedResponse<AuditLogDto>>> getAuditLogs(
             @Valid @ModelAttribute AuditLogFilterRequest filterRequest) {

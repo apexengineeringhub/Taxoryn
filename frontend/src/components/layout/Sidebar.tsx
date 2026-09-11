@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -27,12 +27,23 @@ import {
   Bell,
   BarChart3,
   X,
+  Settings,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { TaxorynLogo } from '../common/TaxorynLogo';
-import { filterNavigationByPermissions, NavigationItem } from '../../utils/permissionUtils';
+import {
+  filterNavigationByPermissions,
+  filterNavigationSections,
+  NavigationItem,
+  NavigationSection,
+  NOTIFICATION_PERMISSIONS,
+  NOTIFICATION_ADMIN_ROLES,
+} from '../../utils/permissionUtils';
+import { formatPlanShortName } from '../../utils/planUtils';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -46,6 +57,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const { user, logout, practiceName, practiceInitials, subscriptionPlan, isLoading } = useAuth();
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
+  const location = useLocation();
 
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
   const isLight = currentTheme.mode === 'light';
@@ -87,51 +99,143 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
   ];
 
-  // 2. Client / Taxpayer Customer Portal Nav Items
-  const clientNavItems: NavigationItem[] = [
-    { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard },
-    { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2 },
-    { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet },
-    { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent },
-    { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt },
-    { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock },
-    { label: 'Find CA / CS / Advocates', path: '/marketplace/explore', icon: Store },
-    { label: 'Security & Password', path: '/settings/security', icon: Lock },
-    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
+  // 2. Client / Taxpayer Customer Portal Nav Sections (MY TAX, EXPLORE, ACCOUNT)
+  const clientNavSections: NavigationSection[] = [
+    {
+      id: 'my-tax',
+      sectionTitle: 'MY TAX',
+      items: [
+        { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard },
+        { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2 },
+        { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet },
+        { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent },
+        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt },
+        { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock },
+      ],
+    },
+    {
+      id: 'explore',
+      sectionTitle: 'EXPLORE',
+      items: [
+        { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store },
+      ],
+    },
+    {
+      id: 'account',
+      sectionTitle: 'ACCOUNT',
+      items: [
+        { label: 'Security & Password', path: '/settings/security', icon: Lock },
+        { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
+      ],
+    },
   ];
 
-  // 3. Practice Operations Suite (Tenant Admin & Practice Staff) - Permission & Role aware
-  const practiceNavItems: NavigationItem[] = [
-    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'] },
-    { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'] },
-    { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'] },
-    { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'] },
-    { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
-    { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
-    { label: 'Document Vault', path: '/documents', icon: FolderLock, requiredPermissions: ['DOCUMENT_VIEW'] },
-    { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
-    { label: 'Notification Center', path: '/notifications', icon: Bell },
-    { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Audit Trails', path: '/audit-logs', icon: ShieldAlert, requiredPermissions: ['AUDIT_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-    { label: 'Security & Password', path: '/settings/security', icon: Lock },
-    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
+  // 3. Practice Operations Suite Prioritized Information Architecture (Sections)
+  const practiceNavSections: NavigationSection[] = [
+    {
+      id: 'work',
+      sectionTitle: 'WORK',
+      items: [
+        { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+        { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'] },
+        { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'] },
+      ],
+    },
+    {
+      id: 'compliance',
+      sectionTitle: 'COMPLIANCE',
+      items: [
+        { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'] },
+        { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'] },
+        { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
+        { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
+      ],
+    },
+    {
+      id: 'documents',
+      sectionTitle: 'DOCUMENTS',
+      items: [
+        { label: 'Document Vault', path: '/documents', icon: FolderLock, requiredPermissions: ['DOCUMENT_VIEW'] },
+      ],
+    },
+    {
+      id: 'practice',
+      sectionTitle: 'PRACTICE',
+      items: [
+        { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
+        { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Notification Center', path: '/notifications', icon: Bell, requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES },
+      ],
+    },
+    {
+      id: 'administration',
+      sectionTitle: 'ADMINISTRATION',
+      isCollapsible: true,
+      items: [
+        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
+        { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
+        { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+      ],
+    },
+    {
+      id: 'growth',
+      sectionTitle: 'GROWTH',
+      items: [
+        { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+      ],
+    },
   ];
 
-  const rawNavItems = isSuperAdmin ? platformNavItems : isClientUser ? clientNavItems : practiceNavItems;
-  const navItems = filterNavigationByPermissions(rawNavItems, user);
+  // Check if current route is inside administration to auto-expand
+  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/branding', '/settings/subscription', '/settings/whatsapp'];
+  const isAdminRouteActive = adminRoutes.some((p) => location.pathname.startsWith(p));
+
+  const [isAdminExpanded, setIsAdminExpanded] = useState<boolean>(() => {
+    const saved = localStorage.getItem('taxoryn_ui_admin_nav_open');
+    if (saved !== null) {
+      return saved === 'true';
+    }
+    return true; // Default expanded for ease of discovery
+  });
+
+  const toggleAdmin = () => {
+    setIsAdminExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem('taxoryn_ui_admin_nav_open', String(next));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (isAdminRouteActive && !isAdminExpanded) {
+      setIsAdminExpanded(true);
+    }
+  }, [isAdminRouteActive]);
+
+  // Filter sections and items with permission rules
+  const visibleSections = filterNavigationSections(practiceNavSections, user);
+  const platformFilteredItems = filterNavigationByPermissions(platformNavItems, user);
+  const visibleClientSections = filterNavigationSections(clientNavSections, user);
 
   const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(
     currentTheme.sidebarHeaderBg.toUpperCase()
   );
+
+  const isItemActive = (path: string) => {
+    if (path === '/dashboard' || path === '/') {
+      return location.pathname === '/dashboard' || location.pathname === '/';
+    }
+    if (path.includes('?')) {
+      const [base, query] = path.split('?');
+      return location.pathname === base && location.search.includes(query);
+    }
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
 
   return (
     <aside
@@ -222,9 +326,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
               <>
                 <Server className="w-3 h-3 text-purple-600" /> Platform Multi-Tenant
               </>
+            ) : isLoading ? (
+              <span className="text-[10px] text-slate-400 italic">Loading plan...</span>
+            ) : !subscriptionPlan ? (
+              <span className="text-[10px] text-slate-400 italic">Plan unavailable</span>
             ) : (
               <>
-                <Sparkles className="w-3 h-3" /> {subscriptionPlan} Plan
+                <Sparkles className="w-3 h-3" /> {formatPlanShortName(subscriptionPlan)} Plan
               </>
             )}
           </span>
@@ -251,32 +359,214 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           ))}
         </div>
       ) : (
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={onClose}
-              style={({ isActive }) =>
-                isActive ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}
+        <nav className="flex-1 px-3 py-3 space-y-3 overflow-y-auto">
+          {isSuperAdmin ? (
+            /* SuperAdmin / Platform Role Navigation */
+            <div className="space-y-0.5">
+              {platformFilteredItems.map((item) => {
+                const active = isItemActive(item.path);
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    style={active ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}}
+                    className={clsx(
+                      'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all group',
+                      active
+                        ? 'text-white shadow-xs font-bold'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
+                        : 'text-slate-400 hover:text-white hover:bg-white/10'
+                    )}
+                  >
+                    {item.icon && <item.icon className="w-4 h-4 shrink-0 transition-colors" />}
+                    <span className="truncate">{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          ) : isClientUser ? (
+            /* Client Portal Navigation (Grouped Sections: MY TAX, EXPLORE, ACCOUNT) */
+            <div className="space-y-3">
+              {visibleClientSections.map((section) => (
+                <div key={section.id} className="space-y-1">
+                  {section.sectionTitle && (
+                    <div className="px-3 pt-1 pb-0.5">
+                      <span
+                        className={clsx(
+                          'text-[10px] font-black uppercase tracking-wider block',
+                          isLight ? 'text-slate-400' : 'text-slate-500'
+                        )}
+                      >
+                        {section.sectionTitle}
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const active = isItemActive(item.path);
+                      return (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          onClick={onClose}
+                          style={active ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}}
+                          className={clsx(
+                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all group',
+                            active
+                              ? 'text-white shadow-xs font-bold'
+                              : isLight
+                              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
+                              : 'text-slate-400 hover:text-white hover:bg-white/10'
+                          )}
+                        >
+                          {item.icon && <item.icon className="w-4 h-4 shrink-0 transition-colors" />}
+                          <span className="truncate">{item.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Prioritized Practice Navigation (Sections + Collapsible Administration) */
+            visibleSections.map((section) => {
+              if (section.isCollapsible) {
+                // Collapsible Section (Administration)
+                return (
+                  <div key={section.id} className="pt-1">
+                    <button
+                      type="button"
+                      onClick={toggleAdmin}
+                      className={clsx(
+                        'w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors',
+                        isLight
+                          ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100/70'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Settings className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{section.sectionTitle || 'Administration'}</span>
+                      </div>
+                      {isAdminExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </button>
+
+                    {isAdminExpanded && (
+                      <div className="space-y-0.5 mt-1 pl-2 border-l-2 border-slate-200/80 ml-3">
+                        {section.items.map((item) => {
+                          const active = isItemActive(item.path);
+                          return (
+                            <NavLink
+                              key={item.path}
+                              to={item.path}
+                              onClick={onClose}
+                              style={active ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}}
+                              className={clsx(
+                                'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all group',
+                                active
+                                  ? 'text-white shadow-xs font-bold'
+                                  : isLight
+                                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
+                                  : 'text-slate-400 hover:text-white hover:bg-white/10'
+                              )}
+                            >
+                              {item.icon && <item.icon className="w-3.5 h-3.5 shrink-0 transition-colors" />}
+                              <span className="truncate">{item.label}</span>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
               }
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all group',
-                  isActive
-                    ? 'text-white shadow-sm font-bold'
-                    : isLight
-                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
-                    : 'text-slate-400 hover:text-white hover:bg-white/10'
-                )
-              }
-            >
-              <item.icon className="w-4 h-4 shrink-0 transition-colors" />
-              <span className="truncate">{item.label}</span>
-            </NavLink>
-          ))}
+
+              // Standard Navigation Section
+              return (
+                <div key={section.id} className="space-y-0.5">
+                  {section.sectionTitle && (
+                    <div className="px-3 pt-2 pb-0.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400/90">
+                        {section.sectionTitle}
+                      </span>
+                    </div>
+                  )}
+
+                  {section.items.map((item) => {
+                    const active = isItemActive(item.path);
+                    return (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        onClick={onClose}
+                        style={active ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}}
+                        className={clsx(
+                          'flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all group',
+                          active
+                            ? 'text-white shadow-xs font-bold'
+                            : isLight
+                            ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
+                            : 'text-slate-400 hover:text-white hover:bg-white/10'
+                        )}
+                      >
+                        {item.icon && <item.icon className="w-4 h-4 shrink-0 transition-colors" />}
+                        <span className="truncate">{item.label}</span>
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              );
+            })
+          )}
         </nav>
       )}
+
+      {/* Secondary Bottom Links (Security & Password, Give Feedback) */}
+      <div className={clsx('px-3 py-2 border-t space-y-0.5', isLight ? 'bg-slate-50/50' : 'bg-black/10')} style={{ borderColor: currentTheme.sidebarBorder }}>
+        <NavLink
+          to="/settings/security"
+          onClick={onClose}
+          style={({ isActive }) => (isActive ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {})}
+          className={({ isActive }) =>
+            clsx(
+              'flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all group',
+              isActive
+                ? 'text-white shadow-xs font-bold'
+                : isLight
+                ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80'
+                : 'text-slate-400 hover:text-white hover:bg-white/10'
+            )
+          }
+        >
+          <Lock className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Security & Password</span>
+        </NavLink>
+        <NavLink
+          to="/feedback"
+          onClick={onClose}
+          style={({ isActive }) => (isActive ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {})}
+          className={({ isActive }) =>
+            clsx(
+              'flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all group',
+              isActive
+                ? 'text-white shadow-xs font-bold'
+                : isLight
+                ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80'
+                : 'text-slate-400 hover:text-white hover:bg-white/10'
+            )
+          }
+        >
+          <MessageSquarePlus className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Give Feedback</span>
+        </NavLink>
+      </div>
 
       {/* User Footer */}
       <div
@@ -367,3 +657,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     </aside>
   );
 };
+
+export default Sidebar;
+

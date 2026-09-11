@@ -59,6 +59,10 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').t
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
+import {
+  NOTIFICATION_PERMISSIONS,
+  NOTIFICATION_ADMIN_ROLES,
+} from './utils/permissionUtils';
 
 // Sleek Skeleton Page Fallback
 const PageLoadingFallback: React.FC = () => (
@@ -113,13 +117,14 @@ export const App: React.FC = () => {
             <Route path="/activate-organization" element={<ActivateOrgPage />} />
             <Route path="/marketplace/register" element={<RegisterCustomerPage />} />
             <Route path="/marketplace" element={<MarketplaceExplorePage />} />
-            <Route path="/practice/:slug" element={<PracticePublicProfilePage />} />
-            <Route path="/professional/:slug" element={<PracticePublicProfilePage />} />
-            <Route path="/marketplace/profile/:id" element={<PracticePublicProfilePage />} />
-            <Route path="/marketplace/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/marketplace/explore" element={<MarketplaceExplorePage />} />
             <Route path="/marketplace/compare" element={<MarketplaceComparePage />} />
+            <Route path="/marketplace/profile/:id" element={<PracticePublicProfilePage />} />
             <Route path="/marketplace/onboarding/:token" element={<CustomerOnboardingPortalPage />} />
             <Route path="/marketplace/proposal/:token" element={<CustomerOnboardingPortalPage />} />
+            <Route path="/practice/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/professional/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/marketplace/:slug" element={<PracticePublicProfilePage />} />
 
             {/* Taxoryn Learn Public Knowledge Hub (Clean SEO Routes) */}
             <Route path="/learn" element={<LearnLandingPage />} />
@@ -266,7 +271,10 @@ export const App: React.FC = () => {
               <Route
                 path="/notifications"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <RoleRouteGuard
+                    allowedRoles={NOTIFICATION_ADMIN_ROLES}
+                    requiredPermissions={NOTIFICATION_PERMISSIONS}
+                  >
                     <NotificationsPage />
                   </RoleRouteGuard>
                 }

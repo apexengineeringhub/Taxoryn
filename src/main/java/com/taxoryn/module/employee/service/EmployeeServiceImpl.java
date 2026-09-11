@@ -600,7 +600,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 name = "Senior Tax Associate";
             } else if (des.contains("accountant")) {
                 code = "ACCOUNTANT";
-                name = "Senior Accountant";
+                name = "Staff Accountant";
             }
             dto.setRoleCode(code);
             dto.setRoleName(name);

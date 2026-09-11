@@ -176,6 +176,12 @@ class SubscriptionManagementIntegrationTest {
                 .andExpect(jsonPath("$.data.maxClients").value(100))
                 .andExpect(jsonPath("$.data.price").value(2499.00));
 
+        // Verify Organization Entity was synchronized immediately
+        mockMvc.perform(get("/api/v1/organizations/current")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.subscriptionPlan").value("PROFESSIONAL"));
+
         // 4. Renew Subscription
         mockMvc.perform(post("/api/v1/subscriptions/renew")
                         .header("Authorization", "Bearer " + adminToken))

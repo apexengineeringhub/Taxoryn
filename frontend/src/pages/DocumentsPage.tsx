@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   FolderLock,
   Upload,
@@ -26,6 +27,7 @@ import { RequestDocumentsModal } from '../components/docrequest/RequestDocuments
 import clsx from 'clsx';
 
 export const DocumentsPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [activeMainTab, setActiveMainTab] = useState<'requests' | 'vault'>('requests');
 
   // Vault state
@@ -48,7 +50,9 @@ export const DocumentsPage: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isBuilderModalOpen, setIsBuilderModalOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>('');
+  const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>(
+    () => searchParams.get('clientId') || ''
+  );
 
   useEffect(() => {
     if (activeMainTab === 'vault') {
@@ -63,11 +67,27 @@ export const DocumentsPage: React.FC = () => {
     loadClientsList();
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get('action') === 'request' || searchParams.get('create') === 'true') {
+      setActiveMainTab('requests');
+      const targetId = searchParams.get('clientId');
+      if (targetId) {
+        setSelectedClientIdForCreate(targetId);
+        setIsBuilderModalOpen(true);
+      } else {
+        setIsCreateModalOpen(true);
+      }
+    }
+  }, [searchParams]);
+
   const loadClientsList = async () => {
     try {
       const res = await clientApi.getAll({ size: 100 });
       setClients(res.content || []);
-      if (res.content && res.content.length > 0) {
+      const paramClientId = searchParams.get('clientId');
+      if (paramClientId && res.content?.some((c: Client) => c.id === paramClientId)) {
+        setSelectedClientIdForCreate(paramClientId);
+      } else if (res.content && res.content.length > 0 && !selectedClientIdForCreate) {
         setSelectedClientIdForCreate(res.content[0].id);
       }
     } catch (err) {

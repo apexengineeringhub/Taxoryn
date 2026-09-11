@@ -19,6 +19,7 @@ import { adminPracticeApi } from '../api/endpoints';
 import { Organization } from '../types';
 import { Button } from '../components/common/Button';
 import { WorkspacePageHeader } from '../components/layout/WorkspacePageHeader';
+import { formatPlanDisplayName } from '../utils/planUtils';
 import clsx from 'clsx';
 
 export const PlatformPracticesPage: React.FC = () => {
@@ -172,12 +173,12 @@ export const PlatformPracticesPage: React.FC = () => {
                     <td className="px-4 py-3.5">
                       <span className={clsx(
                         'px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide border',
-                        p.subscriptionPlan === 'ENTERPRISE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                        p.subscriptionPlan === 'BUSINESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                        p.subscriptionPlan === 'PROFESSIONAL' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                        'bg-slate-100 text-slate-700 border-slate-200'
+                        (p.subscriptionPlan || '').toUpperCase() === 'ENTERPRISE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                        (p.subscriptionPlan || '').toUpperCase() === 'BUSINESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                        (p.subscriptionPlan || '').toUpperCase() === 'PROFESSIONAL' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        'bg-emerald-50 text-emerald-700 border-emerald-200'
                       )}>
-                        {p.subscriptionPlan || 'STARTER'}
+                        {formatPlanDisplayName(p.subscriptionPlan)}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-slate-600">
@@ -245,12 +246,12 @@ export const PlatformPracticesPage: React.FC = () => {
                   </div>
                   <span className={clsx(
                     'px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide border shrink-0',
-                    p.subscriptionPlan === 'ENTERPRISE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                    p.subscriptionPlan === 'BUSINESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                    p.subscriptionPlan === 'PROFESSIONAL' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    'bg-slate-100 text-slate-700 border-slate-200'
+                    (p.subscriptionPlan || '').toUpperCase() === 'ENTERPRISE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                    (p.subscriptionPlan || '').toUpperCase() === 'BUSINESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                    (p.subscriptionPlan || '').toUpperCase() === 'PROFESSIONAL' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    'bg-emerald-50 text-emerald-700 border-emerald-200'
                   )}>
-                    {p.subscriptionPlan || 'STARTER'}
+                    {formatPlanDisplayName(p.subscriptionPlan)}
                   </span>
                 </div>
 

@@ -12,10 +12,52 @@ export interface NavigationItem {
 /**
  * SuperAdmin / Platform roles that have global administrative bypass.
  */
-const SUPERADMIN_ROLES = [
+export const SUPERADMIN_ROLES = [
   'TAXORYN_SUPERADMIN',
   'SUPER_ADMIN',
 ];
+
+/**
+ * Standard Notification permissions supported by Taxoryn backend.
+ */
+export const NOTIFICATION_PERMISSIONS = [
+  'NOTIFICATION_READ',
+  'NOTIFICATION_VIEW',
+  'NOTIFICATIONS_VIEW',
+];
+
+/**
+ * Platform and administrative roles with automatic notification management authorization.
+ * Non-administrative practice users (Practitioners, Tax Professionals, Staff, Accountants)
+ * require explicit NOTIFICATION_PERMISSIONS (e.g. NOTIFICATION_READ / NOTIFICATION_VIEW)
+ * to access the Notification Center.
+ */
+export const NOTIFICATION_ADMIN_ROLES = [
+  'TAXORYN_SUPERADMIN',
+  'SUPER_ADMIN',
+  'TAXORYN_OPERATIONS_ADMIN',
+  'TAXORYN_SUPPORT_ADMIN',
+  'TAXORYN_FINANCE_ADMIN',
+  'TAXORYN_MARKETPLACE_ADMIN',
+  'TAXORYN_CONTENT_ADMIN',
+  'TAXORYN_SECURITY_ADMIN',
+  'TAXORYN_ENGINEERING_ADMIN',
+  'PRACTICE_OWNER',
+  'PRACTICE_ADMIN',
+  'ORG_ADMIN',
+];
+
+/**
+ * Alias for backwards compatibility with existing route guards.
+ */
+export const NOTIFICATION_ALLOWED_ROLES = NOTIFICATION_ADMIN_ROLES;
+
+/**
+ * Canonical helper to check if a user has access to the internal Notification Center.
+ */
+export const hasNotificationAccess = (user: User | null | undefined): boolean => {
+  return hasPermission(user, NOTIFICATION_PERMISSIONS, NOTIFICATION_ADMIN_ROLES);
+};
 
 /**
  * Checks if a user has specific permissions or allowed roles.
@@ -96,4 +138,28 @@ export const filterNavigationByPermissions = (
   user: User | null | undefined
 ): NavigationItem[] => {
   return items.filter((item) => canAccessNavigationItem(item, user));
+};
+
+export interface NavigationSection {
+  id: string;
+  sectionTitle?: string;
+  isCollapsible?: boolean;
+  defaultExpanded?: boolean;
+  items: NavigationItem[];
+}
+
+/**
+ * Filters a list of navigation sections. Any section that contains 0 accessible items
+ * after permission evaluation is completely excluded from the result.
+ */
+export const filterNavigationSections = (
+  sections: NavigationSection[],
+  user: User | null | undefined
+): NavigationSection[] => {
+  return sections
+    .map((section) => ({
+      ...section,
+      items: filterNavigationByPermissions(section.items, user),
+    }))
+    .filter((section) => section.items.length > 0);
 };

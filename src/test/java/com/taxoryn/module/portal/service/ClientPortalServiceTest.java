@@ -389,4 +389,71 @@ class ClientPortalServiceTest {
 
         assertThrows(ForbiddenException.class, () -> portalService.downloadClientDocument(docId));
     }
+
+    @Test
+    @DisplayName("Get client dashboard with multi-item document requests counts pending items accurately")
+    void testGetDashboardWithMultiItemDocRequestsPendingCount() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Vedanta Solutions")
+                .legalName("Vedanta Solutions Pvt Ltd")
+                .clientType(ClientType.PRIVATE_LIMITED)
+                .pan("AVAPI7181W")
+                .build();
+        client.setId(clientId);
+
+        UUID reqId = UUID.randomUUID();
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity docReqEntity = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                .requestNumber("DOC-2026-001")
+                .purpose("FY 2025-26 Tax Audit")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .clientId(clientId)
+                .build();
+        docReqEntity.setId(reqId);
+        docReqEntity.setOrganizationId(tenantId);
+
+        com.taxoryn.module.docrequest.dto.DocumentRequestItemDto item1 = com.taxoryn.module.docrequest.dto.DocumentRequestItemDto.builder()
+                .id(UUID.randomUUID())
+                .title("Bank Statement")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING)
+                .build();
+        com.taxoryn.module.docrequest.dto.DocumentRequestItemDto item2 = com.taxoryn.module.docrequest.dto.DocumentRequestItemDto.builder()
+                .id(UUID.randomUUID())
+                .title("Form 26AS")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED)
+                .build();
+        com.taxoryn.module.docrequest.dto.DocumentRequestItemDto item3 = com.taxoryn.module.docrequest.dto.DocumentRequestItemDto.builder()
+                .id(UUID.randomUUID())
+                .title("GST Annual Return")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.ACCEPTED)
+                .build();
+
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto docReqDto = com.taxoryn.module.docrequest.dto.DocumentRequestDto.builder()
+                .id(reqId)
+                .requestNumber("DOC-2026-001")
+                .purpose("FY 2025-26 Tax Audit")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .totalItems(3)
+                .pendingItems(1)
+                .rejectedItems(1)
+                .acceptedItems(1)
+                .items(List.of(item1, item2, item3))
+                .build();
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(multiItemDocRequestRepository.findAllByOrganizationIdAndClientIdAndStatusIn(eq(tenantId), eq(clientId), any()))
+                .thenReturn(List.of(docReqEntity));
+        when(multiItemDocRequestService.getClientPortalRequestById(reqId)).thenReturn(docReqDto);
+        when(docRequestRepository.countByOrganizationIdAndClientIdAndStatus(tenantId, clientId, com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus.PENDING)).thenReturn(0L);
+        when(gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(tenantId, clientId)).thenReturn(List.of());
+        when(itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(tenantId, clientId)).thenReturn(List.of());
+        when(taskRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+
+        ClientPortalDashboardDto dashboard = portalService.getDashboard();
+
+        assertNotNull(dashboard);
+        assertEquals(1, dashboard.getActiveMultiItemRequests().size());
+        assertEquals("DOC-2026-001", dashboard.getActiveMultiItemRequests().get(0).getRequestNumber());
+        // 1 pending + 1 rejected = 2 pending items
+        assertEquals(2, dashboard.getPendingDocumentsCount());
+    }
 }

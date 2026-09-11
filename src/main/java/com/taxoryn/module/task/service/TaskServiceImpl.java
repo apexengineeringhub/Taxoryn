@@ -247,6 +247,11 @@ public class TaskServiceImpl implements TaskService {
     public TaskDto createTask(CreateTaskRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
+        if (request.getClientId() != null) {
+            clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
+        }
+
         TaskEntity task = TaskEntity.builder()
                 .clientId(request.getClientId())
                 .assignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId))
@@ -321,8 +326,11 @@ public class TaskServiceImpl implements TaskService {
 
         UUID previousAssignee = task.getAssignedTo();
         TaskStatus previousStatus = task.getStatus();
-
-        if (request.getClientId() != null) task.setClientId(request.getClientId());
+        if (request.getClientId() != null) {
+            clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
+            task.setClientId(request.getClientId());
+        }
         if (Boolean.TRUE.equals(request.getUnassign())) {
             task.setAssignedTo(null);
         } else if (request.getAssignedTo() != null) {

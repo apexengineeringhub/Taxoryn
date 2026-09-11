@@ -842,6 +842,10 @@ export const documentApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<DocumentItem>>>('/v1/documents', { params });
     return res.data.data;
   },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/clients/${clientId}`);
+    return res.data.data;
+  },
   upload: async (
     fileOrFormData: File | FormData,
     metadata?: {
@@ -1023,6 +1027,22 @@ export const subscriptionApi = {
   },
 };
 
+// --- 10b. Organization Tenant ---
+export const organizationApi = {
+  getCurrent: async () => {
+    const res = await apiClient.get<ApiResponse<Organization>>('/v1/organizations/current');
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Organization>>(`/v1/organizations/${id}`);
+    return res.data.data;
+  },
+  updateCurrent: async (payload: Partial<Organization>) => {
+    const res = await apiClient.put<ApiResponse<Organization>>('/v1/organizations/current', payload);
+    return res.data.data;
+  },
+};
+
 // --- 11. Team & Roles ---
 export const teamApi = {
   getEmployees: async (params?: { status?: string; search?: string; department?: string; page?: number; size?: number }) => {
@@ -1103,6 +1123,8 @@ export const auditApi = {
   getLogs: async (params?: {
     page?: number;
     size?: number;
+    category?: string;
+    clientId?: string;
     entityType?: string;
     action?: string;
     search?: string;

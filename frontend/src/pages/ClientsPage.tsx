@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Eye,
@@ -32,6 +32,7 @@ import { ClientDocumentRequestsTab } from '../components/docrequest/ClientDocume
 import clsx from 'clsx';
 
 export const ClientsPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [page, setPage] = useState(0);
@@ -39,7 +40,7 @@ export const ClientsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [drawerTab, setDrawerTab] = useState<'overview' | 'doc_requests'>('overview');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(() => searchParams.get('action') === 'new' || searchParams.get('create') === 'true');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>('ALL');
@@ -66,6 +67,12 @@ export const ClientsPage: React.FC = () => {
   useEffect(() => {
     loadClients();
   }, [page, pageSize, statusFilter, portalStatusFilter]);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
+      setIsModalOpen(true);
+    }
+  }, [searchParams]);
 
   const loadClients = async () => {
     try {

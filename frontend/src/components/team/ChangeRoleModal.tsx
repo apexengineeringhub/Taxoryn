@@ -128,15 +128,19 @@ export const ChangeRoleModal: React.FC<ChangeRoleModalProps> = ({
               <span className="font-bold text-slate-900">{employee.fullName || `${employee.firstName} ${employee.lastName || ''}`}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">Code & Designation:</span>
-              <span className="text-slate-700 font-mono text-[11px]">{employee.employeeCode} • {employee.designation}</span>
+              <span className="text-slate-500 font-medium">Employee Code:</span>
+              <span className="text-slate-700 font-mono text-[11px] font-bold">{employee.employeeNumber || employee.employeeCode}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">Designation (Job Title):</span>
+              <span className="text-slate-700 text-xs font-semibold">{employee.designation || 'Staff Associate'}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500 font-medium">Email:</span>
               <span className="text-slate-700 text-[11px]">{employee.email}</span>
             </div>
             <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
-              <span className="text-slate-500 font-medium">Current Role:</span>
+              <span className="text-slate-500 font-medium">Current Practice Role:</span>
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-slate-200/80 text-slate-800">
                 {currentRoleName}
               </span>
