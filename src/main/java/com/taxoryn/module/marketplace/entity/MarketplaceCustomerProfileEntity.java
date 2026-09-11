@@ -76,7 +76,9 @@ public class MarketplaceCustomerProfileEntity extends AuditableEntity {
     }
 
     public enum CustomerProfileStatus {
+        PENDING,
         ACTIVE,
+        INACTIVE,
         BLOCKED,
         DEACTIVATED
     }

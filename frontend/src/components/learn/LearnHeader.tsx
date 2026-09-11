@@ -14,9 +14,14 @@ import {
   FileText,
   Video,
   Layers,
+  LayoutDashboard,
+  User as UserIcon,
+  LogOut,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { TaxorynLogo } from '../common/TaxorynLogo';
+import { useAuth } from '../../context/AuthContext';
 import clsx from 'clsx';
 
 interface LearnHeaderProps {
@@ -26,6 +31,7 @@ interface LearnHeaderProps {
 
 export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', onSearch }) => {
   const navigate = useNavigate();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -37,6 +43,34 @@ export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', on
       navigate(`/learn/content?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
+
+  // Derive Persona & Routing
+  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
+  const isMarketplaceCustomer = userRoleCodes.includes('MARKETPLACE_CUSTOMER');
+  const isPlatformUser = userRoleCodes.some((r: string) => r.startsWith('TAXORYN_') || r === 'SUPER_ADMIN' || r === 'PLATFORM_ADMIN');
+  const isPracticeUser = !isPlatformUser && !isMarketplaceCustomer && (userRoleCodes.length > 0 || !!user?.organizationId);
+
+  let dashboardUrl = '/marketplace/customer/dashboard';
+  let dashboardLabel = 'Dashboard';
+  let profileUrl = '/marketplace/customer/profile';
+  let roleBadge = 'Customer';
+
+  if (isPlatformUser) {
+    dashboardUrl = '/admin/overview';
+    dashboardLabel = 'Admin Hub';
+    profileUrl = '/account-security';
+    roleBadge = 'Platform Admin';
+  } else if (isPracticeUser) {
+    dashboardUrl = '/dashboard';
+    dashboardLabel = 'Practice Hub';
+    profileUrl = '/account-security';
+    roleBadge = 'Practice';
+  }
+
+  const displayName = user?.firstName
+    ? `${user.firstName} ${user.lastName || ''}`.trim()
+    : user?.email?.split('@')[0] || 'My Account';
+  const userInitials = (user?.firstName ? user.firstName[0] : (user?.email ? user.email[0] : 'U')).toUpperCase();
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-2xs">
@@ -79,7 +113,7 @@ export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', on
             </div>
           </form>
 
-          {/* Desktop Nav Links & CTAs */}
+          {/* Desktop Nav Links & Dynamic Auth CTAs */}
           <div className="hidden lg:flex items-center gap-5">
             <nav className="flex items-center gap-4 text-xs font-bold text-slate-600">
               <Link to="/learn" className="hover:text-brand-600 transition-colors">
@@ -96,19 +130,60 @@ export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', on
 
             <div className="h-5 w-px bg-slate-200" />
 
-            <div className="flex items-center gap-2.5">
-              <Link to="/login">
-                <Button variant="secondary" size="sm" className="text-xs font-bold">
-                  Sign In
-                </Button>
-              </Link>
-              <Link to="/marketplace">
-                <Button variant="primary" size="sm" className="text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white gap-1.5 shadow-xs">
-                  <span>Get Tax Help</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
-              </Link>
-            </div>
+            {/* Three-State Authentication Controls */}
+            {isLoading ? (
+              /* State 1: Loading Skeleton (Zero Sign In Flash) */
+              <div className="flex items-center gap-2 animate-pulse">
+                <div className="w-20 h-8 bg-slate-100 rounded-xl" />
+                <div className="w-24 h-8 bg-slate-100 rounded-xl" />
+              </div>
+            ) : isAuthenticated && user ? (
+              /* State 2: Authenticated Persona Controls */
+              <div className="flex items-center gap-2.5">
+                <Link to={dashboardUrl}>
+                  <Button variant="primary" size="sm" className="text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white gap-1.5 shadow-xs rounded-xl">
+                    <LayoutDashboard className="w-3.5 h-3.5" />
+                    <span>{dashboardLabel}</span>
+                  </Button>
+                </Link>
+
+                <Link
+                  to={profileUrl}
+                  className="flex items-center gap-2 pl-2 pr-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 transition-colors shadow-2xs"
+                  title={`Signed in as ${user.email}`}
+                >
+                  <div className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[10px]">
+                    {userInitials}
+                  </div>
+                  <span className="max-w-[110px] truncate">{displayName}</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={logout}
+                  title="Sign Out"
+                  className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                  aria-label="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              /* State 3: Anonymous Public State */
+              <div className="flex items-center gap-2.5">
+                <Link to="/login">
+                  <Button variant="secondary" size="sm" className="text-xs font-bold rounded-xl">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link to="/marketplace">
+                  <Button variant="primary" size="sm" className="text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white gap-1.5 shadow-xs rounded-xl">
+                    <span>Get Tax Help</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Mobile Hamburger Button */}
@@ -139,6 +214,24 @@ export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', on
             />
           </form>
 
+          {/* Authenticated User Banner (Mobile) */}
+          {isAuthenticated && user && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  {userInitials}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">{displayName}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-brand-50 text-brand-700 border border-brand-200 shrink-0">
+                {roleBadge}
+              </span>
+            </div>
+          )}
+
           <nav className="flex flex-col space-y-2 text-sm font-bold text-slate-700">
             <Link
               to="/learn"
@@ -167,19 +260,65 @@ export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', on
               </div>
               <ChevronRight className="w-4 h-4 text-brand-400" />
             </Link>
+
+            {isAuthenticated && (
+              <>
+                <Link
+                  to={dashboardUrl}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center justify-between text-slate-900"
+                >
+                  <div className="flex items-center gap-2">
+                    <LayoutDashboard className="w-4 h-4 text-brand-600" />
+                    <span>{dashboardLabel}</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
+
+                <Link
+                  to={profileUrl}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center justify-between text-slate-900"
+                >
+                  <div className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4 text-slate-500" />
+                    <span>Profile & Account</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
+              </>
+            )}
           </nav>
 
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-            <Link to="/marketplace" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="primary" className="w-full justify-center bg-brand-600 text-white font-bold">
-                Find a Tax Professional
+            {isLoading ? (
+              <div className="w-full h-10 bg-slate-100 rounded-xl animate-pulse" />
+            ) : isAuthenticated && user ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  logout();
+                }}
+                className="w-full justify-center text-rose-600 border-rose-200 hover:bg-rose-50 font-bold gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
               </Button>
-            </Link>
-            <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="secondary" className="w-full justify-center font-bold">
-                Sign In
-              </Button>
-            </Link>
+            ) : (
+              <>
+                <Link to="/marketplace" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="primary" className="w-full justify-center bg-brand-600 text-white font-bold">
+                    Find a Tax Professional
+                  </Button>
+                </Link>
+                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="secondary" className="w-full justify-center font-bold">
+                    Sign In
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

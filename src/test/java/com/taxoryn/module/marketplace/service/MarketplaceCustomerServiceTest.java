@@ -92,6 +92,12 @@ class MarketplaceCustomerServiceTest {
     private com.taxoryn.module.authentication.repository.RefreshTokenRepository refreshTokenRepository;
 
     @Mock
+    private com.taxoryn.module.authentication.repository.CustomerEmailVerificationTokenRepository customerEmailVerificationTokenRepository;
+
+    @Mock
+    private com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
+
+    @Mock
     private AuditService auditService;
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
@@ -126,6 +132,8 @@ class MarketplaceCustomerServiceTest {
                 passwordEncoder,
                 jwtTokenProvider,
                 refreshTokenRepository,
+                customerEmailVerificationTokenRepository,
+                emailNotificationService,
                 auditService,
                 eventPublisher
         );
@@ -154,7 +162,7 @@ class MarketplaceCustomerServiceTest {
     }
 
     @Test
-    @DisplayName("Successfully registers a new marketplace customer with encrypted password and customer role")
+    @DisplayName("Registers marketplace customer successfully in ACTIVE status and returns authentication tokens")
     void testRegisterCustomer_Success() {
         RegisterCustomerRequest req = RegisterCustomerRequest.builder()
                 .firstName("Suresh")
@@ -180,6 +188,8 @@ class MarketplaceCustomerServiceTest {
                 .build();
         when(roleRepository.findByCodeAndIsSystemRoleTrue("MARKETPLACE_CUSTOMER")).thenReturn(Optional.of(role));
         when(passwordEncoder.encode("Password123!")).thenReturn("encodedHash123");
+        when(jwtTokenProvider.generateAccessToken(eq(customerUserId), isNull(), isNull(), eq("suresh.kumar@example.com"), any(), any()))
+                .thenReturn("mock-access-token");
 
         when(userRepository.save(any(UserEntity.class))).thenAnswer(inv -> {
             UserEntity u = inv.getArgument(0);
@@ -193,13 +203,12 @@ class MarketplaceCustomerServiceTest {
             return p;
         });
 
-        when(jwtTokenProvider.generateAccessToken(any(), any(), any(), anyString(), any(), any())).thenReturn("mockAccessToken");
-        when(refreshTokenRepository.save(any(RefreshTokenEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-
         CustomerAuthResponseDto response = customerService.registerCustomer(req);
 
         assertThat(response).isNotNull();
-        assertThat(response.getAccessToken()).isEqualTo("mockAccessToken");
+        assertThat(response.getAccessToken()).isEqualTo("mock-access-token");
+        assertThat(response.getRefreshToken()).isNotNull();
+        assertThat(response.getTokenType()).isEqualTo("Bearer");
         assertThat(response.getCustomer()).isNotNull();
         assertThat(response.getCustomer().getEmail()).isEqualTo("suresh.kumar@example.com");
         assertThat(response.getCustomer().getFirstName()).isEqualTo("Suresh");
@@ -208,8 +217,12 @@ class MarketplaceCustomerServiceTest {
 
         ArgumentCaptor<UserEntity> userCaptor = ArgumentCaptor.forClass(UserEntity.class);
         verify(userRepository).save(userCaptor.capture());
+        assertThat(userCaptor.getValue().getStatus()).isEqualTo(UserEntity.UserStatus.ACTIVE);
         assertThat(userCaptor.getValue().getOrganizationId()).isNull(); // Isolated from any practice organization
         assertThat(userCaptor.getValue().getPasswordHash()).isEqualTo("encodedHash123");
+
+        verify(refreshTokenRepository).save(any(RefreshTokenEntity.class));
+        verify(eventPublisher).publishEvent(any(com.taxoryn.module.notification.whatsapp.event.UserRegisteredEvent.class));
     }
 
     @Test

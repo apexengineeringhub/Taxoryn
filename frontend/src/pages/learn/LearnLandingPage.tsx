@@ -24,12 +24,14 @@ import { Button } from '../../components/common/Button';
 import { LearnHeader } from '../../components/learn/LearnHeader';
 import { LearnContentCard } from '../../components/learn/LearnContentCard';
 import { SeoHead } from '../../components/common/SeoHead';
+import { useAuth } from '../../context/AuthContext';
 import { publicLearnApi } from '../../api/endpoints';
 import { LearnContentSummary, LearnPublicCategory } from '../../types';
 import clsx from 'clsx';
 
 export const LearnLandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
 
   const [categories, setCategories] = useState<LearnPublicCategory[]>([]);
   const [featuredContent, setFeaturedContent] = useState<LearnContentSummary[]>([]);
@@ -396,7 +398,22 @@ export const LearnLandingPage: React.FC = () => {
             <Link to="/learn" className="hover:text-white transition-colors">Topics</Link>
             <Link to="/learn/content" className="hover:text-white transition-colors">Articles & Guides</Link>
             <Link to="/marketplace" className="hover:text-white transition-colors">Find a CA</Link>
-            <Link to="/login" className="hover:text-white transition-colors">Portal Login</Link>
+            {isAuthenticated && user ? (
+              <Link
+                to={
+                  (user.roles || []).some((r: any) => (typeof r === 'string' ? r : r.code || '').includes('MARKETPLACE_CUSTOMER'))
+                    ? '/marketplace/customer/dashboard'
+                    : (user.roles || []).some((r: any) => (typeof r === 'string' ? r : r.code || '').startsWith('TAXORYN_'))
+                    ? '/admin/overview'
+                    : '/dashboard'
+                }
+                className="hover:text-emerald-400 font-bold transition-colors"
+              >
+                My Dashboard
+              </Link>
+            ) : (
+              <Link to="/login" className="hover:text-white transition-colors">Portal Login</Link>
+            )}
           </div>
           <div>
             © {new Date().getFullYear()} Taxoryn. All rights reserved.

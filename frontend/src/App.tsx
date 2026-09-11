@@ -241,8 +241,28 @@ export const App: React.FC = () => {
               />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
-              <Route path="/billing" element={<BillingPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
+              <Route
+                path="/billing"
+                element={
+                  <RoleRouteGuard
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                    requiredPermissions={['BILLING_VIEW', 'BILLING_READ']}
+                  >
+                    <BillingPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <RoleRouteGuard
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER']}
+                    requiredPermissions={['REPORT_VIEW', 'ORGANIZATION_VIEW']}
+                  >
+                    <ReportsPage />
+                  </RoleRouteGuard>
+                }
+              />
               <Route
                 path="/notifications"
                 element={
@@ -358,7 +378,10 @@ export const App: React.FC = () => {
               <Route
                 path="/team"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <RoleRouteGuard
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                    requiredPermissions={['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ']}
+                  >
                     <TeamManagementPage />
                   </RoleRouteGuard>
                 }
@@ -366,7 +389,10 @@ export const App: React.FC = () => {
               <Route
                 path="/team/bulk"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                  <RoleRouteGuard
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                    requiredPermissions={['USER_CREATE', 'EMPLOYEE_CREATE']}
+                  >
                     <BulkEmployeeOnboardingPage />
                   </RoleRouteGuard>
                 }

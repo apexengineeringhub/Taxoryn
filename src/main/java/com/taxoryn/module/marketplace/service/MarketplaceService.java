@@ -6,6 +6,7 @@ import com.taxoryn.module.marketplace.entity.MarketplaceConsultationEntity.Consu
 import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,8 @@ public interface MarketplaceService {
     MarketplaceLeadDto submitPublicLead(CreateMarketplaceLeadRequest request);
 
     MarketplaceConsultationDto bookPublicConsultation(BookConsultationRequest request);
+
+    MarketplaceSlotAvailabilityDto getProfileSlotAvailability(UUID marketplaceProfileId, LocalDate date);
 
     MarketplaceReviewDto submitPublicReview(SubmitMarketplaceReviewRequest request);
 

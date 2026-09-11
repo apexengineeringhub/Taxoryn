@@ -539,7 +539,7 @@ class ClientServiceTest {
                 DuplicateResourceException.class,
                 () -> clientService.resendPortalInvitation(clientId)
         );
-        assertEquals("This email belongs to an active practice employee or administrator and cannot be provisioned as a client portal account", ex.getMessage());
+        assertEquals("This email address is already registered as an internal practice user. A separate client portal email address is required.", ex.getMessage());
     }
 
     @Test

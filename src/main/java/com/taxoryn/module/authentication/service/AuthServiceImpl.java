@@ -22,12 +22,16 @@ import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
 import com.taxoryn.module.authentication.dto.RegisterUserByAdminRequest;
 import com.taxoryn.module.authentication.dto.ResendActivationRequest;
 import com.taxoryn.module.authentication.dto.ResetPasswordRequest;
+import com.taxoryn.module.authentication.entity.CustomerEmailVerificationTokenEntity;
 import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
 import com.taxoryn.module.authentication.entity.PasswordResetTokenEntity;
 import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
+import com.taxoryn.module.authentication.repository.CustomerEmailVerificationTokenRepository;
 import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
 import com.taxoryn.module.authentication.repository.PasswordResetTokenRepository;
 import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
+import com.taxoryn.module.marketplace.entity.MarketplaceCustomerProfileEntity.CustomerProfileStatus;
+import com.taxoryn.module.marketplace.repository.MarketplaceCustomerProfileRepository;
 import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import com.taxoryn.module.organization.dto.OrganizationDto;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
@@ -88,6 +92,8 @@ public class AuthServiceImpl implements AuthService {
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
+    private final CustomerEmailVerificationTokenRepository customerEmailVerificationTokenRepository;
+    private final MarketplaceCustomerProfileRepository marketplaceCustomerProfileRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
     private final com.taxoryn.module.client.repository.ClientRepository clientRepository;
@@ -265,122 +271,207 @@ public class AuthServiceImpl implements AuthService {
         Instant now = Instant.now();
 
         // 1. ATOMIC TOKEN CONSUMPTION: Prevents race conditions from concurrent activation requests
+        // Check Organization Activation Token first
         int consumed = organizationActivationTokenRepository.consumeTokenAtomic(tokenHash, now);
-        if (consumed == 0) {
-            Optional<OrganizationActivationTokenEntity> existingTokenOpt = organizationActivationTokenRepository.findByTokenHash(tokenHash);
-            if (existingTokenOpt.isPresent()) {
-                OrganizationActivationTokenEntity existing = existingTokenOpt.get();
-                if (existing.isUsed()) {
-                    log.warn("SECURITY ALERT: Organization activation token reuse attempted for tokenId: {}, userId: {}",
-                            existing.getId(), existing.getUserId());
+        if (consumed > 0) {
+            // 2A. ORGANIZATION TOKEN SUCCESSFULLY CONSUMED
+            OrganizationActivationTokenEntity tokenEntity = organizationActivationTokenRepository.findByTokenHash(tokenHash)
+                    .orElseThrow(() -> new BadCredentialsException("Invalid or expired activation token"));
+
+            OrganizationEntity organization = organizationRepository.findById(tokenEntity.getOrganizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", tokenEntity.getOrganizationId()));
+
+            UserEntity user = userRepository.findById(tokenEntity.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", tokenEntity.getUserId()));
+
+            // Activate organization and user
+            organization.setStatus(OrganizationStatus.ACTIVE);
+            organizationRepository.save(organization);
+
+            // If a password was provided during activation (e.g. Employee password setup), update password hash
+            String effectivePassword = request.getEffectivePassword();
+            if (StringUtils.hasText(effectivePassword)) {
+                user.setPasswordHash(passwordEncoder.encode(effectivePassword));
+            }
+
+            user.setStatus(UserStatus.ACTIVE);
+            userRepository.save(user);
+
+            // If employee record exists for this user in this organization, update employee status to ACTIVE
+            employeeRepository.findByOrganizationIdAndUserId(organization.getId(), user.getId()).ifPresent(emp -> {
+                emp.setStatus(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE);
+                employeeRepository.save(emp);
+            });
+
+            // If client portal user record exists, log audit event
+            if (user.getClientId() != null) {
+                clientRepository.findByIdAndOrganizationId(user.getClientId(), organization.getId()).ifPresent(client -> {
                     auditService.logEvent(
-                            existing.getOrganizationId(),
-                            existing.getUserId(),
-                            "ORGANIZATION_ACTIVATION_TOKEN_REUSE",
-                            "ORGANIZATION",
-                            existing.getOrganizationId() != null ? existing.getOrganizationId().toString() : null,
+                            organization.getId(),
+                            user.getId(),
+                            "CLIENT_PORTAL_ACTIVATED",
+                            "CLIENT",
+                            client.getId().toString(),
                             null,
-                            "Attempted reuse of already consumed activation token from IP: " + (clientIp != null ? clientIp : "unknown")
+                            "Client portal user account successfully activated and password configured from IP: " + (clientIp != null ? clientIp : "unknown")
                     );
-                } else if (existing.isExpired()) {
-                    log.info("Organization activation token expired for tokenId: {}, userId: {}",
-                            existing.getId(), existing.getUserId());
-                    auditService.logEvent(
-                            existing.getOrganizationId(),
-                            existing.getUserId(),
-                            "ORGANIZATION_ACTIVATION_TOKEN_EXPIRED",
-                            "ORGANIZATION",
-                            existing.getOrganizationId() != null ? existing.getOrganizationId().toString() : null,
-                            null,
-                            "Attempted use of expired activation token from IP: " + (clientIp != null ? clientIp : "unknown")
-                    );
-                }
-            } else {
+                });
+            }
+
+            // Invalidate any other pending activation tokens for this user
+            organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), now);
+
+            // Record audit log
+            auditService.logEvent(
+                    organization.getId(),
+                    user.getId(),
+                    "ORGANIZATION_ACTIVATED",
+                    "ORGANIZATION",
+                    organization.getId().toString(),
+                    null,
+                    "Organization and user account successfully activated with password setup from IP: " + (clientIp != null ? clientIp : "unknown")
+            );
+
+            // Publish UserRegisteredEvent for post-activation welcome workflow
+            UserRegistrationType regType = user.getClientId() != null ? UserRegistrationType.INDIVIDUAL : UserRegistrationType.PRACTITIONER;
+            eventPublisher.publishEvent(UserRegisteredEvent.builder()
+                    .userId(user.getId())
+                    .organizationId(organization.getId())
+                    .registrationType(regType)
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
+                    .organizationName(organization.getName())
+                    .email(user.getEmail())
+                    .phone(user.getPhone())
+                    .build());
+
+            log.info("Organization {} and user {} successfully activated", organization.getId(), user.getId());
+            return;
+        }
+
+        // Check Customer Email Verification Token
+        int customerConsumed = customerEmailVerificationTokenRepository.consumeTokenAtomic(tokenHash, now);
+        if (customerConsumed > 0) {
+            // 2B. CUSTOMER TOKEN SUCCESSFULLY CONSUMED
+            CustomerEmailVerificationTokenEntity customerToken = customerEmailVerificationTokenRepository.findByTokenHash(tokenHash)
+                    .orElseThrow(() -> new BadCredentialsException("Invalid or expired activation token"));
+
+            UserEntity user = userRepository.findById(customerToken.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", customerToken.getUserId()));
+
+            String effectivePassword = request.getEffectivePassword();
+            if (StringUtils.hasText(effectivePassword)) {
+                user.setPasswordHash(passwordEncoder.encode(effectivePassword));
+            }
+
+            user.setStatus(UserStatus.ACTIVE);
+            userRepository.save(user);
+
+            marketplaceCustomerProfileRepository.findByUserId(user.getId()).ifPresent(profile -> {
+                profile.setStatus(CustomerProfileStatus.ACTIVE);
+                marketplaceCustomerProfileRepository.save(profile);
+            });
+
+            // Invalidate any other pending verification tokens for this customer
+            customerEmailVerificationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), now);
+
+            // Record audit log
+            auditService.logEvent(
+                    null,
+                    user.getId(),
+                    "CUSTOMER_ACCOUNT_ACTIVATED",
+                    "USER",
+                    user.getId().toString(),
+                    null,
+                    "Marketplace customer account successfully verified and activated from IP: " + (clientIp != null ? clientIp : "unknown")
+            );
+
+            // Publish UserRegisteredEvent for post-activation welcome workflow
+            eventPublisher.publishEvent(UserRegisteredEvent.builder()
+                    .userId(user.getId())
+                    .organizationId(null)
+                    .registrationType(UserRegistrationType.INDIVIDUAL)
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
+                    .organizationName(null)
+                    .email(user.getEmail())
+                    .phone(user.getPhone())
+                    .build());
+
+            log.info("Marketplace customer {} (user {}) successfully activated", user.getEmail(), user.getId());
+            return;
+        }
+
+        // Neither organization nor customer token could be consumed
+        Optional<OrganizationActivationTokenEntity> existingOrgTokenOpt = organizationActivationTokenRepository.findByTokenHash(tokenHash);
+        Optional<CustomerEmailVerificationTokenEntity> existingCustTokenOpt = customerEmailVerificationTokenRepository.findByTokenHash(tokenHash);
+
+        if (existingOrgTokenOpt.isPresent()) {
+            OrganizationActivationTokenEntity existing = existingOrgTokenOpt.get();
+            if (existing.isUsed()) {
+                log.warn("SECURITY ALERT: Organization activation token reuse attempted for tokenId: {}, userId: {}",
+                        existing.getId(), existing.getUserId());
                 auditService.logEvent(
-                        null,
-                        null,
-                        "ORGANIZATION_ACTIVATION_FAILED",
+                        existing.getOrganizationId(),
+                        existing.getUserId(),
+                        "ORGANIZATION_ACTIVATION_TOKEN_REUSE",
                         "ORGANIZATION",
+                        existing.getOrganizationId() != null ? existing.getOrganizationId().toString() : null,
                         null,
+                        "Attempted reuse of already consumed activation token from IP: " + (clientIp != null ? clientIp : "unknown")
+                );
+            } else if (existing.isExpired()) {
+                log.info("Organization activation token expired for tokenId: {}, userId: {}",
+                        existing.getId(), existing.getUserId());
+                auditService.logEvent(
+                        existing.getOrganizationId(),
+                        existing.getUserId(),
+                        "ORGANIZATION_ACTIVATION_TOKEN_EXPIRED",
+                        "ORGANIZATION",
+                        existing.getOrganizationId() != null ? existing.getOrganizationId().toString() : null,
                         null,
-                        "Organization activation failed with invalid token from IP: " + (clientIp != null ? clientIp : "unknown")
+                        "Attempted use of expired activation token from IP: " + (clientIp != null ? clientIp : "unknown")
                 );
             }
-            throw new BadCredentialsException("Invalid or expired activation token");
-        }
-
-        // 2. TOKEN SUCCESSFULLY CONSUMED: Activate organization and primary admin user
-        OrganizationActivationTokenEntity tokenEntity = organizationActivationTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new BadCredentialsException("Invalid or expired activation token"));
-
-        OrganizationEntity organization = organizationRepository.findById(tokenEntity.getOrganizationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", tokenEntity.getOrganizationId()));
-
-        UserEntity user = userRepository.findById(tokenEntity.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", tokenEntity.getUserId()));
-
-        // Activate organization and user
-        organization.setStatus(OrganizationStatus.ACTIVE);
-        organizationRepository.save(organization);
-
-        // If a password was provided during activation (e.g. Employee password setup), update password hash
-        String effectivePassword = request.getEffectivePassword();
-        if (StringUtils.hasText(effectivePassword)) {
-            user.setPasswordHash(passwordEncoder.encode(effectivePassword));
-        }
-
-        user.setStatus(UserStatus.ACTIVE);
-        userRepository.save(user);
-
-        // If employee record exists for this user in this organization, update employee status to ACTIVE
-        employeeRepository.findByOrganizationIdAndUserId(organization.getId(), user.getId()).ifPresent(emp -> {
-            emp.setStatus(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE);
-            employeeRepository.save(emp);
-        });
-
-        // If client portal user record exists, log audit event
-        if (user.getClientId() != null) {
-            clientRepository.findByIdAndOrganizationId(user.getClientId(), organization.getId()).ifPresent(client -> {
+        } else if (existingCustTokenOpt.isPresent()) {
+            CustomerEmailVerificationTokenEntity existingCust = existingCustTokenOpt.get();
+            if (existingCust.isUsed()) {
+                log.warn("SECURITY ALERT: Customer verification token reuse attempted for tokenId: {}, userId: {}",
+                        existingCust.getId(), existingCust.getUserId());
                 auditService.logEvent(
-                        organization.getId(),
-                        user.getId(),
-                        "CLIENT_PORTAL_ACTIVATED",
-                        "CLIENT",
-                        client.getId().toString(),
                         null,
-                        "Client portal user account successfully activated and password configured from IP: " + (clientIp != null ? clientIp : "unknown")
+                        existingCust.getUserId(),
+                        "CUSTOMER_ACTIVATION_TOKEN_REUSE",
+                        "USER",
+                        existingCust.getUserId() != null ? existingCust.getUserId().toString() : null,
+                        null,
+                        "Attempted reuse of already consumed customer verification token from IP: " + (clientIp != null ? clientIp : "unknown")
                 );
-            });
+            } else if (existingCust.isExpired()) {
+                log.info("Customer verification token expired for tokenId: {}, userId: {}",
+                        existingCust.getId(), existingCust.getUserId());
+                auditService.logEvent(
+                        null,
+                        existingCust.getUserId(),
+                        "CUSTOMER_ACTIVATION_TOKEN_EXPIRED",
+                        "USER",
+                        existingCust.getUserId() != null ? existingCust.getUserId().toString() : null,
+                        null,
+                        "Attempted use of expired customer verification token from IP: " + (clientIp != null ? clientIp : "unknown")
+                );
+            }
+        } else {
+            auditService.logEvent(
+                    null,
+                    null,
+                    "ACTIVATION_FAILED_INVALID_TOKEN",
+                    "SYSTEM",
+                    null,
+                    null,
+                    "Activation failed with invalid token from IP: " + (clientIp != null ? clientIp : "unknown")
+            );
         }
-
-        // Invalidate any other pending activation tokens for this user
-        organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), now);
-
-        // Record audit log
-        auditService.logEvent(
-                organization.getId(),
-                user.getId(),
-                "ORGANIZATION_ACTIVATED",
-                "ORGANIZATION",
-                organization.getId().toString(),
-                null,
-                "Organization and user account successfully activated with password setup from IP: " + (clientIp != null ? clientIp : "unknown")
-        );
-
-        // Publish UserRegisteredEvent for post-activation welcome workflow
-        UserRegistrationType regType = user.getClientId() != null ? UserRegistrationType.INDIVIDUAL : UserRegistrationType.PRACTITIONER;
-        eventPublisher.publishEvent(UserRegisteredEvent.builder()
-                .userId(user.getId())
-                .organizationId(organization.getId())
-                .registrationType(regType)
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .organizationName(organization.getName())
-                .email(user.getEmail())
-                .phone(user.getPhone())
-                .build());
-
-        log.info("Organization {} and user {} successfully activated", organization.getId(), user.getId());
+        throw new BadCredentialsException("Invalid or expired activation token");
     }
 
     @Override
@@ -390,36 +481,67 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("Activation token is missing");
         }
         String tokenHash = hashToken(rawToken.trim());
-        OrganizationActivationTokenEntity token = organizationActivationTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new BadCredentialsException("Invalid or expired activation link"));
 
-        if (!token.isValid()) {
-            if (token.isUsed()) {
-                throw new BadCredentialsException("Activation link has already been used. Please log in.");
+        // Check Organization token
+        Optional<OrganizationActivationTokenEntity> orgTokenOpt = organizationActivationTokenRepository.findByTokenHash(tokenHash);
+        if (orgTokenOpt.isPresent()) {
+            OrganizationActivationTokenEntity token = orgTokenOpt.get();
+            if (!token.isValid()) {
+                if (token.isUsed()) {
+                    throw new BadCredentialsException("Activation link has already been used. Please log in.");
+                }
+                if (token.isExpired()) {
+                    throw new BadCredentialsException("Activation link has expired. Please request a new activation email.");
+                }
+                throw new BadCredentialsException("Invalid or expired activation link");
             }
-            if (token.isExpired()) {
-                throw new BadCredentialsException("Activation link has expired. Please request a new activation email.");
-            }
-            throw new BadCredentialsException("Invalid or expired activation link");
+
+            UserEntity user = userRepository.findById(token.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", token.getUserId()));
+
+            OrganizationEntity org = organizationRepository.findById(token.getOrganizationId())
+                    .orElse(null);
+            String orgName = org != null ? org.getName() : "Taxoryn Practice";
+            boolean isEmployee = employeeRepository.findByOrganizationIdAndUserId(token.getOrganizationId(), user.getId()).isPresent();
+            boolean isClientUser = user.getClientId() != null;
+            boolean requiresPassword = isEmployee || isClientUser || user.getStatus() == UserStatus.INVITED || !StringUtils.hasText(user.getPasswordHash());
+
+            return com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse.builder()
+                    .valid(true)
+                    .email(user.getEmail())
+                    .organizationName(orgName)
+                    .userFullName(user.getFullName())
+                    .requiresPasswordSetup(requiresPassword)
+                    .build();
         }
 
-        UserEntity user = userRepository.findById(token.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", token.getUserId()));
+        // Check Customer token
+        Optional<CustomerEmailVerificationTokenEntity> custTokenOpt = customerEmailVerificationTokenRepository.findByTokenHash(tokenHash);
+        if (custTokenOpt.isPresent()) {
+            CustomerEmailVerificationTokenEntity token = custTokenOpt.get();
+            if (!token.isValid()) {
+                if (token.isUsed()) {
+                    throw new BadCredentialsException("Activation link has already been used. Please log in.");
+                }
+                if (token.isExpired()) {
+                    throw new BadCredentialsException("Activation link has expired. Please request a new activation email.");
+                }
+                throw new BadCredentialsException("Invalid or expired activation link");
+            }
 
-        OrganizationEntity org = organizationRepository.findById(token.getOrganizationId())
-                .orElse(null);
-        String orgName = org != null ? org.getName() : "Taxoryn Practice";
-        boolean isEmployee = employeeRepository.findByOrganizationIdAndUserId(token.getOrganizationId(), user.getId()).isPresent();
-        boolean isClientUser = user.getClientId() != null;
-        boolean requiresPassword = isEmployee || isClientUser || user.getStatus() == UserStatus.INVITED || !StringUtils.hasText(user.getPasswordHash());
+            UserEntity user = userRepository.findById(token.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", token.getUserId()));
 
-        return com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse.builder()
-                .valid(true)
-                .email(user.getEmail())
-                .organizationName(orgName)
-                .userFullName(user.getFullName())
-                .requiresPasswordSetup(requiresPassword)
-                .build();
+            return com.taxoryn.module.authentication.dto.ValidateActivationTokenResponse.builder()
+                    .valid(true)
+                    .email(user.getEmail())
+                    .organizationName(null)
+                    .userFullName(user.getFullName())
+                    .requiresPasswordSetup(!StringUtils.hasText(user.getPasswordHash()))
+                    .build();
+        }
+
+        throw new BadCredentialsException("Invalid or expired activation link");
     }
 
     @Override
@@ -549,6 +671,40 @@ public class AuthServiceImpl implements AuthService {
                         log.info("Organization activation email resent to user {} / org {}", user.getId(), org.getId());
                     }
                 }
+            } else if (user.getOrganizationId() == null && user.getStatus() == UserStatus.INACTIVE) {
+                // Resend Customer Email Verification
+                customerEmailVerificationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
+                String rawToken = generateSecureToken();
+                String tokenHash = hashToken(rawToken);
+                Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
+
+                CustomerEmailVerificationTokenEntity activationToken = CustomerEmailVerificationTokenEntity.builder()
+                        .userId(user.getId())
+                        .email(user.getEmail())
+                        .tokenHash(tokenHash)
+                        .expiresAt(expiresAt)
+                        .createdByIp(clientIp)
+                        .build();
+                customerEmailVerificationTokenRepository.save(activationToken);
+
+                String activationUrl = activationBaseUrl + "?token=" + rawToken;
+                emailNotificationService.sendCustomerEmailVerification(
+                        user.getEmail(),
+                        user.getFirstName(),
+                        activationUrl,
+                        activationExpirationHours
+                );
+
+                auditService.logEvent(
+                        null,
+                        user.getId(),
+                        "CUSTOMER_ACTIVATION_RESENT",
+                        "USER",
+                        user.getId().toString(),
+                        null,
+                        "Customer activation email resent from IP: " + (clientIp != null ? clientIp : "unknown")
+                );
+                log.info("Customer activation email resent to user {}", user.getId());
             }
         }
         // Generic return for anti-enumeration

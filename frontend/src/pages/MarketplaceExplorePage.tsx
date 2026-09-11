@@ -36,11 +36,14 @@ import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { marketplacePublicApi } from '../api/endpoints';
 import { MarketplaceProfile, ProfessionalType, PublicTaxServiceCategory } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { saveBookingIntent, getBookingIntent, clearBookingIntent } from '../utils/bookingIntent';
 import clsx from 'clsx';
 
 export const MarketplaceExplorePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user, isAuthenticated } = useAuth();
 
   // State
   const [profiles, setProfiles] = useState<MarketplaceProfile[]>([]);
@@ -103,6 +106,9 @@ export const MarketplaceExplorePage: React.FC = () => {
     notes: '',
   });
 
+  const [bookingStep, setBookingStep] = useState<'EDIT' | 'CONFIRMATION'>('EDIT');
+  const [bookingError, setBookingError] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [actionSuccess, setActionSuccess] = useState<{
     title: string;
@@ -111,6 +117,51 @@ export const MarketplaceExplorePage: React.FC = () => {
     type: 'INQUIRY' | 'BOOKING';
     profileName: string;
   } | null>(null);
+
+  // Auto-fill customer details from authenticated user session
+  useEffect(() => {
+    if (user) {
+      const fullName = user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : '';
+      setBookingForm((prev) => ({
+        ...prev,
+        clientName: fullName || prev.clientName,
+        clientEmail: user.email || prev.clientEmail,
+        clientPhone: user.phone || prev.clientPhone,
+      }));
+    }
+  }, [user]);
+
+  // Restore Booking Intent upon login/registration redirect
+  useEffect(() => {
+    const intent = getBookingIntent();
+    if (intent && (isAuthenticated || searchParams.get('restoreBooking') === 'true')) {
+      const loadProfileAndRestore = async () => {
+        try {
+          const profile = await marketplacePublicApi.getById(intent.marketplaceProfileId);
+          if (profile) {
+            setSelectedProfileForBooking(profile as any);
+            const fullName = user ? `${user.firstName} ${user.lastName || ''}`.trim() : '';
+            setBookingForm({
+              clientName: fullName || '',
+              clientEmail: user?.email || '',
+              clientPhone: user?.phone || '',
+              topic: intent.topic || 'Statutory Tax Planning & Compliance Strategy',
+              consultationMode: intent.consultationMode || 'VIDEO',
+              bookingDate: intent.bookingDate,
+              startTime: intent.startTime,
+              endTime: intent.endTime || '12:00',
+              notes: intent.notes || '',
+            });
+            setBookingStep('CONFIRMATION');
+            setBookingError(null);
+          }
+        } catch {
+          clearBookingIntent();
+        }
+      };
+      loadProfileAndRestore();
+    }
+  }, [isAuthenticated, user, searchParams]);
 
   // Quick Filters Data
   const popularCities = ['Mumbai', 'New Delhi', 'Bengaluru', 'Pune', 'Hyderabad', 'Chennai', 'Kolkata', 'Ahmedabad'];
@@ -321,6 +372,33 @@ export const MarketplaceExplorePage: React.FC = () => {
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProfileForBooking) return;
+    setBookingError(null);
+
+    // 1. If unauthenticated, persist booking intent and route to login
+    if (!isAuthenticated || !user) {
+      saveBookingIntent({
+        marketplaceProfileId: selectedProfileForBooking.id,
+        professionalName: selectedProfileForBooking.displayName,
+        consultationFee: selectedProfileForBooking.consultationFee || 999,
+        topic: bookingForm.topic,
+        consultationMode: bookingForm.consultationMode as any,
+        bookingDate: bookingForm.bookingDate,
+        startTime: bookingForm.startTime,
+        endTime: bookingForm.endTime,
+        notes: bookingForm.notes,
+        returnUrl: '/marketplace',
+      });
+      navigate('/login?redirect=booking');
+      return;
+    }
+
+    // 2. If currently on EDIT step and authenticated, transition to CONFIRMATION view
+    if (bookingStep === 'EDIT') {
+      setBookingStep('CONFIRMATION');
+      return;
+    }
+
+    // 3. Final submission on CONFIRMATION step
     setIsSubmitting(true);
     try {
       const booking = await marketplacePublicApi.bookConsultation({
@@ -337,7 +415,9 @@ export const MarketplaceExplorePage: React.FC = () => {
       });
 
       const profName = selectedProfileForBooking.displayName;
+      clearBookingIntent();
       setSelectedProfileForBooking(null);
+      setBookingStep('EDIT');
       setActionSuccess({
         title: 'Consultation Appointment Confirmed!',
         message: `Your 30-minute advisory session with ${profName} is confirmed for ${bookingForm.bookingDate} at ${bookingForm.startTime} IST (${bookingForm.consultationMode}). A calendar link and Inbound Lead record have been generated.`,
@@ -345,8 +425,9 @@ export const MarketplaceExplorePage: React.FC = () => {
         type: 'BOOKING',
         profileName: profName,
       });
-    } catch (err) {
-      alert('Failed to book consultation session.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to book consultation session.';
+      setBookingError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -378,13 +459,32 @@ export const MarketplaceExplorePage: React.FC = () => {
             >
               Post Requirement
             </button>
-            <button
-              type="button"
-              onClick={() => navigate('/login')}
-              className="bg-[#00D1A3] hover:bg-[#00B388] text-[#07152B] font-bold px-3.5 py-1.5 rounded-lg shadow-sm transition-all"
-            >
-              Sign In
-            </button>
+            {isAuthenticated && user ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/marketplace/customer/dashboard')}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <span>Dashboard</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/marketplace/customer/profile')}
+                  className="bg-white/10 hover:bg-white/20 text-white font-medium px-3 py-1.5 rounded-lg border border-white/10 transition-all flex items-center gap-1.5"
+                >
+                  <span className="max-w-[120px] truncate">{user.firstName || 'Profile'}</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                className="bg-[#00D1A3] hover:bg-[#00B388] text-[#07152B] font-bold px-3.5 py-1.5 rounded-lg shadow-sm transition-all"
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -1352,10 +1452,10 @@ export const MarketplaceExplorePage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. Book Consultation Modal (Creates Appointment & Lead) */}
+      {/* 2. Book Consultation Modal (Preserves Slot & Authenticates Seamlessly) */}
       {/* ========================================================================= */}
       {selectedProfileForBooking && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-3">
@@ -1364,111 +1464,216 @@ export const MarketplaceExplorePage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Book 30-Min Strategy Session
+                    {bookingStep === 'CONFIRMATION' ? 'Confirm Consultation Booking' : 'Book 30-Min Strategy Session'}
                   </h3>
                   <p className="text-xs text-slate-500">With {selectedProfileForBooking.displayName} (Fee: ₹{selectedProfileForBooking.consultationFee || 999})</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedProfileForBooking(null)} className="text-gray-400 hover:text-gray-600 font-bold">&times;</button>
+              <button
+                onClick={() => {
+                  setSelectedProfileForBooking(null);
+                  setBookingStep('EDIT');
+                  setBookingError(null);
+                  clearBookingIntent();
+                }}
+                className="text-gray-400 hover:text-gray-600 font-bold"
+              >
+                &times;
+              </button>
             </div>
 
-            <form onSubmit={handleBookingSubmit} className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Your Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Anita Deshmukh"
-                    value={bookingForm.clientName}
-                    onChange={(e) => setBookingForm({ ...bookingForm, clientName: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  />
+            {bookingError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-semibold flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                  <span>{bookingError}</span>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Phone Number *</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+91 98220 12345"
-                    value={bookingForm.clientPhone}
-                    onChange={(e) => setBookingForm({ ...bookingForm, clientPhone: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBookingStep('EDIT');
+                    setBookingError(null);
+                  }}
+                  className="text-xs font-bold text-rose-900 underline hover:no-underline shrink-0"
+                >
+                  Change Slot
+                </button>
               </div>
+            )}
 
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="anita@company.com"
-                  value={bookingForm.clientEmail}
-                  onChange={(e) => setBookingForm({ ...bookingForm, clientEmail: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                />
-              </div>
+            <form onSubmit={handleBookingSubmit} className="space-y-4">
+              {bookingStep === 'CONFIRMATION' ? (
+                /* ------------------------------------------------------------- */
+                /* STEP 2: BOOKING CONFIRMATION & REVIEW SCREEN */
+                /* ------------------------------------------------------------- */
+                <div className="space-y-3.5">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2.5">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Professional</span>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">{selectedProfileForBooking.displayName}</h4>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400">{selectedProfileForBooking.city}, {selectedProfileForBooking.state}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Consultation Fee</span>
+                        <div className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                          ₹{selectedProfileForBooking.consultationFee || 999}
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={bookingForm.bookingDate}
-                    onChange={(e) => setBookingForm({ ...bookingForm, bookingDate: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Time Slot *</label>
-                  <select
-                    value={bookingForm.startTime}
-                    onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  >
-                    <option value="10:00">10:00 AM</option>
-                    <option value="11:30">11:30 AM</option>
-                    <option value="14:00">02:00 PM</option>
-                    <option value="15:00">03:00 PM</option>
-                    <option value="16:30">04:30 PM</option>
-                    <option value="18:00">06:00 PM</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Mode</label>
-                  <select
-                    value={bookingForm.consultationMode}
-                    onChange={(e) => setBookingForm({ ...bookingForm, consultationMode: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                  >
-                    <option value="VIDEO">Google Meet</option>
-                    <option value="PHONE">Phone Call</option>
-                    <option value="IN_PERSON">In-Office</option>
-                  </select>
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Date & Time</span>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                          {bookingForm.bookingDate} at {bookingForm.startTime}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Consultation Mode</span>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                          {bookingForm.consultationMode === 'VIDEO' ? 'Google Meet / Video' : bookingForm.consultationMode === 'PHONE' ? 'Phone Call' : 'In-Person Office'}
+                        </p>
+                      </div>
+                    </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Consultation Topic *</label>
-                <input
-                  type="text"
-                  required
-                  value={bookingForm.topic}
-                  onChange={(e) => setBookingForm({ ...bookingForm, topic: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
-                />
-              </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Topic</span>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 font-medium mt-0.5">{bookingForm.topic}</p>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t">
-                <Button variant="secondary" size="sm" onClick={() => setSelectedProfileForBooking(null)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
-                  {isSubmitting ? 'Confirming...' : 'Confirm Strategy Appointment'}
-                </Button>
-              </div>
+                  {/* Authenticated Customer Identity */}
+                  <div className="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-indigo-950 dark:text-indigo-200">Customer Details (Auto-Filled)</span>
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Authenticated</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-medium block">Name</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{bookingForm.clientName || 'Customer'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-medium block">Email</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{bookingForm.clientEmail}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-medium block">Phone</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{bookingForm.clientPhone || 'Not provided'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBookingStep('EDIT');
+                        setBookingError(null);
+                      }}
+                    >
+                      Change Slot
+                    </Button>
+                    <Button type="submit" variant="primary" size="sm" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                      {isSubmitting ? 'Confirming...' : 'Confirm Booking'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* ------------------------------------------------------------- */
+                /* STEP 1: SLOT SELECTION FORM */
+                /* ------------------------------------------------------------- */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Date *</label>
+                      <input
+                        type="date"
+                        required
+                        value={bookingForm.bookingDate}
+                        onChange={(e) => setBookingForm({ ...bookingForm, bookingDate: e.target.value })}
+                        className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Time Slot *</label>
+                      <select
+                        value={bookingForm.startTime}
+                        onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
+                        className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                      >
+                        <option value="10:00">10:00 AM</option>
+                        <option value="11:30">11:30 AM</option>
+                        <option value="14:00">02:00 PM</option>
+                        <option value="15:00">03:00 PM</option>
+                        <option value="16:30">04:30 PM</option>
+                        <option value="18:00">06:00 PM</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Mode</label>
+                      <select
+                        value={bookingForm.consultationMode}
+                        onChange={(e) => setBookingForm({ ...bookingForm, consultationMode: e.target.value })}
+                        className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                      >
+                        <option value="VIDEO">Google Meet</option>
+                        <option value="PHONE">Phone Call</option>
+                        <option value="IN_PERSON">In-Office</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Consultation Topic *</label>
+                    <input
+                      type="text"
+                      required
+                      value={bookingForm.topic}
+                      onChange={(e) => setBookingForm({ ...bookingForm, topic: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Additional Notes (Optional)</label>
+                    <textarea
+                      rows={2}
+                      value={bookingForm.notes}
+                      onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })}
+                      placeholder="e.g. Need clarification regarding Section 148 notice"
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                    />
+                  </div>
+
+                  {!isAuthenticated && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                      <p className="font-semibold">Sign in required to confirm booking</p>
+                      <p className="text-[11px] text-amber-700 mt-0.5">Your selected slot will be preserved through Login / Registration.</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedProfileForBooking(null);
+                        setBookingError(null);
+                        clearBookingIntent();
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
+                      {isAuthenticated ? 'Review & Confirm Booking' : 'Book Slot (Sign In to Continue)'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>

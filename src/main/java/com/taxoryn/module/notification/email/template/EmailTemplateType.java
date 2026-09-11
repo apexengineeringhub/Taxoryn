@@ -21,7 +21,8 @@ public enum EmailTemplateType {
     CLIENT_PORTAL_INVITATION("Activate Your Taxoryn Client Portal — {{practiceName}}"),
     CLIENT_PORTAL_SUSPENDED("Your Taxoryn Portal Access Has Been Suspended"),
     CLIENT_PORTAL_RESTORED("Your Taxoryn Portal Access Has Been Restored"),
-    CLIENT_PORTAL_DEACTIVATED("Your Taxoryn Portal Access Is No Longer Active");
+    CLIENT_PORTAL_DEACTIVATED("Your Taxoryn Portal Access Is No Longer Active"),
+    CUSTOMER_EMAIL_VERIFICATION("Welcome to Taxoryn — Verify Your Email");
 
     private final String defaultSubject;
 }

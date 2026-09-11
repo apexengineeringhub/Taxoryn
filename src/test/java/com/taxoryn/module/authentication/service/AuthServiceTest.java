@@ -50,6 +50,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import com.taxoryn.module.authentication.dto.ActivateOrganizationRequest;
 import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
 import com.taxoryn.module.authentication.dto.ResendActivationRequest;
+import com.taxoryn.module.authentication.entity.CustomerEmailVerificationTokenEntity;
 import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
 import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
 import com.taxoryn.module.audit.service.AuditService;
@@ -134,6 +135,12 @@ class AuthServiceTest {
     private RefreshTokenRepository refreshTokenRepository;
 
     @Mock
+    private com.taxoryn.module.authentication.repository.CustomerEmailVerificationTokenRepository customerEmailVerificationTokenRepository;
+
+    @Mock
+    private com.taxoryn.module.marketplace.repository.MarketplaceCustomerProfileRepository marketplaceCustomerProfileRepository;
+
+    @Mock
     private EmailNotificationService emailNotificationService;
 
     @Mock
@@ -141,6 +148,9 @@ class AuthServiceTest {
 
     @Mock
     private com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
+
+    @Mock
+    private com.taxoryn.module.client.repository.ClientRepository clientRepository;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -697,5 +707,99 @@ class AuthServiceTest {
     void testLogoutAllSessions() {
         authService.logoutAllSessions();
         verify(refreshTokenRepository).revokeAllByUserId(eq(userId), any(), eq("LOGOUT_ALL"));
+    }
+
+    @Test
+    @DisplayName("Validates customer email verification token successfully")
+    void testValidateActivationToken_CustomerToken_Success() {
+        String rawToken = "valid-cust-token-123";
+        CustomerEmailVerificationTokenEntity custToken = CustomerEmailVerificationTokenEntity.builder()
+                .userId(userId)
+                .email("customer@example.com")
+                .tokenHash("hash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        UserEntity user = UserEntity.builder()
+                .email("customer@example.com")
+                .firstName("Rohan")
+                .lastName("Verma")
+                .passwordHash("existingHashedPassword")
+                .status(UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(userId);
+
+        when(organizationActivationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(customerEmailVerificationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(custToken));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        var response = authService.validateActivationToken(rawToken);
+
+        assertNotNull(response);
+        assertTrue(response.isValid());
+        assertEquals("customer@example.com", response.getEmail());
+        assertEquals("Rohan Verma", response.getUserFullName());
+        assertEquals(false, response.isRequiresPasswordSetup());
+    }
+
+    @Test
+    @DisplayName("Activates customer account atomically via email verification token")
+    void testActivateOrganization_CustomerToken_Success() {
+        String rawToken = "cust-activate-token-123";
+        CustomerEmailVerificationTokenEntity custToken = CustomerEmailVerificationTokenEntity.builder()
+                .userId(userId)
+                .email("customer@example.com")
+                .tokenHash("hash")
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        UserEntity user = UserEntity.builder()
+                .email("customer@example.com")
+                .firstName("Rohan")
+                .lastName("Verma")
+                .passwordHash("existingHashedPassword")
+                .status(UserEntity.UserStatus.INACTIVE)
+                .build();
+        user.setId(userId);
+
+        when(organizationActivationTokenRepository.consumeTokenAtomic(anyString(), any())).thenReturn(0);
+        when(customerEmailVerificationTokenRepository.consumeTokenAtomic(anyString(), any())).thenReturn(1);
+        when(customerEmailVerificationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(custToken));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        ActivateOrganizationRequest request = ActivateOrganizationRequest.builder()
+                .token(rawToken)
+                .build();
+
+        authService.activateOrganization(request, "127.0.0.1");
+
+        assertEquals(UserEntity.UserStatus.ACTIVE, user.getStatus());
+        verify(userRepository).save(user);
+        verify(customerEmailVerificationTokenRepository).invalidateAllPendingTokensForUser(eq(userId), any());
+        verify(auditService).logEvent(eq(null), eq(userId), eq("CUSTOMER_ACCOUNT_ACTIVATED"), eq("USER"), anyString(), eq(null), anyString());
+    }
+
+    @Test
+    @DisplayName("Resends activation email for inactive customer account")
+    void testResendActivation_CustomerAccount_Success() {
+        UserEntity customerUser = UserEntity.builder()
+                .email("customer@example.com")
+                .firstName("Rohan")
+                .status(UserEntity.UserStatus.INACTIVE)
+                .organizationId(null)
+                .build();
+        customerUser.setId(userId);
+
+        when(userRepository.findByEmailIgnoreCase("customer@example.com")).thenReturn(Optional.of(customerUser));
+
+        ResendActivationRequest request = ResendActivationRequest.builder()
+                .email("customer@example.com")
+                .build();
+
+        authService.resendActivation(request, "127.0.0.1");
+
+        verify(customerEmailVerificationTokenRepository).invalidateAllPendingTokensForUser(eq(userId), any());
+        verify(customerEmailVerificationTokenRepository).save(any(CustomerEmailVerificationTokenEntity.class));
+        verify(emailNotificationService).sendCustomerEmailVerification(eq("customer@example.com"), eq("Rohan"), anyString(), eq(24L));
     }
 }

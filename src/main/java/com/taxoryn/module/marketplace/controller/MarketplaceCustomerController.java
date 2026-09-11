@@ -34,10 +34,12 @@ public class MarketplaceCustomerController {
             @Valid @RequestBody RegisterCustomerRequest request
     ) {
         CustomerAuthResponseDto response = customerService.registerCustomer(request);
-        ResponseCookie cookie = authCookieUtil.createRefreshTokenCookie(response.getRefreshToken());
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(ApiResponse.success("Marketplace customer account created successfully", response));
+        var responseBuilder = ResponseEntity.status(HttpStatus.CREATED);
+        if (org.springframework.util.StringUtils.hasText(response.getRefreshToken())) {
+            ResponseCookie cookie = authCookieUtil.createRefreshTokenCookie(response.getRefreshToken());
+            responseBuilder.header(HttpHeaders.SET_COOKIE, cookie.toString());
+        }
+        return responseBuilder.body(ApiResponse.created("Customer account registered successfully", response));
     }
 
     @GetMapping("/profile")

@@ -206,7 +206,7 @@ export const ActivateOrgPage: React.FC = () => {
               <p className="text-xs text-slate-600 leading-relaxed">
                 {tokenInfo?.requiresPasswordSetup
                   ? 'Your password has been set securely and your account is now active.'
-                  : 'Your organization and administrator credentials have been verified.'}{' '}
+                  : 'Your account credentials and email have been successfully verified.'}{' '}
                 You can now log in with your email and password.
               </p>
             </div>

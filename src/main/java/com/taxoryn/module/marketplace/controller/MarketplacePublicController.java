@@ -107,6 +107,16 @@ public class MarketplacePublicController {
                 .body(ApiResponse.created("Consultation booked successfully", consultation));
     }
 
+    @GetMapping("/profiles/{id}/availability")
+    @Operation(summary = "Get Profile Slot Availability", description = "Retrieves booked and available consultation time slots for a practitioner profile on a given date.")
+    public ResponseEntity<ApiResponse<MarketplaceSlotAvailabilityDto>> getSlotAvailability(
+            @PathVariable UUID id,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date
+    ) {
+        MarketplaceSlotAvailabilityDto availability = marketplaceService.getProfileSlotAvailability(id, date);
+        return ResponseEntity.ok(ApiResponse.success("Slot availability retrieved successfully", availability));
+    }
+
     @PostMapping("/reviews")
     @Operation(summary = "Submit Client Review", description = "Post a rating and review for a tax professional.")
     public ResponseEntity<ApiResponse<MarketplaceReviewDto>> submitReview(@Valid @RequestBody SubmitMarketplaceReviewRequest request) {
