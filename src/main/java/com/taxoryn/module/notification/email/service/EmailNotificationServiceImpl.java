@@ -376,6 +376,29 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
         emailSender.sendEmail(recipientEmail.trim(), clientName, subject, htmlBody, data);
     }
 
+    @Override
+    public void sendCustomerEmailVerification(String recipientEmail, String recipientName, String activationUrl, long expiryHours) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send customer email verification: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "Valued Customer";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("email", recipientEmail.trim());
+        data.put("activationUrl", activationUrl);
+        data.put("expiryHours", String.valueOf(expiryHours));
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.CUSTOMER_EMAIL_VERIFICATION, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.CUSTOMER_EMAIL_VERIFICATION, data);
+
+        boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+        log.info("Customer email verification dispatch for {}: success={}, provider={}",
+                maskEmail(recipientEmail), success, emailSender.getProviderName());
+    }
+
     private String buildFullName(String firstName, String lastName) {
         if (StringUtils.hasText(firstName) && StringUtils.hasText(lastName)) {
             return firstName.trim() + " " + lastName.trim();

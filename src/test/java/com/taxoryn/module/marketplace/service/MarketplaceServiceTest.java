@@ -1227,4 +1227,135 @@ class MarketplaceServiceTest {
         assertTrue(result.getContent().isEmpty());
         assertEquals(0, result.getTotalElements());
     }
+
+    @Test
+    @DisplayName("Should successfully book public consultation and derive customerId from SecurityContext")
+    void testBookPublicConsultation_Success() {
+        BookConsultationRequest req = BookConsultationRequest.builder()
+                .marketplaceProfileId(profileId)
+                .clientName("Suresh Raina")
+                .clientEmail("suresh@example.com")
+                .clientPhone("9811223344")
+                .topic("NRI Income Tax Assessment")
+                .consultationMode(MarketplaceConsultationEntity.ConsultationMode.VIDEO)
+                .bookingDate(java.time.LocalDate.now().plusDays(2))
+                .startTime("14:00")
+                .endTime("14:30")
+                .notes("Need advice on capital gains")
+                .build();
+
+        when(profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(profileId, VisibilityStatus.PUBLIC))
+                .thenReturn(Optional.of(sampleProfile));
+        when(consultationRepository.existsByMarketplaceProfileIdAndBookingDateAndStartTimeAndConsultationStatusNot(
+                eq(profileId), eq(req.getBookingDate()), eq("14:00"), eq(MarketplaceConsultationEntity.ConsultationStatus.CANCELLED)))
+                .thenReturn(false);
+
+        MarketplaceConsultationEntity savedEntity = MarketplaceConsultationEntity.builder()
+                .organizationId(organizationId)
+                .marketplaceProfileId(profileId)
+                .clientName("Suresh Raina")
+                .clientEmail("suresh@example.com")
+                .clientPhone("9811223344")
+                .topic(req.getTopic())
+                .consultationMode(req.getConsultationMode())
+                .bookingDate(req.getBookingDate())
+                .startTime("14:00")
+                .endTime("14:30")
+                .feeAmount(sampleProfile.getConsultationFee())
+                .paymentStatus(MarketplaceConsultationEntity.PaymentStatus.PAID)
+                .consultationStatus(MarketplaceConsultationEntity.ConsultationStatus.SCHEDULED)
+                .build();
+        savedEntity.setId(UUID.randomUUID());
+
+        when(consultationRepository.save(any(MarketplaceConsultationEntity.class))).thenReturn(savedEntity);
+        MarketplaceConsultationDto dto = MarketplaceConsultationDto.builder()
+                .id(savedEntity.getId())
+                .clientName("Suresh Raina")
+                .clientEmail("suresh@example.com")
+                .bookingDate(req.getBookingDate())
+                .startTime("14:00")
+                .endTime("14:30")
+                .consultationStatus(MarketplaceConsultationEntity.ConsultationStatus.SCHEDULED)
+                .build();
+        when(mapper.toConsultationDto(savedEntity)).thenReturn(dto);
+        when(profileRepository.findById(profileId)).thenReturn(Optional.of(sampleProfile));
+
+        MarketplaceConsultationDto result = marketplaceService.bookPublicConsultation(req);
+
+        assertNotNull(result);
+        assertEquals(savedEntity.getId(), result.getId());
+        assertEquals("Suresh Raina", result.getClientName());
+        verify(consultationRepository).save(any(MarketplaceConsultationEntity.class));
+        verify(leadRepository).save(any(MarketplaceLeadEntity.class));
+        verify(auditService).logEvent(eq("MARKETPLACE_CONSULTATION_BOOKED"), eq("MARKETPLACE_CONSULTATION"), eq(savedEntity.getId().toString()), isNull(), anyString());
+    }
+
+    @Test
+    @DisplayName("Should reject public consultation booking when slot is already taken")
+    void testBookPublicConsultation_SlotUnavailable_ThrowsBusinessValidationException() {
+        BookConsultationRequest req = BookConsultationRequest.builder()
+                .marketplaceProfileId(profileId)
+                .clientName("Suresh Raina")
+                .clientEmail("suresh@example.com")
+                .clientPhone("9811223344")
+                .topic("NRI Income Tax Assessment")
+                .consultationMode(MarketplaceConsultationEntity.ConsultationMode.VIDEO)
+                .bookingDate(java.time.LocalDate.now().plusDays(2))
+                .startTime("14:00")
+                .endTime("14:30")
+                .build();
+
+        when(profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(profileId, VisibilityStatus.PUBLIC))
+                .thenReturn(Optional.of(sampleProfile));
+        when(consultationRepository.existsByMarketplaceProfileIdAndBookingDateAndStartTimeAndConsultationStatusNot(
+                eq(profileId), eq(req.getBookingDate()), eq("14:00"), eq(MarketplaceConsultationEntity.ConsultationStatus.CANCELLED)))
+                .thenReturn(true);
+
+        BusinessValidationException ex = assertThrows(BusinessValidationException.class, () ->
+                marketplaceService.bookPublicConsultation(req)
+        );
+
+        assertTrue(ex.getMessage().contains("This slot is no longer available"));
+        verify(consultationRepository, never()).save(any(MarketplaceConsultationEntity.class));
+    }
+
+    @Test
+    @DisplayName("Should return available and booked slots for a given date")
+    void testGetProfileSlotAvailability() {
+        java.time.LocalDate date = java.time.LocalDate.now().plusDays(3);
+
+        when(profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(profileId, VisibilityStatus.PUBLIC))
+                .thenReturn(Optional.of(sampleProfile));
+
+        MarketplaceConsultationEntity booked1 = MarketplaceConsultationEntity.builder()
+                .marketplaceProfileId(profileId)
+                .bookingDate(date)
+                .startTime("10:00")
+                .consultationStatus(MarketplaceConsultationEntity.ConsultationStatus.SCHEDULED)
+                .build();
+        MarketplaceConsultationEntity booked2 = MarketplaceConsultationEntity.builder()
+                .marketplaceProfileId(profileId)
+                .bookingDate(date)
+                .startTime("14:00")
+                .consultationStatus(MarketplaceConsultationEntity.ConsultationStatus.SCHEDULED)
+                .build();
+
+        when(consultationRepository.findByMarketplaceProfileIdAndBookingDateAndConsultationStatusNot(
+                eq(profileId), eq(date), eq(MarketplaceConsultationEntity.ConsultationStatus.CANCELLED)))
+                .thenReturn(List.of(booked1, booked2));
+
+        MarketplaceSlotAvailabilityDto result = marketplaceService.getProfileSlotAvailability(profileId, date);
+
+        assertNotNull(result);
+        assertEquals(profileId, result.getMarketplaceProfileId());
+        assertEquals(date, result.getDate());
+        assertTrue(result.getBookedSlots().contains("10:00"));
+        assertTrue(result.getBookedSlots().contains("14:00"));
+        assertFalse(result.getAvailableSlots().contains("10:00"));
+        assertFalse(result.getAvailableSlots().contains("14:00"));
+        assertTrue(result.getAvailableSlots().contains("11:30"));
+        assertTrue(result.getAvailableSlots().contains("15:00"));
+        assertTrue(result.getAvailableSlots().contains("16:30"));
+        assertTrue(result.getAvailableSlots().contains("18:00"));
+    }
 }

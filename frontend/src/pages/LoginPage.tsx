@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getBookingIntent } from '../utils/bookingIntent';
 import {
   ShieldCheck,
   Lock,
@@ -14,6 +15,7 @@ import {
   CheckCircle2,
   GraduationCap,
   BookOpen,
+  Calendar,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
@@ -26,6 +28,7 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const bookingIntent = getBookingIntent();
 
   useEffect(() => {
     // Auto recall last registered or logged in email
@@ -49,7 +52,11 @@ export const LoginPage: React.FC = () => {
       const loggedInUser = await login(email.trim(), password);
       localStorage.setItem('taxoryn_last_user_email', email.trim());
       const roleCodes = (loggedInUser?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-      if (roleCodes.some((r: string) => ['MARKETPLACE_CUSTOMER'].includes(r))) {
+      
+      const pendingBooking = getBookingIntent();
+      if (pendingBooking && roleCodes.some((r: string) => ['MARKETPLACE_CUSTOMER'].includes(r))) {
+        navigate(`${pendingBooking.returnUrl || '/marketplace'}?restoreBooking=true`, { replace: true });
+      } else if (roleCodes.some((r: string) => ['MARKETPLACE_CUSTOMER'].includes(r))) {
         navigate('/marketplace/customer/dashboard');
       } else if (roleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r))) {
         navigate('/portal');
@@ -355,6 +362,18 @@ export const LoginPage: React.FC = () => {
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {bookingIntent && (
+              <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 flex items-start gap-2.5 shadow-xs animate-fade-in">
+                <Calendar className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
+                <div className="space-y-0.5">
+                  <div className="font-bold text-indigo-950">Pending Consultation Booking</div>
+                  <p className="text-[11px] text-indigo-700 leading-relaxed">
+                    Sign in to confirm your appointment with <strong>{bookingIntent.professionalName || 'Tax Professional'}</strong> on <strong>{bookingIntent.bookingDate} at {bookingIntent.startTime}</strong>.
+                  </p>
+                </div>
               </div>
             )}
 

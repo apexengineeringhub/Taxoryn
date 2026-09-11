@@ -539,6 +539,20 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(request.getMarketplaceProfileId(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", request.getMarketplaceProfileId()));
 
+        String normalizedStartTime = request.getStartTime().trim();
+
+        // 1. Atomic Slot Revalidation: Prevent double booking and stale slot reservations
+        boolean isSlotTaken = consultationRepository.existsByMarketplaceProfileIdAndBookingDateAndStartTimeAndConsultationStatusNot(
+                profile.getId(),
+                request.getBookingDate(),
+                normalizedStartTime,
+                ConsultationStatus.CANCELLED
+        );
+        if (isSlotTaken) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("This slot is no longer available. Please select another available time.");
+        }
+
+        // 2. IDOR Prevention: Customer identity strictly derived from authenticated SecurityContext
         UUID currentCustomerId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
 
         MarketplaceConsultationEntity consultation = MarketplaceConsultationEntity.builder()
@@ -551,8 +565,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .topic(request.getTopic())
                 .consultationMode(request.getConsultationMode())
                 .bookingDate(request.getBookingDate())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
+                .startTime(normalizedStartTime)
+                .endTime(request.getEndTime().trim())
                 .feeAmount(profile.getConsultationFee())
                 .paymentStatus(MarketplaceConsultationEntity.PaymentStatus.PAID)
                 .consultationStatus(ConsultationStatus.SCHEDULED)
@@ -587,6 +601,34 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         }
 
         return enrichConsultationDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MarketplaceSlotAvailabilityDto getProfileSlotAvailability(UUID marketplaceProfileId, LocalDate date) {
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
+
+        List<String> standardSlots = List.of("10:00", "11:30", "14:00", "15:00", "16:30", "18:00");
+
+        List<MarketplaceConsultationEntity> bookedConsultations = consultationRepository
+                .findByMarketplaceProfileIdAndBookingDateAndConsultationStatusNot(profile.getId(), date, ConsultationStatus.CANCELLED);
+
+        List<String> bookedSlots = bookedConsultations.stream()
+                .map(MarketplaceConsultationEntity::getStartTime)
+                .distinct()
+                .toList();
+
+        List<String> availableSlots = standardSlots.stream()
+                .filter(slot -> !bookedSlots.contains(slot))
+                .toList();
+
+        return MarketplaceSlotAvailabilityDto.builder()
+                .marketplaceProfileId(profile.getId())
+                .date(date)
+                .bookedSlots(bookedSlots)
+                .availableSlots(availableSlots)
+                .build();
     }
 
     @Override

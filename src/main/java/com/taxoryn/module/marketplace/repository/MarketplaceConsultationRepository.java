@@ -20,6 +20,19 @@ public interface MarketplaceConsultationRepository extends JpaRepository<Marketp
 
     List<MarketplaceConsultationEntity> findByMarketplaceProfileIdAndBookingDate(UUID marketplaceProfileId, LocalDate bookingDate);
 
+    List<MarketplaceConsultationEntity> findByMarketplaceProfileIdAndBookingDateAndConsultationStatusNot(
+            UUID marketplaceProfileId,
+            LocalDate bookingDate,
+            MarketplaceConsultationEntity.ConsultationStatus status
+    );
+
+    boolean existsByMarketplaceProfileIdAndBookingDateAndStartTimeAndConsultationStatusNot(
+            UUID marketplaceProfileId,
+            LocalDate bookingDate,
+            String startTime,
+            MarketplaceConsultationEntity.ConsultationStatus status
+    );
+
     Page<MarketplaceConsultationEntity> findAllByOrganizationIdOrderByBookingDateDesc(UUID organizationId, Pageable pageable);
 
     long countByOrganizationIdAndConsultationStatus(UUID organizationId, MarketplaceConsultationEntity.ConsultationStatus status);

@@ -32,6 +32,7 @@ import org.springframework.util.StringUtils;
 import com.taxoryn.module.notification.whatsapp.event.UserRegisteredEvent;
 import com.taxoryn.module.notification.whatsapp.event.UserRegistrationType;
 
+import com.taxoryn.module.authentication.entity.CustomerEmailVerificationTokenEntity;
 import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
 import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
 
@@ -73,6 +74,8 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final com.taxoryn.module.authentication.repository.CustomerEmailVerificationTokenRepository customerEmailVerificationTokenRepository;
+    private final com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -81,6 +84,12 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
 
     @Value("${taxoryn.jwt.refresh-expiration-ms:604800000}")
     private long jwtRefreshExpirationMs;
+
+    @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
+    private String activationBaseUrl = "http://localhost:5173/activate";
+
+    @Value("${taxoryn.auth.activation-expiration-hours:24}")
+    private long activationExpirationHours = 24L;
 
     @Override
     @Transactional
@@ -141,12 +150,11 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
         auditService.logEvent("CUSTOMER_PROFILE_CREATED", "MARKETPLACE_CUSTOMER_PROFILE", profileIdStr, null,
                 "Created customer profile for user: " + savedUser.getId());
 
-        Set<String> roleCodes = Set.of("MARKETPLACE_CUSTOMER");
-        Set<String> permissionCodes = (customerRole.getPermissions() != null && !customerRole.getPermissions().isEmpty())
-                ? customerRole.getPermissions().stream()
-                        .map(PermissionEntity::getCode)
-                        .collect(Collectors.toSet())
-                : Set.of("MARKETPLACE_CUSTOMER_ACCESS");
+        // Generate JWT Access Token
+        Set<String> roleCodes = Set.of(customerRole.getCode());
+        Set<String> permissionCodes = customerRole.getPermissions() != null
+                ? customerRole.getPermissions().stream().map(PermissionEntity::getCode).collect(Collectors.toSet())
+                : Collections.emptySet();
 
         String accessToken = jwtTokenProvider.generateAccessToken(
                 savedUser.getId(),
@@ -157,22 +165,21 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
                 permissionCodes
         );
 
+        // Generate cryptographically secure opaque refresh token
         String rawRefreshToken = generateSecureRefreshToken();
         String tokenHash = hashToken(rawRefreshToken);
 
-        RefreshTokenEntity refreshTokenEntity = RefreshTokenEntity.builder()
+        RefreshTokenEntity tokenEntity = RefreshTokenEntity.builder()
                 .userId(savedUser.getId())
                 .organizationId(null)
                 .tokenHash(tokenHash)
                 .familyId(UUID.randomUUID())
                 .expiresAt(Instant.now().plusMillis(jwtRefreshExpirationMs))
                 .build();
-        refreshTokenRepository.save(refreshTokenEntity);
 
-        CustomerProfileDto profileDto = mapper.toCustomerProfileDto(savedProfile);
-        profileDto.setProfileCompleteness(completenessCalculator.calculate(savedProfile));
+        refreshTokenRepository.save(tokenEntity);
 
-        // Publish UserRegisteredEvent for asynchronous post-registration welcome notifications
+        // Publish UserRegisteredEvent for welcome notification (Email & WhatsApp)
         eventPublisher.publishEvent(UserRegisteredEvent.builder()
                 .userId(savedUser.getId())
                 .organizationId(null)
@@ -184,7 +191,10 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
                 .phone(savedUser.getPhone())
                 .build());
 
-        log.info("Marketplace customer account successfully created: id={}, email={}", savedUser.getId(), savedUser.getEmail());
+        CustomerProfileDto profileDto = mapper.toCustomerProfileDto(savedProfile);
+        profileDto.setProfileCompleteness(completenessCalculator.calculate(savedProfile));
+
+        log.info("Marketplace customer account registered and authenticated: id={}, email={}", savedUser.getId(), savedUser.getEmail());
 
         return CustomerAuthResponseDto.builder()
                 .accessToken(accessToken)
@@ -193,6 +203,12 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
                 .expiresIn(jwtExpirationMs / 1000)
                 .customer(profileDto)
                 .build();
+    }
+
+    private String generateSecureToken() {
+        byte[] randomBytes = new byte[64];
+        new SecureRandom().nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
     private String generateSecureRefreshToken() {

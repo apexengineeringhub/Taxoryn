@@ -1375,6 +1375,10 @@ export const marketplacePublicApi = {
     const res = await apiClient.post<ApiResponse<MarketplaceConsultation>>('/v1/marketplace/consultations', payload);
     return res.data.data;
   },
+  getSlotAvailability: async (profileId: string, date: string) => {
+    const res = await apiClient.get<ApiResponse<{ marketplaceProfileId: string; date: string; bookedSlots: string[]; availableSlots: string[] }>>(`/v1/marketplace/profiles/${profileId}/availability`, { params: { date } });
+    return res.data.data;
+  },
   submitReview: async (payload: { marketplaceProfileId: string; reviewerName: string; reviewerDesignation?: string; reviewerCompany?: string; rating: number; reviewTitle?: string; reviewComment: string; serviceTaken?: string }) => {
     const res = await apiClient.post<ApiResponse<MarketplaceReview>>('/v1/marketplace/reviews', payload);
     return res.data.data;
