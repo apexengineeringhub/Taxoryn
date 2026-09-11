@@ -30,24 +30,45 @@ export const PortalDocumentRequestsView: React.FC<PortalDocumentRequestsViewProp
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const activeFetchIdRef = React.useRef<number>(0);
 
   const fetchRequests = async () => {
+    const fetchId = ++activeFetchIdRef.current;
     try {
       setLoading(true);
+      setRequests([]);
+      setExpandedRequestId(null);
+      setFeedback(null);
+
       let list: DocumentRequest[] = [];
-      if (isPracticeUser && clientId) {
+      if (isPracticeUser) {
+        if (!clientId) {
+          setLoading(false);
+          return;
+        }
         list = await documentRequestApi.getByClient(clientId);
       } else {
         list = await documentRequestApi.getPortalRequests();
       }
-      setRequests(list);
-      if (list.length > 0 && !expandedRequestId) {
+
+      if (activeFetchIdRef.current !== fetchId) {
+        // Discard stale response from superseded request
+        return;
+      }
+
+      setRequests(list || []);
+      if (list && list.length > 0) {
         setExpandedRequestId(list[0].id);
       }
     } catch (err) {
-      console.error('Failed to load portal document requests', err);
+      if (activeFetchIdRef.current === fetchId) {
+        console.error('Failed to load portal document requests', err);
+        setRequests([]);
+      }
     } finally {
-      setLoading(false);
+      if (activeFetchIdRef.current === fetchId) {
+        setLoading(false);
+      }
     }
   };
 

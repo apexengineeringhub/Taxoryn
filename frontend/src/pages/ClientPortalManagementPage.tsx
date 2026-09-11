@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Globe,
@@ -22,12 +22,13 @@ import {
   MessageSquare,
   Send,
   MessageCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
-import { portalApi, clientApi } from '../api/endpoints';
+import { portalApi, clientApi, documentApi, tdsApi } from '../api/endpoints';
 import {
   Client,
   ClientPortalDashboard,
@@ -38,6 +39,7 @@ import {
   Invoice,
   DocumentItem,
   RegisterClientPortalUserRequest,
+  TdsReturn,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import clsx from 'clsx';
@@ -49,7 +51,12 @@ export const ClientPortalManagementPage: React.FC = () => {
   // Active Tab
   const activeTab = searchParams.get('tab') || 'overview';
   const setActiveTab = (tab: string) => {
-    setSearchParams({ tab });
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', tab);
+    if (isPracticeUser && selectedClientId) {
+      nextParams.set('clientId', selectedClientId);
+    }
+    setSearchParams(nextParams);
   };
 
   // User Role Detection
@@ -57,19 +64,30 @@ export const ClientPortalManagementPage: React.FC = () => {
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN'].includes(r));
   const isPracticeUser = !isClientUser;
 
-  // Practice state
+  // Practice state (Single Source of Truth: selectedClientId)
   const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [selectedClientId, setSelectedClientId] = useState<string>(() => searchParams.get('clientId') || '');
   const [clientUsers, setClientUsers] = useState<ClientPortalUser[]>([]);
 
   // Portal Data State
   const [dashboard, setDashboard] = useState<ClientPortalDashboard | null>(null);
   const [gstFilings, setGstFilings] = useState<ClientGstStatus[]>([]);
   const [itrReturns, setItrReturns] = useState<ClientItrStatus[]>([]);
+  const [tdsReturns, setTdsReturns] = useState<TdsReturn[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [pendingDocRequests, setPendingDocRequests] = useState<ClientDocumentRequest[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Active Request Counter to prevent race conditions on rapid switching
+  const activeRequestIdRef = useRef<number>(0);
+
+  // Derived selected client
+  const selectedClient = useMemo(() => {
+    if (!selectedClientId || clients.length === 0) return null;
+    return clients.find((c) => c.id === selectedClientId) || null;
+  }, [clients, selectedClientId]);
 
   // Modals
   const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
@@ -161,16 +179,68 @@ export const ClientPortalManagementPage: React.FC = () => {
       clientApi.getAll({ size: 100 }).then((res) => {
         const clientList = res.content || [];
         setClients(clientList);
-        if (clientList.length > 0 && !selectedClientId) {
-          setSelectedClientId(clientList[0].id);
+        const paramClientId = searchParams.get('clientId');
+        if (paramClientId && clientList.some((c) => c.id === paramClientId)) {
+          setSelectedClientId(paramClientId);
+        } else if (clientList.length > 0) {
+          const currentValid = selectedClientId && clientList.some((c) => c.id === selectedClientId);
+          const initialId = currentValid ? selectedClientId : clientList[0].id;
+          setSelectedClientId(initialId);
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.set('tab', activeTab);
+          nextParams.set('clientId', initialId);
+          setSearchParams(nextParams, { replace: true });
         }
-      }).catch(console.error);
+      }).catch((err) => {
+        console.error('Failed to load clients list', err);
+      });
     }
   }, [isPracticeUser]);
 
-  // Load Portal Data
-  const loadPortalData = async () => {
+  // Synchronize dropdown change
+  const handleClientChange = (newClientId: string) => {
+    if (!newClientId || newClientId === selectedClientId) return;
+    setSelectedClientId(newClientId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', activeTab);
+    nextParams.set('clientId', newClientId);
+    setSearchParams(nextParams);
+
+    // Immediately clear all previous client data to prevent stale data display
+    setDashboard(null);
+    setGstFilings([]);
+    setItrReturns([]);
+    setTdsReturns([]);
+    setInvoices([]);
+    setDocuments([]);
+    setPendingDocRequests([]);
+    setClientUsers([]);
+    setLoadError(null);
     setIsLoading(true);
+  };
+
+  // Load Portal Data
+  const loadPortalData = async (targetClientId?: string) => {
+    const clientIdToLoad = isPracticeUser ? (targetClientId || selectedClientId) : undefined;
+    if (isPracticeUser && !clientIdToLoad) {
+      setIsLoading(false);
+      return;
+    }
+
+    const requestId = ++activeRequestIdRef.current;
+    setIsLoading(true);
+    setLoadError(null);
+
+    // Clear previous data buffers before in-flight requests resolve
+    setDashboard(null);
+    setGstFilings([]);
+    setItrReturns([]);
+    setTdsReturns([]);
+    setInvoices([]);
+    setDocuments([]);
+    setPendingDocRequests([]);
+    setClientUsers([]);
+
     try {
       if (isClientUser) {
         // Logged-in Customer View
@@ -183,39 +253,67 @@ export const ClientPortalManagementPage: React.FC = () => {
           portalApi.getPendingDocuments(),
         ]);
 
-        if (dash.status === 'fulfilled') setDashboard(dash.value);
-        if (gst.status === 'fulfilled') setGstFilings(gst.value);
-        if (itr.status === 'fulfilled') setItrReturns(itr.value);
-        if (invs.status === 'fulfilled') setInvoices(invs.value);
-        if (docs.status === 'fulfilled') setDocuments(docs.value);
-        if (pending.status === 'fulfilled') setPendingDocRequests(pending.value);
-      } else if (selectedClientId) {
+        if (activeRequestIdRef.current !== requestId) return;
+
+        if (dash.status === 'fulfilled' && dash.value) setDashboard(dash.value);
+        if (gst.status === 'fulfilled' && gst.value) setGstFilings(gst.value);
+        if (itr.status === 'fulfilled' && itr.value) setItrReturns(itr.value);
+        if (invs.status === 'fulfilled' && invs.value) setInvoices(invs.value);
+        if (docs.status === 'fulfilled' && docs.value) setDocuments(docs.value);
+        if (pending.status === 'fulfilled' && pending.value) setPendingDocRequests(pending.value);
+      } else if (clientIdToLoad) {
         // Practice Preview View
-        const [dash, usersRes] = await Promise.allSettled([
-          portalApi.getDashboardPreview(selectedClientId),
-          portalApi.getClientPortalUsers(selectedClientId),
+        const [dash, usersRes, docsRes, tdsRes] = await Promise.allSettled([
+          portalApi.getDashboardPreview(clientIdToLoad),
+          portalApi.getClientPortalUsers(clientIdToLoad),
+          documentApi.getByClientId ? documentApi.getByClientId(clientIdToLoad) : documentApi.getAll({ clientId: clientIdToLoad }),
+          tdsApi.getClientReturnHistory(clientIdToLoad),
         ]);
 
-        if (dash.status === 'fulfilled') {
+        if (activeRequestIdRef.current !== requestId) return;
+
+        if (dash.status === 'fulfilled' && dash.value) {
           setDashboard(dash.value);
           setGstFilings(dash.value.latestGstFilings || []);
           setItrReturns(dash.value.latestItrReturns || []);
           setInvoices(dash.value.latestInvoices || []);
           setPendingDocRequests(dash.value.pendingDocumentRequests || []);
+        } else if (dash.status === 'rejected') {
+          console.error('Failed to load dashboard preview', dash.reason);
+          setLoadError('Unable to load client portal dashboard for the selected client.');
         }
-        if (usersRes.status === 'fulfilled') {
+
+        if (usersRes.status === 'fulfilled' && usersRes.value) {
           setClientUsers(usersRes.value);
+        }
+
+        if (docsRes.status === 'fulfilled' && docsRes.value) {
+          const docList = Array.isArray(docsRes.value)
+            ? docsRes.value
+            : (docsRes.value as any)?.content || [];
+          setDocuments(docList);
+        }
+
+        if (tdsRes.status === 'fulfilled' && tdsRes.value) {
+          setTdsReturns(tdsRes.value || []);
         }
       }
     } catch (err) {
-      console.error('Failed to load portal data', err);
+      if (activeRequestIdRef.current === requestId) {
+        console.error('Failed to load portal data', err);
+        setLoadError('Failed to load client details. Please try again.');
+      }
     } finally {
-      setIsLoading(false);
+      if (activeRequestIdRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadPortalData();
+    if (isClientUser || selectedClientId) {
+      loadPortalData(selectedClientId);
+    }
   }, [isClientUser, selectedClientId]);
 
   // Handle Quick Setup & Resend Portal Invitation
@@ -242,8 +340,9 @@ export const ClientPortalManagementPage: React.FC = () => {
       await portalApi.registerUser(provisionForm);
       alert(`Client portal invitation dispatched successfully for ${provisionForm.email}`);
       setIsProvisionModalOpen(false);
-      if (selectedClientId) {
-        const usersRes = await portalApi.getClientPortalUsers(selectedClientId);
+      const targetId = provisionForm.clientId || selectedClientId;
+      if (targetId) {
+        const usersRes = await portalApi.getClientPortalUsers(targetId);
         setClientUsers(usersRes);
       }
     } catch (err: any) {
@@ -258,6 +357,7 @@ export const ClientPortalManagementPage: React.FC = () => {
       alert('Please select a file to upload');
       return;
     }
+    const targetClientId = isPracticeUser ? selectedClientId : dashboard?.clientId;
     try {
       await portalApi.uploadDocument(
         uploadForm.file,
@@ -266,7 +366,7 @@ export const ClientPortalManagementPage: React.FC = () => {
           category: uploadForm.category,
           documentType: uploadForm.category,
           description: uploadForm.description,
-          clientId: dashboard?.clientId,
+          clientId: targetClientId,
         },
         selectedDocRequest?.id
       );
@@ -274,7 +374,7 @@ export const ClientPortalManagementPage: React.FC = () => {
       setIsUploadModalOpen(false);
       setSelectedDocRequest(null);
       setUploadForm({ file: null, title: '', category: 'ITR_ACKNOWLEDGEMENT', description: '' });
-      loadPortalData();
+      loadPortalData(targetClientId);
     } catch (err: any) {
       alert(`Upload failed: ${err.response?.data?.message || err.message}`);
     }
@@ -283,14 +383,15 @@ export const ClientPortalManagementPage: React.FC = () => {
   // Handle Request Document
   const handleRequestDocument = async (e: React.FormEvent) => {
     e.preventDefault();
+    const targetClientId = requestDocForm.clientId || selectedClientId;
     try {
       await portalApi.requestDocument({
         ...requestDocForm,
-        clientId: requestDocForm.clientId || selectedClientId,
+        clientId: targetClientId,
       });
       alert('Document request sent to client successfully!');
       setIsRequestDocModalOpen(false);
-      loadPortalData();
+      loadPortalData(targetClientId);
     } catch (err: any) {
       alert(`Failed to create document request: ${err.response?.data?.message || err.message}`);
     }
@@ -307,11 +408,11 @@ export const ClientPortalManagementPage: React.FC = () => {
         </span>
       );
     }
-    if (['UNDER_REVIEW', 'PARTIALLY_PAID', 'SUBMITTED', 'IN_PROGRESS'].includes(s)) {
+    if (['UNDER_REVIEW', 'PARTIALLY_PAID', 'SUBMITTED', 'IN_PROGRESS', 'READY_TO_FILE', 'CHALLANS_ATTACHED'].includes(s)) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
           <Clock className="w-3 h-3" />
-          {s.replace('_', ' ')}
+          {s.replace(/_/g, ' ')}
         </span>
       );
     }
@@ -340,6 +441,14 @@ export const ClientPortalManagementPage: React.FC = () => {
   // Outstanding balance & stats
   const outstandingBalance = dashboard?.outstandingBalance || 0;
   const unpaidCount = dashboard?.unpaidInvoicesCount || 0;
+
+  // Active client identity
+  const activeClientName = dashboard?.displayName || selectedClient?.displayName || (isPracticeUser ? 'Select a Client' : 'My Client Account');
+  const activeClientLegalName = dashboard?.legalName || selectedClient?.legalName;
+  const activeClientType = dashboard?.clientType || selectedClient?.clientType || 'BUSINESS CLIENT';
+  const activeClientPan = dashboard?.pan || selectedClient?.pan || 'N/A';
+  const activeClientGstin = dashboard?.gstin || selectedClient?.gstin || 'Unregistered';
+  const activeClientTan = dashboard?.tan || selectedClient?.tan || 'N/A';
 
   return (
     <div className="space-y-6">
@@ -373,7 +482,7 @@ export const ClientPortalManagementPage: React.FC = () => {
               <span className="text-xs font-semibold text-slate-600">Client Preview:</span>
               <select
                 value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
+                onChange={(e) => handleClientChange(e.target.value)}
                 className="text-xs font-bold text-slate-900 bg-transparent border-0 focus:ring-0 cursor-pointer pr-6"
               >
                 {clients.map((c) => (
@@ -388,7 +497,7 @@ export const ClientPortalManagementPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => {
-                const target = clients.find((c) => c.id === selectedClientId);
+                const target = selectedClient || clients.find((c) => c.id === selectedClientId);
                 setProvisionForm({
                   clientId: selectedClientId,
                   email: target?.email || '',
@@ -426,8 +535,29 @@ export const ClientPortalManagementPage: React.FC = () => {
         )}
       </div>
 
+      {/* Error Banner with Retry */}
+      {loadError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center justify-between text-xs text-rose-800 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="font-bold">Unable to load client portal data</p>
+              <p className="text-[11px] text-rose-600 mt-0.5">{loadError}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadPortalData(selectedClientId)}
+            leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Hero Card: Client Profile & Outstanding Due Price Alert */}
-      {dashboard && (
+      {(dashboard || (isPracticeUser && selectedClient)) && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Client Details */}
           <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-md relative overflow-hidden flex flex-col justify-between">
@@ -435,41 +565,49 @@ export const ClientPortalManagementPage: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-widest text-brand-300 font-mono">
-                    {dashboard.clientType || 'BUSINESS CLIENT'}
+                    {activeClientType}
                   </span>
                   <h2 className="text-2xl font-black tracking-tight text-white mt-0.5">
-                    {dashboard.displayName}
+                    {activeClientName}
                   </h2>
-                  {dashboard.legalName && dashboard.legalName !== dashboard.displayName && (
-                    <p className="text-xs text-slate-400">{dashboard.legalName}</p>
+                  {activeClientLegalName && activeClientLegalName !== activeClientName && (
+                    <p className="text-xs text-slate-400">{activeClientLegalName}</p>
                   )}
                 </div>
 
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Verified Tax Account
-                </span>
+                <div className="flex items-center gap-2">
+                  {isPracticeUser && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                      <Eye className="w-3.5 h-3.5" />
+                      Previewing Client Account
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Verified Tax Account
+                  </span>
+                </div>
               </div>
 
               {/* Tax Identifiers Grid */}
               <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-700/60 font-mono text-xs">
                 <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700">
                   <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">PAN</span>
-                  <span className="font-bold text-amber-300">{dashboard.pan || 'N/A'}</span>
+                  <span className="font-bold text-amber-300">{activeClientPan}</span>
                 </div>
                 <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700">
                   <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">GSTIN</span>
-                  <span className="font-bold text-sky-300 truncate block">{dashboard.gstin || 'Unregistered'}</span>
+                  <span className="font-bold text-sky-300 truncate block">{activeClientGstin}</span>
                 </div>
                 <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700">
                   <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">TAN</span>
-                  <span className="font-bold text-purple-300">{dashboard.tan || 'N/A'}</span>
+                  <span className="font-bold text-purple-300">{activeClientTan}</span>
                 </div>
               </div>
             </div>
 
             {/* Assigned CA Practitioner Footer */}
-            {dashboard.assignedPractitionerName && (
+            {dashboard?.assignedPractitionerName && (
               <div className="mt-5 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-brand-500/30 border border-brand-400/40 flex items-center justify-center font-bold text-brand-200 text-xs">
@@ -508,7 +646,11 @@ export const ClientPortalManagementPage: React.FC = () => {
               <div className="mt-4">
                 <span className="text-xs text-slate-500 block font-medium">Total Outstanding Balance Due</span>
                 <div className="text-3xl font-black tracking-tight text-slate-900 mt-1">
-                  {formatCurrency(outstandingBalance)}
+                  {isLoading ? (
+                    <span className="text-slate-400 text-lg font-bold animate-pulse">Calculating...</span>
+                  ) : (
+                    formatCurrency(outstandingBalance)
+                  )}
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <span
@@ -521,7 +663,7 @@ export const ClientPortalManagementPage: React.FC = () => {
                   >
                     {unpaidCount} Unpaid {unpaidCount === 1 ? 'Invoice' : 'Invoices'}
                   </span>
-                  {outstandingBalance === 0 && (
+                  {outstandingBalance === 0 && !isLoading && (
                     <span className="text-xs text-emerald-700 font-bold">✨ All dues cleared</span>
                   )}
                 </div>
@@ -903,7 +1045,9 @@ export const ClientPortalManagementPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Tax Deduction Account (TAN)</span>
-              <span className="text-xl font-black text-slate-900 font-mono mt-1 block">{dashboard?.tan || 'Registered / On File'}</span>
+              <span className="text-xl font-black text-slate-900 font-mono mt-1 block">
+                {activeClientTan !== 'N/A' ? activeClientTan : (dashboard?.tan || 'Registered / On File')}
+              </span>
               <span className="text-xs text-slate-400 mt-1 block">Deductor & Collection Account</span>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -926,40 +1070,47 @@ export const ClientPortalManagementPage: React.FC = () => {
             title="TDS Statements & Quarterly Filing Status"
             subtitle="Quarterly TDS returns (Form 24Q - Salary, Form 26Q - Non-Salary, Form 27Q - NRI)"
           >
-            <div className="space-y-3">
-              {[
-                { quarter: 'Q4 (Jan - Mar 2026)', form: 'Form 26Q (Non-Salary)', dueDate: '31 May 2026', status: 'IN_PROGRESS', section: 'Sec 194C / 194J' },
-                { quarter: 'Q3 (Oct - Dec 2025)', form: 'Form 26Q (Non-Salary)', dueDate: '31 Jan 2026', status: 'FILED', ack: 'TDS-2026-98124501', section: 'Sec 194C / 194J / 194I' },
-                { quarter: 'Q2 (Jul - Sep 2025)', form: 'Form 26Q (Non-Salary)', dueDate: '31 Oct 2025', status: 'FILED', ack: 'TDS-2025-87114203', section: 'Sec 194C / 194J' },
-                { quarter: 'Q1 (Apr - Jun 2025)', form: 'Form 26Q (Non-Salary)', dueDate: '31 Jul 2025', status: 'FILED', ack: 'TDS-2025-76092144', section: 'Sec 194C / 194J' },
-              ].map((tdsItem, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900">{tdsItem.quarter}</span>
-                      <span className="px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono font-bold text-[11px]">
-                        {tdsItem.form}
+            {tdsReturns.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No quarterly TDS returns filed or recorded for this client.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {tdsReturns.map((tdsItem) => (
+                  <div
+                    key={tdsItem.id}
+                    className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">
+                          {tdsItem.quarter} (FY {tdsItem.financialYear || '2025-26'})
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono font-bold text-[11px]">
+                          {(tdsItem.formType || 'FORM_26Q').replace('_', ' ')}
+                        </span>
+                      </div>
+                      <span className="text-slate-500 block">
+                        Tax Deducted: {formatCurrency(tdsItem.totalTaxDeducted)} • Tax Deposited: {formatCurrency(tdsItem.totalTaxDeposited)}
                       </span>
+                      {(tdsItem.tokenNumber || tdsItem.receiptNumber) && (
+                        <span className="text-[11px] text-emerald-700 font-mono block">
+                          TRACES Token / Ack: {tdsItem.tokenNumber || tdsItem.receiptNumber}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-slate-500 block">Applicable Sections: {tdsItem.section}</span>
-                    {tdsItem.ack && (
-                      <span className="text-[11px] text-emerald-700 font-mono block">
-                        TRACES Token / Ack: {tdsItem.ack}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block">Due Date: {tdsItem.dueDate}</span>
-                      {renderStatusBadge(tdsItem.status)}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        {tdsItem.dueDate && (
+                          <span className="text-[10px] text-slate-400 block">Due Date: {tdsItem.dueDate}</span>
+                        )}
+                        {renderStatusBadge(tdsItem.filingStatus)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       )}

@@ -842,6 +842,10 @@ export const documentApi = {
     const res = await apiClient.get<ApiResponse<PagedResponse<DocumentItem>>>('/v1/documents', { params });
     return res.data.data;
   },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/clients/${clientId}`);
+    return res.data.data;
+  },
   upload: async (
     fileOrFormData: File | FormData,
     metadata?: {
