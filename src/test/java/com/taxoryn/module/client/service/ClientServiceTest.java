@@ -322,7 +322,7 @@ class ClientServiceTest {
                 .displayName("Rajesh Kumar")
                 .email("rajesh.kumar@example.com")
                 .build());
-        when(userRepository.findByEmailIgnoreCase("rajesh.kumar@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "rajesh.kumar@example.com")).thenReturn(Optional.empty());
         when(roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")).thenReturn(Optional.of(
                 RoleEntity.builder().code("CLIENT_USER").name("Client User").isSystemRole(true).build()
         ));
@@ -398,5 +398,247 @@ class ClientServiceTest {
                 org.mockito.ArgumentMatchers.contains("/activate?token="),
                 eq(24L)
         );
+    }
+
+    @Test
+    @DisplayName("Resend portal invitation for unprovisioned client with email provisions portal user and dispatches invitation")
+    void testResendPortalInvitation_NotProvisionedClient_ProvisionsAndDispatches() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Ishani InfoTech")
+                .email("ishanipatha25@gmail.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "ishanipatha25@gmail.com")).thenReturn(Optional.empty());
+
+        RoleEntity clientUserRole = RoleEntity.builder()
+                .code("CLIENT_USER")
+                .name("Client Portal User")
+                .build();
+        when(roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")).thenReturn(Optional.of(clientUserRole));
+
+        com.taxoryn.module.user.entity.UserEntity newlyProvisionedUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("ishanipatha25@gmail.com")
+                .firstName("Ishani")
+                .lastName("InfoTech")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INVITED)
+                .organizationId(tenantId)
+                .clientId(clientId)
+                .build();
+        newlyProvisionedUser.setId(UUID.randomUUID());
+        when(userRepository.save(any(com.taxoryn.module.user.entity.UserEntity.class))).thenReturn(newlyProvisionedUser);
+
+        when(organizationRepository.findById(tenantId)).thenReturn(Optional.of(
+                com.taxoryn.module.organization.entity.OrganizationEntity.builder()
+                        .name("Apex Tax Consultants")
+                        .build()
+        ));
+
+        clientService.resendPortalInvitation(clientId);
+
+        verify(userRepository).save(any(com.taxoryn.module.user.entity.UserEntity.class));
+        verify(activationTokenRepository).save(any(com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity.class));
+        verify(emailNotificationService).sendClientPortalInvitationEmail(
+                eq("ishanipatha25@gmail.com"),
+                eq("Ishani InfoTech"),
+                eq("Ishani InfoTech"),
+                eq("Apex Tax Consultants"),
+                org.mockito.ArgumentMatchers.contains("/activate?token="),
+                eq(24L)
+        );
+    }
+
+    @Test
+    @DisplayName("Resend portal invitation for ACTIVE user throws BadRequestException")
+    void testResendPortalInvitation_ActiveUser_ThrowsBadRequest() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Active Corp")
+                .email("active@activecorp.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity activeUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("active@activecorp.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                .organizationId(tenantId)
+                .clientId(clientId)
+                .build();
+        activeUser.setId(UUID.randomUUID());
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of(activeUser));
+
+        com.taxoryn.core.exception.BadRequestException ex = assertThrows(
+                com.taxoryn.core.exception.BadRequestException.class,
+                () -> clientService.resendPortalInvitation(clientId)
+        );
+        assertEquals("Client portal access is already active for this client. If they cannot log in, please guide them to use password recovery.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Resend portal invitation for SUSPENDED user throws BadRequestException")
+    void testResendPortalInvitation_SuspendedUser_ThrowsBadRequest() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Suspended Corp")
+                .email("suspended@corp.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity suspendedUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("suspended@corp.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.SUSPENDED)
+                .organizationId(tenantId)
+                .clientId(clientId)
+                .build();
+        suspendedUser.setId(UUID.randomUUID());
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of(suspendedUser));
+
+        com.taxoryn.core.exception.BadRequestException ex = assertThrows(
+                com.taxoryn.core.exception.BadRequestException.class,
+                () -> clientService.resendPortalInvitation(clientId)
+        );
+        assertEquals("Client portal access is currently suspended for this client. Please restore portal access before resending an invitation.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Provisioning user with staff email throws DuplicateResourceException")
+    void testResendPortalInvitation_StaffEmail_ThrowsConflict() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Staff Client")
+                .email("staff@apextax.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        RoleEntity orgAdminRole = RoleEntity.builder()
+                .code("ORG_ADMIN")
+                .name("Organization Admin")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity staffUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("staff@apextax.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                .organizationId(tenantId)
+                .clientId(null)
+                .roles(Set.of(orgAdminRole))
+                .build();
+        staffUser.setId(UUID.randomUUID());
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "staff@apextax.com")).thenReturn(Optional.of(staffUser));
+
+        DuplicateResourceException ex = assertThrows(
+                DuplicateResourceException.class,
+                () -> clientService.resendPortalInvitation(clientId)
+        );
+        assertEquals("This email belongs to an active practice employee or administrator and cannot be provisioned as a client portal account", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Case B: Resending portal invitation reconciles orphan CLIENT_USER with null clientId")
+    void testResendPortalInvitation_CaseB_OrphanClientUserReconciles() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Ishani InfoTech")
+                .email("ishanipatha25@gmail.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        RoleEntity clientUserRole = RoleEntity.builder()
+                .code("CLIENT_USER")
+                .name("Client User")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity orphanUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("ishanipatha25@gmail.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INVITED)
+                .organizationId(tenantId)
+                .clientId(null) // Orphan
+                .roles(Set.of(clientUserRole))
+                .build();
+        orphanUser.setId(UUID.randomUUID());
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "ishanipatha25@gmail.com")).thenReturn(Optional.of(orphanUser));
+        when(userRepository.save(any(com.taxoryn.module.user.entity.UserEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        clientService.resendPortalInvitation(clientId);
+
+        assertEquals(clientId, orphanUser.getClientId());
+        verify(emailNotificationService).sendClientPortalInvitationEmail(eq("ishanipatha25@gmail.com"), any(), eq("Ishani InfoTech"), any(), any(), eq(24L));
+    }
+
+    @Test
+    @DisplayName("Case C: Provisioning user with email linked to another client throws DuplicateResourceException")
+    void testResendPortalInvitation_CaseC_LinkedToOtherClientThrowsConflict() {
+        UUID otherClientId = UUID.randomUUID();
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Ishani InfoTech")
+                .email("duplicate@client.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        RoleEntity clientUserRole = RoleEntity.builder()
+                .code("CLIENT_USER")
+                .name("Client User")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity otherClientUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("duplicate@client.com")
+                .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                .organizationId(tenantId)
+                .clientId(otherClientId)
+                .roles(Set.of(clientUserRole))
+                .build();
+        otherClientUser.setId(UUID.randomUUID());
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "duplicate@client.com")).thenReturn(Optional.of(otherClientUser));
+
+        DuplicateResourceException ex = assertThrows(
+                DuplicateResourceException.class,
+                () -> clientService.resendPortalInvitation(clientId)
+        );
+        assertEquals("This email address is already associated with another client portal account in this practice. Please use the existing account or another email address.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Case F: Provisioning user with email registered in different organization throws DuplicateResourceException")
+    void testResendPortalInvitation_CaseF_ForeignOrgThrowsConflict() {
+        UUID foreignOrgId = UUID.randomUUID();
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Ishani InfoTech")
+                .email("foreign@external.com")
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        com.taxoryn.module.user.entity.UserEntity foreignUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("foreign@external.com")
+                .organizationId(foreignOrgId)
+                .build();
+        foreignUser.setId(UUID.randomUUID());
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+        when(userRepository.findByOrganizationIdAndEmailIgnoreCase(tenantId, "foreign@external.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("foreign@external.com")).thenReturn(Optional.of(foreignUser));
+
+        DuplicateResourceException ex = assertThrows(
+                DuplicateResourceException.class,
+                () -> clientService.resendPortalInvitation(clientId)
+        );
+        assertEquals("The email address is already registered and cannot be used for this client portal account.", ex.getMessage());
     }
 }

@@ -43,7 +43,7 @@ export const ClientsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>('ALL');
-  const [portalStatusFilter, setPortalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'INACTIVE' | 'NOT_ENABLED'>('ALL');
+  const [portalStatusFilter, setPortalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'INACTIVE' | 'NOT_PROVISIONED' | 'NOT_ENABLED'>('ALL');
 
   // Confirmation Modal State
   const [portalModalAction, setPortalModalAction] = useState<{
@@ -131,11 +131,17 @@ export const ClientsPage: React.FC = () => {
     try {
       setResendingId(clientId);
       await clientApi.resendPortalInvitation(clientId);
-      alert('Client portal activation invitation email has been resent successfully!');
+      alert('Client portal activation invitation email has been sent successfully!');
       setPortalModalAction(null);
+      setClients((prev) =>
+        prev.map((c) => (c.id === clientId ? { ...c, portalStatus: 'INVITED' } : c))
+      );
+      if (selectedClient && selectedClient.id === clientId) {
+        setSelectedClient({ ...selectedClient, portalStatus: 'INVITED' });
+      }
       loadClients();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to resend portal invitation');
+      alert(err.response?.data?.message || 'Failed to send portal invitation');
     } finally {
       setResendingId(null);
     }
@@ -232,7 +238,7 @@ export const ClientsPage: React.FC = () => {
     {
       header: 'Client Portal',
       accessor: (row) => {
-        const status = (row as any).portalStatus || (row.email ? 'INVITED' : 'NO_EMAIL');
+        const status = (row as any).portalStatus || (row.email ? 'NOT_PROVISIONED' : 'NO_EMAIL');
         if (status === 'ACTIVE') {
           return (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -265,9 +271,16 @@ export const ClientsPage: React.FC = () => {
             </span>
           );
         }
+        if (status === 'NOT_PROVISIONED' || (row.email && status === 'NOT_ENABLED')) {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+              Not Set Up
+            </span>
+          );
+        }
         return (
           <span className="text-[10px] text-slate-400 font-medium italic">
-            {row.email ? 'Not Set Up' : 'No Email'}
+            No Email
           </span>
         );
       },
@@ -288,7 +301,20 @@ export const ClientsPage: React.FC = () => {
 
         return (
           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-            {/* Resend Portal Invitation button if invited or no password */}
+            {/* Set Up Portal button if client has email and portal is not provisioned */}
+            {row.email && (portalStatus === 'NOT_PROVISIONED' || portalStatus === 'NOT_ENABLED' || !portalStatus) && (
+              <button
+                disabled={isResending || isUpdating}
+                onClick={() => handleResendPortalInvite(row.id)}
+                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                title="Set up client portal and send invitation"
+              >
+                <Send className="w-3 h-3 text-emerald-600" />
+                <span>Set Up</span>
+              </button>
+            )}
+
+            {/* Resend Portal Invitation button if invited */}
             {row.email && portalStatus === 'INVITED' && (
               <button
                 disabled={isResending || isUpdating}
@@ -458,9 +484,9 @@ export const ClientsPage: React.FC = () => {
             <option value="ALL">All Portal States</option>
             <option value="ACTIVE">Active Portal</option>
             <option value="INVITED">Invite Pending</option>
+            <option value="NOT_PROVISIONED">Not Set Up</option>
             <option value="SUSPENDED">Portal Suspended</option>
             <option value="INACTIVE">Portal Inactive</option>
-            <option value="NOT_ENABLED">Not Enabled</option>
           </select>
         </div>
       </div>
@@ -822,17 +848,38 @@ export const ClientsPage: React.FC = () => {
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                    Not Set Up
+                    {selectedClient.email ? 'Not Set Up' : 'No Email'}
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-slate-600">
                 {selectedClient.email
-                  ? `Primary contact email (${selectedClient.email}) is linked to portal access.`
+                  ? ((selectedClient as any).portalStatus === 'ACTIVE'
+                      ? `Primary contact email (${selectedClient.email}) is active with portal access.`
+                      : (selectedClient as any).portalStatus === 'INVITED'
+                      ? `Invitation email sent to ${selectedClient.email}. Client has not yet activated their password.`
+                      : (selectedClient as any).portalStatus === 'SUSPENDED'
+                      ? `Portal access for ${selectedClient.email} is temporarily suspended.`
+                      : (selectedClient as any).portalStatus === 'INACTIVE'
+                      ? `Portal access for ${selectedClient.email} is deactivated.`
+                      : `Client email (${selectedClient.email}) is verified. Click below to provision portal access and send an activation invitation.`)
                   : 'Add an email address to this client to enable self-service portal access.'}
               </p>
               {selectedClient.email && (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {((selectedClient as any).portalStatus === 'NOT_PROVISIONED' || !(selectedClient as any).portalStatus || (selectedClient as any).portalStatus === 'NOT_ENABLED') && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      leftIcon={<Send className="w-3.5 h-3.5" />}
+                      isLoading={resendingId === selectedClient.id}
+                      onClick={() => handleResendPortalInvite(selectedClient.id)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      Set Up Portal & Send Invitation
+                    </Button>
+                  )}
+
                   {(selectedClient as any).portalStatus === 'ACTIVE' && (
                     <>
                       <Button

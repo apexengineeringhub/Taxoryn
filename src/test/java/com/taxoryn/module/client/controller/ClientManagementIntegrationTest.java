@@ -131,6 +131,13 @@ class ClientManagementIntegrationTest {
                 .permissions(new HashSet<>())
                 .build());
 
+        roleRepository.save(RoleEntity.builder()
+                .code("CLIENT_USER")
+                .name("Client Portal User")
+                .isSystemRole(true)
+                .permissions(new HashSet<>())
+                .build());
+
         TenantContext.setTenantId(org1.getId());
 
         adminUser1 = userRepository.save(UserEntity.builder()
@@ -403,5 +410,43 @@ class ClientManagementIntegrationTest {
                         .header("Authorization", org2Token))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("7. Setup portal for unprovisioned client & portal status filtering")
+    void testSetupPortalForUnprovisionedClient() throws Exception {
+        // Create an unprovisioned client with email directly in repo
+        TenantContext.setTenantId(org1.getId());
+        ClientEntity unprovisionedClient;
+        try {
+            unprovisionedClient = clientRepository.save(ClientEntity.builder()
+                    .displayName("Ishani InfoTech")
+                    .legalName("Ishani InfoTech Pvt Ltd")
+                    .pan("AABCI1234E")
+                    .clientType(ClientType.PRIVATE_LIMITED)
+                    .email("ishanipatha25@gmail.com")
+                    .status(ClientStatus.ACTIVE)
+                    .build());
+        } finally {
+            TenantContext.clear();
+        }
+
+        // Verify that searching with portalStatus=NOT_PROVISIONED returns this client
+        mockMvc.perform(get("/api/v1/clients?portalStatus=NOT_PROVISIONED")
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[?(@.id == '" + unprovisionedClient.getId() + "')].portalStatus").value("NOT_PROVISIONED"));
+
+        // Resend / Set Up portal invitation
+        mockMvc.perform(post("/api/v1/clients/" + unprovisionedClient.getId() + "/portal-invitation/resend")
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Verify that client now has portalStatus = INVITED
+        mockMvc.perform(get("/api/v1/clients/" + unprovisionedClient.getId())
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.portalStatus").value("INVITED"));
     }
 }

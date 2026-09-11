@@ -218,12 +218,29 @@ export const ClientPortalManagementPage: React.FC = () => {
     loadPortalData();
   }, [isClientUser, selectedClientId]);
 
+  // Handle Quick Setup & Resend Portal Invitation
+  const [isInviting, setIsInviting] = useState(false);
+  const handleQuickSetupInvite = async (clientId: string) => {
+    if (!clientId) return;
+    setIsInviting(true);
+    try {
+      await clientApi.resendPortalInvitation(clientId);
+      alert('Client portal invitation sent successfully! The client has received a secure activation link.');
+      const usersRes = await portalApi.getClientPortalUsers(clientId);
+      setClientUsers(usersRes);
+    } catch (err: any) {
+      alert(`Failed to send invitation: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   // Handle Provision User
   const handleProvisionUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await portalApi.registerUser(provisionForm);
-      alert(`Client portal user provisioned successfully for ${provisionForm.email}`);
+      alert(`Client portal invitation dispatched successfully for ${provisionForm.email}`);
       setIsProvisionModalOpen(false);
       if (selectedClientId) {
         const usersRes = await portalApi.getClientPortalUsers(selectedClientId);
@@ -1221,36 +1238,83 @@ export const ClientPortalManagementPage: React.FC = () => {
           title="Client Portal Logins & Credentials"
           subtitle="Customer users who can log into this client portal"
           action={
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                const target = clients.find((c) => c.id === selectedClientId);
-                setProvisionForm({
-                  clientId: selectedClientId,
-                  email: target?.email || '',
-                  password: '',
-                  firstName: target?.displayName?.split(' ')[0] || 'Client',
-                  lastName: target?.displayName?.split(' ').slice(1).join(' ') || 'User',
-                  phone: target?.phone || '',
-                  role: 'CLIENT_USER',
-                });
-                setIsProvisionModalOpen(true);
-              }}
-              leftIcon={<Plus className="w-4 h-4" />}
-            >
-              Provision New User
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                isLoading={isInviting}
+                onClick={() => handleQuickSetupInvite(selectedClientId)}
+                leftIcon={<Send className="w-4 h-4" />}
+              >
+                Set Up Portal & Send Invite
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const target = clients.find((c) => c.id === selectedClientId);
+                  setProvisionForm({
+                    clientId: selectedClientId,
+                    email: target?.email || '',
+                    password: '',
+                    firstName: target?.displayName?.split(' ')[0] || 'Client',
+                    lastName: target?.displayName?.split(' ').slice(1).join(' ') || 'User',
+                    phone: target?.phone || '',
+                    role: 'CLIENT_USER',
+                  });
+                  setIsProvisionModalOpen(true);
+                }}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                Provision New User
+              </Button>
+            </div>
           }
         >
           {clientUsers.length === 0 ? (
-            <div className="py-12 text-center space-y-3">
+            <div className="py-12 text-center space-y-4">
               <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
                 <KeyRound className="w-6 h-6" />
               </div>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                No portal login credentials have been provisioned for this client yet. Click <strong>Provision New User</strong> to invite them.
-              </p>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-800">
+                  No portal login credentials provisioned yet
+                </p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Send a secure activation invite to allow the client to set their password, or provision a user manually.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  isLoading={isInviting}
+                  onClick={() => handleQuickSetupInvite(selectedClientId)}
+                  leftIcon={<Send className="w-4 h-4" />}
+                >
+                  Set Up Portal & Send Invite
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const target = clients.find((c) => c.id === selectedClientId);
+                    setProvisionForm({
+                      clientId: selectedClientId,
+                      email: target?.email || '',
+                      password: '',
+                      firstName: target?.displayName?.split(' ')[0] || 'Client',
+                      lastName: target?.displayName?.split(' ').slice(1).join(' ') || 'User',
+                      phone: target?.phone || '',
+                      role: 'CLIENT_USER',
+                    });
+                    setIsProvisionModalOpen(true);
+                  }}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  Manual Provisioning
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-slate-100 text-xs">
@@ -1347,14 +1411,17 @@ export const ClientPortalManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Initial Password</label>
+                <label className="block font-bold text-slate-700 mb-1">Initial Password (Optional)</label>
                 <input
                   type="text"
                   value={provisionForm.password}
                   onChange={(e) => setProvisionForm({ ...provisionForm, password: e.target.value })}
+                  placeholder="Leave blank to send 24h activation email"
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono"
-                  required
                 />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  If left blank, a secure activation link will be emailed to the client to set their password.
+                </span>
               </div>
 
               <div>
@@ -1374,7 +1441,7 @@ export const ClientPortalManagementPage: React.FC = () => {
                   Cancel
                 </Button>
                 <Button variant="primary" size="sm" type="submit">
-                  Create User Login
+                  Send Invite / Create User
                 </Button>
               </div>
             </form>

@@ -332,7 +332,7 @@ public class ClientServiceImpl implements ClientService {
 
             if (StringUtils.hasText(filterRequest.getPortalStatus()) && !"ALL".equalsIgnoreCase(filterRequest.getPortalStatus().trim())) {
                 String portalStatusFilter = filterRequest.getPortalStatus().trim().toUpperCase();
-                if ("NOT_ENABLED".equals(portalStatusFilter)) {
+                if ("NOT_ENABLED".equals(portalStatusFilter) || "NOT_PROVISIONED".equals(portalStatusFilter)) {
                     Subquery<UUID> sub = query.subquery(UUID.class);
                     Root<UserEntity> userRoot = sub.from(UserEntity.class);
                     sub.select(userRoot.get("clientId")).where(
@@ -1024,26 +1024,95 @@ public class ClientServiceImpl implements ClientService {
             throw new com.taxoryn.core.exception.BadRequestException("Cannot send portal invitation: client has no registered email address");
         }
 
-        UserEntity user = userRepository.findAllByOrganizationIdAndClientId(organizationId, client.getId())
-                .stream()
-                .findFirst()
-                .orElseGet(() -> provisionUserForClient(organizationId, client));
+        List<UserEntity> existingUsers = userRepository.findAllByOrganizationIdAndClientId(organizationId, client.getId());
+        UserEntity user;
+
+        if (existingUsers.isEmpty()) {
+            // NOT_PROVISIONED case: provision fresh portal user in INVITED state
+            user = provisionUserForClient(organizationId, client);
+        } else {
+            user = existingUsers.get(0);
+            if (user.getStatus() == UserStatus.ACTIVE) {
+                throw new com.taxoryn.core.exception.BadRequestException("Client portal access is already active for this client. If they cannot log in, please guide them to use password recovery.");
+            }
+            if (user.getStatus() == UserStatus.SUSPENDED) {
+                throw new com.taxoryn.core.exception.BadRequestException("Client portal access is currently suspended for this client. Please restore portal access before resending an invitation.");
+            }
+            if (user.getStatus() == UserStatus.INACTIVE) {
+                throw new com.taxoryn.core.exception.BadRequestException("Client portal access is currently inactive for this client. Please enable portal access before resending an invitation.");
+            }
+            // If user is INVITED (or PENDING), re-issue invitation
+        }
 
         sendClientPortalInvitation(client, user, organizationId);
     }
 
     private UserEntity provisionUserForClient(UUID organizationId, ClientEntity client) {
         String email = client.getEmail().trim().toLowerCase();
-        Optional<UserEntity> existingUserOpt = userRepository.findByEmailIgnoreCase(email);
-        if (existingUserOpt.isPresent()) {
-            UserEntity existing = existingUserOpt.get();
-            if (existing.getClientId() == null) {
-                existing.setClientId(client.getId());
-                return userRepository.save(existing);
-            }
-            return existing;
+
+        // 1. Check if a portal user already exists for this exact organization + client (CASE A)
+        List<UserEntity> existingClientUsers = userRepository.findAllByOrganizationIdAndClientId(organizationId, client.getId());
+        if (!existingClientUsers.isEmpty()) {
+            return existingClientUsers.get(0);
         }
 
+        // 2. Check if an existing user with this email exists within THIS same organization
+        Optional<UserEntity> orgUserOpt = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, email);
+        if (orgUserOpt.isPresent()) {
+            UserEntity orgUser = orgUserOpt.get();
+
+            // Safety Check (CASE C): If user belongs to another client, reject
+            if (orgUser.getClientId() != null && !orgUser.getClientId().equals(client.getId())) {
+                log.warn("Cannot attach user {} to client {} because user is already linked to client {}",
+                        orgUser.getId(), client.getId(), orgUser.getClientId());
+                throw new DuplicateResourceException("This email address is already associated with another client portal account in this practice. Please use the existing account or another email address.");
+            }
+
+            // Safety Check (CASE D & E): If user is an internal practice staff/admin or platform user, reject conversion
+            boolean isPracticeStaffOrPlatform = orgUser.getRoles() != null && orgUser.getRoles().stream()
+                    .anyMatch(r -> !"CLIENT_USER".equals(r.getCode()) && !"CLIENT_ADMIN".equals(r.getCode()) && !"CLIENT_VIEWER".equals(r.getCode()) && !"ROLE_CLIENT_USER".equals(r.getCode()));
+            if (isPracticeStaffOrPlatform && orgUser.getClientId() == null) {
+                log.warn("Cannot convert practice staff/platform user {} to client portal user for client {}", orgUser.getId(), client.getId());
+                throw new DuplicateResourceException("This email address is already registered as an internal practice user. A separate client portal email address is required.");
+            }
+
+            // CASE B: Orphan client portal user in the same organization
+            if (orgUser.getClientId() == null) {
+                orgUser.setClientId(client.getId());
+                if (orgUser.getRoles() == null || orgUser.getRoles().isEmpty()) {
+                    RoleEntity clientRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
+                            .or(() -> roleRepository.findByCodeAndOrganizationId("CLIENT_USER", organizationId))
+                            .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                                    .code("CLIENT_USER")
+                                    .name("Client User")
+                                    .isSystemRole(true)
+                                    .build()));
+                    orgUser.setRoles(new HashSet<>(Set.of(clientRole)));
+                }
+                UserEntity saved = userRepository.save(orgUser);
+                log.info("Reconciled orphan client portal user {} for client {} in tenant {}", saved.getId(), client.getId(), organizationId);
+                auditService.logEvent(
+                        organizationId,
+                        saved.getId(),
+                        "CLIENT_PORTAL_USER_RECONCILED",
+                        "CLIENT",
+                        client.getId().toString(),
+                        null,
+                        "Reconciled orphan client portal user " + saved.getEmail() + " for client " + client.getDisplayName()
+                );
+                return saved;
+            }
+            return orgUser;
+        }
+
+        // 3. Safety Check (CASE F): Check if email exists in another organization
+        Optional<UserEntity> globalUserOpt = userRepository.findByEmailIgnoreCase(email);
+        if (globalUserOpt.isPresent() && !globalUserOpt.get().getOrganizationId().equals(organizationId)) {
+            log.warn("Email {} belongs to another organization {}", email, globalUserOpt.get().getOrganizationId());
+            throw new DuplicateResourceException("The email address is already registered and cannot be used for this client portal account.");
+        }
+
+        // 4. Create fresh CLIENT_USER within this organization
         RoleEntity clientRole = roleRepository.findByCodeAndIsSystemRoleTrue("CLIENT_USER")
                 .or(() -> roleRepository.findByCodeAndOrganizationId("CLIENT_USER", organizationId))
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
@@ -1075,7 +1144,20 @@ public class ClientServiceImpl implements ClientService {
                 .roles(new HashSet<>(Set.of(clientRole)))
                 .build();
 
-        return userRepository.save(user);
+        try {
+            return userRepository.save(user);
+        } catch (org.springframework.dao.DataIntegrityViolationException dive) {
+            return userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, email)
+                    .filter(u -> u.getClientId() == null || u.getClientId().equals(client.getId()))
+                    .map(u -> {
+                        if (u.getClientId() == null) {
+                            u.setClientId(client.getId());
+                            return userRepository.save(u);
+                        }
+                        return u;
+                    })
+                    .orElseThrow(() -> new DuplicateResourceException("User already exists with email: '" + email + "'"));
+        }
     }
 
     private void sendClientPortalInvitation(ClientEntity client, UserEntity user, UUID organizationId) {

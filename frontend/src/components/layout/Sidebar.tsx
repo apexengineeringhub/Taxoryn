@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent, visible: true },
     { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, visible: true },
     { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, visible: true },
-    { label: 'Messages / Chat', path: '/portal?tab=messages', icon: MessageSquare, visible: true },
+    { label: 'Find CA / CS / Advocates', path: '/marketplace/explore', icon: Store, visible: true },
     { label: 'Security & Password', path: '/settings/security', icon: Lock, visible: true },
     { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus, visible: true },
   ];

@@ -57,6 +57,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -117,12 +118,78 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
 
         String normalizedEmail = request.getEmail().toLowerCase().trim();
-        if (userRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()) {
-            throw new DuplicateResourceException("User", "email", normalizedEmail);
+        String roleCode = "CLIENT_ADMIN".equalsIgnoreCase(request.getRole()) ? "CLIENT_ADMIN" : "CLIENT_USER";
+
+        // 1. Check if user already exists within the same organization
+        Optional<UserEntity> orgUserOpt = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, normalizedEmail);
+        if (orgUserOpt.isPresent()) {
+            UserEntity orgUser = orgUserOpt.get();
+
+            // Check if user is an internal staff/platform user (not client portal user)
+            boolean isStaffOrAdmin = orgUser.getRoles() != null && orgUser.getRoles().stream()
+                    .anyMatch(r -> !"CLIENT_USER".equalsIgnoreCase(r.getCode())
+                            && !"ROLE_CLIENT_USER".equalsIgnoreCase(r.getCode())
+                            && !"CLIENT_ADMIN".equalsIgnoreCase(r.getCode())
+                            && !"ROLE_CLIENT_ADMIN".equalsIgnoreCase(r.getCode()));
+            if (isStaffOrAdmin) {
+                throw new DuplicateResourceException("This email address is already registered as an internal practice user. A separate client portal email address is required.");
+            }
+
+            // Check if user is linked to another client in the same organization (Case C)
+            if (orgUser.getClientId() != null && !orgUser.getClientId().equals(client.getId())) {
+                throw new DuplicateResourceException("This email address is already associated with another client portal account in this practice. Please use the existing account or another email address.");
+            }
+
+            // Case A: Same Org, Same Client ID
+            if (orgUser.getClientId() != null && orgUser.getClientId().equals(client.getId())) {
+                log.info("Client portal user already exists for client {} (userId={}, status={})", client.getId(), orgUser.getId(), orgUser.getStatus());
+                if (orgUser.getStatus() == UserStatus.INVITED || !StringUtils.hasText(orgUser.getPasswordHash())) {
+                    sendClientPortalInvitation(client, orgUser, organizationId);
+                }
+                return toClientPortalUserDto(orgUser, client, roleCode);
+            }
+
+            // Case B: Same Org, Orphan CLIENT_USER (clientId == null)
+            if (orgUser.getClientId() == null) {
+                log.info("Reconciling orphan client portal user id={} with client id={}", orgUser.getId(), client.getId());
+                orgUser.setClientId(client.getId());
+                if (StringUtils.hasText(request.getFirstName())) {
+                    orgUser.setFirstName(request.getFirstName().trim());
+                }
+                if (request.getLastName() != null) {
+                    orgUser.setLastName(request.getLastName().trim());
+                }
+                if (StringUtils.hasText(request.getPhone())) {
+                    orgUser.setPhone(request.getPhone().trim());
+                }
+                UserEntity saved = userRepository.save(orgUser);
+
+                auditService.logEvent(
+                        organizationId,
+                        saved.getId(),
+                        "CLIENT_PORTAL_USER_RECONCILED",
+                        "CLIENT",
+                        client.getId().toString(),
+                        null,
+                        "Reconciled orphan client portal user " + saved.getEmail() + " for client " + client.getDisplayName()
+                );
+
+                if (saved.getStatus() == UserStatus.INVITED || !StringUtils.hasText(saved.getPasswordHash())) {
+                    sendClientPortalInvitation(client, saved, organizationId);
+                }
+                return toClientPortalUserDto(saved, client, roleCode);
+            }
         }
 
-        String roleCode = "CLIENT_ADMIN".equalsIgnoreCase(request.getRole()) ? "CLIENT_ADMIN" : "CLIENT_USER";
+        // Case F: Check if email exists in another organization
+        Optional<UserEntity> globalUserOpt = userRepository.findByEmailIgnoreCase(normalizedEmail);
+        if (globalUserOpt.isPresent() && !globalUserOpt.get().getOrganizationId().equals(organizationId)) {
+            log.warn("Email {} belongs to another organization {}", normalizedEmail, globalUserOpt.get().getOrganizationId());
+            throw new DuplicateResourceException("The email address is already registered and cannot be used for this client portal account.");
+        }
+
         RoleEntity role = roleRepository.findByCodeAndIsSystemRoleTrue(roleCode)
+                .or(() -> roleRepository.findByCodeAndOrganizationId(roleCode, organizationId))
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()
                         .code(roleCode)
                         .name("Client " + ("CLIENT_ADMIN".equals(roleCode) ? "Administrator" : "User"))
@@ -132,6 +199,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         String passwordHash = StringUtils.hasText(request.getPassword()) ? passwordEncoder.encode(request.getPassword()) : "";
 
         UserEntity user = UserEntity.builder()
+                .organizationId(organizationId)
                 .email(normalizedEmail)
                 .passwordHash(passwordHash)
                 .firstName(request.getFirstName().trim())
@@ -141,21 +209,40 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .status(UserStatus.INVITED)
                 .roles(new HashSet<>(Set.of(role)))
                 .build();
-        user.setOrganizationId(organizationId);
 
-        UserEntity saved = userRepository.save(user);
+        UserEntity saved;
+        try {
+            saved = userRepository.save(user);
+        } catch (org.springframework.dao.DataIntegrityViolationException dive) {
+            saved = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, normalizedEmail)
+                    .filter(u -> u.getClientId() == null || u.getClientId().equals(client.getId()))
+                    .map(u -> {
+                        if (u.getClientId() == null) {
+                            u.setClientId(client.getId());
+                            return userRepository.save(u);
+                        }
+                        return u;
+                    })
+                    .orElseThrow(() -> new DuplicateResourceException("User already exists with email: '" + normalizedEmail + "'"));
+        }
+
         log.info("Registered client portal user in INVITED status: id={}, email={}, clientId={}, role={} in tenant={}",
                 saved.getId(), saved.getEmail(), client.getId(), roleCode, organizationId);
 
-        // Generate Activation Token and dispatch email
+        sendClientPortalInvitation(client, saved, organizationId);
+
+        return toClientPortalUserDto(saved, client, roleCode);
+    }
+
+    private void sendClientPortalInvitation(ClientEntity client, UserEntity user, UUID organizationId) {
         try {
-            organizationActivationTokenRepository.invalidateAllPendingTokensForUser(saved.getId(), Instant.now());
+            organizationActivationTokenRepository.invalidateAllPendingTokensForUser(user.getId(), Instant.now());
             String rawToken = PasswordSecurityUtils.generateSecureToken();
             String tokenHash = PasswordSecurityUtils.hashSha256(rawToken);
             Instant expiresAt = Instant.now().plus(activationExpirationHours, ChronoUnit.HOURS);
 
             OrganizationActivationTokenEntity activationToken = OrganizationActivationTokenEntity.builder()
-                    .userId(saved.getId())
+                    .userId(user.getId())
                     .organizationId(organizationId)
                     .tokenHash(tokenHash)
                     .expiresAt(expiresAt)
@@ -167,9 +254,13 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                     .orElse("Your Tax Practice");
             String activationUrl = activationBaseUrl + "?token=" + rawToken;
 
+            String recipientName = StringUtils.hasText(user.getFullName())
+                    ? user.getFullName()
+                    : (StringUtils.hasText(client.getContactPersonName()) ? client.getContactPersonName() : client.getDisplayName());
+
             emailNotificationService.sendClientPortalInvitationEmail(
-                    saved.getEmail(),
-                    saved.getFullName(),
+                    user.getEmail(),
+                    recipientName,
                     client.getDisplayName(),
                     orgName,
                     activationUrl,
@@ -178,27 +269,42 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
             auditService.logEvent(
                     organizationId,
-                    saved.getId(),
+                    user.getId(),
                     "CLIENT_PORTAL_INVITED",
                     "CLIENT",
                     client.getId().toString(),
                     null,
-                    "Dispatched client portal invitation email to " + saved.getEmail()
+                    "Dispatched client portal invitation email to " + user.getEmail()
             );
         } catch (Exception ex) {
-            log.error("Failed to dispatch portal invitation email for user {}: {}", saved.getId(), ex.getMessage(), ex);
+            log.error("Failed to dispatch portal invitation email for user {}: {}", user.getId(), ex.getMessage(), ex);
+            auditService.logEvent(
+                    organizationId,
+                    user.getId(),
+                    "CLIENT_PORTAL_INVITATION_FAILED",
+                    "CLIENT",
+                    client.getId().toString(),
+                    null,
+                    "Failed to dispatch client portal invitation email: " + ex.getMessage()
+            );
         }
+    }
+
+    private ClientPortalUserDto toClientPortalUserDto(UserEntity user, ClientEntity client, String fallbackRoleCode) {
+        Set<String> roleCodes = user.getRoles() != null && !user.getRoles().isEmpty()
+                ? user.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet())
+                : Set.of(fallbackRoleCode != null ? fallbackRoleCode : "CLIENT_USER");
 
         return ClientPortalUserDto.builder()
-                .userId(saved.getId())
+                .userId(user.getId())
                 .clientId(client.getId())
                 .clientName(client.getDisplayName())
-                .email(saved.getEmail())
-                .firstName(saved.getFirstName())
-                .lastName(saved.getLastName())
-                .fullName(saved.getFullName())
-                .phone(saved.getPhone())
-                .roles(Set.of(roleCode))
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .fullName(user.getFullName())
+                .phone(user.getPhone())
+                .roles(roleCodes)
                 .build();
     }
 

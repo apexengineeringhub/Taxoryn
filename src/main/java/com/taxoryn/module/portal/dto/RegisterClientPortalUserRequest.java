@@ -27,8 +27,7 @@ public class RegisterClientPortalUserRequest {
     @Schema(description = "User login email", example = "contact@clientbusiness.com")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Schema(description = "User initial password", example = "ClientPass123!")
+    @Schema(description = "User initial password (optional, user can set password via activation link)", example = "ClientPass123!")
     private String password;
 
     @NotBlank(message = "First name is required")

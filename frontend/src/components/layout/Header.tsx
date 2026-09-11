@@ -90,8 +90,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           </button>
         )}
 
-        {/* Notifications Bell Dropdown */}
-        <NotificationBellDropdown />
+        {/* Notifications Bell Dropdown (Practice / Internal / Platform Users Only) */}
+        {!isClientUser && <NotificationBellDropdown />}
 
         {/* Vertical Divider */}
         <div className="h-6 w-px bg-slate-200" />
