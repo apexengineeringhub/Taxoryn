@@ -38,7 +38,7 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_READ') or hasAuthority('NOTIFICATION_VIEW') or hasAuthority('NOTIFICATIONS_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "List my notifications", description = "Retrieves the current user's paginated in-app notification history, newest first, with optional read-status and type filters.")
     public ResponseEntity<ApiResponse<PagedResponse<NotificationDto>>> getNotifications(@Valid @ModelAttribute NotificationFilterRequest filterRequest) {
         PagedResponse<NotificationDto> response = notificationService.getNotifications(filterRequest);
@@ -46,7 +46,7 @@ public class NotificationController {
     }
 
     @GetMapping("/unread-count")
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_READ') or hasAuthority('NOTIFICATION_VIEW') or hasAuthority('NOTIFICATIONS_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "Get unread notification count", description = "Returns the number of unread in-app notifications for the current user, e.g. for a notification bell badge.")
     public ResponseEntity<ApiResponse<UnreadCountDto>> getUnreadCount() {
         long count = notificationService.getUnreadCount();
@@ -54,7 +54,7 @@ public class NotificationController {
     }
 
     @PatchMapping("/{notificationId}/read")
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_READ') or hasAuthority('NOTIFICATION_VIEW') or hasAuthority('NOTIFICATIONS_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "Mark a notification as read", description = "Marks a single notification owned by the current user as read.")
     public ResponseEntity<ApiResponse<NotificationDto>> markAsRead(@PathVariable UUID notificationId) {
         NotificationDto updated = notificationService.markAsRead(notificationId);
@@ -62,7 +62,7 @@ public class NotificationController {
     }
 
     @PatchMapping("/{notificationId}/unread")
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_READ') or hasAuthority('NOTIFICATION_VIEW') or hasAuthority('NOTIFICATIONS_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "Mark a notification as unread", description = "Marks a single notification owned by the current user as unread.")
     public ResponseEntity<ApiResponse<NotificationDto>> markAsUnread(@PathVariable UUID notificationId) {
         NotificationDto updated = notificationService.markAsUnread(notificationId);
@@ -70,7 +70,7 @@ public class NotificationController {
     }
 
     @PatchMapping("/read-all")
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_READ') or hasAuthority('NOTIFICATION_VIEW') or hasAuthority('NOTIFICATIONS_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "Mark all notifications as read", description = "Marks every unread notification owned by the current user as read.")
     public ResponseEntity<ApiResponse<Map<String, Integer>>> markAllAsReadPatch() {
         int updated = notificationService.markAllAsRead();
@@ -78,7 +78,7 @@ public class NotificationController {
     }
 
     @PostMapping("/mark-all-read")
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_READ') or hasAuthority('NOTIFICATION_VIEW') or hasAuthority('NOTIFICATIONS_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "Mark all notifications as read (POST)", description = "Marks every unread notification owned by the current user as read.")
     public ResponseEntity<ApiResponse<Map<String, Integer>>> markAllAsReadPost() {
         int updated = notificationService.markAllAsRead();
@@ -86,7 +86,7 @@ public class NotificationController {
     }
 
     @DeleteMapping("/{notificationId}")
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_READ') or hasAuthority('NOTIFICATION_VIEW') or hasAuthority('NOTIFICATIONS_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "Dismiss a notification", description = "Deletes a single notification owned by the current user from their history.")
     public ResponseEntity<ApiResponse<Void>> deleteNotification(@PathVariable UUID notificationId) {
         notificationService.deleteNotification(notificationId);
@@ -94,7 +94,7 @@ public class NotificationController {
     }
 
     @PostMapping("/send")
-    @PreAuthorize("hasAnyRole('TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT')")
+    @PreAuthorize("hasAuthority('NOTIFICATION_WRITE') or hasAuthority('NOTIFICATION_SEND') or hasAuthority('NOTIFICATION_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_FINANCE_ADMIN') or hasRole('TAXORYN_MARKETPLACE_ADMIN') or hasRole('TAXORYN_CONTENT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasRole('TAXORYN_ENGINEERING_ADMIN')")
     @Operation(summary = "Send a notification", description = "Manually dispatches a notification to a firm user or client on one or more channels (IN_APP, EMAIL, SMS, WHATSAPP). Intended for administrative/manual use; automated flows call the NotificationService directly.")
     public ResponseEntity<ApiResponse<NotificationDto>> sendNotification(@Valid @RequestBody SendNotificationRequest request) {
         NotificationDto sent = notificationService.send(request);

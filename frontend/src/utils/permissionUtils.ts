@@ -27,9 +27,12 @@ export const NOTIFICATION_PERMISSIONS = [
 ];
 
 /**
- * Roles allowed to access the internal Notification Center and receive in-app notification count.
+ * Platform and administrative roles with automatic notification management authorization.
+ * Non-administrative practice users (Practitioners, Tax Professionals, Staff, Accountants)
+ * require explicit NOTIFICATION_PERMISSIONS (e.g. NOTIFICATION_READ / NOTIFICATION_VIEW)
+ * to access the Notification Center.
  */
-export const NOTIFICATION_ALLOWED_ROLES = [
+export const NOTIFICATION_ADMIN_ROLES = [
   'TAXORYN_SUPERADMIN',
   'SUPER_ADMIN',
   'TAXORYN_OPERATIONS_ADMIN',
@@ -42,15 +45,19 @@ export const NOTIFICATION_ALLOWED_ROLES = [
   'PRACTICE_OWNER',
   'PRACTICE_ADMIN',
   'ORG_ADMIN',
-  'PARTNER',
-  'PRACTITIONER',
-  'TAX_PROFESSIONAL',
-  'MANAGER',
-  'STAFF',
-  'ARTICLE_ASSISTANT',
-  'PRACTICE_EMPLOYEE',
-  'ACCOUNTANT',
 ];
+
+/**
+ * Alias for backwards compatibility with existing route guards.
+ */
+export const NOTIFICATION_ALLOWED_ROLES = NOTIFICATION_ADMIN_ROLES;
+
+/**
+ * Canonical helper to check if a user has access to the internal Notification Center.
+ */
+export const hasNotificationAccess = (user: User | null | undefined): boolean => {
+  return hasPermission(user, NOTIFICATION_PERMISSIONS, NOTIFICATION_ADMIN_ROLES);
+};
 
 /**
  * Checks if a user has specific permissions or allowed roles.

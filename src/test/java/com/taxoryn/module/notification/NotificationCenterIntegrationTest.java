@@ -392,4 +392,49 @@ public class NotificationCenterIntegrationTest {
                         .content(objectMapper.writeValueAsString(sendReq)))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("Test unauthorized tax consultant without notification permissions is forbidden from notification endpoints")
+    void testUnauthorizedTaxConsultantCannotAccessNotificationCenter() throws Exception {
+        // Tax Consultant role with standard compliance permissions, but WITHOUT NOTIFICATION_READ/WRITE
+        String unauthorizedConsultantToken = jwtTokenProvider.generateAccessToken(
+                UUID.randomUUID(),
+                testOrgA.getId(),
+                "consultant@verma-ca.com",
+                Set.of("TAX_PROFESSIONAL", "PRACTITIONER"),
+                Set.of("GST_VIEW", "ITR_VIEW", "CLIENT_VIEW", "TASK_VIEW")
+        );
+
+        // 1. GET /api/v1/notifications -> 403
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header("Authorization", "Bearer " + unauthorizedConsultantToken))
+                .andExpect(status().isForbidden());
+
+        // 2. GET /api/v1/notifications/unread-count -> 403
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .header("Authorization", "Bearer " + unauthorizedConsultantToken))
+                .andExpect(status().isForbidden());
+
+        // 3. POST /api/v1/notifications/mark-all-read -> 403
+        mockMvc.perform(post("/api/v1/notifications/mark-all-read")
+                        .header("Authorization", "Bearer " + unauthorizedConsultantToken))
+                .andExpect(status().isForbidden());
+
+        // 4. POST /api/v1/notifications/send -> 403
+        SendNotificationRequest sendReq = SendNotificationRequest.builder()
+                .userId(practitionerA.getId())
+                .notificationType(NotificationType.GENERAL)
+                .severity(Severity.INFO)
+                .category(Category.SYSTEM)
+                .title("Unauthorized Dispatch")
+                .message("Consultant without notification permissions attempting to send")
+                .channels(Set.of(NotificationChannel.IN_APP))
+                .build();
+
+        mockMvc.perform(post("/api/v1/notifications/send")
+                        .header("Authorization", "Bearer " + unauthorizedConsultantToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sendReq)))
+                .andExpect(status().isForbidden());
+    }
 }

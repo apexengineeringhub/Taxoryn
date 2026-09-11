@@ -9,6 +9,8 @@ import {
   filterNavigationByPermissions,
   NavigationSection,
   NavigationItem,
+  NOTIFICATION_PERMISSIONS,
+  NOTIFICATION_ADMIN_ROLES,
 } from '../../utils/permissionUtils';
 import clsx from 'clsx';
 
@@ -95,7 +97,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
           { label: 'Reports', path: '/reports', requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
           { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
           { label: 'Client Onboarding', path: '/marketplace/onboarding', requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'Notification Center', path: '/notifications', requiredPermissions: ['NOTIFICATION_READ', 'NOTIFICATION_VIEW', 'NOTIFICATIONS_VIEW'] },
+          { label: 'Notification Center', path: '/notifications', requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES },
         ],
       },
       {

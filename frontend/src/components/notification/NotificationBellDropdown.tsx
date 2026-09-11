@@ -22,9 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { notificationApi } from '../../api/endpoints';
 import { NotificationItem, NotificationSeverity, NotificationCategory } from '../../types';
 import {
-  hasPermission,
-  NOTIFICATION_PERMISSIONS,
-  NOTIFICATION_ALLOWED_ROLES,
+  hasNotificationAccess as hasNotificationAccessHelper,
 } from '../../utils/permissionUtils';
 
 export const NotificationBellDropdown: React.FC = () => {
@@ -37,11 +35,7 @@ export const NotificationBellDropdown: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'UNREAD'>('ALL');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const hasNotificationAccess = hasPermission(
-    user,
-    NOTIFICATION_PERMISSIONS,
-    NOTIFICATION_ALLOWED_ROLES
-  );
+  const hasNotificationAccess = hasNotificationAccessHelper(user);
 
   // 1. Fetch unread count
   const fetchUnreadCount = async () => {

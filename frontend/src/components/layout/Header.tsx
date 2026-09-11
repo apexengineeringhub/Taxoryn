@@ -8,9 +8,7 @@ import { NotificationBellDropdown } from '../notification/NotificationBellDropdo
 import { CommandPalette } from '../common/CommandPalette';
 import { NewActionMenu } from './NewActionMenu';
 import {
-  hasPermission,
-  NOTIFICATION_PERMISSIONS,
-  NOTIFICATION_ALLOWED_ROLES,
+  hasNotificationAccess,
 } from '../../utils/permissionUtils';
 
 interface HeaderProps {
@@ -40,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
   const isPlatformUser = !!platformWorkspace || userRoleCodes.some((r: string) => r.startsWith('TAXORYN_') || r === 'SUPER_ADMIN');
-  const hasNotificationAccess = hasPermission(user, NOTIFICATION_PERMISSIONS, NOTIFICATION_ALLOWED_ROLES);
+  const userHasNotificationAccess = hasNotificationAccess(user);
 
   // Practice / Organization Roles
   const isPracticeAdmin = !isPlatformUser && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
@@ -109,7 +107,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         <NewActionMenu />
 
         {/* Notifications Bell Dropdown (Only rendered for users with notification permissions) */}
-        {hasNotificationAccess && <NotificationBellDropdown />}
+        {userHasNotificationAccess && <NotificationBellDropdown />}
 
         {/* Vertical Divider */}
         <div className="h-6 w-px bg-slate-200" />

@@ -61,7 +61,7 @@ const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import {
   NOTIFICATION_PERMISSIONS,
-  NOTIFICATION_ALLOWED_ROLES,
+  NOTIFICATION_ADMIN_ROLES,
 } from './utils/permissionUtils';
 
 // Sleek Skeleton Page Fallback
@@ -272,7 +272,7 @@ export const App: React.FC = () => {
                 path="/notifications"
                 element={
                   <RoleRouteGuard
-                    allowedRoles={NOTIFICATION_ALLOWED_ROLES}
+                    allowedRoles={NOTIFICATION_ADMIN_ROLES}
                     requiredPermissions={NOTIFICATION_PERMISSIONS}
                   >
                     <NotificationsPage />
