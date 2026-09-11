@@ -1027,6 +1027,22 @@ export const subscriptionApi = {
   },
 };
 
+// --- 10b. Organization Tenant ---
+export const organizationApi = {
+  getCurrent: async () => {
+    const res = await apiClient.get<ApiResponse<Organization>>('/v1/organizations/current');
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Organization>>(`/v1/organizations/${id}`);
+    return res.data.data;
+  },
+  updateCurrent: async (payload: Partial<Organization>) => {
+    const res = await apiClient.put<ApiResponse<Organization>>('/v1/organizations/current', payload);
+    return res.data.data;
+  },
+};
+
 // --- 11. Team & Roles ---
 export const teamApi = {
   getEmployees: async (params?: { status?: string; search?: string; department?: string; page?: number; size?: number }) => {

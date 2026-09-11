@@ -43,6 +43,7 @@ import {
   NOTIFICATION_PERMISSIONS,
   NOTIFICATION_ALLOWED_ROLES,
 } from '../../utils/permissionUtils';
+import { formatPlanShortName } from '../../utils/planUtils';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -325,9 +326,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
               <>
                 <Server className="w-3 h-3 text-purple-600" /> Platform Multi-Tenant
               </>
+            ) : isLoading ? (
+              <span className="text-[10px] text-slate-400 italic">Loading plan...</span>
+            ) : !subscriptionPlan ? (
+              <span className="text-[10px] text-slate-400 italic">Plan unavailable</span>
             ) : (
               <>
-                <Sparkles className="w-3 h-3" /> {subscriptionPlan} Plan
+                <Sparkles className="w-3 h-3" /> {formatPlanShortName(subscriptionPlan)} Plan
               </>
             )}
           </span>

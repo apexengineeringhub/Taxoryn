@@ -25,6 +25,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { adminFeedbackApi } from '../api/endpoints';
+import { formatPlanDisplayName } from '../utils/planUtils';
 import {
   AdminApplicationFeedbackSummary,
   AdminApplicationFeedbackDetail,
@@ -1020,7 +1021,7 @@ export const AdminFeedbackPage: React.FC = () => {
                         <div>
                           <span className="text-gray-400">Practice:</span>
                           <p className="font-semibold text-gray-900">{selectedDetail.practiceName}</p>
-                          <p className="text-gray-500">Plan: {selectedDetail.practiceSubscriptionPlan || 'N/A'}</p>
+                          <p className="text-gray-500">Plan: {selectedDetail.practiceSubscriptionPlan ? formatPlanDisplayName(selectedDetail.practiceSubscriptionPlan) : 'N/A'}</p>
                         </div>
                       ) : (
                         <div>

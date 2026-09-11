@@ -16,6 +16,7 @@ import { platformDashboardApi, adminPracticeApi } from '../api/endpoints';
 import { PlatformDashboardSummary, Organization } from '../types';
 import { Button } from '../components/common/Button';
 import { WorkspacePageHeader } from '../components/layout/WorkspacePageHeader';
+import { formatPlanDisplayName, formatPlanShortName } from '../utils/planUtils';
 import clsx from 'clsx';
 
 export const PlatformSubscriptionsPage: React.FC = () => {
@@ -223,8 +224,14 @@ export const PlatformSubscriptionsPage: React.FC = () => {
                 <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-5 py-3.5 font-bold text-slate-900">{p.name}</td>
                   <td className="px-4 py-3.5">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
-                      {p.subscriptionPlan || 'STARTER'}
+                    <span className={clsx(
+                      'px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase',
+                      (p.subscriptionPlan || '').toUpperCase() === 'ENTERPRISE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                      (p.subscriptionPlan || '').toUpperCase() === 'BUSINESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                      (p.subscriptionPlan || '').toUpperCase() === 'PROFESSIONAL' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                      'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    )}>
+                      {formatPlanDisplayName(p.subscriptionPlan)}
                     </span>
                   </td>
                   <td className="px-4 py-3.5 text-slate-600">Monthly Auto-Renewal</td>
@@ -251,8 +258,14 @@ export const PlatformSubscriptionsPage: React.FC = () => {
             <div key={p.id} className="p-4 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="font-bold text-slate-900 text-sm">{p.name}</h4>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase shrink-0">
-                  {p.subscriptionPlan || 'STARTER'}
+                <span className={clsx(
+                  'px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase shrink-0',
+                  (p.subscriptionPlan || '').toUpperCase() === 'ENTERPRISE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                  (p.subscriptionPlan || '').toUpperCase() === 'BUSINESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                  (p.subscriptionPlan || '').toUpperCase() === 'PROFESSIONAL' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                  'bg-emerald-50 text-emerald-700 border-emerald-200'
+                )}>
+                  {formatPlanDisplayName(p.subscriptionPlan)}
                 </span>
               </div>
               <div className="text-xs space-y-1 pt-1 border-t border-slate-50">

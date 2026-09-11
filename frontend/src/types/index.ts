@@ -521,26 +521,43 @@ export interface BillingDashboardStats {
 
 // 10. Subscriptions & Plans
 export interface SubscriptionPlan {
-  id: string;
-  code: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
+  id?: string;
+  plan?: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
+  code?: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
   name: string;
+  description?: string;
   monthlyPrice: number;
-  annualPrice: number;
+  yearlyPrice?: number;
+  annualPrice?: number;
   maxClients: number;
   maxUsers: number;
-  maxStorageGb: number;
+  maxStorageGb?: number;
+  maxStorageBytes?: number;
+  formattedStorage?: string;
   features: string[];
+  isPopular?: boolean;
+  popular?: boolean;
 }
 
 export interface SubscriptionInfo {
   id: string;
   organizationId: string;
-  plan: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
-  status: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELLED';
-  billingInterval: 'MONTHLY' | 'ANNUAL';
-  currentPeriodStart: string;
-  currentPeriodEnd: string;
-  usage: {
+  organizationName?: string;
+  plan: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
+  status: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELLED' | 'CANCELED' | 'EXPIRED';
+  billingInterval: 'MONTHLY' | 'ANNUAL' | 'YEARLY';
+  startDate?: string;
+  renewalDate?: string;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  maxUsers?: number;
+  maxClients?: number;
+  maxStorageBytes?: number;
+  price?: number;
+  currentUsers?: number;
+  currentClients?: number;
+  currentStorageBytes?: number;
+  usage?: {
     clientsUsed: number;
     clientsMax: number;
     usersUsed: number;

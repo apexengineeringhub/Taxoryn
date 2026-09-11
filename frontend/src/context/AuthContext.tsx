@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Organization } from '../types';
-import { authApi } from '../api/endpoints';
+import { authApi, organizationApi } from '../api/endpoints';
 import { setAccessToken } from '../api/client';
 
 interface AuthContextType {
@@ -8,13 +8,15 @@ interface AuthContextType {
   organization: Organization | null;
   practiceName: string;
   practiceInitials: string;
-  subscriptionPlan: string;
+  subscriptionPlan: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void> | void;
   setOrganization: (org: Organization | null) => void;
   setAuthSession: (accessToken: string, user: User, org?: Organization | null) => void;
+  refreshOrganization: () => Promise<Organization | null>;
+  updateSubscriptionPlan: (plan: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const practiceName = organization?.name || user?.organizationName || 'Tax Practice Hub';
   const practiceInitials = getInitials(practiceName);
-  const subscriptionPlan = organization?.subscriptionPlan || 'PROFESSIONAL';
+  const subscriptionPlan = organization?.subscriptionPlan || (user?.organizationId ? 'STARTER' : null);
 
   // Dynamic Browser Tab Title
   useEffect(() => {
@@ -82,6 +84,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.title = `${practiceName} | Tax Practice Management`;
     }
   }, [practiceName]);
+
+  const refreshOrganization = async (): Promise<Organization | null> => {
+    if (!user?.organizationId) return null;
+    try {
+      const org = await organizationApi.getCurrent();
+      if (org) {
+        setOrganization(org);
+        return org;
+      }
+    } catch (err) {
+      console.warn('Failed to refresh organization data', err);
+    }
+    return null;
+  };
+
+  const updateSubscriptionPlan = (plan: string) => {
+    if (!plan) return;
+    setOrganization((prev) => (prev ? { ...prev, subscriptionPlan: plan as any } : prev));
+  };
 
   const login = async (email: string, password: string): Promise<User> => {
     setIsLoading(true);
@@ -144,6 +165,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         setOrganization,
         setAuthSession,
+        refreshOrganization,
+        updateSubscriptionPlan,
       }}
     >
       {children}
