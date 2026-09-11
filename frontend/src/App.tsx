@@ -117,13 +117,14 @@ export const App: React.FC = () => {
             <Route path="/activate-organization" element={<ActivateOrgPage />} />
             <Route path="/marketplace/register" element={<RegisterCustomerPage />} />
             <Route path="/marketplace" element={<MarketplaceExplorePage />} />
-            <Route path="/practice/:slug" element={<PracticePublicProfilePage />} />
-            <Route path="/professional/:slug" element={<PracticePublicProfilePage />} />
-            <Route path="/marketplace/profile/:id" element={<PracticePublicProfilePage />} />
-            <Route path="/marketplace/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/marketplace/explore" element={<MarketplaceExplorePage />} />
             <Route path="/marketplace/compare" element={<MarketplaceComparePage />} />
+            <Route path="/marketplace/profile/:id" element={<PracticePublicProfilePage />} />
             <Route path="/marketplace/onboarding/:token" element={<CustomerOnboardingPortalPage />} />
             <Route path="/marketplace/proposal/:token" element={<CustomerOnboardingPortalPage />} />
+            <Route path="/practice/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/professional/:slug" element={<PracticePublicProfilePage />} />
+            <Route path="/marketplace/:slug" element={<PracticePublicProfilePage />} />
 
             {/* Taxoryn Learn Public Knowledge Hub (Clean SEO Routes) */}
             <Route path="/learn" element={<LearnLandingPage />} />

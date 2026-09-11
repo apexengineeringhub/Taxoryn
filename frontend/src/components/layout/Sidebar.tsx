@@ -98,17 +98,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
   ];
 
-  // 2. Client / Taxpayer Customer Portal Nav Items
-  const clientNavItems: NavigationItem[] = [
-    { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard },
-    { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2 },
-    { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet },
-    { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent },
-    { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt },
-    { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock },
-    { label: 'Find CA / CS / Advocates', path: '/marketplace/explore', icon: Store },
-    { label: 'Security & Password', path: '/settings/security', icon: Lock },
-    { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
+  // 2. Client / Taxpayer Customer Portal Nav Sections (MY TAX, EXPLORE, ACCOUNT)
+  const clientNavSections: NavigationSection[] = [
+    {
+      id: 'my-tax',
+      sectionTitle: 'MY TAX',
+      items: [
+        { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard },
+        { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2 },
+        { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet },
+        { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent },
+        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt },
+        { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock },
+      ],
+    },
+    {
+      id: 'explore',
+      sectionTitle: 'EXPLORE',
+      items: [
+        { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store },
+      ],
+    },
+    {
+      id: 'account',
+      sectionTitle: 'ACCOUNT',
+      items: [
+        { label: 'Security & Password', path: '/settings/security', icon: Lock },
+        { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
+      ],
+    },
   ];
 
   // 3. Practice Operations Suite Prioritized Information Architecture (Sections)
@@ -201,7 +219,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   // Filter sections and items with permission rules
   const visibleSections = filterNavigationSections(practiceNavSections, user);
   const platformFilteredItems = filterNavigationByPermissions(platformNavItems, user);
-  const clientFilteredItems = filterNavigationByPermissions(clientNavItems, user);
+  const visibleClientSections = filterNavigationSections(clientNavSections, user);
 
   const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(
     currentTheme.sidebarHeaderBg.toUpperCase()
@@ -364,30 +382,48 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
               })}
             </div>
           ) : isClientUser ? (
-            /* Client Portal Navigation */
-            <div className="space-y-0.5">
-              {clientFilteredItems.map((item) => {
-                const active = isItemActive(item.path);
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={onClose}
-                    style={active ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}}
-                    className={clsx(
-                      'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all group',
-                      active
-                        ? 'text-white shadow-xs font-bold'
-                        : isLight
-                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
-                        : 'text-slate-400 hover:text-white hover:bg-white/10'
-                    )}
-                  >
-                    {item.icon && <item.icon className="w-4 h-4 shrink-0 transition-colors" />}
-                    <span className="truncate">{item.label}</span>
-                  </NavLink>
-                );
-              })}
+            /* Client Portal Navigation (Grouped Sections: MY TAX, EXPLORE, ACCOUNT) */
+            <div className="space-y-3">
+              {visibleClientSections.map((section) => (
+                <div key={section.id} className="space-y-1">
+                  {section.sectionTitle && (
+                    <div className="px-3 pt-1 pb-0.5">
+                      <span
+                        className={clsx(
+                          'text-[10px] font-black uppercase tracking-wider block',
+                          isLight ? 'text-slate-400' : 'text-slate-500'
+                        )}
+                      >
+                        {section.sectionTitle}
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const active = isItemActive(item.path);
+                      return (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          onClick={onClose}
+                          style={active ? { backgroundColor: currentTheme.primaryColor, color: '#FFFFFF' } : {}}
+                          className={clsx(
+                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all group',
+                            active
+                              ? 'text-white shadow-xs font-bold'
+                              : isLight
+                              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/90'
+                              : 'text-slate-400 hover:text-white hover:bg-white/10'
+                          )}
+                        >
+                          {item.icon && <item.icon className="w-4 h-4 shrink-0 transition-colors" />}
+                          <span className="truncate">{item.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             /* Prioritized Practice Navigation (Sections + Collapsible Administration) */

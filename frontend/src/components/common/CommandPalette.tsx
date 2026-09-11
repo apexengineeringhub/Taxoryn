@@ -51,7 +51,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         { label: 'TDS Statements', path: '/portal?tab=tds' },
         { label: 'Invoices & Due Bills', path: '/portal?tab=invoices' },
         { label: 'Document Vault', path: '/portal?tab=documents' },
-        { label: 'Find CA / CS / Advocates', path: '/marketplace/explore' },
+        { label: 'Find a Tax Professional', path: '/marketplace/explore' },
         { label: 'Security & Password', path: '/settings/security' },
         { label: 'Give Feedback', path: '/feedback' },
       ];
