@@ -28,7 +28,7 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
-import { portalApi, clientApi, documentApi, tdsApi } from '../api/endpoints';
+import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi } from '../api/endpoints';
 import {
   Client,
   ClientPortalDashboard,
@@ -40,6 +40,7 @@ import {
   DocumentItem,
   RegisterClientPortalUserRequest,
   TdsReturn,
+  DocumentRequest,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import { ClientContextBar } from '../components/common/ClientContextBar';
@@ -78,11 +79,41 @@ export const ClientPortalManagementPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [pendingDocRequests, setPendingDocRequests] = useState<ClientDocumentRequest[]>([]);
+  const [activeDocRequests, setActiveDocRequests] = useState<DocumentRequest[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Active Request Counter to prevent race conditions on rapid switching
   const activeRequestIdRef = useRef<number>(0);
+
+  // Derived active requests and unified count semantics
+  const activeRequestsList = useMemo(() => {
+    if (activeDocRequests.length > 0) {
+      return activeDocRequests.filter((r) => r.status !== 'CANCELLED');
+    }
+    if (dashboard?.activeMultiItemRequests && dashboard.activeMultiItemRequests.length > 0) {
+      return dashboard.activeMultiItemRequests.filter((r) => r.status !== 'CANCELLED');
+    }
+    return [];
+  }, [activeDocRequests, dashboard?.activeMultiItemRequests]);
+
+  // Request Count = Number of active document requests assigned to the client
+  const activeDocRequestsCount = useMemo(() => {
+    return activeRequestsList.length + (activeRequestsList.length === 0 ? pendingDocRequests.length : 0);
+  }, [activeRequestsList, pendingDocRequests]);
+
+  // Pending Document Count = Number of required document items not yet uploaded/completed
+  const totalPendingDocItems = useMemo(() => {
+    if (activeRequestsList.length > 0) {
+      return (
+        activeRequestsList.reduce(
+          (acc, req) => acc + (req.pendingItems || 0) + (req.rejectedItems || 0),
+          0
+        ) + pendingDocRequests.length
+      );
+    }
+    return dashboard?.pendingDocumentsCount ?? pendingDocRequests.length;
+  }, [activeRequestsList, dashboard?.pendingDocumentsCount, pendingDocRequests]);
 
   // Derived selected client
   const selectedClient = useMemo(() => {
@@ -222,6 +253,7 @@ export const ClientPortalManagementPage: React.FC = () => {
     setInvoices([]);
     setDocuments([]);
     setPendingDocRequests([]);
+    setActiveDocRequests([]);
     setClientUsers([]);
     setLoadError(null);
     setIsLoading(true);
@@ -247,18 +279,20 @@ export const ClientPortalManagementPage: React.FC = () => {
     setInvoices([]);
     setDocuments([]);
     setPendingDocRequests([]);
+    setActiveDocRequests([]);
     setClientUsers([]);
 
     try {
       if (isClientUser) {
         // Logged-in Customer View
-        const [dash, gst, itr, invs, docs, pending] = await Promise.allSettled([
+        const [dash, gst, itr, invs, docs, pending, docRequests] = await Promise.allSettled([
           portalApi.getDashboard(),
           portalApi.getGstStatus(),
           portalApi.getItrStatus(),
           portalApi.getClientInvoices(),
           portalApi.getClientDocuments(),
           portalApi.getPendingDocuments(),
+          documentRequestApi.getPortalRequests(),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -269,13 +303,20 @@ export const ClientPortalManagementPage: React.FC = () => {
         if (invs.status === 'fulfilled' && invs.value) setInvoices(invs.value);
         if (docs.status === 'fulfilled' && docs.value) setDocuments(docs.value);
         if (pending.status === 'fulfilled' && pending.value) setPendingDocRequests(pending.value);
+        if (docRequests.status === 'fulfilled' && docRequests.value) {
+          const reqs = Array.isArray(docRequests.value)
+            ? docRequests.value
+            : (docRequests.value as any)?.content || [];
+          setActiveDocRequests(reqs);
+        }
       } else if (clientIdToLoad) {
         // Practice Preview View
-        const [dash, usersRes, docsRes, tdsRes] = await Promise.allSettled([
+        const [dash, usersRes, docsRes, tdsRes, docRequests] = await Promise.allSettled([
           portalApi.getDashboardPreview(clientIdToLoad),
           portalApi.getClientPortalUsers(clientIdToLoad),
           documentApi.getByClientId ? documentApi.getByClientId(clientIdToLoad) : documentApi.getAll({ clientId: clientIdToLoad }),
           tdsApi.getClientReturnHistory(clientIdToLoad),
+          documentRequestApi.getByClient(clientIdToLoad),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -304,6 +345,13 @@ export const ClientPortalManagementPage: React.FC = () => {
 
         if (tdsRes.status === 'fulfilled' && tdsRes.value) {
           setTdsReturns(tdsRes.value || []);
+        }
+
+        if (docRequests.status === 'fulfilled' && docRequests.value) {
+          const reqs = Array.isArray(docRequests.value)
+            ? docRequests.value
+            : (docRequests.value as any)?.content || [];
+          setActiveDocRequests(reqs);
         }
       }
     } catch (err) {
@@ -532,7 +580,7 @@ export const ClientPortalManagementPage: React.FC = () => {
           { id: 'itr', label: `ITR (${itrReturns.length})`, icon: FileSpreadsheet },
           { id: 'tds', label: `TDS (${tdsReturns.length})`, icon: Percent },
           { id: 'invoices', label: `Bills (${invoices.length})`, icon: Receipt },
-          { id: 'documents', label: `Documents (${pendingDocRequests.length + documents.length})`, icon: FolderLock },
+          { id: 'documents', label: `Documents & Requests (${activeDocRequestsCount})`, icon: FolderLock },
           { id: 'messages', label: 'Messages', icon: MessageSquare },
           ...(isPracticeUser ? [{ id: 'users', label: `Logins (${clientUsers.length})`, icon: KeyRound }] : []),
         ].map((tab) => {
@@ -573,7 +621,7 @@ export const ClientPortalManagementPage: React.FC = () => {
             </div>
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 uppercase">Pending Docs</span>
-              <p className="text-2xl font-black text-amber-600 mt-1">{pendingDocRequests.length}</p>
+              <p className="text-2xl font-black text-amber-600 mt-1">{totalPendingDocItems}</p>
               <span className="text-[10px] text-slate-400">Action items for client</span>
             </div>
             <div
@@ -590,14 +638,14 @@ export const ClientPortalManagementPage: React.FC = () => {
           </div>
 
           {/* Action Required: Multi-Item Document Requests & Legacy Requests */}
-          {((dashboard?.activeMultiItemRequests && dashboard.activeMultiItemRequests.length > 0) || pendingDocRequests.length > 0) && (
+          {(activeRequestsList.length > 0 || pendingDocRequests.length > 0) && (
             <Card
               title="🚨 Action Required: Pending Document Uploads"
               subtitle="Please upload required tax and compliance documents to avoid delays"
               className="border-amber-200 bg-amber-50/20 shadow-2xs"
             >
               <div className="space-y-3">
-                {dashboard?.activeMultiItemRequests?.map((req) => (
+                {activeRequestsList.map((req) => (
                   <div
                     key={req.id}
                     className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
@@ -615,7 +663,11 @@ export const ClientPortalManagementPage: React.FC = () => {
                         )}
                       </div>
                       <p className="text-xs text-slate-500">
-                        {req.items?.filter((i) => i.status === 'PENDING' || i.status === 'REJECTED').length || 0} items remaining to upload
+                        {((req.pendingItems || 0) + (req.rejectedItems || 0)) > 0
+                          ? `${(req.pendingItems || 0) + (req.rejectedItems || 0)} items remaining to upload`
+                          : req.items
+                          ? `${req.items.filter((i) => i.status === 'PENDING' || i.status === 'REJECTED').length} items remaining to upload`
+                          : 'Pending documents required'}
                       </p>
                       {req.dueDate && (
                         <span className="text-[11px] text-amber-700 font-semibold block">

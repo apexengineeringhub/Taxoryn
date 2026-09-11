@@ -214,7 +214,7 @@ export const PortalDocumentRequestsView: React.FC<PortalDocumentRequestsViewProp
                     </span>
                   ) : (
                     <span className="px-2.5 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full">
-                      {req.pendingItems + req.rejectedItems} Pending Action
+                      {req.pendingItems + req.rejectedItems} {req.pendingItems + req.rejectedItems === 1 ? 'Pending Action' : 'Pending Actions'}
                     </span>
                   )}
                   {req.isOverdue && (
