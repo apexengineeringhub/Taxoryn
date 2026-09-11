@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   FileSpreadsheet,
   CheckCircle2,
@@ -26,6 +26,7 @@ import { ItrReturn, ItrProfile, Client } from '../types';
 import clsx from 'clsx';
 
 export const ItrCompliancePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [returns, setReturns] = useState<ItrReturn[]>([]);
   const [profiles, setProfiles] = useState<ItrProfile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -39,7 +40,9 @@ export const ItrCompliancePage: React.FC = () => {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isRecordFilingModalOpen, setIsRecordFilingModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [isNewReturnModalOpen, setIsNewReturnModalOpen] = useState(false);
+  const [isNewReturnModalOpen, setIsNewReturnModalOpen] = useState(
+    () => searchParams.get('action') === 'new' || searchParams.get('create') === 'true'
+  );
 
   // Status & Record Filing Form States
   const [newStatus, setNewStatus] = useState('FILED');
@@ -56,7 +59,7 @@ export const ItrCompliancePage: React.FC = () => {
 
   // New Individual Return Form States
   const [newPan, setNewPan] = useState('');
-  const [newClientId, setNewClientId] = useState('');
+  const [newClientId, setNewClientId] = useState(() => searchParams.get('clientId') || '');
   const [newAy, setNewAy] = useState('2026-27');
   const [newFy, setNewFy] = useState('2025-26');
   const [newItrType, setNewItrType] = useState<any>('ITR_1');
@@ -71,14 +74,35 @@ export const ItrCompliancePage: React.FC = () => {
     loadPrerequisites();
   }, [assessmentYear, activeTab]);
 
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
+      const targetClientId = searchParams.get('clientId');
+      if (targetClientId) {
+        setNewClientId(targetClientId);
+        const match = clients.find((c) => c.id === targetClientId);
+        if (match?.pan) setNewPan(match.pan);
+      }
+      setIsNewReturnModalOpen(true);
+    }
+  }, [searchParams, clients]);
+
   const loadPrerequisites = async () => {
     try {
       const [profRes, clientRes] = await Promise.all([
         itrApi.getProfiles({ size: 100 }).catch(() => ({ content: [] })),
         clientApi.getAll({ size: 100 }).catch(() => ({ content: [] })),
       ]);
-      setProfiles(Array.isArray(profRes) ? profRes : (profRes?.content || []));
-      setClients(Array.isArray(clientRes) ? clientRes : (clientRes?.content || []));
+      const profList = Array.isArray(profRes) ? profRes : (profRes?.content || []);
+      const clientList = Array.isArray(clientRes) ? clientRes : (clientRes?.content || []);
+      setProfiles(profList);
+      setClients(clientList);
+
+      const paramClientId = searchParams.get('clientId');
+      if (paramClientId) {
+        setNewClientId(paramClientId);
+        const match = clientList.find((c: Client) => c.id === paramClientId);
+        if (match?.pan) setNewPan(match.pan);
+      }
     } catch (err) {
       console.error('Failed to load ITR prerequisites', err);
     }

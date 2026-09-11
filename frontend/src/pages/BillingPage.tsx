@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Receipt,
   Plus,
@@ -113,6 +114,7 @@ function numberToWordsINR(num: number): string {
 }
 
 export const BillingPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -120,7 +122,9 @@ export const BillingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ALL' | 'ISSUED' | 'PAID' | 'PARTIALLY_PAID' | 'DRAFT' | 'OVERDUE'>('ALL');
 
   // Modals
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(
+    () => searchParams.get('action') === 'new' || searchParams.get('create') === 'true'
+  );
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -133,7 +137,7 @@ export const BillingPage: React.FC = () => {
   const [paymentNotes, setPaymentNotes] = useState('');
 
   // Individual Create Invoice Form State
-  const [newClientId, setNewClientId] = useState('');
+  const [newClientId, setNewClientId] = useState(() => searchParams.get('clientId') || '');
   const [newInvoiceDate, setNewInvoiceDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newDueDate, setNewDueDate] = useState(() => {
     const d = new Date();
@@ -178,6 +182,16 @@ export const BillingPage: React.FC = () => {
     loadInvoices();
     loadClients();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
+      setIsCreateModalOpen(true);
+      const cId = searchParams.get('clientId');
+      if (cId) {
+        setNewClientId(cId);
+      }
+    }
+  }, [searchParams]);
 
   const loadInvoices = async () => {
     try {

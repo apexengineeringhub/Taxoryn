@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { UserCheck, Shield, Plus, Mail, Phone, Sparkles, Camera, KeyRound, UserX, RefreshCw, Send, CheckCircle2, AlertTriangle, AlertCircle, X } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -20,12 +20,15 @@ interface StatusModalState {
 }
 
 export const TeamManagementPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [activeTab, setActiveTab] = useState<'employees' | 'roles'>('employees');
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>('ALL');
   const [isLoading, setIsLoading] = useState(true);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(
+    () => searchParams.get('action') === 'add' || searchParams.get('action') === 'new' || searchParams.get('create') === 'true'
+  );
   const [isChangeRoleModalOpen, setIsChangeRoleModalOpen] = useState(false);
   const [selectedEmployeeForRole, setSelectedEmployeeForRole] = useState<Employee | null>(null);
 
@@ -46,6 +49,12 @@ export const TeamManagementPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'add' || searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
+      setIsAddModalOpen(true);
+    }
+  }, [searchParams]);
 
   const loadData = async () => {
     try {
