@@ -42,6 +42,7 @@ import {
   TdsReturn,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
+import { ClientContextBar } from '../components/common/ClientContextBar';
 import clsx from 'clsx';
 
 export const ClientPortalManagementPage: React.FC = () => {
@@ -458,95 +459,12 @@ export const ClientPortalManagementPage: React.FC = () => {
   const activeClientTan = dashboard?.tan || selectedClient?.tan || 'N/A';
 
   return (
-    <div className="space-y-6">
-      {/* Top Header & Context Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 shadow-xs">
-              <Globe className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-                {isClientUser ? 'Client Self-Service Portal' : 'Client Portal & Customer Hub'}
-                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
-                  {isClientUser ? 'Customer Access' : 'Practice Admin Mode'}
-                </span>
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isClientUser
-                  ? 'Real-time GST & ITR filing status, fee invoices, outstanding bills, and tax compliance vault.'
-                  : 'Manage client portal credentials, preview customer dashboards, and track client document requests.'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Practice Admin Actions & Client Selector */}
-        {isPracticeUser && (
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-              <span className="text-xs font-semibold text-slate-600">Client Preview:</span>
-              <select
-                value={selectedClientId}
-                onChange={(e) => handleClientChange(e.target.value)}
-                className="text-xs font-bold text-slate-900 bg-transparent border-0 focus:ring-0 cursor-pointer pr-6"
-              >
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.displayName} ({c.pan})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const target = selectedClient || clients.find((c) => c.id === selectedClientId);
-                setProvisionForm({
-                  clientId: selectedClientId,
-                  email: target?.email || '',
-                  password: '',
-                  firstName: target?.displayName?.split(' ')[0] || 'Client',
-                  lastName: target?.displayName?.split(' ').slice(1).join(' ') || 'User',
-                  phone: target?.phone || '',
-                  role: 'CLIENT_USER',
-                });
-                setIsProvisionModalOpen(true);
-              }}
-              leftIcon={<KeyRound className="w-4 h-4" />}
-            >
-              Provision Login
-            </Button>
-
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setRequestDocForm({
-                  clientId: selectedClientId,
-                  title: '',
-                  description: '',
-                  documentType: 'BANK_STATEMENT',
-                  dueDate: '',
-                });
-                setIsRequestDocModalOpen(true);
-              }}
-              leftIcon={<Plus className="w-4 h-4" />}
-            >
-              Request Document
-            </Button>
-          </div>
-        )}
-      </div>
-
+    <div className="space-y-4 sm:space-y-5">
       {/* Error Banner with Retry */}
       {loadError && (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center justify-between text-xs text-rose-800 animate-in fade-in">
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 sm:p-4 flex items-center justify-between text-xs text-rose-800 animate-in fade-in">
           <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <div>
               <p className="font-bold">Unable to load client portal data</p>
               <p className="text-[11px] text-rose-600 mt-0.5">{loadError}</p>
@@ -563,146 +481,60 @@ export const ClientPortalManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* Hero Card: Client Profile & Outstanding Due Price Alert */}
-      {(dashboard || (isPracticeUser && selectedClient)) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Client Details */}
-          <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-md relative overflow-hidden flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-brand-300 font-mono">
-                    {activeClientType}
-                  </span>
-                  <h2 className="text-2xl font-black tracking-tight text-white mt-0.5">
-                    {activeClientName}
-                  </h2>
-                  {activeClientLegalName && activeClientLegalName !== activeClientName && (
-                    <p className="text-xs text-slate-400">{activeClientLegalName}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {isPracticeUser && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                      <Eye className="w-3.5 h-3.5" />
-                      Previewing Client Account
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Verified Tax Account
-                  </span>
-                </div>
-              </div>
-
-              {/* Tax Identifiers Grid */}
-              <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-700/60 font-mono text-xs">
-                <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">PAN</span>
-                  <span className="font-bold text-amber-300">{activeClientPan}</span>
-                </div>
-                <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">GSTIN</span>
-                  <span className="font-bold text-sky-300 truncate block">{activeClientGstin}</span>
-                </div>
-                <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">TAN</span>
-                  <span className="font-bold text-purple-300">{activeClientTan}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Assigned CA Practitioner Footer */}
-            {dashboard?.assignedPractitionerName && (
-              <div className="mt-5 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-brand-500/30 border border-brand-400/40 flex items-center justify-center font-bold text-brand-200 text-xs">
-                    {dashboard.assignedPractitionerName.charAt(0)}
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block">Assigned CA Consultant</span>
-                    <span className="font-bold text-slate-200">{dashboard.assignedPractitionerName}</span>
-                  </div>
-                </div>
-                {dashboard.assignedPractitionerPhone && (
-                  <a
-                    href={`tel:${dashboard.assignedPractitionerPhone}`}
-                    className="inline-flex items-center gap-1 text-[11px] text-brand-300 hover:text-brand-200 font-semibold bg-white/5 px-2.5 py-1 rounded-md"
-                  >
-                    <Phone className="w-3 h-3" />
-                    {dashboard.assignedPractitionerPhone}
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Outstanding Due Price & Invoices Box */}
-          <div className="bg-gradient-to-br from-white to-amber-50/50 rounded-2xl p-6 border border-amber-200/80 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                  Fee Billing & Invoices
-                </span>
-                <span className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
-                  <Receipt className="w-4 h-4" />
-                </span>
-              </div>
-
-              <div className="mt-4">
-                <span className="text-xs text-slate-500 block font-medium">Total Outstanding Balance Due</span>
-                <div className="text-3xl font-black tracking-tight text-slate-900 mt-1">
-                  {isLoading ? (
-                    <span className="text-slate-400 text-lg font-bold animate-pulse">Calculating...</span>
-                  ) : (
-                    formatCurrency(outstandingBalance)
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <span
-                    className={clsx(
-                      'text-xs font-bold px-2 py-0.5 rounded-full',
-                      outstandingBalance > 0
-                        ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                    )}
-                  >
-                    {unpaidCount} Unpaid {unpaidCount === 1 ? 'Invoice' : 'Invoices'}
-                  </span>
-                  {outstandingBalance === 0 && !isLoading && (
-                    <span className="text-xs text-emerald-700 font-bold">✨ All dues cleared</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-5 border-t border-amber-200/60 mt-4 flex items-center gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                className="w-full justify-center shadow-xs"
-                onClick={() => setActiveTab('invoices')}
-                leftIcon={<CreditCard className="w-4 h-4" />}
-              >
-                View & Pay Invoices
-              </Button>
-            </div>
-          </div>
-        </div>
+      {/* Compact Reusable Client Context Bar */}
+      {(dashboard || (isPracticeUser && selectedClient) || clients.length > 0) && (
+        <ClientContextBar
+          clientName={activeClientName}
+          legalName={activeClientLegalName}
+          clientType={activeClientType}
+          pan={activeClientPan}
+          gstin={activeClientGstin}
+          tan={activeClientTan}
+          isVerified={true}
+          assignedPractitionerName={dashboard?.assignedPractitionerName}
+          assignedPractitionerPhone={dashboard?.assignedPractitionerPhone}
+          isPracticeUser={isPracticeUser}
+          clients={clients}
+          selectedClientId={selectedClientId}
+          onClientChange={handleClientChange}
+          onProvisionLogin={() => {
+            const target = selectedClient || clients.find((c) => c.id === selectedClientId);
+            setProvisionForm({
+              clientId: selectedClientId,
+              email: target?.email || '',
+              password: '',
+              firstName: target?.displayName?.split(' ')[0] || 'Client',
+              lastName: target?.displayName?.split(' ').slice(1).join(' ') || 'User',
+              phone: target?.phone || '',
+              role: 'CLIENT_USER',
+            });
+            setIsProvisionModalOpen(true);
+          }}
+          onRequestDocument={() => {
+            setRequestDocForm({
+              clientId: selectedClientId,
+              title: '',
+              description: '',
+              documentType: 'BANK_STATEMENT',
+              dueDate: '',
+            });
+            setIsRequestDocModalOpen(true);
+          }}
+          isLoading={isLoading}
+        />
       )}
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto select-none">
+      {/* Compact Secondary Navigation Tabs */}
+      <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200/90 pb-2 overflow-x-auto scrollbar-none select-none">
         {[
-          { id: 'overview', label: 'Overview & Summary', icon: Globe },
-          { id: 'gst', label: `GST Filings (${gstFilings.length})`, icon: Building2 },
-          { id: 'itr', label: `ITR Returns (${itrReturns.length})`, icon: FileSpreadsheet },
-          { id: 'tds', label: 'TDS Statements', icon: Percent },
-          { id: 'invoices', label: `Invoices & Bills (${invoices.length})`, icon: Receipt },
-          { id: 'documents', label: `Documents & Requests (${pendingDocRequests.length + documents.length})`, icon: FolderLock },
-          { id: 'messages', label: 'Messages / Chat', icon: MessageSquare },
-          ...(isPracticeUser ? [{ id: 'users', label: `Portal Logins (${clientUsers.length})`, icon: KeyRound }] : []),
+          { id: 'overview', label: 'Overview', icon: Globe },
+          { id: 'gst', label: `GST (${gstFilings.length})`, icon: Building2 },
+          { id: 'itr', label: `ITR (${itrReturns.length})`, icon: FileSpreadsheet },
+          { id: 'tds', label: `TDS (${tdsReturns.length})`, icon: Percent },
+          { id: 'invoices', label: `Bills (${invoices.length})`, icon: Receipt },
+          { id: 'documents', label: `Documents (${pendingDocRequests.length + documents.length})`, icon: FolderLock },
+          { id: 'messages', label: 'Messages', icon: MessageSquare },
+          ...(isPracticeUser ? [{ id: 'users', label: `Logins (${clientUsers.length})`, icon: KeyRound }] : []),
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -711,13 +543,13 @@ export const ClientPortalManagementPage: React.FC = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={clsx(
-                'inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all shrink-0',
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 cursor-pointer',
                 isActive
                   ? 'bg-brand-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               )}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
             </button>
           );
@@ -744,10 +576,16 @@ export const ClientPortalManagementPage: React.FC = () => {
               <p className="text-2xl font-black text-amber-600 mt-1">{pendingDocRequests.length}</p>
               <span className="text-[10px] text-slate-400">Action items for client</span>
             </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase">Unpaid Invoices</span>
+            <div
+              onClick={() => setActiveTab('invoices')}
+              className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-brand-300 transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Unpaid Invoices</span>
+                <span className="text-[10px] font-bold text-brand-600 group-hover:underline">View Bills →</span>
+              </div>
               <p className="text-2xl font-black text-rose-600 mt-1">{unpaidCount}</p>
-              <span className="text-[10px] text-slate-400">{formatCurrency(outstandingBalance)} due</span>
+              <span className="text-[10px] text-slate-500 font-semibold">{formatCurrency(outstandingBalance)} balance due</span>
             </div>
           </div>
 
