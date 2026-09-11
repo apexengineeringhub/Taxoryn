@@ -588,7 +588,7 @@ public class TaskComplianceIntegrationTest {
     @Test
     @DisplayName("10. Cross-tenant Client ID Rejection During Task Creation")
     void testRejectCrossTenantClientTaskCreation() {
-        // Create another organization with its own client
+        // Create another organization with its own client under its own tenant context
         OrganizationEntity otherOrg = organizationRepository.save(OrganizationEntity.builder()
                 .name("Other Org " + UUID.randomUUID())
                 .email("other-" + UUID.randomUUID() + "@other.in")
@@ -596,14 +596,17 @@ public class TaskComplianceIntegrationTest {
                 .status(OrganizationEntity.OrganizationStatus.ACTIVE)
                 .build());
 
-        ClientEntity otherOrgClient = clientRepository.save(ClientEntity.builder()
+        TenantContext.setTenantId(otherOrg.getId());
+        ClientEntity otherClientEntity = ClientEntity.builder()
                 .displayName("Alien Corp Pvt Ltd")
                 .legalName("Alien Corp Private Limited")
                 .pan("AABCA1111X")
                 .clientType(ClientEntity.ClientType.PRIVATE_LIMITED)
-                .organizationId(otherOrg.getId())
-                .build());
+                .build();
+        otherClientEntity.setOrganizationId(otherOrg.getId());
+        ClientEntity otherOrgClient = clientRepository.save(otherClientEntity);
 
+        // Switch back to testOrg and adminUser
         setAuthContext(adminUser, "ORG_ADMIN", "TASK_VIEW", "TASK_CREATE");
 
         org.junit.jupiter.api.Assertions.assertThrows(
