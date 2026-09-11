@@ -59,6 +59,10 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').t
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
+import {
+  NOTIFICATION_PERMISSIONS,
+  NOTIFICATION_ALLOWED_ROLES,
+} from './utils/permissionUtils';
 
 // Sleek Skeleton Page Fallback
 const PageLoadingFallback: React.FC = () => (
@@ -266,7 +270,10 @@ export const App: React.FC = () => {
               <Route
                 path="/notifications"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <RoleRouteGuard
+                    allowedRoles={NOTIFICATION_ALLOWED_ROLES}
+                    requiredPermissions={NOTIFICATION_PERMISSIONS}
+                  >
                     <NotificationsPage />
                   </RoleRouteGuard>
                 }

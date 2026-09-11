@@ -12,9 +12,44 @@ export interface NavigationItem {
 /**
  * SuperAdmin / Platform roles that have global administrative bypass.
  */
-const SUPERADMIN_ROLES = [
+export const SUPERADMIN_ROLES = [
   'TAXORYN_SUPERADMIN',
   'SUPER_ADMIN',
+];
+
+/**
+ * Standard Notification permissions supported by Taxoryn backend.
+ */
+export const NOTIFICATION_PERMISSIONS = [
+  'NOTIFICATION_READ',
+  'NOTIFICATION_VIEW',
+  'NOTIFICATIONS_VIEW',
+];
+
+/**
+ * Roles allowed to access the internal Notification Center and receive in-app notification count.
+ */
+export const NOTIFICATION_ALLOWED_ROLES = [
+  'TAXORYN_SUPERADMIN',
+  'SUPER_ADMIN',
+  'TAXORYN_OPERATIONS_ADMIN',
+  'TAXORYN_SUPPORT_ADMIN',
+  'TAXORYN_FINANCE_ADMIN',
+  'TAXORYN_MARKETPLACE_ADMIN',
+  'TAXORYN_CONTENT_ADMIN',
+  'TAXORYN_SECURITY_ADMIN',
+  'TAXORYN_ENGINEERING_ADMIN',
+  'PRACTICE_OWNER',
+  'PRACTICE_ADMIN',
+  'ORG_ADMIN',
+  'PARTNER',
+  'PRACTITIONER',
+  'TAX_PROFESSIONAL',
+  'MANAGER',
+  'STAFF',
+  'ARTICLE_ASSISTANT',
+  'PRACTICE_EMPLOYEE',
+  'ACCOUNTANT',
 ];
 
 /**

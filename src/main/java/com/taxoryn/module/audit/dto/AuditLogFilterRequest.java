@@ -52,6 +52,12 @@ public class AuditLogFilterRequest extends PageRequestDto {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private Instant endDate;
 
+    @Schema(description = "Filter by audit category (e.g. PRACTICE_ACTIVITY, BUSINESS, ACCESS, SECURITY, SYSTEM)", example = "PRACTICE_ACTIVITY")
+    private String category;
+
+    @Schema(description = "Filter by specific client ID")
+    private UUID clientId;
+
     @Schema(description = "Search term across action, entityType, entityName, entityId, ipAddress, userEmail", example = "verified")
     private String search;
 }

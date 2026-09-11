@@ -5,6 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { NotificationBellDropdown } from '../notification/NotificationBellDropdown';
+import {
+  hasPermission,
+  NOTIFICATION_PERMISSIONS,
+  NOTIFICATION_ALLOWED_ROLES,
+} from '../../utils/permissionUtils';
 
 interface HeaderProps {
   /** Shows a hamburger button (mobile/tablet only) that opens the sidebar drawer. */
@@ -21,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
   const isPlatformUser = !!platformWorkspace || userRoleCodes.some((r: string) => r.startsWith('TAXORYN_') || r === 'SUPER_ADMIN');
+  const hasNotificationAccess = hasPermission(user, NOTIFICATION_PERMISSIONS, NOTIFICATION_ALLOWED_ROLES);
 
   // Practice / Organization Roles
   const isPracticeAdmin = !isPlatformUser && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
@@ -90,8 +96,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           </button>
         )}
 
-        {/* Notifications Bell Dropdown (Practice / Internal / Platform Users Only) */}
-        {!isClientUser && <NotificationBellDropdown />}
+        {/* Notifications Bell Dropdown (Only rendered for users with notification permissions) */}
+        {hasNotificationAccess && <NotificationBellDropdown />}
 
         {/* Vertical Divider */}
         <div className="h-6 w-px bg-slate-200" />

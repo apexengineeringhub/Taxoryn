@@ -21,6 +21,11 @@ import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { notificationApi } from '../../api/endpoints';
 import { NotificationItem, NotificationSeverity, NotificationCategory } from '../../types';
+import {
+  hasPermission,
+  NOTIFICATION_PERMISSIONS,
+  NOTIFICATION_ALLOWED_ROLES,
+} from '../../utils/permissionUtils';
 
 export const NotificationBellDropdown: React.FC = () => {
   const { user } = useAuth();
@@ -32,12 +37,15 @@ export const NotificationBellDropdown: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'UNREAD'>('ALL');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
-  const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
+  const hasNotificationAccess = hasPermission(
+    user,
+    NOTIFICATION_PERMISSIONS,
+    NOTIFICATION_ALLOWED_ROLES
+  );
 
   // 1. Fetch unread count
   const fetchUnreadCount = async () => {
-    if (isClientUser) return;
+    if (!hasNotificationAccess) return;
     try {
       const data = await notificationApi.getUnreadCount();
       setUnreadCount(data.unreadCount || 0);
@@ -48,7 +56,7 @@ export const NotificationBellDropdown: React.FC = () => {
 
   // 2. Fetch preview notifications when opened
   const fetchPreviewNotifications = async () => {
-    if (isClientUser) return;
+    if (!hasNotificationAccess) return;
     setIsLoading(true);
     try {
       const res = await notificationApi.getAll({
@@ -65,17 +73,17 @@ export const NotificationBellDropdown: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isClientUser) return;
+    if (!hasNotificationAccess) return;
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000); // 30s poll
     return () => clearInterval(interval);
-  }, [isClientUser]);
+  }, [hasNotificationAccess]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && hasNotificationAccess) {
       fetchPreviewNotifications();
     }
-  }, [isOpen, activeFilter]);
+  }, [isOpen, activeFilter, hasNotificationAccess]);
 
   // Handle outside click & escape key
   useEffect(() => {
@@ -201,7 +209,7 @@ export const NotificationBellDropdown: React.FC = () => {
     }
   };
 
-  if (isClientUser) {
+  if (!hasNotificationAccess) {
     return null;
   }
 

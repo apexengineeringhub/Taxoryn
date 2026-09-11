@@ -32,7 +32,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { TaxorynLogo } from '../common/TaxorynLogo';
-import { filterNavigationByPermissions, NavigationItem } from '../../utils/permissionUtils';
+import {
+  filterNavigationByPermissions,
+  NavigationItem,
+  NOTIFICATION_PERMISSIONS,
+  NOTIFICATION_ALLOWED_ROLES,
+} from '../../utils/permissionUtils';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -110,9 +115,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
     { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
     { label: 'Document Vault', path: '/documents', icon: FolderLock, requiredPermissions: ['DOCUMENT_VIEW'] },
-    { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+    { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
     { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
-    { label: 'Notification Center', path: '/notifications', icon: Bell },
+    { label: 'Notification Center', path: '/notifications', icon: Bell, requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ALLOWED_ROLES },
     { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
     { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
     { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
