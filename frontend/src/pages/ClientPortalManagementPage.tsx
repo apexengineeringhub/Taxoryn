@@ -197,6 +197,13 @@ export const ClientPortalManagementPage: React.FC = () => {
     }
   }, [isPracticeUser]);
 
+  useEffect(() => {
+    const paramClientId = searchParams.get('clientId');
+    if (paramClientId && paramClientId !== selectedClientId && clients.some((c) => c.id === paramClientId)) {
+      setSelectedClientId(paramClientId);
+    }
+  }, [searchParams, clients, selectedClientId]);
+
   // Synchronize dropdown change
   const handleClientChange = (newClientId: string) => {
     if (!newClientId || newClientId === selectedClientId) return;

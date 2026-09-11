@@ -13,6 +13,7 @@ import {
   UserCheck,
   Receipt,
   ShieldCheck,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -21,7 +22,7 @@ import clsx from 'clsx';
 
 export interface ActionDefinition {
   id: string;
-  category: 'CLIENT' | 'WORK' | 'DOCUMENTS' | 'COMPLIANCE' | 'TEAM' | 'BILLING';
+  category: 'CLIENT' | 'WORK' | 'DOCUMENTS' | 'COMPLIANCE' | 'COMMUNICATION' | 'TEAM' | 'BILLING';
   categoryLabel: string;
   label: string;
   description: string;
@@ -125,6 +126,18 @@ export const ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: [], // Managed dynamically via child compliance actions
     allowedRoles: [],
     targetPath: '', // Triggers submenu
+    supportsClientContext: true,
+  },
+  {
+    id: 'send-client-message',
+    category: 'COMMUNICATION',
+    categoryLabel: 'COMMUNICATION',
+    label: 'Send Client Message',
+    description: 'Message a client through the portal',
+    icon: MessageSquare,
+    requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'],
+    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF'],
+    targetPath: '/portal?tab=messages',
     supportsClientContext: true,
   },
   {
