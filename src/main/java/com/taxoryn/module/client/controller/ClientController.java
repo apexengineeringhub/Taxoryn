@@ -44,7 +44,7 @@ public class ClientController {
     private final ClientService clientService;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "List & search clients with filters", description = "Retrieves paginated clients with keyword search and filtering by constitution type, status, assigned practitioner, city, or tax ID.")
     public ResponseEntity<ApiResponse<PagedResponse<ClientDto>>> getClients(@Valid @ModelAttribute ClientFilterRequest filterRequest) {
         PagedResponse<ClientDto> response = clientService.getClients(filterRequest);
@@ -52,7 +52,7 @@ public class ClientController {
     }
 
     @GetMapping("/{clientId}")
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "Get client by ID", description = "Retrieves complete client profile details within the authenticated tenant.")
     public ResponseEntity<ApiResponse<ClientDto>> getClientById(@PathVariable UUID clientId) {
         ClientDto dto = clientService.getClientById(clientId);

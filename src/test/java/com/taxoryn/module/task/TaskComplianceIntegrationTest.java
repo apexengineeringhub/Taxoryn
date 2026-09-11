@@ -565,4 +565,57 @@ public class TaskComplianceIntegrationTest {
 
         assertThat(updated.getStatus()).isEqualTo(TaskStatus.IN_PROGRESS);
     }
+
+    @Test
+    @DisplayName("9. General Practice Task Creation Without Client")
+    void testCreateGeneralPracticeTaskWithoutClient() {
+        setAuthContext(adminUser, "ORG_ADMIN", "TASK_VIEW", "TASK_CREATE", "TASK_UPDATE");
+        TaskDto generalTask = taskService.createTask(CreateTaskRequest.builder()
+                .assignedTo(staffEmployee.getId())
+                .title("Internal Practice Workflow Audit")
+                .description("Conduct internal review of office IT and practice filing processes")
+                .taskCategory(TaskCategory.OTHER)
+                .priority(TaskPriority.MEDIUM)
+                .dueDate(LocalDate.now().plusDays(7))
+                .build());
+
+        assertThat(generalTask).isNotNull();
+        assertThat(generalTask.getClientId()).isNull();
+        assertThat(generalTask.getClientName()).isNull();
+        assertThat(generalTask.getTitle()).isEqualTo("Internal Practice Workflow Audit");
+    }
+
+    @Test
+    @DisplayName("10. Cross-tenant Client ID Rejection During Task Creation")
+    void testRejectCrossTenantClientTaskCreation() {
+        // Create another organization with its own client
+        OrganizationEntity otherOrg = organizationRepository.save(OrganizationEntity.builder()
+                .name("Other Org " + UUID.randomUUID())
+                .email("other-" + UUID.randomUUID() + "@other.in")
+                .phone("9123456780")
+                .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                .build());
+
+        ClientEntity otherOrgClient = clientRepository.save(ClientEntity.builder()
+                .displayName("Alien Corp Pvt Ltd")
+                .legalName("Alien Corp Private Limited")
+                .pan("AABCA1111X")
+                .clientType(ClientEntity.ClientType.PRIVATE_LIMITED)
+                .organizationId(otherOrg.getId())
+                .build());
+
+        setAuthContext(adminUser, "ORG_ADMIN", "TASK_VIEW", "TASK_CREATE");
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.taxoryn.core.exception.ResourceNotFoundException.class,
+                () -> taskService.createTask(CreateTaskRequest.builder()
+                        .clientId(otherOrgClient.getId())
+                        .assignedTo(staffEmployee.getId())
+                        .title("Malicious Cross Tenant Task")
+                        .dueDate(LocalDate.now().plusDays(2))
+                        .build()),
+                "Creating a task with a client belonging to another organization must throw ResourceNotFoundException"
+        );
+    }
 }
+
