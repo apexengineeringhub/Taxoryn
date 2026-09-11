@@ -46,7 +46,9 @@ export const TasksPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'WORKLIST' | 'ALL_TASKS'>(
     () => (searchParams.get('tab') as 'WORKLIST' | 'ALL_TASKS') || 'WORKLIST'
   );
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(
+    () => searchParams.get('action') === 'new' || searchParams.get('create') === 'true'
+  );
 
   // Worklist specific state
   const [worklistScope, setWorklistScope] = useState<'MY_WORK' | 'TEAM_WORK'>(
@@ -118,7 +120,7 @@ export const TasksPage: React.FC = () => {
   }>({
     title: '',
     description: '',
-    clientId: '',
+    clientId: searchParams.get('clientId') || '',
     assignedTo: '',
     taskCategory: 'ITR',
     priority: 'HIGH',
@@ -128,6 +130,17 @@ export const TasksPage: React.FC = () => {
       return d.toISOString().split('T')[0];
     })(),
   });
+
+  // Auto-open create task modal if action=new is present in searchParams
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
+      const targetClientId = searchParams.get('clientId');
+      if (targetClientId) {
+        setFormData((prev) => ({ ...prev, clientId: targetClientId }));
+      }
+      setIsModalOpen(true);
+    }
+  }, [searchParams]);
 
   const { user } = useAuth();
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));

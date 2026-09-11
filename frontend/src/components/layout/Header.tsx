@@ -6,6 +6,7 @@ import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { NotificationBellDropdown } from '../notification/NotificationBellDropdown';
 import { CommandPalette } from '../common/CommandPalette';
+import { NewActionMenu } from './NewActionMenu';
 import {
   hasPermission,
   NOTIFICATION_PERMISSIONS,
@@ -104,16 +105,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
       {/* Actions & Alerts */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        {/* Quick Action Button (Practice Staff Only) */}
-        {!isClientUser && !isPlatformUser && (
-          <button
-            style={{ backgroundColor: currentTheme.primaryColor }}
-            className="hidden sm:inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-90 transition-opacity"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Action</span>
-          </button>
-        )}
+        {/* Global New Action Command Menu */}
+        <NewActionMenu />
 
         {/* Notifications Bell Dropdown (Only rendered for users with notification permissions) */}
         {hasNotificationAccess && <NotificationBellDropdown />}
