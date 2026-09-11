@@ -132,3 +132,27 @@ export const filterNavigationByPermissions = (
 ): NavigationItem[] => {
   return items.filter((item) => canAccessNavigationItem(item, user));
 };
+
+export interface NavigationSection {
+  id: string;
+  sectionTitle?: string;
+  isCollapsible?: boolean;
+  defaultExpanded?: boolean;
+  items: NavigationItem[];
+}
+
+/**
+ * Filters a list of navigation sections. Any section that contains 0 accessible items
+ * after permission evaluation is completely excluded from the result.
+ */
+export const filterNavigationSections = (
+  sections: NavigationSection[],
+  user: User | null | undefined
+): NavigationSection[] => {
+  return sections
+    .map((section) => ({
+      ...section,
+      items: filterNavigationByPermissions(section.items, user),
+    }))
+    .filter((section) => section.items.length > 0);
+};

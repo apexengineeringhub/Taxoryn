@@ -1103,6 +1103,8 @@ export const auditApi = {
   getLogs: async (params?: {
     page?: number;
     size?: number;
+    category?: string;
+    clientId?: string;
     entityType?: string;
     action?: string;
     search?: string;

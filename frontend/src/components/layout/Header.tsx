@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Bell, Plus, ShieldCheck, Server, LogOut, Menu } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { NotificationBellDropdown } from '../notification/NotificationBellDropdown';
+import { CommandPalette } from '../common/CommandPalette';
 import {
   hasPermission,
   NOTIFICATION_PERMISSIONS,
@@ -19,6 +20,18 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
   const { currentTheme, getEmployeeAvatar } = useBranding();
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const userAvatar = getEmployeeAvatar(user?.email || user?.id);
 
@@ -52,36 +65,42 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   };
 
   return (
-    <header className="h-16 px-3 sm:px-6 glass-header flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-30 select-none">
-      {/* Search Input (Global Search) */}
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* Hamburger — mobile/tablet only, opens the sidebar drawer */}
-        <button
-          onClick={onMenuClick}
-          className="lg:hidden shrink-0 p-2 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-          aria-label="Open navigation menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+    <>
+      <header className="h-16 px-3 sm:px-6 glass-header flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-30 select-none">
+        {/* Search Input (Global Search) */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {/* Hamburger — mobile/tablet only, opens the sidebar drawer */}
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden shrink-0 p-2 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
 
-        <div className="relative w-full max-w-[9rem] sm:max-w-none sm:w-64 md:w-80 min-w-0">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder={
-              isPlatformUser
-                ? "Search... (Ctrl+K)"
-                : isClientUser
-                ? "Search..."
-                : "Search... (Ctrl+K)"
-            }
-            className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-100/70 border border-slate-200/80 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400 placeholder:truncate"
-          />
-          <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 rounded shadow-2xs">
-            ⌘K
-          </kbd>
+          <div
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className="relative w-full max-w-[9rem] sm:max-w-none sm:w-64 md:w-80 min-w-0 cursor-pointer"
+          >
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              readOnly
+              onClick={() => setIsCommandPaletteOpen(true)}
+              placeholder={
+                isPlatformUser
+                  ? "Search... (Ctrl+K)"
+                  : isClientUser
+                  ? "Search..."
+                  : "Search... (Ctrl+K)"
+              }
+              className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-100/70 border border-slate-200/80 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400 placeholder:truncate cursor-pointer"
+            />
+            <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-white border border-slate-200 rounded shadow-2xs">
+              ⌘K
+            </kbd>
+          </div>
         </div>
-      </div>
 
       {/* Actions & Alerts */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -152,7 +171,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             <span>{getHeaderRoleLabel()}</span>
           </div>
 
-          {/* Quick Sign Out Button */}
           <button
             onClick={() => logout()}
             title="Sign Out"
@@ -163,5 +181,11 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </div>
       </div>
     </header>
+
+    <CommandPalette
+      isOpen={isCommandPaletteOpen}
+      onClose={() => setIsCommandPaletteOpen(false)}
+    />
+  </>
   );
 };

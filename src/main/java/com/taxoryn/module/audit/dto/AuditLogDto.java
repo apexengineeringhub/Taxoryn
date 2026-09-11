@@ -61,6 +61,12 @@ public class AuditLogDto {
     @Schema(description = "Target entity ID")
     private String entityId;
 
+    @Schema(description = "Audit category (BUSINESS, ACCESS, SECURITY, SYSTEM)")
+    private String category;
+
+    @Schema(description = "Associated Client Name for business actions")
+    private String clientName;
+
     @Schema(description = "Target display name / business title")
     private String targetDisplayName;
 

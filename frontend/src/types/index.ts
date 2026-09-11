@@ -600,12 +600,14 @@ export interface AuditLog {
   actorRole?: string;
   userName?: string;
   userEmail?: string;
+  category?: 'BUSINESS' | 'ACCESS' | 'SECURITY' | 'SYSTEM';
   action: string;
   displayAction?: string;
   entityType: string;
   displayEntityType?: string;
   entityName?: string;
   entityId?: string;
+  clientName?: string;
   targetDisplayName?: string;
   status?: string;
   severity?: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
