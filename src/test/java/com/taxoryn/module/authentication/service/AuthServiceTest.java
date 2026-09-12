@@ -514,7 +514,7 @@ class AuthServiceTest {
                 .firstName("Anil")
                 .lastName("Kumar")
                 .email("anil@taxoryn.com")
-                .password("Password123!")
+                .password("Tx9#SecureP@ss2026!")
                 .roleCodes(Set.of("ASSOCIATE"))
                 .build();
 
