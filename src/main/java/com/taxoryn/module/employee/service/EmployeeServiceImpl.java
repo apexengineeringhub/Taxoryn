@@ -175,28 +175,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                     .orElse(null);
         }
 
+        // SECURITY FIX #6: RBAC Role is NEVER inferred from employee designation or job title.
+        // If no explicit role was requested, default strictly to the base staff role (TAX_ASSOCIATE / STAFF).
         if (role == null) {
-            String roleCode = "TAX_ASSOCIATE";
-            String desLower = designation != null ? designation.toLowerCase() : "";
-            if (desLower.contains("article") || desLower.contains("trainee") || desLower.contains("intern")) {
-                roleCode = "ARTICLE_ASSISTANT";
-            } else if (desLower.contains("manager") || desLower.contains("lead")) {
-                roleCode = "TAX_MANAGER";
-            } else if (desLower.contains("senior") || desLower.contains("sr")) {
-                roleCode = "SENIOR_TAX_ASSOCIATE";
-            } else if (desLower.contains("partner")) {
-                roleCode = "PARTNER";
-            } else if (desLower.contains("accountant")) {
-                roleCode = "ACCOUNTANT";
-            } else if (desLower.contains("practitioner")) {
-                roleCode = "PRACTITIONER";
-            }
-
-            final String finalRoleCode = roleCode;
-            role = roleRepository.findByCodeAndIsSystemRoleTrue(finalRoleCode)
+            role = roleRepository.findByCodeAndOrganizationId("TAX_ASSOCIATE", organizationId)
                     .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("TAX_ASSOCIATE"))
-                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER"))
-                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN"))
+                    .or(() -> roleRepository.findByCodeAndIsSystemRoleTrue("STAFF"))
                     .orElse(null);
         }
 
@@ -590,31 +574,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 dto.setUserId(user.getId());
             }
         } else {
-            // Default fallback based on designation if user has no role assigned
-            String des = employee.getDesignation() != null ? employee.getDesignation().toLowerCase() : "";
-            String code = "TAX_ASSOCIATE";
-            String name = "Tax Associate";
-            if (des.contains("article") || des.contains("trainee") || des.contains("intern")) {
-                code = "ARTICLE_ASSISTANT";
-                name = "Article Assistant";
-            } else if (des.contains("manager") || des.contains("lead")) {
-                code = "TAX_MANAGER";
-                name = "Tax Manager";
-            } else if (des.contains("partner")) {
-                code = "PARTNER";
-                name = "Practice Partner / CA";
-            } else if (des.contains("practitioner")) {
-                code = "PRACTITIONER";
-                name = "Tax Practitioner / CA";
-            } else if (des.contains("senior") || des.contains("sr")) {
-                code = "SENIOR_TAX_ASSOCIATE";
-                name = "Senior Tax Associate";
-            } else if (des.contains("accountant")) {
-                code = "ACCOUNTANT";
-                name = "Staff Accountant";
-            }
-            dto.setRoleCode(code);
-            dto.setRoleName(name);
+            // SECURITY FIX #6: When no RBAC role is assigned, do NOT infer security roles from designation.
+            dto.setRoleId(null);
+            dto.setRoleCode(null);
+            dto.setRoleName(null);
         }
 
         return dto;
