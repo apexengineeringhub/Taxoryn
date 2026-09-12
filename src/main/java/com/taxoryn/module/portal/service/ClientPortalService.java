@@ -31,6 +31,12 @@ public interface ClientPortalService {
 
     ClientPortalProfileDto updateProfile(UpdateClientPortalProfileRequest request);
 
+    ClientPortalProfileDto uploadProfileAvatar(MultipartFile file);
+
+    void deleteProfileAvatar();
+
+    byte[] getProfileAvatarContent();
+
     List<ClientGstStatusDto> getGstStatus();
 
     List<ClientItrStatusDto> getItrStatus();

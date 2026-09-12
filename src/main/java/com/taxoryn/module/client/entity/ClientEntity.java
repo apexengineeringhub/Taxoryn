@@ -59,6 +59,9 @@ public class ClientEntity extends TenantAuditableEntity {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @Column(name = "avatar_url", length = 1000)
+    private String avatarUrl;
+
     @Column(name = "alt_phone", length = 20)
     private String altPhone;
 

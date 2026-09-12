@@ -39,6 +39,55 @@ public class EmployeeController {
 
     private final EmployeeService employeeService;
 
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get own employee profile", description = "Retrieves self-service employee profile for the authenticated user.")
+    public ResponseEntity<ApiResponse<EmployeeDto>> getMyEmployeeProfile() {
+        EmployeeDto dto = employeeService.getMyEmployeeProfile();
+        return ResponseEntity.ok(ApiResponse.success("Employee profile retrieved successfully", dto));
+    }
+
+    @PutMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Update own employee profile", description = "Allows an authenticated employee to update their permitted personal contact fields (first name, last name, phone, avatar).")
+    public ResponseEntity<ApiResponse<EmployeeDto>> updateMyEmployeeProfile(@Valid @RequestBody com.taxoryn.module.user.dto.UpdateUserProfileRequest request) {
+        EmployeeDto updated = employeeService.updateMyEmployeeProfile(request);
+        return ResponseEntity.ok(ApiResponse.success("Employee profile updated successfully", updated));
+    }
+
+    @PostMapping(value = "/me/avatar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Upload own employee avatar", description = "Uploads and scans an avatar photo for the authenticated employee.")
+    public ResponseEntity<ApiResponse<EmployeeDto>> uploadMyEmployeeAvatar(
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        EmployeeDto updated = employeeService.uploadMyEmployeeAvatar(file);
+        return ResponseEntity.ok(ApiResponse.success("Avatar uploaded successfully", updated));
+    }
+
+    @GetMapping("/me/avatar")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Stream own employee avatar", description = "Streams the avatar binary image for the authenticated employee.")
+    public ResponseEntity<byte[]> streamMyEmployeeAvatar() {
+        byte[] bytes = employeeService.getMyEmployeeAvatarContent();
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.IMAGE_PNG)
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(bytes);
+    }
+
+    @GetMapping("/{employeeId}/avatar")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Stream employee avatar", description = "Streams the avatar binary image for a specific employee in the tenant.")
+    public ResponseEntity<byte[]> streamEmployeeAvatar(@PathVariable UUID employeeId) {
+        byte[] bytes = employeeService.getEmployeeAvatarContent(employeeId);
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.IMAGE_PNG)
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(bytes);
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('EMPLOYEE_READ') or hasAuthority('TASK_VIEW') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasAuthority('TASK_UPDATE') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
     @Operation(summary = "List & search employees with filters", description = "Retrieves paginated employees with keyword search (name, email, phone, code) and filtering by department, status, designation, or manager.")

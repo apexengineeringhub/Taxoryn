@@ -42,6 +42,7 @@ const CustomerOnboardingPortalPage = React.lazy(() => import('./pages/CustomerOn
 const RegisterCustomerPage = React.lazy(() => import('./pages/RegisterCustomerPage').then(m => ({ default: m.RegisterCustomerPage })));
 const MarketplaceCustomerDashboardPage = React.lazy(() => import('./pages/MarketplaceCustomerDashboardPage').then(m => ({ default: m.MarketplaceCustomerDashboardPage })));
 const CustomerProfilePage = React.lazy(() => import('./pages/CustomerProfilePage').then(m => ({ default: m.CustomerProfilePage })));
+const UserProfilePage = React.lazy(() => import('./pages/UserProfilePage').then(m => ({ default: m.UserProfilePage })));
 const CustomerTaxRequirementWizardPage = React.lazy(() => import('./pages/CustomerTaxRequirementWizardPage').then(m => ({ default: m.CustomerTaxRequirementWizardPage })));
 const CustomerTaxRequirementsListPage = React.lazy(() => import('./pages/CustomerTaxRequirementsListPage').then(m => ({ default: m.CustomerTaxRequirementsListPage })));
 const ApplicationFeedbackPage = React.lazy(() => import('./pages/ApplicationFeedbackPage').then(m => ({ default: m.ApplicationFeedbackPage })));
@@ -457,6 +458,7 @@ export const App: React.FC = () => {
                   </RoleRouteGuard>
                 }
               />
+              <Route path="/profile" element={<UserProfilePage />} />
               <Route path="/settings/security" element={<AccountSecurityPage />} />
               <Route path="/profile/security" element={<AccountSecurityPage />} />
               <Route path="/feedback" element={<ApplicationFeedbackPage />} />

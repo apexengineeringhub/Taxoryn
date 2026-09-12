@@ -102,6 +102,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final com.taxoryn.module.docrequest.service.DocumentRequestService multiItemDocRequestService;
     private final com.taxoryn.module.docrequest.repository.DocumentRequestRepository multiItemDocRequestRepository;
     private final com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository multiItemDocRequestItemRepository;
+    private final com.taxoryn.module.user.service.ProfileImageService profileImageService;
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
@@ -449,6 +450,10 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
         ClientPortalProfileDto dto = mapper.toProfileDto(client);
 
+        if (client.getAvatarUrl() != null) {
+            dto.setAvatarUrl(profileImageService.resolveAvatarUrl(client.getAvatarUrl()));
+        }
+
         if (client.getAssignedEmployeeId() != null) {
             employeeRepository.findByIdAndOrganizationId(client.getAssignedEmployeeId(), organizationId)
                     .ifPresent(emp -> {
@@ -470,8 +475,10 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        if (StringUtils.hasText(request.getDisplayName())) client.setDisplayName(request.getDisplayName().trim());
         if (StringUtils.hasText(request.getEmail())) client.setEmail(request.getEmail().trim());
         if (StringUtils.hasText(request.getPhone())) client.setPhone(request.getPhone().trim());
+        if (request.getAvatarUrl() != null) client.setAvatarUrl(request.getAvatarUrl().trim());
         if (StringUtils.hasText(request.getAddressLine1())) client.setAddressLine1(request.getAddressLine1().trim());
         if (StringUtils.hasText(request.getAddressLine2())) client.setAddressLine2(request.getAddressLine2().trim());
         if (StringUtils.hasText(request.getCity())) client.setCity(request.getCity().trim());
@@ -482,6 +489,56 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         log.info("Updated client profile via portal: id={} in tenant={}", clientId, organizationId);
 
         return getProfile();
+    }
+
+    @Override
+    @Transactional
+    public ClientPortalProfileDto uploadProfileAvatar(org.springframework.web.multipart.MultipartFile file) {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        String storedKey = profileImageService.storeAvatar(organizationId, clientId, "client", file, client.getAvatarUrl());
+        client.setAvatarUrl(storedKey);
+        ClientEntity saved = clientRepository.save(client);
+        log.info("Uploaded avatar for client id={} in tenant={}", clientId, organizationId);
+
+        return getProfile();
+    }
+
+    @Override
+    @Transactional
+    public void deleteProfileAvatar() {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        if (StringUtils.hasText(client.getAvatarUrl())) {
+            profileImageService.deleteAvatar(client.getAvatarUrl());
+            client.setAvatarUrl(null);
+            clientRepository.save(client);
+        }
+        log.info("Deleted avatar for client id={} in tenant={}", clientId, organizationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getProfileAvatarContent() {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        if (!StringUtils.hasText(client.getAvatarUrl())) {
+            throw new ResourceNotFoundException("Client avatar", "clientId", clientId);
+        }
+
+        return profileImageService.retrieveAvatarContent(client.getAvatarUrl());
     }
 
     @Override

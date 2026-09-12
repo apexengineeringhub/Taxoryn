@@ -71,12 +71,125 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeMapper employeeMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final OrganizationEmployeeNumberGenerator employeeNumberGenerator;
+    private final com.taxoryn.module.user.service.ProfileImageService profileImageService;
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
 
     @Value("${taxoryn.auth.activation.expiration-hours:24}")
     private long activationExpirationHours = 24L;
+
+    @Override
+    @Transactional(readOnly = true)
+    public EmployeeDto getMyEmployeeProfile() {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        EmployeeEntity employee = employeeRepository.findByOrganizationIdAndUserId(organizationId, userId)
+                .orElseGet(() -> {
+                    String email = SecurityUtils.getCurrentUserEmail();
+                    if (StringUtils.hasText(email)) {
+                        return employeeRepository.findByOrganizationIdAndEmail(organizationId, email.toLowerCase().trim())
+                                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for user: " + userId));
+                    }
+                    throw new ResourceNotFoundException("Employee profile not found for user: " + userId);
+                });
+        return enrichDto(employee);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeDto updateMyEmployeeProfile(com.taxoryn.module.user.dto.UpdateUserProfileRequest request) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        EmployeeEntity employee = employeeRepository.findByOrganizationIdAndUserId(organizationId, userId)
+                .orElseGet(() -> {
+                    String email = SecurityUtils.getCurrentUserEmail();
+                    if (StringUtils.hasText(email)) {
+                        return employeeRepository.findByOrganizationIdAndEmail(organizationId, email.toLowerCase().trim())
+                                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for user: " + userId));
+                    }
+                    throw new ResourceNotFoundException("Employee profile not found for user: " + userId);
+                });
+
+        if (StringUtils.hasText(request.getFirstName())) {
+            employee.setFirstName(request.getFirstName().trim());
+        }
+        if (request.getLastName() != null) {
+            employee.setLastName(request.getLastName().trim());
+        }
+        if (request.getPhone() != null) {
+            employee.setPhone(request.getPhone().trim());
+        }
+        if (request.getAvatarUrl() != null) {
+            employee.setAvatarUrl(request.getAvatarUrl().trim());
+        }
+
+        EmployeeEntity saved = employeeRepository.save(employee);
+
+        // Sync with linked UserEntity strictly within tenant
+        userRepository.findByIdAndOrganizationId(userId, organizationId).ifPresent(u -> {
+            u.setFirstName(saved.getFirstName());
+            u.setLastName(saved.getLastName());
+            u.setPhone(saved.getPhone());
+            u.setAvatarUrl(saved.getAvatarUrl());
+            userRepository.save(u);
+        });
+
+        log.info("Updated self-service employee profile: id={} in tenant={}", saved.getId(), organizationId);
+        return enrichDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeDto uploadMyEmployeeAvatar(org.springframework.web.multipart.MultipartFile file) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        EmployeeEntity employee = employeeRepository.findByOrganizationIdAndUserId(organizationId, userId)
+                .orElseGet(() -> {
+                    String email = SecurityUtils.getCurrentUserEmail();
+                    if (StringUtils.hasText(email)) {
+                        return employeeRepository.findByOrganizationIdAndEmail(organizationId, email.toLowerCase().trim())
+                                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for user: " + userId));
+                    }
+                    throw new ResourceNotFoundException("Employee profile not found for user: " + userId);
+                });
+
+        String storedKey = profileImageService.storeAvatar(organizationId, employee.getId(), "employee", file, employee.getAvatarUrl());
+        employee.setAvatarUrl(storedKey);
+        EmployeeEntity saved = employeeRepository.save(employee);
+
+        userRepository.findByIdAndOrganizationId(userId, organizationId).ifPresent(u -> {
+            u.setAvatarUrl(storedKey);
+            userRepository.save(u);
+        });
+
+        log.info("Uploaded avatar for employee id={} in tenant={}", saved.getId(), organizationId);
+        return enrichDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getEmployeeAvatarContent(UUID employeeId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+
+        String avatarKey = employee.getAvatarUrl();
+        if (!StringUtils.hasText(avatarKey) && employee.getUserId() != null) {
+            avatarKey = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId)
+                    .map(UserEntity::getAvatarUrl).orElse(null);
+        }
+        if (!StringUtils.hasText(avatarKey)) {
+            throw new ResourceNotFoundException("Employee avatar", "employeeId", employeeId);
+        }
+        return profileImageService.retrieveAvatarContent(avatarKey);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getMyEmployeeAvatarContent() {
+        return getEmployeeAvatarContent(getMyEmployeeProfile().getId());
+    }
 
     @Override
     @Transactional
@@ -578,6 +691,12 @@ public class EmployeeServiceImpl implements EmployeeService {
             dto.setRoleId(null);
             dto.setRoleCode(null);
             dto.setRoleName(null);
+        }
+
+        if (employee.getAvatarUrl() != null) {
+            dto.setAvatarUrl(profileImageService.resolveAvatarUrl(employee.getAvatarUrl()));
+        } else if (user != null && user.getAvatarUrl() != null) {
+            dto.setAvatarUrl(profileImageService.resolveAvatarUrl(user.getAvatarUrl()));
         }
 
         return dto;

@@ -30,6 +30,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -108,12 +109,41 @@ public class ClientPortalController {
     }
 
     @PutMapping("/profile")
-    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN')")
-    @Operation(summary = "Update client contact information", description = "Updates address, email, or contact phone for the authenticated client.")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Update client contact information", description = "Updates address, email, contact phone, or avatar for the authenticated client.")
     public ResponseEntity<ApiResponse<ClientPortalProfileDto>> updateProfile(
             @Valid @RequestBody UpdateClientPortalProfileRequest request) {
         ClientPortalProfileDto profile = clientPortalService.updateProfile(request);
         return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", profile));
+    }
+
+    @PostMapping(value = "/profile/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Upload client profile avatar", description = "Uploads and scans a profile photo / avatar for the authenticated client.")
+    public ResponseEntity<ApiResponse<ClientPortalProfileDto>> uploadProfileAvatar(
+            @RequestParam("file") MultipartFile file) {
+        ClientPortalProfileDto profile = clientPortalService.uploadProfileAvatar(file);
+        return ResponseEntity.ok(ApiResponse.success("Avatar uploaded successfully", profile));
+    }
+
+    @DeleteMapping("/profile/avatar")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Delete client profile avatar", description = "Removes the avatar photo for the authenticated client.")
+    public ResponseEntity<ApiResponse<Void>> deleteProfileAvatar() {
+        clientPortalService.deleteProfileAvatar();
+        return ResponseEntity.ok(ApiResponse.success("Avatar deleted successfully", null));
+    }
+
+    @GetMapping("/profile/avatar")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Stream client avatar image", description = "Streams the avatar binary image for the authenticated client.")
+    public ResponseEntity<byte[]> streamProfileAvatar() {
+        byte[] bytes = clientPortalService.getProfileAvatarContent();
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(bytes);
     }
 
     // =========================================================================

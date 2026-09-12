@@ -42,6 +42,9 @@ public class EmployeeEntity extends TenantAuditableEntity {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @Column(name = "avatar_url", length = 1000)
+    private String avatarUrl;
+
     @Column(name = "designation", length = 100)
     private String designation;
 

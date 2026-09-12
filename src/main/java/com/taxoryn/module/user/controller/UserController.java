@@ -36,6 +36,63 @@ public class UserController {
 
     private final UserService userService;
 
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get current authenticated user profile", description = "Retrieves self-service profile details for the authenticated user.")
+    public ResponseEntity<ApiResponse<UserDto>> getMyProfile() {
+        UserDto dto = userService.getCurrentUserProfile();
+        return ResponseEntity.ok(ApiResponse.success("User profile retrieved successfully", dto));
+    }
+
+    @PutMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Update self-service profile", description = "Allows any authenticated user to update their permitted profile fields (first name, last name, phone, avatar).")
+    public ResponseEntity<ApiResponse<UserDto>> updateMyProfile(@Valid @RequestBody com.taxoryn.module.user.dto.UpdateUserProfileRequest request) {
+        UserDto updated = userService.updateMyProfile(request);
+        return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", updated));
+    }
+
+    @PostMapping(value = "/me/avatar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Upload user profile avatar", description = "Uploads and scans an avatar photo for the authenticated user.")
+    public ResponseEntity<ApiResponse<UserDto>> uploadMyAvatar(
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        UserDto updated = userService.uploadMyAvatar(file);
+        return ResponseEntity.ok(ApiResponse.success("Avatar uploaded successfully", updated));
+    }
+
+    @DeleteMapping("/me/avatar")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Delete user profile avatar", description = "Removes the avatar photo for the authenticated user.")
+    public ResponseEntity<ApiResponse<Void>> deleteMyAvatar() {
+        userService.deleteMyAvatar();
+        return ResponseEntity.ok(ApiResponse.success("Avatar deleted successfully", null));
+    }
+
+    @GetMapping("/me/avatar")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Stream own avatar image", description = "Streams the avatar binary image for the authenticated user.")
+    public ResponseEntity<byte[]> streamMyAvatar() {
+        byte[] bytes = userService.getMyAvatarContent();
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.IMAGE_PNG)
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(bytes);
+    }
+
+    @GetMapping("/{userId}/avatar")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Stream user avatar image", description = "Streams the avatar binary image for a specific user in the tenant.")
+    public ResponseEntity<byte[]> streamUserAvatar(@PathVariable UUID userId) {
+        byte[] bytes = userService.getAvatarContent(userId);
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.IMAGE_PNG)
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(bytes);
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('USER_VIEW') or hasAuthority('USER_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "List users with pagination", description = "Retrieves paginated list of users for the authenticated tenant organization.")

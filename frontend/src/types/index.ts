@@ -46,11 +46,18 @@ export interface User {
   firstName: string;
   lastName?: string;
   phone?: string;
+  avatarUrl?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   roles: (string | { id?: string; code: string; name: string })[];
   permissions: string[];
   isClientUser?: boolean;
   createdAt?: string;
+}
+
+export interface UpdateUserProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
 }
 
 export interface AuthTokens {
@@ -140,6 +147,7 @@ export interface Client {
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PROSPECT' | 'ARCHIVED';
   email?: string;
   phone?: string;
+  avatarUrl?: string;
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   portalEnabled?: boolean;
@@ -580,6 +588,7 @@ export interface Employee {
   fullName?: string;
   email: string;
   phone?: string;
+  avatarUrl?: string;
   department: string;
   designation: string;
   status: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED';
@@ -782,6 +791,7 @@ export interface ClientPortalProfile {
   tan?: string;
   email?: string;
   phone?: string;
+  avatarUrl?: string;
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
@@ -790,6 +800,17 @@ export interface ClientPortalProfile {
   assignedPractitionerName?: string;
   assignedPractitionerEmail?: string;
   assignedPractitionerPhone?: string;
+}
+
+export interface UpdateClientPortalProfileRequest {
+  displayName?: string;
+  email?: string;
+  phone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
 }
 
 export interface ClientPortalDashboard {

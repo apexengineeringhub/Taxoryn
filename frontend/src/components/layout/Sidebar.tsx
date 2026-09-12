@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
   const location = useLocation();
 
-  const userAvatar = getEmployeeAvatar(user?.email || user?.id);
+  const userAvatar = user?.avatarUrl || getEmployeeAvatar(user?.email || user?.id);
   const isLight = currentTheme.mode === 'light';
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
@@ -573,8 +573,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={clsx('flex items-center justify-between p-2 rounded-lg border', isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-white/5 border-white/5')}
         >
           <NavLink
-            to="/settings/security"
-            title="Account Security & Password Settings"
+            to="/profile"
+            title="My Profile & Settings"
             className="flex items-center gap-2.5 truncate hover:opacity-90 transition-opacity flex-1 min-w-0"
           >
             {userAvatar ? (

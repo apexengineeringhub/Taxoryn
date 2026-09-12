@@ -55,6 +55,9 @@ public class EmployeeDto {
     @Schema(description = "Contact phone number", example = "+919876543210")
     private String phone;
 
+    @Schema(description = "Profile photo URL or avatar identifier")
+    private String avatarUrl;
+
     @Schema(description = "Department name", example = "Taxation")
     private String department;
 
