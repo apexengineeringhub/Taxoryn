@@ -164,6 +164,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public RegisterOrganizationResponse registerOrganization(RegisterOrganizationRequest request, String clientIp) {
+        PasswordSecurityUtils.validatePassword(request.getAdminPassword());
+
         String orgEmail = request.getOrganizationEmail().toLowerCase().trim();
         String adminEmail = request.getAdminEmail().toLowerCase().trim();
 
@@ -297,6 +299,7 @@ public class AuthServiceImpl implements AuthService {
             // If a password was provided during activation (e.g. Employee password setup), update password hash
             String effectivePassword = request.getEffectivePassword();
             if (StringUtils.hasText(effectivePassword)) {
+                PasswordSecurityUtils.validatePassword(effectivePassword);
                 user.setPasswordHash(passwordEncoder.encode(effectivePassword));
             }
 
@@ -367,6 +370,7 @@ public class AuthServiceImpl implements AuthService {
 
             String effectivePassword = request.getEffectivePassword();
             if (StringUtils.hasText(effectivePassword)) {
+                PasswordSecurityUtils.validatePassword(effectivePassword);
                 user.setPasswordHash(passwordEncoder.encode(effectivePassword));
             }
 
@@ -719,6 +723,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserDto registerUserByAdmin(RegisterUserByAdminRequest request) {
+        PasswordSecurityUtils.validatePassword(request.getPassword());
+
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
         // Check MAX_USERS Subscription Limit
@@ -1120,9 +1126,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void resetPassword(ResetPasswordRequest request, String clientIp) {
-        if (PasswordSecurityUtils.isKnownDefaultOrWeakPassword(request.getNewPassword())) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Password is too weak or commonly used. Please choose a stronger password.");
-        }
+        PasswordSecurityUtils.validatePassword(request.getNewPassword());
 
         String rawToken = request.getToken().trim();
         String tokenHash = hashToken(rawToken);
@@ -1231,7 +1235,10 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.BAD_REQUEST, "New password must be different from your current password");
         }
 
-        // 3. Verify confirmation match
+        // 3. Verify complexity of new password
+        PasswordSecurityUtils.validatePassword(request.getNewPassword());
+
+        // 4. Verify confirmation match
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new AppException(ErrorCode.BAD_REQUEST, "New password and confirm password do not match");
         }

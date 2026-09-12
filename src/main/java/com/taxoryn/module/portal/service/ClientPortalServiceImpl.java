@@ -196,6 +196,10 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                         .isSystemRole(true)
                         .build()));
 
+        if (StringUtils.hasText(request.getPassword())) {
+            com.taxoryn.core.security.PasswordSecurityUtils.validatePassword(request.getPassword());
+        }
+
         String passwordHash = StringUtils.hasText(request.getPassword()) ? passwordEncoder.encode(request.getPassword()) : "";
 
         UserEntity user = UserEntity.builder()

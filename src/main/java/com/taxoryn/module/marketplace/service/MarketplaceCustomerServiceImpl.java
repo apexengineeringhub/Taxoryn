@@ -94,6 +94,8 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
     @Override
     @Transactional
     public CustomerAuthResponseDto registerCustomer(RegisterCustomerRequest request) {
+        com.taxoryn.core.security.PasswordSecurityUtils.validatePassword(request.getPassword());
+
         String normalizedEmail = request.getEmail().toLowerCase().trim();
 
         if (userRepository.findByEmailIgnoreCase(normalizedEmail).isPresent() ||

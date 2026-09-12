@@ -169,7 +169,7 @@ class MarketplaceCustomerServiceTest {
                 .lastName("Kumar")
                 .email("suresh.kumar@example.com")
                 .phone("9876543210")
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .customerType(CustomerType.INDIVIDUAL)
                 .city("Chennai")
                 .state("Tamil Nadu")
@@ -231,7 +231,7 @@ class MarketplaceCustomerServiceTest {
         RegisterCustomerRequest req = RegisterCustomerRequest.builder()
                 .firstName("Duplicate")
                 .email("existing@example.com")
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .build();
 
         when(userRepository.findByEmailIgnoreCase("existing@example.com"))

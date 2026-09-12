@@ -4,6 +4,7 @@ import com.taxoryn.core.dto.PageRequestDto;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.core.security.PasswordSecurityUtils;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.role.entity.RoleEntity;
@@ -71,6 +72,8 @@ public class UserServiceImpl implements UserService {
         if (userRepository.existsByOrganizationIdAndEmailIgnoreCase(organizationId, request.getEmail())) {
             throw new DuplicateResourceException("User", "email", request.getEmail());
         }
+
+        PasswordSecurityUtils.validatePassword(request.getPassword());
 
         // 1. RBAC Privilege Escalation & Delegation Boundary Check
         SecurityUtils.validateRoleDelegation(request.getRoleCodes(), null);

@@ -55,8 +55,8 @@ public class RegisterOrganizationRequest {
     private String adminEmail;
 
     @NotBlank(message = "Admin password is required")
-    @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
-    @Schema(description = "Admin password", example = "StrongPassword123!")
+    @com.taxoryn.core.security.validation.StrongPassword
+    @Schema(description = "Admin password meeting strong security policy (min 12 chars, upper, lower, digit, special)", example = "Tx9#SecureP@ss2026!")
     private String adminPassword;
 
     @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid admin phone number format")

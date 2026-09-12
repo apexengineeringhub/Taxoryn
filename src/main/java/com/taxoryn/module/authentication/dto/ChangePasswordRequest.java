@@ -21,12 +21,8 @@ public class ChangePasswordRequest {
     private String currentPassword;
 
     @NotBlank(message = "New password is required")
-    @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
-    @Pattern(
-        regexp = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!._-]).*$",
-        message = "Password must contain at least one digit, one lowercase letter, one uppercase letter, and one special character"
-    )
-    @Schema(description = "New password meeting complexity standards", example = "NewSecurePass123!", requiredMode = Schema.RequiredMode.REQUIRED)
+    @com.taxoryn.core.security.validation.StrongPassword
+    @Schema(description = "New password meeting complexity standards (min 12 chars, upper, lower, digit, special)", example = "Tx9#SecureP@ss2026!", requiredMode = Schema.RequiredMode.REQUIRED)
     private String newPassword;
 
     @NotBlank(message = "Confirm password is required")
