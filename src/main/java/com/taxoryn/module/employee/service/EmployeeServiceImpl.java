@@ -97,8 +97,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         final UUID targetUserId;
         if (request.getUserId() != null) {
-            userRepository.findByIdAndOrganizationId(request.getUserId(), organizationId)
+            UserEntity targetUser = userRepository.findByIdAndOrganizationId(request.getUserId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getUserId()));
+            if (targetUser.getClientId() != null) {
+                throw new BusinessValidationException("Cannot link a client portal user to an employee account");
+            }
+            if (employeeRepository.findByOrganizationIdAndUserId(organizationId, targetUser.getId()).isPresent()) {
+                throw new DuplicateResourceException("Employee", "userId", targetUser.getId());
+            }
             targetUserId = request.getUserId();
         } else {
             UserEntity user = provisionUserForEmployee(organizationId, email, request.getFirstName().trim(),
@@ -130,7 +136,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Created employee record: id={}, code={} for tenant={}", saved.getId(), saved.getEmployeeCode(), organizationId);
 
-        UserEntity user = userRepository.findById(targetUserId).orElse(null);
+        UserEntity user = userRepository.findByIdAndOrganizationId(targetUserId, organizationId).orElse(null);
         if (user != null) {
             sendEmployeeInvitation(saved, user, organizationId);
         }
@@ -199,16 +205,27 @@ public class EmployeeServiceImpl implements EmployeeService {
         Optional<UserEntity> existing = userRepository.findByEmailIgnoreCase(email);
         if (existing.isPresent()) {
             UserEntity u = existing.get();
-            if (u.getOrganizationId() == null) {
-                u.setOrganizationId(organizationId);
+            // Tenant Isolation Rule 1: Never attach or reassign a user from another organization or platform
+            if (u.getOrganizationId() == null || !u.getOrganizationId().equals(organizationId)) {
+                log.warn("Cross-tenant employee provisioning blocked: Email {} belongs to foreign organization/user {}", email, u.getOrganizationId());
+                throw new DuplicateResourceException("The email address is already registered and cannot be used for this employee account.");
             }
-            if (u.getRoles() == null || u.getRoles().isEmpty()) {
-                u.setRoles(new HashSet<>());
-                if (resolvedRole != null) {
-                    u.getRoles().add(resolvedRole);
-                }
+
+            // Tenant Isolation Rule 2: Same-organization user handling
+            if (u.getClientId() != null) {
+                log.warn("Client user employee provisioning blocked: Email {} in tenant {} is assigned to client {}", email, organizationId, u.getClientId());
+                throw new DuplicateResourceException("The email address belongs to an existing client user and cannot be attached to an employee account.");
             }
-            return userRepository.save(u);
+
+            if (employeeRepository.findByOrganizationIdAndUserId(organizationId, u.getId()).isPresent()) {
+                log.warn("Duplicate employee provisioning blocked: User {} ({}) is already linked to an employee in tenant {}", u.getId(), email, organizationId);
+                throw new DuplicateResourceException("An employee record already exists for this user account.");
+            }
+
+            // EDGE CASE: If email belongs to an existing internal user in the same organization,
+            // return a clear conflict. Do not silently convert or reassign that user.
+            log.warn("Internal user conflict: User {} ({}) already exists in tenant {}. Explicit userId required.", u.getId(), email, organizationId);
+            throw new DuplicateResourceException("A user with email '" + email + "' already exists in this organization. To create an employee for an existing user, specify userId explicitly.");
         }
 
         Set<RoleEntity> userRoles = new HashSet<>();
@@ -253,8 +270,15 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         if (request.getUserId() != null) {
-            userRepository.findByIdAndOrganizationId(request.getUserId(), organizationId)
+            UserEntity targetUser = userRepository.findByIdAndOrganizationId(request.getUserId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getUserId()));
+            if (targetUser.getClientId() != null) {
+                throw new BusinessValidationException("Cannot link a client portal user to an employee account");
+            }
+            Optional<EmployeeEntity> existingEmpForUser = employeeRepository.findByOrganizationIdAndUserId(organizationId, request.getUserId());
+            if (existingEmpForUser.isPresent() && !existingEmpForUser.get().getId().equals(employeeId)) {
+                throw new DuplicateResourceException("Employee", "userId", request.getUserId());
+            }
         }
 
         employee.setFirstName(request.getFirstName().trim());
@@ -397,17 +421,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             return enrichDto(employee);
         }
 
-        // 2. Resolve linked UserEntity
+        // 2. Resolve linked UserEntity strictly within tenant
         UserEntity user = null;
         if (employee.getUserId() != null) {
-            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId)
-                    .or(() -> userRepository.findById(employee.getUserId()))
-                    .orElse(null);
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId).orElse(null);
         }
         if (user == null && employee.getEmail() != null) {
-            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail())
-                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
-                    .orElse(null);
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail()).orElse(null);
         }
 
         // 3. Last Active Practice Admin Lockout Protection
@@ -469,14 +489,10 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         UserEntity user = null;
         if (employee.getUserId() != null) {
-            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId)
-                    .or(() -> userRepository.findById(employee.getUserId()))
-                    .orElse(null);
+            user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId).orElse(null);
         }
         if (user == null && employee.getEmail() != null) {
-            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail())
-                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
-                    .orElse(null);
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail()).orElse(null);
         }
 
         if (user != null && user.getStatus() == UserEntity.UserStatus.ACTIVE) {
@@ -549,18 +565,13 @@ public class EmployeeServiceImpl implements EmployeeService {
                     .ifPresent(manager -> dto.setManagerName(manager.getFullName()));
         }
 
-        // Populate Role details from linked UserEntity
+        // Populate Role details from linked UserEntity strictly within tenant
         UserEntity user = null;
-        if (employee.getUserId() != null) {
+        if (employee.getUserId() != null && employee.getOrganizationId() != null) {
             user = userRepository.findByIdAndOrganizationId(employee.getUserId(), employee.getOrganizationId()).orElse(null);
-            if (user == null) {
-                user = userRepository.findById(employee.getUserId()).orElse(null);
-            }
         }
-        if (user == null && employee.getEmail() != null) {
-            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(employee.getOrganizationId(), employee.getEmail())
-                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
-                    .orElse(null);
+        if (user == null && employee.getEmail() != null && employee.getOrganizationId() != null) {
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(employee.getOrganizationId(), employee.getEmail()).orElse(null);
         }
 
         if (user != null && user.getRoles() != null && !user.getRoles().isEmpty()) {
@@ -657,18 +668,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             );
         }
 
-        // Resolve linked user
+        // Resolve linked user strictly within tenant
         UserEntity user = null;
         if (employee.getUserId() != null) {
             user = userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId).orElse(null);
-            if (user == null) {
-                user = userRepository.findById(employee.getUserId()).orElse(null);
-            }
         }
         if (user == null && employee.getEmail() != null) {
-            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail())
-                    .or(() -> userRepository.findByEmailIgnoreCase(employee.getEmail()))
-                    .orElse(null);
+            user = userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail()).orElse(null);
         }
 
         if (user == null) {
@@ -676,9 +682,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             user = provisionUserForEmployee(organizationId, employee.getEmail(), employee.getFirstName(), employee.getLastName(), employee.getPhone(), employee.getDesignation(), requestedRoleCode, requestedRoleId);
             employee.setUserId(user.getId());
         } else {
-            if (user.getOrganizationId() == null) {
-                user.setOrganizationId(organizationId);
-            }
             if (employee.getUserId() == null) {
                 employee.setUserId(user.getId());
             }
@@ -748,8 +751,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
                 final UUID targetUserId;
                 if (req.getUserId() != null) {
-                    userRepository.findByIdAndOrganizationId(req.getUserId(), organizationId)
+                    UserEntity targetUser = userRepository.findByIdAndOrganizationId(req.getUserId(), organizationId)
                             .orElseThrow(() -> new ResourceNotFoundException("User", "id", req.getUserId()));
+                    if (targetUser.getClientId() != null) {
+                        throw new BusinessValidationException("Cannot link a client portal user to an employee account");
+                    }
+                    if (employeeRepository.findByOrganizationIdAndUserId(organizationId, targetUser.getId()).isPresent()) {
+                        throw new DuplicateResourceException("Employee", "userId", targetUser.getId());
+                    }
                     targetUserId = req.getUserId();
                 } else {
                     String firstName = req.getFirstName() != null ? req.getFirstName().trim() : "Staff";
@@ -775,7 +784,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 employee.setOrganizationId(organizationId);
 
                 EmployeeEntity saved = employeeRepository.save(employee);
-                UserEntity user = userRepository.findById(targetUserId).orElse(null);
+                UserEntity user = userRepository.findByIdAndOrganizationId(targetUserId, organizationId).orElse(null);
                 if (user != null) {
                     sendEmployeeInvitation(saved, user, organizationId);
                 }

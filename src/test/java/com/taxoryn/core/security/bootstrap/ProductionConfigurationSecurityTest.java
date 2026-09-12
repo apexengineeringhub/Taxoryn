@@ -60,6 +60,9 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "whatsappEnabled", false);
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://app.taxoryn.com");
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://taxoryn.com");
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");
+        ReflectionTestUtils.setField(validator, "flywayValidateOnMigrate", true);
+        ReflectionTestUtils.setField(validator, "flywayEnabled", true);
     }
 
     // =========================================================================
@@ -451,5 +454,53 @@ class ProductionConfigurationSecurityTest {
         when(userRepository.findByEmailIgnoreCase("superadmin@taxoryn.com")).thenReturn(Optional.of(inactiveLegacyUser));
 
         assertDoesNotThrow(validator::validateEnvironmentSecurity);
+    }
+
+    // =========================================================================
+    // 7. Database Schema Management & Flyway Hardening Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Hibernate ddl-auto is 'update'")
+    void testProductionFailsWhenHibernateDdlAutoIsUpdate() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "update");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Hibernate 'ddl-auto' cannot be 'update' in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Hibernate ddl-auto is 'create'")
+    void testProductionFailsWhenHibernateDdlAutoIsCreate() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "create");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Hibernate 'ddl-auto' cannot be 'create' in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Flyway validate-on-migrate is disabled")
+    void testProductionFailsWhenFlywayValidateOnMigrateIsFalse() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "flywayValidateOnMigrate", false);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Flyway 'validate-on-migrate' must be enabled (true) in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Flyway is disabled in production")
+    void testProductionFailsWhenFlywayIsDisabled() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "flywayEnabled", false);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Flyway must be enabled in production"));
     }
 }

@@ -149,7 +149,7 @@ class EmployeeServiceTest {
             u.setId(UUID.randomUUID());
             return u;
         });
-        when(userRepository.findById(any())).thenAnswer(invocation -> {
+        when(userRepository.findByIdAndOrganizationId(any(), any())).thenAnswer(invocation -> {
             com.taxoryn.module.user.entity.UserEntity u = com.taxoryn.module.user.entity.UserEntity.builder()
                     .email("rohan.d@taxpractice.com")
                     .firstName("Rohan")
@@ -157,6 +157,7 @@ class EmployeeServiceTest {
                     .status(com.taxoryn.module.user.entity.UserEntity.UserStatus.INACTIVE)
                     .build();
             u.setId(invocation.getArgument(0));
+            u.setOrganizationId(tenantId);
             return Optional.of(u);
         });
 
@@ -428,5 +429,151 @@ class EmployeeServiceTest {
 
         assertThrows(BusinessValidationException.class, () ->
                 employeeService.updateEmployeeStatus(employeeId, new UpdateEmployeeStatusRequest(EmployeeStatus.SUSPENDED)));
+    }
+
+    @Test
+    @DisplayName("Create employee fails when email belongs to a user from another organization")
+    void testCreateEmployee_CrossTenantUserEmail_ThrowsDuplicateResourceException() {
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-002")
+                .firstName("Foreign")
+                .email("foreign@external.com")
+                .department("Taxation")
+                .designation("Associate")
+                .build();
+
+        UUID foreignOrgId = UUID.randomUUID();
+        com.taxoryn.module.user.entity.UserEntity foreignUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("foreign@external.com")
+                .firstName("Foreign")
+                .organizationId(foreignOrgId)
+                .build();
+        foreignUser.setId(UUID.randomUUID());
+
+        when(employeeRepository.existsByOrganizationIdAndEmployeeCode(tenantId, "EMP-002")).thenReturn(false);
+        when(employeeRepository.existsByOrganizationIdAndEmail(tenantId, "foreign@external.com")).thenReturn(false);
+        when(userRepository.findByEmailIgnoreCase("foreign@external.com")).thenReturn(Optional.of(foreignUser));
+
+        DuplicateResourceException ex = assertThrows(DuplicateResourceException.class,
+                () -> employeeService.createEmployee(request));
+        assertEquals("The email address is already registered and cannot be used for this employee account.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Create employee fails when email belongs to existing client user in same organization")
+    void testCreateEmployee_SameOrgClientUserEmail_ThrowsDuplicateResourceException() {
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-003")
+                .firstName("ClientUser")
+                .email("clientuser@clientcorp.com")
+                .department("Taxation")
+                .designation("Associate")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity clientUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("clientuser@clientcorp.com")
+                .organizationId(tenantId)
+                .clientId(UUID.randomUUID())
+                .build();
+        clientUser.setId(UUID.randomUUID());
+
+        when(employeeRepository.existsByOrganizationIdAndEmployeeCode(tenantId, "EMP-003")).thenReturn(false);
+        when(employeeRepository.existsByOrganizationIdAndEmail(tenantId, "clientuser@clientcorp.com")).thenReturn(false);
+        when(userRepository.findByEmailIgnoreCase("clientuser@clientcorp.com")).thenReturn(Optional.of(clientUser));
+
+        DuplicateResourceException ex = assertThrows(DuplicateResourceException.class,
+                () -> employeeService.createEmployee(request));
+        assertEquals("The email address belongs to an existing client user and cannot be attached to an employee account.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Create employee fails when email belongs to existing internal user without explicit userId")
+    void testCreateEmployee_SameOrgInternalUserWithoutUserId_ThrowsDuplicateResourceException() {
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-004")
+                .firstName("ExistingInternal")
+                .email("internal@taxpractice.com")
+                .department("Taxation")
+                .designation("Associate")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity internalUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("internal@taxpractice.com")
+                .organizationId(tenantId)
+                .build();
+        internalUser.setId(UUID.randomUUID());
+
+        when(employeeRepository.existsByOrganizationIdAndEmployeeCode(tenantId, "EMP-004")).thenReturn(false);
+        when(employeeRepository.existsByOrganizationIdAndEmail(tenantId, "internal@taxpractice.com")).thenReturn(false);
+        when(userRepository.findByEmailIgnoreCase("internal@taxpractice.com")).thenReturn(Optional.of(internalUser));
+        when(employeeRepository.findByOrganizationIdAndUserId(tenantId, internalUser.getId())).thenReturn(Optional.empty());
+
+        DuplicateResourceException ex = assertThrows(DuplicateResourceException.class,
+                () -> employeeService.createEmployee(request));
+        assertEquals("A user with email 'internal@taxpractice.com' already exists in this organization. To create an employee for an existing user, specify userId explicitly.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Create employee with explicit userId fails if user belongs to a client")
+    void testCreateEmployee_WithExplicitUserIdBelongingToClient_ThrowsBusinessValidationException() {
+        UUID targetUserId = UUID.randomUUID();
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .userId(targetUserId)
+                .employeeCode("EMP-005")
+                .firstName("ClientUser")
+                .email("clientuser@clientcorp.com")
+                .department("Taxation")
+                .designation("Associate")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity clientUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("clientuser@clientcorp.com")
+                .organizationId(tenantId)
+                .clientId(UUID.randomUUID())
+                .build();
+        clientUser.setId(targetUserId);
+
+        when(employeeRepository.existsByOrganizationIdAndEmployeeCode(tenantId, "EMP-005")).thenReturn(false);
+        when(employeeRepository.existsByOrganizationIdAndEmail(tenantId, "clientuser@clientcorp.com")).thenReturn(false);
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(clientUser));
+
+        BusinessValidationException ex = assertThrows(BusinessValidationException.class,
+                () -> employeeService.createEmployee(request));
+        assertEquals("Cannot link a client portal user to an employee account", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Create employee with explicit userId fails if user already attached to another employee")
+    void testCreateEmployee_WithExplicitUserIdAlreadyAttached_ThrowsDuplicateResourceException() {
+        UUID targetUserId = UUID.randomUUID();
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .userId(targetUserId)
+                .employeeCode("EMP-006")
+                .firstName("ExistingEmployee")
+                .email("attached@taxpractice.com")
+                .department("Taxation")
+                .designation("Associate")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity user = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("attached@taxpractice.com")
+                .organizationId(tenantId)
+                .build();
+        user.setId(targetUserId);
+
+        EmployeeEntity existingEmployee = EmployeeEntity.builder()
+                .employeeCode("EMP-001")
+                .userId(targetUserId)
+                .build();
+        existingEmployee.setId(UUID.randomUUID());
+        existingEmployee.setOrganizationId(tenantId);
+
+        when(employeeRepository.existsByOrganizationIdAndEmployeeCode(tenantId, "EMP-006")).thenReturn(false);
+        when(employeeRepository.existsByOrganizationIdAndEmail(tenantId, "attached@taxpractice.com")).thenReturn(false);
+        when(userRepository.findByIdAndOrganizationId(targetUserId, tenantId)).thenReturn(Optional.of(user));
+        when(employeeRepository.findByOrganizationIdAndUserId(tenantId, targetUserId)).thenReturn(Optional.of(existingEmployee));
+
+        assertThrows(DuplicateResourceException.class,
+                () -> employeeService.createEmployee(request));
     }
 }

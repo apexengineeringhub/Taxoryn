@@ -97,6 +97,9 @@ class ClientServiceTest {
     @Mock
     private com.taxoryn.module.role.repository.RoleRepository roleRepository;
 
+    @Mock
+    private com.taxoryn.module.notice.repository.TaxNoticeRepository noticeRepository;
+
     @InjectMocks
     private ClientServiceImpl clientService;
 
@@ -242,6 +245,8 @@ class ClientServiceTest {
         when(taskRepository.findAllByOrganizationIdAndClientId(eq(tenantId), eq(clientId), any()))
                 .thenReturn(new PageImpl<>(List.of()));
         when(clientNoteRepository.findTop10ByOrganizationIdAndClientIdOrderByCreatedAtDesc(tenantId, clientId))
+                .thenReturn(List.of());
+        when(noticeRepository.findAllByOrganizationIdAndClientId(tenantId, clientId))
                 .thenReturn(List.of());
 
         ClientOverviewDto overview = clientService.getClientOverview(clientId);
