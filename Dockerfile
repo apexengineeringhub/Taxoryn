@@ -43,8 +43,9 @@ USER taxoryn:taxoryn
 # Metaspace so a leak/growth there throws a catchable OutOfMemoryError (visible in
 # logs via ExitOnOutOfMemoryError) instead of silently growing until the container's
 # cgroup memory limit kills the whole JVM with an untraceable SIGKILL (exit 137).
-ENV SERVER_PORT=8088 \
-    JAVA_OPTS="-Xms128m -Xmx220m -Xss512k -XX:MetaspaceSize=96m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
+ENV PORT=8088 \
+    SERVER_PORT=8088 \
+    JAVA_OPTS="-Xms128m -Xmx220m -Xss512k -XX:MetaspaceSize=96m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
 
 EXPOSE 8088
 

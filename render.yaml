@@ -23,10 +23,12 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
+      - key: PORT
+        value: 8088
       - key: SERVER_PORT
         value: 8088
       - key: JAVA_OPTS
-        value: "-Xms128m -Xmx220m -Xss512k -XX:MetaspaceSize=96m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
+        value: "-Xms128m -Xmx220m -Xss512k -XX:MetaspaceSize=96m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
       - key: STORAGE_PROVIDER
         value: S3
       - key: STORAGE_REGION
@@ -50,7 +52,7 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: CLAMAV_ENABLED
-        value: "true"
+        value: "false"
       - key: CLAMAV_HOST
         sync: false
       - key: CLAMAV_PORT
