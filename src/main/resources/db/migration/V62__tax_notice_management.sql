@@ -4,27 +4,28 @@
 -- ==============================================================================
 
 -- 1. Create Granular Notice System Permissions
-INSERT INTO permissions (id, code, name, module, description) VALUES
-    ('10000000-0000-0000-0000-000000000301', 'NOTICE_VIEW', 'View Tax Notices', 'NOTICE', 'Allows viewing tax notice cases, dashboard, timeline and documents'),
-    ('10000000-0000-0000-0000-000000000302', 'NOTICE_CREATE', 'Create Tax Notice Case', 'NOTICE', 'Allows logging new tax notices from Income Tax, GST, or TDS departments'),
-    ('10000000-0000-0000-0000-000000000303', 'NOTICE_UPDATE', 'Update Tax Notice', 'NOTICE', 'Allows updating notice details, deadlines, sections, and metadata'),
-    ('10000000-0000-0000-0000-000000000304', 'NOTICE_ASSIGN', 'Assign Tax Notice', 'NOTICE', 'Allows assigning responsible staff, reviewers, and partners to notices'),
-    ('10000000-0000-0000-0000-000000000305', 'NOTICE_RESPONSE_CREATE', 'Draft Notice Response', 'NOTICE', 'Allows drafting and revising written replies and submissions'),
-    ('10000000-0000-0000-0000-000000000306', 'NOTICE_RESPONSE_REVIEW', 'Review Notice Response', 'NOTICE', 'Allows internal maker-checker review of response drafts'),
-    ('10000000-0000-0000-0000-000000000307', 'NOTICE_APPROVE', 'Partner Approve Notice Response', 'NOTICE', 'Allows executive partner sign-off and approval on tax notice responses'),
-    ('10000000-0000-0000-0000-000000000308', 'NOTICE_SUBMIT', 'Record Notice Submission', 'NOTICE', 'Allows recording portal filing and acknowledgement of response'),
-    ('10000000-0000-0000-0000-000000000309', 'NOTICE_CLOSE', 'Resolve & Close Notice', 'NOTICE', 'Allows resolving, dropping demand, or closing tax notice cases'),
-    ('10000000-0000-0000-0000-000000000310', 'NOTICE_DELETE', 'Delete Notice Case', 'NOTICE', 'Allows deleting or archiving invalid/draft tax notice cases')
+ALTER TABLE permissions ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+
+INSERT INTO permissions (id, code, name, module, description, created_at) VALUES
+    ('10000000-0000-0000-0000-000000000301', 'NOTICE_VIEW', 'View Tax Notices', 'NOTICE', 'Allows viewing tax notice cases, dashboard, timeline and documents', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000302', 'NOTICE_CREATE', 'Create Tax Notice Case', 'NOTICE', 'Allows logging new tax notices from Income Tax, GST, or TDS departments', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000303', 'NOTICE_UPDATE', 'Update Tax Notice', 'NOTICE', 'Allows updating notice details, deadlines, sections, and metadata', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000304', 'NOTICE_ASSIGN', 'Assign Tax Notice', 'NOTICE', 'Allows assigning responsible staff, reviewers, and partners to notices', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000305', 'NOTICE_RESPONSE_CREATE', 'Draft Notice Response', 'NOTICE', 'Allows drafting and revising written replies and submissions', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000306', 'NOTICE_RESPONSE_REVIEW', 'Review Notice Response', 'NOTICE', 'Allows internal maker-checker review of response drafts', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000307', 'NOTICE_APPROVE', 'Partner Approve Notice Response', 'NOTICE', 'Allows executive partner sign-off and approval on tax notice responses', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000308', 'NOTICE_SUBMIT', 'Record Notice Submission', 'NOTICE', 'Allows recording portal filing and acknowledgement of response', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000309', 'NOTICE_CLOSE', 'Resolve & Close Notice', 'NOTICE', 'Allows resolving, dropping demand, or closing tax notice cases', CURRENT_TIMESTAMP),
+    ('10000000-0000-0000-0000-000000000310', 'NOTICE_DELETE', 'Delete Notice Case', 'NOTICE', 'Allows deleting or archiving invalid/draft tax notice cases', CURRENT_TIMESTAMP)
 ON CONFLICT (code) DO NOTHING;
 
 -- 2. Associate Notice Permissions with Default Practice Roles
 -- 2.1 SUPER_ADMIN / TAXORYN_SUPERADMIN (Full permissions)
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT '20000000-0000-0000-0000-000000000001', id FROM permissions WHERE module = 'NOTICE'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT '20000000-0000-0000-0000-000000000101', id FROM permissions WHERE module = 'NOTICE'
+SELECT r.id, p.id
+FROM roles r, permissions p
+WHERE r.code IN ('SUPER_ADMIN', 'TAXORYN_SUPERADMIN')
+  AND p.module = 'NOTICE'
 ON CONFLICT DO NOTHING;
 
 -- 2.2 ORG_ADMIN / PRACTICE_ADMIN / PRACTICE_OWNER / PARTNER (Full notice management)
@@ -103,8 +104,8 @@ CREATE TABLE IF NOT EXISTS tax_notices (
     internal_notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_by UUID,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
     version BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT uk_tax_notices_org_notice_number UNIQUE (organization_id, notice_number)
 );
@@ -166,8 +167,8 @@ CREATE TABLE IF NOT EXISTS notice_responses (
     acknowledgement_date DATE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_by UUID,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
     version BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT uk_notice_responses_notice_version UNIQUE (notice_id, response_version)
 );
@@ -196,8 +197,8 @@ CREATE TABLE IF NOT EXISTS notice_hearings (
     next_hearing_date DATE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_by UUID,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
     version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -219,8 +220,8 @@ CREATE TABLE IF NOT EXISTS notice_activities (
     metadata TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_by UUID,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
     version BIGINT NOT NULL DEFAULT 0
 );
 
