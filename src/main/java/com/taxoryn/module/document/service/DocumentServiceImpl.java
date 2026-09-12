@@ -151,6 +151,8 @@ public class DocumentServiceImpl implements DocumentService {
         if (scanResult.isFailed()) {
             log.error("SECURITY ALERT: Malware scanning failed for file '{}' for tenant {}: {}. Enforcing fail-closed policy.",
                     originalFilename, organizationId, scanResult.getDetails());
+            auditService.logEvent("DOCUMENT_SCAN_FAILED", "DOCUMENT", "N/A", null,
+                    "Malware scan failed for " + originalFilename + ": " + scanResult.getDetails());
             throw new BadRequestException("Malware scan failed for uploaded file: " + scanResult.getDetails());
         }
 

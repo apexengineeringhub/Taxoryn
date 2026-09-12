@@ -204,27 +204,17 @@ class NoticeResponseOwnershipSecurityTest {
                 Set.of("PARTNER"), noticePermissions
         );
 
-        // 4. Setup Clients
-        clientA = clientRepository.save(ClientEntity.builder()
-                .organizationId(orgA.getId())
-                .displayName("Client Alpha " + unique)
-                .primaryPan("ABCDE1234F")
-                .clientType(ClientType.INDIVIDUAL)
-                .status(ClientStatus.ACTIVE)
-                .build());
-
-        clientB = clientRepository.save(ClientEntity.builder()
-                .organizationId(orgB.getId())
-                .displayName("Client Beta " + unique)
-                .primaryPan("VWXYZ5678G")
-                .clientType(ClientType.INDIVIDUAL)
-                .status(ClientStatus.ACTIVE)
-                .build());
-
-        // 5. Setup Notices
+        // 4. Setup Clients and Notices for Org A
         TenantContext.setTenantId(orgA.getId());
+
+        clientA = clientRepository.save(ClientEntity.builder()
+                .displayName("Client Alpha " + unique)
+                .pan("ABCDE1234F")
+                .clientType(ClientType.INDIVIDUAL)
+                .status(ClientStatus.ACTIVE)
+                .build());
+
         noticeA1 = noticeRepository.save(TaxNoticeEntity.builder()
-                .organizationId(orgA.getId())
                 .clientId(clientA.getId())
                 .noticeNumber("NOT-A1-" + unique)
                 .department(NoticeDepartment.INCOME_TAX)
@@ -242,7 +232,6 @@ class NoticeResponseOwnershipSecurityTest {
                 .build());
 
         noticeA2 = noticeRepository.save(TaxNoticeEntity.builder()
-                .organizationId(orgA.getId())
                 .clientId(clientA.getId())
                 .noticeNumber("NOT-A2-" + unique)
                 .department(NoticeDepartment.GST)
@@ -261,7 +250,6 @@ class NoticeResponseOwnershipSecurityTest {
 
         // Responses for Org A
         responseA1 = responseRepository.save(NoticeResponseEntity.builder()
-                .organizationId(orgA.getId())
                 .noticeId(noticeA1.getId())
                 .responseVersion(1)
                 .responseTitle("Draft Response for Notice A1")
@@ -271,7 +259,6 @@ class NoticeResponseOwnershipSecurityTest {
                 .build());
 
         responseA2 = responseRepository.save(NoticeResponseEntity.builder()
-                .organizationId(orgA.getId())
                 .noticeId(noticeA2.getId())
                 .responseVersion(1)
                 .responseTitle("Draft Response for Notice A2")
@@ -282,7 +269,6 @@ class NoticeResponseOwnershipSecurityTest {
 
         // Hearings for Org A
         hearingA1 = hearingRepository.save(NoticeHearingEntity.builder()
-                .organizationId(orgA.getId())
                 .noticeId(noticeA1.getId())
                 .hearingDate(LocalDate.now().plusDays(10))
                 .hearingTime("11:00 AM")
@@ -292,7 +278,6 @@ class NoticeResponseOwnershipSecurityTest {
                 .build());
 
         hearingA2 = hearingRepository.save(NoticeHearingEntity.builder()
-                .organizationId(orgA.getId())
                 .noticeId(noticeA2.getId())
                 .hearingDate(LocalDate.now().plusDays(12))
                 .hearingTime("02:30 PM")
@@ -301,10 +286,17 @@ class NoticeResponseOwnershipSecurityTest {
                 .status(HearingStatus.SCHEDULED)
                 .build());
 
-        // 6. Setup Notice for Org B
+        // 5. Setup Client and Notice for Org B
         TenantContext.setTenantId(orgB.getId());
+
+        clientB = clientRepository.save(ClientEntity.builder()
+                .displayName("Client Beta " + unique)
+                .pan("VWXYZ5678G")
+                .clientType(ClientType.INDIVIDUAL)
+                .status(ClientStatus.ACTIVE)
+                .build());
+
         noticeB1 = noticeRepository.save(TaxNoticeEntity.builder()
-                .organizationId(orgB.getId())
                 .clientId(clientB.getId())
                 .noticeNumber("NOT-B1-" + unique)
                 .department(NoticeDepartment.INCOME_TAX)
@@ -322,7 +314,6 @@ class NoticeResponseOwnershipSecurityTest {
                 .build());
 
         responseB1 = responseRepository.save(NoticeResponseEntity.builder()
-                .organizationId(orgB.getId())
                 .noticeId(noticeB1.getId())
                 .responseVersion(1)
                 .responseTitle("Draft Response for Notice B1")
@@ -332,7 +323,6 @@ class NoticeResponseOwnershipSecurityTest {
                 .build());
 
         hearingB1 = hearingRepository.save(NoticeHearingEntity.builder()
-                .organizationId(orgB.getId())
                 .noticeId(noticeB1.getId())
                 .hearingDate(LocalDate.now().plusDays(8))
                 .hearingTime("10:00 AM")
@@ -380,7 +370,7 @@ class NoticeResponseOwnershipSecurityTest {
     @DisplayName("SEC-009: Submitting Notice A1 with Response A2 ID returns 404 (Intra-tenant cross-notice mismatch)")
     void testSubmitNotice_CrossNoticeResponseMismatch_Returns404() throws Exception {
         SubmitNoticeRequest request = new SubmitNoticeRequest();
-        request.setSubmissionMode(SubmissionMode.ONLINE_PORTAL);
+        request.setSubmissionMode(SubmissionMode.INCOME_TAX_PORTAL);
         request.setPortalAcknowledgementNumber("ACK-IT-12345678");
         request.setResponseId(responseA2.getId()); // Belongs to Notice A2, not Notice A1!
 
@@ -428,7 +418,7 @@ class NoticeResponseOwnershipSecurityTest {
     @DisplayName("SEC-009: Submitting Notice A1 with Org B's Response B1 returns 404")
     void testSubmitNotice_CrossTenantResponseMismatch_Returns404() throws Exception {
         SubmitNoticeRequest request = new SubmitNoticeRequest();
-        request.setSubmissionMode(SubmissionMode.ONLINE_PORTAL);
+        request.setSubmissionMode(SubmissionMode.INCOME_TAX_PORTAL);
         request.setPortalAcknowledgementNumber("ACK-CROSS-9999");
         request.setResponseId(responseB1.getId()); // Belongs to Org B!
 

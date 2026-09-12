@@ -105,10 +105,21 @@ taxoryn:
     frontend-url: ${taxoryn.frontend-url}
     login-url: ${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}
     activation-url: ${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}
-    resend-api-key: ${RESEND_API_KEY:}
-    brevo-api-key: ${BREVO_API_KEY:}
     dev-mode: ${TAXORYN_MAIL_DEV_MODE:${MAIL_DEV_MODE:false}}
     dev-recipient: ${TAXORYN_MAIL_DEV_RECIPIENT:${MAIL_DEV_RECIPIENT:}}
+  security:
+    malware-scanner:
+      clamav:
+        enabled: ${CLAMAV_ENABLED:false}
+        host: ${CLAMAV_HOST:localhost}
+        port: ${CLAMAV_PORT:3310}
+        connection-timeout-ms: ${CLAMAV_CONNECTION_TIMEOUT:2000}
+        read-timeout-ms: ${CLAMAV_READ_TIMEOUT:10000}
+        fail-closed: ${CLAMAV_FAIL_CLOSED:true}
+      quarantine:
+        enabled: true
+        storage-prefix: "quarantine/"
+        retention-days: 30
 
 # OpenAPI / Swagger
 springdoc:

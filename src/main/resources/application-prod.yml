@@ -98,6 +98,19 @@ taxoryn:
     enabled: ${RATE_LIMIT_ENABLED:true}
     auth-limit: ${RATE_LIMIT_AUTH:15}
     api-limit: ${RATE_LIMIT_API:300}
+  security:
+    malware-scanner:
+      clamav:
+        enabled: ${CLAMAV_ENABLED:false}
+        host: ${CLAMAV_HOST:clamav}
+        port: ${CLAMAV_PORT:3310}
+        connection-timeout-ms: ${CLAMAV_CONNECTION_TIMEOUT:3000}
+        read-timeout-ms: ${CLAMAV_READ_TIMEOUT:15000}
+        fail-closed: ${CLAMAV_FAIL_CLOSED:true}
+      quarantine:
+        enabled: true
+        storage-prefix: "quarantine/"
+        retention-days: 30
   storage:
     provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:LOCAL}}
     presigned-url-duration-minutes: ${STORAGE_PRESIGNED_URL_DURATION_MINUTES:15}

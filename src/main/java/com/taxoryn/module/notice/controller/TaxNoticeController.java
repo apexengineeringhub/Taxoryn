@@ -123,6 +123,16 @@ public class TaxNoticeController {
         return ResponseEntity.ok(ApiResponse.success("Notice responses retrieved successfully", responses));
     }
 
+    @GetMapping("/{id}/responses/{responseId}")
+    @PreAuthorize("hasAuthority('NOTICE_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
+    @Operation(summary = "Get response draft details by ID")
+    public ResponseEntity<ApiResponse<NoticeResponseDto>> getResponseById(
+            @PathVariable UUID id,
+            @PathVariable UUID responseId) {
+        NoticeResponseDto response = noticeService.getResponseById(id, responseId);
+        return ResponseEntity.ok(ApiResponse.success("Notice response retrieved successfully", response));
+    }
+
     @PostMapping("/{id}/responses")
     @PreAuthorize("hasAuthority('NOTICE_RESPONSE_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
     @Operation(summary = "Draft a new response version for notice")
