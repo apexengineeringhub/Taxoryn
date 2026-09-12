@@ -14,6 +14,12 @@ spring:
       pool-name: TaxorynHikariPool
   flyway:
     validate-on-migrate: true
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 25MB
+      max-request-size: 30MB
+      file-size-threshold: 2MB
   jpa:
     show-sql: false
     hibernate:

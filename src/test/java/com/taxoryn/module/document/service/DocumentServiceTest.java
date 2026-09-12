@@ -139,9 +139,9 @@ class DocumentServiceTest {
         client.setOrganizationId(tenantId);
 
         when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
-        when(malwareScanner.scan(any(byte[].class), eq("Form16.pdf")))
+        when(malwareScanner.scan(any(java.nio.file.Path.class), eq("Form16.pdf")))
                 .thenReturn(com.taxoryn.core.security.upload.ScanResult.clean("MockScanner"));
-        when(storageService.store(eq(tenantId), eq(clientId), org.mockito.ArgumentMatchers.nullable(UUID.class), eq("Form16.pdf"), eq("application/pdf"), any(byte[].class)))
+        when(storageService.store(eq(tenantId), eq(clientId), org.mockito.ArgumentMatchers.nullable(UUID.class), eq("Form16.pdf"), eq("application/pdf"), any(java.nio.file.Path.class)))
                 .thenReturn("tenants/org_" + tenantId + "/clients/" + clientId + "/documents/" + documentId + ".pdf");
         when(storageService.getStorageProviderName()).thenReturn("LOCAL");
 

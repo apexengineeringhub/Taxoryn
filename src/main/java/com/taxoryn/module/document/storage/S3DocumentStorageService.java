@@ -150,6 +150,34 @@ public class S3DocumentStorageService implements DocumentStorageService {
         if (data == null || data.length == 0) {
             throw new BadRequestException("Cannot store empty document file");
         }
+        return putObjectToS3(organizationId, clientId, documentId, originalFilename, contentType, RequestBody.fromBytes(data));
+    }
+
+    @Override
+    public String store(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, java.nio.file.Path sourceFile) {
+        if (sourceFile == null || !java.nio.file.Files.exists(sourceFile)) {
+            throw new BadRequestException("Source file does not exist");
+        }
+        try {
+            long size = java.nio.file.Files.size(sourceFile);
+            if (size == 0) {
+                throw new BadRequestException("Cannot store empty document file");
+            }
+        } catch (java.io.IOException e) {
+            throw new InternalServerException("Failed to inspect source file: " + e.getMessage());
+        }
+        return putObjectToS3(organizationId, clientId, documentId, originalFilename, contentType, RequestBody.fromFile(sourceFile.toFile()));
+    }
+
+    @Override
+    public String store(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, java.io.InputStream inputStream, long contentLength) {
+        if (inputStream == null || contentLength <= 0) {
+            throw new BadRequestException("Cannot store empty document file");
+        }
+        return putObjectToS3(organizationId, clientId, documentId, originalFilename, contentType, RequestBody.fromInputStream(inputStream, contentLength));
+    }
+
+    private String putObjectToS3(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, RequestBody requestBody) {
         ensureClientInitialized();
 
         String safeExt = getSafeExtension(originalFilename);
@@ -176,7 +204,7 @@ public class S3DocumentStorageService implements DocumentStorageService {
                     .contentType(mimeType)
                     .build();
 
-            s3Client.putObject(putRequest, RequestBody.fromBytes(data));
+            s3Client.putObject(putRequest, requestBody);
         } catch (S3Exception e) {
             String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
             log.error("S3/R2 bucket [{}] rejected upload: {}", bucket, errorMsg, e);

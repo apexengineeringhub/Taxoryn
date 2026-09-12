@@ -126,107 +126,117 @@ public class DocumentServiceImpl implements DocumentService {
                     .orElseThrow(() -> new ResourceNotFoundException("Task", "id", request.getTaskId()));
         }
 
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new InternalServerException("Failed to read uploaded file stream: " + e.getMessage());
-        }
-
         String originalFilename = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "document.bin";
         String contentType = StringUtils.hasText(file.getContentType()) ? file.getContentType() : "application/octet-stream";
 
-        // 1. Multi-layer file validation (filename, extension, MIME, magic bytes, zip bomb inspection)
-        fileValidator.validate(originalFilename, contentType, bytes);
-
-        // 2. Malware and Antivirus signature scanning (Fail-closed)
-        ScanResult scanResult = malwareScanner.scan(bytes, originalFilename);
-        if (scanResult.isInfected()) {
-            log.warn("SECURITY ALERT: Malware detected in uploaded file '{}' for tenant {}: {}",
-                    originalFilename, organizationId, scanResult.getDetails());
-            auditService.logEvent("DOCUMENT_MALWARE_BLOCKED", "DOCUMENT", "N/A", null,
-                    "Malware detected in " + originalFilename + ": " + scanResult.getThreatName());
-            throw new BadRequestException("Malware detected in uploaded file: " + scanResult.getThreatName() + " (" + scanResult.getDetails() + ")");
-        }
-        if (scanResult.isFailed()) {
-            log.error("SECURITY ALERT: Malware scanning failed for file '{}' for tenant {}: {}. Enforcing fail-closed policy.",
-                    originalFilename, organizationId, scanResult.getDetails());
-            auditService.logEvent("DOCUMENT_SCAN_FAILED", "DOCUMENT", "N/A", null,
-                    "Malware scan failed for " + originalFilename + ": " + scanResult.getDetails());
-            throw new BadRequestException("Malware scan failed for uploaded file: " + scanResult.getDetails());
-        }
-
-        String checksum = calculateSha256(bytes);
-
-        // Store file in configured storage backend (Local / S3) with tenant & client structured isolation
-        String storageKey = storageService.store(organizationId, request.getClientId(), null, originalFilename, contentType, bytes);
-        StorageProvider provider = "S3".equalsIgnoreCase(storageService.getStorageProviderName()) ? StorageProvider.S3 : StorageProvider.LOCAL;
-
-        if (originalFilename.length() > 255) {
-            String ext = "";
-            int dotIdx = originalFilename.lastIndexOf('.');
-            if (dotIdx > 0) ext = originalFilename.substring(dotIdx);
-            int maxBase = 255 - ext.length();
-            originalFilename = originalFilename.substring(0, Math.min(maxBase, originalFilename.length())) + ext;
-        }
-
-        if (contentType.length() > 100) {
-            contentType = contentType.substring(0, 100);
-        }
-
-        String scannerName = scanResult.getScannerName();
-        if (scannerName != null && scannerName.length() > 100) {
-            scannerName = scannerName.substring(0, 100);
-        }
-
-        String scanDetails = scanResult.getDetails();
-        if (scanDetails != null && scanDetails.length() > 500) {
-            scanDetails = scanDetails.substring(0, 500);
-        }
-
-        DocumentEntity entity = DocumentEntity.builder()
-                .clientId(request.getClientId())
-                .gstFilingId(request.getGstFilingId())
-                .itrReturnId(request.getItrReturnId())
-                .tdsReturnId(request.getTdsReturnId())
-                .taskId(request.getTaskId())
-                .documentType(request.getDocumentType())
-                .fileName(originalFilename)
-                .contentType(contentType)
-                .fileSize(file.getSize())
-                .storageKey(storageKey)
-                .storageProvider(provider)
-                .financialYear(request.getFinancialYear())
-                .assessmentYear(request.getAssessmentYear())
-                .status(DocumentStatus.ACTIVE)
-                .scanStatus(DocumentScanStatus.CLEAN)
-                .scannedAt(java.time.Instant.now())
-                .scannerName(scannerName)
-                .scanResultDetails(scanDetails)
-                .checksum(checksum)
-                .notes(request.getNotes())
-                .build();
-        entity.setOrganizationId(organizationId);
-
-        DocumentEntity saved;
+        java.nio.file.Path tempFile = null;
         try {
-            saved = documentRepository.save(entity);
-        } catch (Exception e) {
-            log.error("Database save failed after storing document at key [{}]. Attempting orphan object cleanup...", storageKey);
-            try {
-                storageService.delete(storageKey);
-            } catch (Exception cleanupEx) {
-                log.warn("Failed to cleanup orphaned storage file at key [{}]: {}", storageKey, cleanupEx.getMessage());
+            tempFile = java.nio.file.Files.createTempFile("taxoryn_upload_", ".tmp");
+            try (java.io.InputStream is = file.getInputStream()) {
+                java.nio.file.Files.copy(is, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
-            throw e;
+
+            // 1. Multi-layer file validation (filename, extension, MIME, magic bytes, zip bomb inspection)
+            fileValidator.validate(originalFilename, contentType, tempFile);
+
+            // 2. Malware and Antivirus signature scanning (Fail-closed)
+            ScanResult scanResult = malwareScanner.scan(tempFile, originalFilename);
+            if (scanResult.isInfected()) {
+                log.warn("SECURITY ALERT: Malware detected in uploaded file '{}' for tenant {}: {}",
+                        originalFilename, organizationId, scanResult.getDetails());
+                auditService.logEvent("DOCUMENT_MALWARE_BLOCKED", "DOCUMENT", "N/A", null,
+                        "Malware detected in " + originalFilename + ": " + scanResult.getThreatName());
+                throw new BadRequestException("Malware detected in uploaded file: " + scanResult.getThreatName() + " (" + scanResult.getDetails() + ")");
+            }
+            if (scanResult.isFailed()) {
+                log.error("SECURITY ALERT: Malware scanning failed for file '{}' for tenant {}: {}. Enforcing fail-closed policy.",
+                        originalFilename, organizationId, scanResult.getDetails());
+                auditService.logEvent("DOCUMENT_SCAN_FAILED", "DOCUMENT", "N/A", null,
+                        "Malware scan failed for " + originalFilename + ": " + scanResult.getDetails());
+                throw new BadRequestException("Malware scan failed for uploaded file: " + scanResult.getDetails());
+            }
+
+            String checksum = calculateSha256(tempFile);
+
+            // Store file in configured storage backend (Local / S3) with tenant & client structured isolation
+            String storageKey = storageService.store(organizationId, request.getClientId(), null, originalFilename, contentType, tempFile);
+            StorageProvider provider = "S3".equalsIgnoreCase(storageService.getStorageProviderName()) ? StorageProvider.S3 : StorageProvider.LOCAL;
+
+            if (originalFilename.length() > 255) {
+                String ext = "";
+                int dotIdx = originalFilename.lastIndexOf('.');
+                if (dotIdx > 0) ext = originalFilename.substring(dotIdx);
+                int maxBase = 255 - ext.length();
+                originalFilename = originalFilename.substring(0, Math.min(maxBase, originalFilename.length())) + ext;
+            }
+
+            if (contentType.length() > 100) {
+                contentType = contentType.substring(0, 100);
+            }
+
+            String scannerName = scanResult.getScannerName();
+            if (scannerName != null && scannerName.length() > 100) {
+                scannerName = scannerName.substring(0, 100);
+            }
+
+            String scanDetails = scanResult.getDetails();
+            if (scanDetails != null && scanDetails.length() > 500) {
+                scanDetails = scanDetails.substring(0, 500);
+            }
+
+            DocumentEntity entity = DocumentEntity.builder()
+                    .clientId(request.getClientId())
+                    .gstFilingId(request.getGstFilingId())
+                    .itrReturnId(request.getItrReturnId())
+                    .tdsReturnId(request.getTdsReturnId())
+                    .taskId(request.getTaskId())
+                    .documentType(request.getDocumentType())
+                    .fileName(originalFilename)
+                    .contentType(contentType)
+                    .fileSize(file.getSize())
+                    .storageKey(storageKey)
+                    .storageProvider(provider)
+                    .financialYear(request.getFinancialYear())
+                    .assessmentYear(request.getAssessmentYear())
+                    .status(DocumentStatus.ACTIVE)
+                    .scanStatus(DocumentScanStatus.CLEAN)
+                    .scannedAt(java.time.Instant.now())
+                    .scannerName(scannerName)
+                    .scanResultDetails(scanDetails)
+                    .checksum(checksum)
+                    .notes(request.getNotes())
+                    .build();
+            entity.setOrganizationId(organizationId);
+
+            DocumentEntity saved;
+            try {
+                saved = documentRepository.save(entity);
+            } catch (Exception e) {
+                log.error("Database save failed after storing document at key [{}]. Attempting orphan object cleanup...", storageKey);
+                try {
+                    storageService.delete(storageKey);
+                } catch (Exception cleanupEx) {
+                    log.warn("Failed to cleanup orphaned storage file at key [{}]: {}", storageKey, cleanupEx.getMessage());
+                }
+                throw e;
+            }
+
+            log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={}, scanStatus={} for tenant={}",
+                    saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), saved.getScanStatus(), organizationId);
+
+            DocumentDto result = enrichDto(saved);
+            auditService.logEvent("DOCUMENT_UPLOADED", "DOCUMENT", saved.getId().toString(), null, result);
+            return result;
+        } catch (IOException e) {
+            log.error("Failed to stream uploaded document file for tenant {}: {}", organizationId, e.getMessage(), e);
+            throw new InternalServerException("Failed to process uploaded file: " + e.getMessage());
+        } finally {
+            if (tempFile != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(tempFile);
+                } catch (Exception ignored) {}
+            }
         }
-
-        log.info("Uploaded document: id={}, name={}, size={} bytes, storageKey={}, scanStatus={} for tenant={}",
-                saved.getId(), saved.getFileName(), saved.getFileSize(), saved.getStorageKey(), saved.getScanStatus(), organizationId);
-
-        DocumentDto result = enrichDto(saved);
-        auditService.logEvent("DOCUMENT_UPLOADED", "DOCUMENT", saved.getId().toString(), null, result);
-        return result;
     }
 
     @Override
@@ -507,6 +517,26 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         return dto;
+    }
+
+    private String calculateSha256(java.nio.file.Path file) {
+        if (file == null || !java.nio.file.Files.exists(file)) {
+            return null;
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            try (java.io.InputStream is = new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(file))) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = is.read(buffer)) != -1) {
+                    md.update(buffer, 0, read);
+                }
+            }
+            return HexFormat.of().formatHex(md.digest());
+        } catch (Exception e) {
+            log.error("Failed to calculate SHA-256 for file {}: {}", file, e.getMessage());
+            return null;
+        }
     }
 
     private String calculateSha256(byte[] data) {

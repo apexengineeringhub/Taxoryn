@@ -93,6 +93,74 @@ public class FileValidator {
         }
     }
 
+    /**
+     * Validates an uploaded file on disk directly without loading entire payload into heap memory.
+     *
+     * @param originalFilename original name of the uploaded file
+     * @param declaredContentType Content-Type header supplied with request
+     * @param file path to temporary working file on disk
+     * @throws BadRequestException if any validation check fails
+     */
+    public void validate(String originalFilename, String declaredContentType, java.nio.file.Path file) {
+        if (file == null || !java.nio.file.Files.exists(file)) {
+            throw new BadRequestException("Uploaded file does not exist");
+        }
+
+        long fileSize;
+        try {
+            fileSize = java.nio.file.Files.size(file);
+        } catch (java.io.IOException e) {
+            throw new BadRequestException("Failed to inspect uploaded file size: " + e.getMessage());
+        }
+
+        if (fileSize == 0) {
+            throw new BadRequestException("Uploaded file must not be empty");
+        }
+        if (fileSize > DEFAULT_MAX_FILE_SIZE) {
+            throw new BadRequestException("File size exceeds maximum allowed limit of 25 MB");
+        }
+
+        // 1. Filename sanitization & character validation
+        String sanitizedFilename = validateAndSanitizeFilename(originalFilename);
+
+        // 2. Extension extraction & validation (including double-extension defense)
+        String extension = validateExtension(sanitizedFilename);
+
+        // 3. Read leading bytes (first 64 bytes) for magic byte and binary header inspection
+        byte[] headerBytes = new byte[64];
+        int bytesRead;
+        try (java.io.InputStream is = java.nio.file.Files.newInputStream(file)) {
+            bytesRead = is.read(headerBytes);
+        } catch (java.io.IOException e) {
+            throw new BadRequestException("Failed to read uploaded file header: " + e.getMessage());
+        }
+
+        byte[] effectiveHeader = bytesRead > 0 && bytesRead < 64 ? Arrays.copyOf(headerBytes, bytesRead) : headerBytes;
+
+        // 4. Disguised binary / Polyglot check
+        checkDisguisedBinary(effectiveHeader, sanitizedFilename);
+
+        // 5. Magic Byte / File signature matching against declared extension
+        if ("csv".equals(extension) || "txt".equals(extension)) {
+            byte[] textSample = new byte[8192];
+            int textSampleRead;
+            try (java.io.InputStream is = java.nio.file.Files.newInputStream(file)) {
+                textSampleRead = is.read(textSample);
+            } catch (java.io.IOException e) {
+                throw new BadRequestException("Failed to read text file sample: " + e.getMessage());
+            }
+            byte[] effectiveSample = textSampleRead > 0 && textSampleRead < 8192 ? Arrays.copyOf(textSample, textSampleRead) : textSample;
+            validatePlainText(effectiveSample, sanitizedFilename);
+        } else {
+            validateMagicBytes(effectiveHeader, extension, sanitizedFilename);
+        }
+
+        // 6. Deep archive inspection for ZIP and OpenXML document containers
+        if ("zip".equals(extension) || "docx".equals(extension) || "xlsx".equals(extension)) {
+            zipArchiveInspector.inspectZipArchive(file, sanitizedFilename);
+        }
+    }
+
     private String validateAndSanitizeFilename(String filename) {
         if (!StringUtils.hasText(filename)) {
             throw new BadRequestException("Filename must not be empty");
