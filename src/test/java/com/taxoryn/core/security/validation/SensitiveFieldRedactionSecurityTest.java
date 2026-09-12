@@ -225,13 +225,13 @@ class SensitiveFieldRedactionSecurityTest {
     @Test
     @DisplayName("SEC-008: Change password validation error redacts currentPassword, newPassword, and confirmPassword")
     void testChangePassword_RedactsAllPasswordFields() throws Exception {
-        String currentAttempt = "SecretCurrentPwd123!";
-        String newAttempt = "SecretNewPwd123!";
-        String confirmAttempt = "SecretConfirmPwd123!";
+        String currentAttempt = "Tx9#SecureP@ss2026!";
+        String weakNewAttempt = "weaksecretpwd!";
+        String confirmAttempt = "weaksecretpwd!";
 
         ChangePasswordRequest request = new ChangePasswordRequest(
                 currentAttempt,
-                newAttempt,
+                weakNewAttempt,
                 confirmAttempt
         );
 
@@ -241,13 +241,15 @@ class SensitiveFieldRedactionSecurityTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.validationErrors[0].field").value("newPassword"))
+                .andExpect(jsonPath("$.validationErrors[0].rejectedValue").doesNotExist())
                 .andReturn();
 
         String responseJson = result.getResponse().getContentAsString();
 
         // NONE of the submitted passwords may appear in the response payload
         assertThat(responseJson).doesNotContain(currentAttempt);
-        assertThat(responseJson).doesNotContain(newAttempt);
+        assertThat(responseJson).doesNotContain(weakNewAttempt);
         assertThat(responseJson).doesNotContain(confirmAttempt);
     }
 
