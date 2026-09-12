@@ -112,6 +112,12 @@ public class AuthServiceImpl implements AuthService {
     @Value("${taxoryn.auth.reset-password-url:${taxoryn.frontend.reset-password-url:${taxoryn.auth.reset-password-base-url:${TAXORYN_RESET_PASSWORD_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/reset-password}}}}")
     private String resetPasswordBaseUrl;
 
+    @Value("${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}")
+    private String frontendBaseUrl;
+
+    @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:}}")
+    private String allowedOrigins;
+
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl;
 
@@ -988,15 +994,8 @@ public class AuthServiceImpl implements AuthService {
                         .build();
                 passwordResetTokenRepository.save(tokenEntity);
 
-                // 4. Construct complete reset URL with raw token and dynamic origin support
-                String baseUrl = resetPasswordBaseUrl;
-                if (org.springframework.util.StringUtils.hasText(requestOrigin)
-                        && (requestOrigin.startsWith("http://") || requestOrigin.startsWith("https://"))) {
-                    baseUrl = requestOrigin.replaceAll("/+$", "") + "/reset-password";
-                }
-                String resetUrl = baseUrl.contains("?")
-                        ? baseUrl + "&token=" + rawToken
-                        : baseUrl + "?token=" + rawToken;
+                // 4. Construct complete reset URL using trusted server origin validation
+                String resetUrl = resolveTrustedResetPasswordUrl(requestOrigin, rawToken);
 
                 // 5. Dispatch branded password reset email
                 emailNotificationService.sendPasswordResetEmail(
@@ -1025,6 +1024,95 @@ public class AuthServiceImpl implements AuthService {
             log.info("Password reset requested for non-existent email: {}", email);
         }
         // Generic return for anti-enumeration security
+    }
+
+    private String resolveTrustedResetPasswordUrl(String requestOrigin, String rawToken) {
+        String baseUrl = resetPasswordBaseUrl;
+        if (org.springframework.util.StringUtils.hasText(requestOrigin)) {
+            String origin = requestOrigin.trim();
+            if (isOriginTrusted(origin)) {
+                baseUrl = origin.replaceAll("/+$", "") + "/reset-password";
+            } else {
+                log.warn("SECURITY ALERT: Untrusted Origin/Referer '{}' rejected during password reset. Defaulting to configured canonical reset URL.",
+                        sanitizeHeaderForLogging(origin));
+            }
+        }
+        return baseUrl.contains("?")
+                ? baseUrl + "&token=" + rawToken
+                : baseUrl + "?token=" + rawToken;
+    }
+
+    private boolean isOriginTrusted(String candidateOrigin) {
+        if (!org.springframework.util.StringUtils.hasText(candidateOrigin)) {
+            return false;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(candidateOrigin.trim());
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (scheme == null || host == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+                return false;
+            }
+            int port = uri.getPort();
+            String normalizedCandidate = scheme.toLowerCase() + "://" + host.toLowerCase() + (port > 0 && port != 80 && port != 443 ? ":" + port : "");
+
+            java.util.Set<String> trustedOrigins = getTrustedOrigins();
+            for (String trusted : trustedOrigins) {
+                if (matchesOriginPattern(normalizedCandidate, trusted)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private java.util.Set<String> getTrustedOrigins() {
+        java.util.Set<String> set = new java.util.HashSet<>();
+        addNormalizedOrigin(set, frontendBaseUrl);
+        addNormalizedOrigin(set, resetPasswordBaseUrl);
+        if (org.springframework.util.StringUtils.hasText(allowedOrigins)) {
+            for (String origin : allowedOrigins.split(",")) {
+                if (org.springframework.util.StringUtils.hasText(origin)) {
+                    addNormalizedOrigin(set, origin.trim());
+                }
+            }
+        }
+        return set;
+    }
+
+    private void addNormalizedOrigin(java.util.Set<String> set, String url) {
+        if (!org.springframework.util.StringUtils.hasText(url)) return;
+        try {
+            java.net.URI uri = java.net.URI.create(url.trim());
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (scheme != null && host != null) {
+                int port = uri.getPort();
+                set.add(scheme.toLowerCase() + "://" + host.toLowerCase() + (port > 0 && port != 80 && port != 443 ? ":" + port : ""));
+            } else {
+                set.add(url.trim().toLowerCase());
+            }
+        } catch (Exception ex) {
+            set.add(url.trim().toLowerCase());
+        }
+    }
+
+    private boolean matchesOriginPattern(String candidate, String pattern) {
+        if (pattern.equalsIgnoreCase(candidate)) {
+            return true;
+        }
+        if (pattern.contains("*")) {
+            String regex = "^" + java.util.regex.Pattern.quote(pattern).replace("*", "\\E[^/:]+\\Q") + "$";
+            return candidate.matches(regex);
+        }
+        return false;
+    }
+
+    private String sanitizeHeaderForLogging(String header) {
+        if (header == null) return "null";
+        return header.replaceAll("[\r\n]", "_");
     }
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();

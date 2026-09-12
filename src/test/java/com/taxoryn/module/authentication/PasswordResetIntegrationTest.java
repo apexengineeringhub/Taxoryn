@@ -14,12 +14,15 @@ import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.entity.UserEntity.UserStatus;
 import com.taxoryn.module.user.repository.UserRepository;
+import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -40,6 +43,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,6 +77,9 @@ class PasswordResetIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @MockBean
+    private EmailNotificationService emailNotificationService;
 
     private UserEntity testUser;
     private OrganizationEntity testOrg;
@@ -415,6 +426,108 @@ class PasswordResetIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(refreshReq)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Autowired
+    private com.taxoryn.module.authentication.service.AuthService authService;
+
+    @Test
+    @DisplayName("K. Security: Attacker Origin is rejected and NEVER used in password reset email URL")
+    void testForgotPassword_AttackerOriginHeader_NeverUsedInResetUrl() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        // Directly test service with attacker origin payload
+        authService.forgotPassword(forgotRequest, "198.51.100.25", "https://attacker.example");
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).isNotNull();
+        assertThat(generatedUrl).doesNotContain("attacker.example");
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("L. Security: Attacker Referer header is rejected and NEVER used in password reset email URL")
+    void testForgotPassword_AttackerRefererHeader_NeverUsedInResetUrl() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .header("Referer", "https://evil-phishing.com/account/login?redirect=true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).isNotNull();
+        assertThat(generatedUrl).doesNotContain("evil-phishing.com");
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("M. Security: Missing Origin/Referer defaults to canonical server configured reset URL")
+    void testForgotPassword_MissingOriginAndReferer_UsesCanonicalConfiguredUrl() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("N. Security: Legitimate allowed Origin resolves to trusted reset URL")
+    void testForgotPassword_LegitimateOrigin_UsesTrustedUrl() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .header("Origin", "http://localhost:5173")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
     }
 
     private String hashToken(String rawToken) throws Exception {

@@ -150,6 +150,15 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:https://app.taxoryn.com,https://taxoryn.com}}")
     private String corsAllowedOrigins;
 
+    @Value("${spring.jpa.hibernate.ddl-auto:${HIBERNATE_DDL_AUTO:validate}}")
+    private String hibernateDdlAuto;
+
+    @Value("${spring.flyway.validate-on-migrate:${FLYWAY_VALIDATE_ON_MIGRATE:true}}")
+    private boolean flywayValidateOnMigrate;
+
+    @Value("${spring.flyway.enabled:${FLYWAY_ENABLED:true}}")
+    private boolean flywayEnabled;
+
     @Override
     public void afterSingletonsInstantiated() {
         validateEnvironmentSecurity();
@@ -203,6 +212,9 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
 
         // 9. Production CORS Configuration Validation
         validateCorsConfiguration();
+
+        // 10. Production Database Schema Management & Flyway Validation
+        validateSchemaManagementConfiguration();
 
         log.info("Phase 10 production environment configuration & secrets verification PASSED.");
     }
@@ -404,6 +416,29 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             }
             if (trimmed.contains("http://localhost") || trimmed.contains("http://127.0.0.1")) {
                 String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include localhost HTTP origins in production ('" + corsAllowedOrigins + "')";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+        }
+    }
+
+    private void validateSchemaManagementConfiguration() {
+        if (!flywayEnabled) {
+            String error = "CRITICAL DATABASE INTEGRITY VIOLATION: Flyway must be enabled in production environments.";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        if (!flywayValidateOnMigrate) {
+            String error = "CRITICAL DATABASE INTEGRITY VIOLATION: Flyway 'validate-on-migrate' must be enabled (true) in production environments.";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        if (StringUtils.hasText(hibernateDdlAuto)) {
+            String normalizedDdl = hibernateDdlAuto.trim().toLowerCase();
+            if ("update".equals(normalizedDdl) || "create".equals(normalizedDdl) || "create-drop".equals(normalizedDdl)) {
+                String error = String.format("CRITICAL DATABASE INTEGRITY VIOLATION: Hibernate 'ddl-auto' cannot be '%s' in production. Production schema must be strictly migration-driven ('validate' or 'none').", hibernateDdlAuto);
                 log.error(error);
                 throw new IllegalStateException(error);
             }
