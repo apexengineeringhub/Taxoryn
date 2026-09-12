@@ -89,9 +89,9 @@ public class MediaServiceImpl implements MediaService {
                 log.warn("SECURITY ALERT: Malware detected in media asset '{}': {}", originalFilename, scanResult.getDetails());
                 throw new BusinessValidationException("Malware detected in uploaded media file: " + scanResult.getThreatName());
             }
-            if (scanResult.isFailed()) {
+            if (scanResult.isFailed() || !scanResult.isClean()) {
                 log.error("SECURITY ALERT: Malware scanning failed for media asset '{}': {}", originalFilename, scanResult.getDetails());
-                throw new BusinessValidationException("Malware scanning failed: " + scanResult.getDetails());
+                throw new BusinessValidationException("We could not complete the security scan for this media file. Please try again.");
             }
 
             String storageKey = storageService.store(null, null, null, originalFilename, contentType, tempFile);

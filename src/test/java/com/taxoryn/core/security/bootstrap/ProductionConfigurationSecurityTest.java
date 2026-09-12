@@ -63,6 +63,9 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");
         ReflectionTestUtils.setField(validator, "flywayValidateOnMigrate", true);
         ReflectionTestUtils.setField(validator, "flywayEnabled", true);
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "true");
+        ReflectionTestUtils.setField(validator, "clamavHost", "clamav");
+        ReflectionTestUtils.setField(validator, "clamavPort", 3310);
     }
 
     // =========================================================================
@@ -610,4 +613,54 @@ class ProductionConfigurationSecurityTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
         assertTrue(ex.getMessage().contains("Flyway must be enabled in production"));
     }
+
+    // =========================================================================
+    // 8. Malware Scanner (ClamAV) Production Fail-Fast Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_ENABLED is false")
+    void testProductionFailsWhenClamAvDisabledInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "false");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Malware scanning (CLAMAV_ENABLED=true) is mandatory in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_ENABLED is missing or empty")
+    void testProductionFailsWhenClamAvEnabledMissingInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("CLAMAV_ENABLED is missing or empty in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_HOST is missing or blank")
+    void testProductionFailsWhenClamAvHostMissingInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavHost", "   ");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("CLAMAV_HOST is not configured"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_PORT is invalid")
+    void testProductionFailsWhenClamAvPortInvalidInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavPort", -1);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Invalid CLAMAV_PORT"));
+    }
 }
+
+

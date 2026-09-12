@@ -83,7 +83,7 @@ public class DocumentEntity extends TenantAuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "scan_status", nullable = false, length = 30)
     @Builder.Default
-    private DocumentScanStatus scanStatus = DocumentScanStatus.CLEAN;
+    private DocumentScanStatus scanStatus = DocumentScanStatus.PENDING_SCAN;
 
     @Column(name = "scanned_at")
     private java.time.Instant scannedAt;

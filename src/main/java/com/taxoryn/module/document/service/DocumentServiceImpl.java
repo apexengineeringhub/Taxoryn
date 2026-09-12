@@ -141,19 +141,26 @@ public class DocumentServiceImpl implements DocumentService {
 
             // 2. Malware and Antivirus signature scanning (Fail-closed)
             ScanResult scanResult = malwareScanner.scan(tempFile, originalFilename);
+            if (scanResult == null) {
+                log.error("SECURITY ALERT: Malware scanner returned null result for file '{}' for tenant {}. Enforcing fail-closed policy.",
+                        originalFilename, organizationId);
+                auditService.logEvent("DOCUMENT_SCAN_FAILED", "DOCUMENT", "N/A", null,
+                        "Malware scan returned null result for " + originalFilename);
+                throw new BadRequestException("We could not complete the security scan for this document. Please try again.");
+            }
             if (scanResult.isInfected()) {
-                log.warn("SECURITY ALERT: Malware detected in uploaded file '{}' for tenant {}: {}",
-                        originalFilename, organizationId, scanResult.getDetails());
+                log.warn("SECURITY ALERT: Malware detected in uploaded file '{}' for tenant {}: scanner={}, threat={}",
+                        originalFilename, organizationId, scanResult.getScannerName(), scanResult.getThreatName());
                 auditService.logEvent("DOCUMENT_MALWARE_BLOCKED", "DOCUMENT", "N/A", null,
                         "Malware detected in " + originalFilename + ": " + scanResult.getThreatName());
-                throw new BadRequestException("Malware detected in uploaded file: " + scanResult.getThreatName() + " (" + scanResult.getDetails() + ")");
+                throw new BadRequestException("Malware detected in uploaded file: " + scanResult.getThreatName());
             }
-            if (scanResult.isFailed()) {
-                log.error("SECURITY ALERT: Malware scanning failed for file '{}' for tenant {}: {}. Enforcing fail-closed policy.",
-                        originalFilename, organizationId, scanResult.getDetails());
+            if (scanResult.isFailed() || !scanResult.isClean()) {
+                log.error("SECURITY ALERT: Malware scanning failed for file '{}' for tenant {}: scanner={}, details={}. Enforcing fail-closed policy.",
+                        originalFilename, organizationId, scanResult.getScannerName(), scanResult.getDetails());
                 auditService.logEvent("DOCUMENT_SCAN_FAILED", "DOCUMENT", "N/A", null,
                         "Malware scan failed for " + originalFilename + ": " + scanResult.getDetails());
-                throw new BadRequestException("Malware scan failed for uploaded file: " + scanResult.getDetails());
+                throw new BadRequestException("We could not complete the security scan for this document. Please try again.");
             }
 
             String checksum = calculateSha256(tempFile);
@@ -585,10 +592,8 @@ public class DocumentServiceImpl implements DocumentService {
 
     private void validateDocumentScanStatus(DocumentEntity document) {
         if (document == null) return;
-        if (document.getScanStatus() != null
-                && document.getScanStatus() != DocumentScanStatus.CLEAN
-                && document.getScanStatus() != DocumentScanStatus.LEGACY_UNSCANNED) {
-            log.warn("SECURITY ALERT: Blocked download/preview of unscanned or infected document: id={}, scanStatus={}",
+        if (document.getScanStatus() != DocumentScanStatus.CLEAN) {
+            log.warn("SECURITY ALERT: Blocked download/preview of unscanned, quarantined, or infected document: id={}, scanStatus={}",
                     document.getId(), document.getScanStatus());
             throw new org.springframework.security.access.AccessDeniedException(
                     "Access denied: Document has not passed malware scanning. Current scan status: " + document.getScanStatus());

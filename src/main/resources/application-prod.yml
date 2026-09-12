@@ -112,8 +112,8 @@ taxoryn:
       cf-header-enabled: ${TRUSTED_PROXY_CF_ENABLED:true}
     malware-scanner:
       clamav:
-        enabled: ${CLAMAV_ENABLED:false}
-        host: ${CLAMAV_HOST:clamav}
+        enabled: ${CLAMAV_ENABLED:}
+        host: ${CLAMAV_HOST:}
         port: ${CLAMAV_PORT:3310}
         connection-timeout-ms: ${CLAMAV_CONNECTION_TIMEOUT:3000}
         read-timeout-ms: ${CLAMAV_READ_TIMEOUT:15000}

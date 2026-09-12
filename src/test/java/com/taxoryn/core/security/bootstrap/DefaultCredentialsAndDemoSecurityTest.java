@@ -184,6 +184,9 @@ class DefaultCredentialsAndDemoSecurityTest {
         ReflectionTestUtils.setField(validator, "storageS3Bucket", "taxoryn-production-docs");
         ReflectionTestUtils.setField(validator, "storageS3AccessKey", "AKIAIOSFODNN7EXAMPLE");
         ReflectionTestUtils.setField(validator, "storageS3SecretKey", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "true");
+        ReflectionTestUtils.setField(validator, "clamavHost", "clamav");
+        ReflectionTestUtils.setField(validator, "clamavPort", 3310);
 
         UserEntity insecureUser = UserEntity.builder()
                 .email("superadmin@taxoryn.com")
@@ -210,6 +213,9 @@ class DefaultCredentialsAndDemoSecurityTest {
         ReflectionTestUtils.setField(validator, "storageS3Bucket", "taxoryn-production-docs");
         ReflectionTestUtils.setField(validator, "storageS3AccessKey", "AKIAIOSFODNN7EXAMPLE");
         ReflectionTestUtils.setField(validator, "storageS3SecretKey", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "true");
+        ReflectionTestUtils.setField(validator, "clamavHost", "clamav");
+        ReflectionTestUtils.setField(validator, "clamavPort", 3310);
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://app.taxoryn.com");
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://taxoryn.com");
         ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");

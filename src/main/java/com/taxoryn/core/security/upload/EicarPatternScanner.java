@@ -27,7 +27,11 @@ public class EicarPatternScanner implements MalwareScanner {
 
     @Override
     public ScanResult scan(byte[] data, String filename) {
-        if (data == null || data.length == 0) {
+        if (data == null) {
+            log.warn("Signature scan invoked with null data for '{}'. Failing closed.", filename);
+            return ScanResult.failed(SCANNER_NAME, "File data is null");
+        }
+        if (data.length == 0) {
             return ScanResult.clean(SCANNER_NAME);
         }
 
@@ -73,8 +77,17 @@ public class EicarPatternScanner implements MalwareScanner {
 
     @Override
     public ScanResult scan(java.nio.file.Path file, String filename) {
-        if (file == null || !java.nio.file.Files.exists(file)) {
-            return ScanResult.clean(SCANNER_NAME);
+        if (file == null) {
+            log.warn("Signature scan invoked with null file path for '{}'. Failing closed.", filename);
+            return ScanResult.failed(SCANNER_NAME, "File path reference is null");
+        }
+        if (!java.nio.file.Files.exists(file)) {
+            log.warn("Signature scan invoked for non-existent file '{}'. Failing closed.", filename);
+            return ScanResult.failed(SCANNER_NAME, "File does not exist on disk");
+        }
+        if (!java.nio.file.Files.isRegularFile(file) || !java.nio.file.Files.isReadable(file)) {
+            log.warn("Signature scan invoked for unreadable/invalid file '{}'. Failing closed.", filename);
+            return ScanResult.failed(SCANNER_NAME, "File is not a readable regular file");
         }
 
         try {

@@ -106,6 +106,15 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.storage.s3.account-id:${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}}")
     private String storageS3AccountId;
 
+    @Value("${taxoryn.security.malware-scanner.clamav.enabled:${CLAMAV_ENABLED:}}")
+    private String clamavEnabled;
+
+    @Value("${taxoryn.security.malware-scanner.clamav.host:${CLAMAV_HOST:}}")
+    private String clamavHost;
+
+    @Value("${taxoryn.security.malware-scanner.clamav.port:${CLAMAV_PORT:3310}}")
+    private int clamavPort;
+
     @Value("${taxoryn.mail.enabled:false}")
     private boolean mailEnabled;
 
@@ -211,19 +220,22 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
         // 5. Cloud Storage Configuration Validation
         validateStorageConfiguration();
 
-        // 6. External Notification Provider Credentials Validation
+        // 6. Production Malware & Antivirus Scanning (ClamAV) Validation
+        validateMalwareScannerConfiguration();
+
+        // 7. External Notification Provider Credentials Validation
         validateNotificationConfiguration();
 
-        // 7. Insecure Known Default Credential Check in Production DB
+        // 8. Insecure Known Default Credential Check in Production DB
         validateDatabaseUserSecurity();
 
-        // 8. Production Frontend Base URL Validation
+        // 9. Production Frontend Base URL Validation
         validateFrontendConfiguration();
 
-        // 9. Production CORS Configuration Validation
+        // 10. Production CORS Configuration Validation
         validateCorsConfiguration();
 
-        // 10. Production Database Schema Management & Flyway Validation
+        // 11. Production Database Schema Management & Flyway Validation
         validateSchemaManagementConfiguration();
 
         log.info("Phase 10 production environment configuration & secrets verification PASSED.");
@@ -342,6 +354,29 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             }
         } else {
             String error = "CRITICAL SECURITY VIOLATION: Unsupported production storage provider '" + storageProvider + "'. Expected 'S3' or 'R2'";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+    }
+
+    private void validateMalwareScannerConfiguration() {
+        if (!StringUtils.hasText(clamavEnabled)) {
+            String error = "CRITICAL SECURITY VIOLATION: CLAMAV_ENABLED is missing or empty in production. ClamAV malware scanning must be explicitly enabled (CLAMAV_ENABLED=true).";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (!"true".equalsIgnoreCase(clamavEnabled.trim())) {
+            String error = "CRITICAL SECURITY VIOLATION: Malware scanning (CLAMAV_ENABLED=true) is mandatory in production. Unscanned document uploads are prohibited (found: CLAMAV_ENABLED='" + clamavEnabled + "').";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (!StringUtils.hasText(clamavHost)) {
+            String error = "CRITICAL SECURITY VIOLATION: ClamAV is enabled in production but CLAMAV_HOST is not configured";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (clamavPort <= 0 || clamavPort > 65535) {
+            String error = "CRITICAL SECURITY VIOLATION: Invalid CLAMAV_PORT: " + clamavPort;
             log.error(error);
             throw new IllegalStateException(error);
         }

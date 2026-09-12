@@ -186,6 +186,7 @@ class StrongTenantIsolationAndAbacTest {
                 .contentType("application/pdf")
                 .fileSize(1024L)
                 .status(DocumentEntity.DocumentStatus.ACTIVE)
+                .scanStatus(DocumentEntity.DocumentScanStatus.CLEAN)
                 .build();
         doc.setId(docId);
         doc.setOrganizationId(tenantAId);

@@ -12,6 +12,7 @@ import com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus
 import com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository;
 import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
 import com.taxoryn.module.document.entity.DocumentEntity;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus;
 import com.taxoryn.module.document.entity.DocumentEntity.DocumentStatus;
 import com.taxoryn.module.document.entity.DocumentEntity.DocumentType;
 import com.taxoryn.module.document.entity.DocumentEntity.StorageProvider;
@@ -304,6 +305,9 @@ public class OrganizationTestDataFactory {
                 .contentType("application/pdf")
                 .documentType(docType != null ? docType : DocumentType.FORM_16)
                 .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.CLEAN)
+                .scannedAt(java.time.Instant.now())
+                .scannerName("Test-Mock-Scanner")
                 .build();
         doc.setOrganizationId(org.getId());
         return documentRepository.save(doc);

@@ -473,4 +473,36 @@ public class SecureFileUploadSecurityIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(VALID_PDF_BYTES));
     }
+
+    @Test
+    @DisplayName("13. Fail-Closed Download Gate: Document with LEGACY_UNSCANNED status cannot be downloaded or previewed")
+    void testLegacyUnscannedDocumentDownloadBlocked() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+
+        String storageKey = storageService.store(org1.getId(), "legacy.pdf", "application/pdf", VALID_PDF_BYTES);
+        DocumentEntity legacyDoc = documentRepository.save(DocumentEntity.builder()
+                .clientId(client1.getId())
+                .documentType(DocumentType.FORM_16)
+                .fileName("legacy.pdf")
+                .contentType("application/pdf")
+                .fileSize(VALID_PDF_BYTES.length)
+                .storageKey(storageKey)
+                .storageProvider(StorageProvider.LOCAL)
+                .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.LEGACY_UNSCANNED)
+                .scanResultDetails("Legacy document created prior to mandatory malware scanning enforcement")
+                .build());
+
+        TenantContext.clear();
+
+        // 1. Download blocked with 403 Forbidden
+        mockMvc.perform(get("/api/v1/documents/" + legacyDoc.getId() + "/download")
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isForbidden());
+
+        // 2. Preview blocked with 403 Forbidden
+        mockMvc.perform(get("/api/v1/documents/" + legacyDoc.getId() + "/preview")
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isForbidden());
+    }
 }

@@ -8,6 +8,7 @@ import com.taxoryn.module.document.dto.DocumentDownloadDto;
 import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.dto.UploadDocumentRequest;
 import com.taxoryn.module.document.entity.DocumentEntity;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus;
 import com.taxoryn.module.document.entity.DocumentEntity.DocumentStatus;
 import com.taxoryn.module.document.entity.DocumentEntity.DocumentType;
 import com.taxoryn.module.document.entity.DocumentEntity.StorageProvider;
@@ -183,6 +184,7 @@ class DocumentServiceTest {
                 .fileSize(content.length)
                 .storageKey("key123")
                 .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.CLEAN)
                 .build();
         document.setId(documentId);
         document.setOrganizationId(tenantId);

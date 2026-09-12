@@ -49,3 +49,9 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
+      - key: CLAMAV_ENABLED
+        value: "true"
+      - key: CLAMAV_HOST
+        sync: false
+      - key: CLAMAV_PORT
+        value: "3310"
