@@ -16,6 +16,8 @@ public interface NoticeHearingRepository extends JpaRepository<NoticeHearingEnti
 
     Optional<NoticeHearingEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
+    Optional<NoticeHearingEntity> findByIdAndNoticeIdAndOrganizationId(UUID id, UUID noticeId, UUID organizationId);
+
     long countByOrganizationIdAndNoticeId(UUID organizationId, UUID noticeId);
 
     List<NoticeHearingEntity> findAllByOrganizationIdAndHearingDateBetweenOrderByHearingDateAsc(UUID organizationId, LocalDate startDate, LocalDate endDate);

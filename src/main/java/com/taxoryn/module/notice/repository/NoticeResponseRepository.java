@@ -17,6 +17,8 @@ public interface NoticeResponseRepository extends JpaRepository<NoticeResponseEn
 
     Optional<NoticeResponseEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
+    Optional<NoticeResponseEntity> findByIdAndNoticeIdAndOrganizationId(UUID id, UUID noticeId, UUID organizationId);
+
     Optional<NoticeResponseEntity> findByOrganizationIdAndNoticeIdAndResponseVersion(UUID organizationId, UUID noticeId, Integer responseVersion);
 
     @Query("SELECT MAX(r.responseVersion) FROM NoticeResponseEntity r WHERE r.organizationId = :organizationId AND r.noticeId = :noticeId")

@@ -441,6 +441,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     @Transactional(readOnly = true)
     public List<NoticeResponseDto> getResponses(UUID noticeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        // 1. Verify Notice exists in the current organization
+        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
         List<NoticeResponseEntity> responses = responseRepository.findAllByOrganizationIdAndNoticeIdOrderByResponseVersionDesc(organizationId, noticeId);
         return responses.stream().map(this::enrichResponseDto).collect(Collectors.toList());
     }
@@ -449,7 +453,12 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     @Transactional(readOnly = true)
     public NoticeResponseDto getResponseById(UUID noticeId, UUID responseId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        NoticeResponseEntity entity = responseRepository.findByIdAndOrganizationId(responseId, organizationId)
+        // 1. Verify Notice exists in the current organization
+        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        // 2. Verify Response exists, belongs to current organization, and belongs to supplied noticeId
+        NoticeResponseEntity entity = responseRepository.findByIdAndNoticeIdAndOrganizationId(responseId, noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notice response not found with id: " + responseId));
         return enrichResponseDto(entity);
     }
@@ -460,6 +469,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UUID currentUserId = SecurityUtils.getCurrentUserId();
 
+        // 1. Verify Notice exists in the current organization
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
@@ -509,10 +519,12 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UUID currentUserId = SecurityUtils.getCurrentUserId();
 
+        // 1. Verify Notice exists in the current organization
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
-        NoticeResponseEntity response = responseRepository.findByIdAndOrganizationId(responseId, organizationId)
+        // 2. Verify Response exists, belongs to current organization, and belongs to supplied noticeId
+        NoticeResponseEntity response = responseRepository.findByIdAndNoticeIdAndOrganizationId(responseId, noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notice response not found with id: " + responseId));
 
         String action = request.getAction().trim().toUpperCase();
@@ -582,6 +594,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     @Transactional(readOnly = true)
     public List<NoticeHearingDto> getHearings(UUID noticeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        // 1. Verify Notice exists in the current organization
+        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
         List<NoticeHearingEntity> hearings = hearingRepository.findAllByOrganizationIdAndNoticeIdOrderByHearingDateDesc(organizationId, noticeId);
         return hearings.stream().map(this::enrichHearingDto).collect(Collectors.toList());
     }
@@ -633,10 +649,12 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UUID currentUserId = SecurityUtils.getCurrentUserId();
 
+        // 1. Verify Notice exists in current organization
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
-        NoticeHearingEntity hearing = hearingRepository.findByIdAndOrganizationId(hearingId, organizationId)
+        // 2. Verify Hearing exists, belongs to current organization, and belongs to supplied noticeId
+        NoticeHearingEntity hearing = hearingRepository.findByIdAndNoticeIdAndOrganizationId(hearingId, noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hearing not found with id: " + hearingId));
 
         HearingStatus oldStatus = hearing.getStatus();
@@ -681,16 +699,15 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
             notice.setPortalAcknowledgementNumber(request.getPortalAcknowledgementNumber().trim());
         }
 
-        // Link response version if specified
+        // Link response version if specified - strictly scoped to this notice and organization
         if (request.getResponseId() != null) {
-            responseRepository.findByIdAndOrganizationId(request.getResponseId(), organizationId)
-                    .ifPresent(resp -> {
-                        resp.setReviewStatus(ReviewStatus.SUBMITTED);
-                        resp.setSubmittedAt(Instant.now());
-                        resp.setAcknowledgementNumber(request.getPortalAcknowledgementNumber());
-                        resp.setAcknowledgementDate(request.getAcknowledgementDate() != null ? request.getAcknowledgementDate() : LocalDate.now());
-                        responseRepository.save(resp);
-                    });
+            NoticeResponseEntity resp = responseRepository.findByIdAndNoticeIdAndOrganizationId(request.getResponseId(), noticeId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Notice response not found with id: " + request.getResponseId()));
+            resp.setReviewStatus(ReviewStatus.SUBMITTED);
+            resp.setSubmittedAt(Instant.now());
+            resp.setAcknowledgementNumber(request.getPortalAcknowledgementNumber());
+            resp.setAcknowledgementDate(request.getAcknowledgementDate() != null ? request.getAcknowledgementDate() : LocalDate.now());
+            responseRepository.save(resp);
         }
 
         // Link document proofs
@@ -762,6 +779,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     @Transactional(readOnly = true)
     public List<NoticeActivityDto> getActivities(UUID noticeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        // 1. Verify Notice exists in current organization
+        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
         List<NoticeActivityEntity> activities = activityRepository.findAllByOrganizationIdAndNoticeIdOrderByCreatedAtDesc(organizationId, noticeId);
         return noticeMapper.toActivityDtoList(activities);
     }
