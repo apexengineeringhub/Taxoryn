@@ -126,6 +126,7 @@ class EmployeeManagementIntegrationTest {
         TenantContext.setTenantId(org1.getId());
 
         adminUser1 = userRepository.save(UserEntity.builder()
+                .organizationId(org1.getId())
                 .email("admin@vermatax.com")
                 .passwordHash(passwordEncoder.encode("AdminPass123!"))
                 .firstName("Suresh")
@@ -349,6 +350,7 @@ class EmployeeManagementIntegrationTest {
         UserEntity adminUser2;
         try {
             adminUser2 = userRepository.save(UserEntity.builder()
+                    .organizationId(org2.getId())
                     .email("admin@kapadiatax.com")
                     .passwordHash(passwordEncoder.encode("SecretPass123!"))
                     .firstName("Ketan")

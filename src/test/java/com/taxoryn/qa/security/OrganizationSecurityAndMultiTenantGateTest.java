@@ -84,6 +84,8 @@ class OrganizationSecurityAndMultiTenantGateTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
+        TenantContext.clear();
         orgA = factory.createOrganization("Secure Org A " + UUID.randomUUID().toString().substring(0, 5), "admin.secA." + UUID.randomUUID().toString().substring(0, 5) + "@seca.in");
         orgB = factory.createOrganization("Secure Org B " + UUID.randomUUID().toString().substring(0, 5), "admin.secB." + UUID.randomUUID().toString().substring(0, 5) + "@secb.in");
 
