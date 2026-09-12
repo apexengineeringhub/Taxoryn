@@ -100,7 +100,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
 
-    @Value("${taxoryn.jwt.expiration-ms:86400000}")
+    @Value("${taxoryn.jwt.expiration-ms:900000}")
     private long jwtExpirationMs;
 
     @Value("${taxoryn.jwt.refresh-expiration-ms:604800000}")

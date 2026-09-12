@@ -91,7 +91,7 @@ taxoryn:
     # SECURITY: Injected via JWT_SECRET runtime variable.
     # ProductionSecurityValidator ensures secret is non-null, >= 256 bits, and not a known default.
     secret: ${JWT_SECRET:}
-    expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+    expiration-ms: ${JWT_EXPIRATION_MS:900000} # 15 minutes
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
     issuer: ${JWT_ISSUER:taxoryn-platform}
   cors:

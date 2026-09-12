@@ -77,8 +77,8 @@ taxoryn:
   jwt:
     # Externalized secret key for HMAC-SHA256 (injected per profile or environment)
     secret: ${JWT_SECRET:}
-    expiration-ms: 86400000 # 24 hours
-    refresh-expiration-ms: 604800000 # 7 days
+    expiration-ms: ${JWT_EXPIRATION_MS:900000} # 15 minutes
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
     issuer: taxoryn-platform
   marketplace:
     search:

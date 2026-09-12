@@ -43,7 +43,7 @@ public class JwtTokenProvider {
     @Value("${taxoryn.jwt.secret:" + KNOWN_INSECURE_DEFAULT_SECRET + "}")
     private String jwtSecret;
 
-    @Value("${taxoryn.jwt.expiration-ms:86400000}")
+    @Value("${taxoryn.jwt.expiration-ms:900000}")
     private long jwtExpirationMs;
 
     @Value("${taxoryn.jwt.refresh-expiration-ms:604800000}")
