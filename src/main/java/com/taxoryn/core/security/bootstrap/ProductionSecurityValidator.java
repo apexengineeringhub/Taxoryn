@@ -534,8 +534,8 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             }
 
             // 5. Must strictly match approved Taxoryn production domains
-            if (!lower.equals("https://app.taxoryn.com") && !lower.equals("https://taxoryn.com") && !lower.matches("^https://[a-zA-Z0-9-]+\\.taxoryn\\.com$")) {
-                String error = "CRITICAL SECURITY VIOLATION: Untrusted origin ('" + origin + "') detected in production CORS. Only explicitly trusted Taxoryn production domains (e.g. https://app.taxoryn.com, https://taxoryn.com) are permitted";
+            if (!lower.equals("https://app.taxoryn.com") && !lower.equals("https://taxoryn.com") && !lower.equals("https://api.taxoryn.com")) {
+                String error = "CRITICAL SECURITY VIOLATION: Untrusted origin ('" + origin + "') detected in production CORS. Only explicitly trusted Taxoryn production domains (https://app.taxoryn.com, https://taxoryn.com) are permitted";
                 log.error(error);
                 throw new IllegalStateException(error);
             }

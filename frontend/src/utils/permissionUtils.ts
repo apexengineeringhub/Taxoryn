@@ -1,4 +1,4 @@
-import { User } from '../types';
+import type { User } from '../types/index.ts';
 
 export interface NavigationItem {
   label: string;
@@ -140,6 +140,23 @@ export const filterNavigationByPermissions = (
   return items.filter((item) => canAccessNavigationItem(item, user));
 };
 
+/**
+ * Canonical paths and labels for global navigation items rendered in the lower
+ * sidebar area across all authenticated portal types.
+ */
+export const GLOBAL_SIDEBAR_PATHS = new Set(['/settings/security', '/feedback', '/profile/security']);
+export const GLOBAL_SIDEBAR_LABELS = new Set(['Security & Password', 'Give Feedback']);
+
+/**
+ * Checks if a navigation item is a global sidebar item.
+ */
+export const isGlobalSidebarItem = (item: { label?: string; path?: string } | null | undefined): boolean => {
+  if (!item) return false;
+  if (item.path && GLOBAL_SIDEBAR_PATHS.has(item.path)) return true;
+  if (item.label && GLOBAL_SIDEBAR_LABELS.has(item.label)) return true;
+  return false;
+};
+
 export interface NavigationSection {
   id: string;
   sectionTitle?: string;
@@ -150,7 +167,7 @@ export interface NavigationSection {
 
 /**
  * Filters a list of navigation sections. Any section that contains 0 accessible items
- * after permission evaluation is completely excluded from the result.
+ * after permission evaluation and global duplicate exclusion is completely excluded.
  */
 export const filterNavigationSections = (
   sections: NavigationSection[],
@@ -159,7 +176,21 @@ export const filterNavigationSections = (
   return sections
     .map((section) => ({
       ...section,
-      items: filterNavigationByPermissions(section.items, user),
+      items: filterNavigationByPermissions(section.items, user).filter(
+        (item) => !isGlobalSidebarItem(item)
+      ),
     }))
     .filter((section) => section.items.length > 0);
+};
+
+/**
+ * Filters flat role navigation items, excluding global sidebar items to prevent duplicate rendering.
+ */
+export const filterRoleNavigationItems = (
+  items: NavigationItem[],
+  user: User | null | undefined
+): NavigationItem[] => {
+  return filterNavigationByPermissions(items, user).filter(
+    (item) => !isGlobalSidebarItem(item)
+  );
 };

@@ -39,6 +39,7 @@ import { TaxorynLogo } from '../common/TaxorynLogo';
 import {
   filterNavigationByPermissions,
   filterNavigationSections,
+  filterRoleNavigationItems,
   NavigationItem,
   NavigationSection,
   NOTIFICATION_PERMISSIONS,
@@ -100,7 +101,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
   ];
 
-  // 2. Client / Taxpayer Customer Portal Nav Sections (MY TAX, EXPLORE, ACCOUNT)
+  // 2. Client / Taxpayer Customer Portal Nav Sections (MY TAX, EXPLORE)
+  // Security & Password and Give Feedback are standardized outside sections in the global bottom area.
   const clientNavSections: NavigationSection[] = [
     {
       id: 'my-tax',
@@ -119,14 +121,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'EXPLORE',
       items: [
         { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store },
-      ],
-    },
-    {
-      id: 'account',
-      sectionTitle: 'ACCOUNT',
-      items: [
-        { label: 'Security & Password', path: '/settings/security', icon: Lock },
-        { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
       ],
     },
   ];
@@ -221,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
 
   // Filter sections and items with permission rules
   const visibleSections = filterNavigationSections(practiceNavSections, user);
-  const platformFilteredItems = filterNavigationByPermissions(platformNavItems, user);
+  const platformFilteredItems = filterRoleNavigationItems(platformNavItems, user);
   const visibleClientSections = filterNavigationSections(clientNavSections, user);
 
   const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(

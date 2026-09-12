@@ -537,6 +537,28 @@ class ProductionConfigurationSecurityTest {
         assertTrue(ex.getMessage().contains("Untrusted origin ('https://evil.example') detected in production CORS"));
     }
 
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains arbitrary taxoryn.com subdomain")
+    void testProductionFailsWhenCorsContainsArbitrarySubdomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://evil.taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Untrusted origin ('https://evil.taxoryn.com') detected in production CORS"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains tenant subdomain")
+    void testProductionFailsWhenCorsContainsTenantSubdomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://tenant.taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Untrusted origin ('https://tenant.taxoryn.com') detected in production CORS"));
+    }
+
     // =========================================================================
     // 6. Dev, Demo & Valid Production Success Tests
     // =========================================================================

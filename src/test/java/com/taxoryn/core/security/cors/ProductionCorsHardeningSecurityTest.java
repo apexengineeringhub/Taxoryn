@@ -124,4 +124,50 @@ class ProductionCorsHardeningSecurityTest {
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "https://app.taxoryn.com"))
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
     }
+
+    @Test
+    @DisplayName("Production CORS: Rejects arbitrary subdomain https://evil.taxoryn.com")
+    void testEvilSubdomainRejectedInProd() throws Exception {
+        mockMvc.perform(options("/api/auth/login")
+                        .header(HttpHeaders.ORIGIN, "https://evil.taxoryn.com")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type,Authorization"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    @Test
+    @DisplayName("Production CORS: Rejects tenant subdomain https://tenant.taxoryn.com")
+    void testTenantSubdomainRejectedInProd() throws Exception {
+        mockMvc.perform(options("/api/auth/login")
+                        .header(HttpHeaders.ORIGIN, "https://tenant.taxoryn.com")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type,Authorization"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    @Test
+    @DisplayName("Production CORS: Rejects insecure HTTP scheme http://app.taxoryn.com")
+    void testHttpSchemeOriginRejectedInProd() throws Exception {
+        mockMvc.perform(options("/api/auth/login")
+                        .header(HttpHeaders.ORIGIN, "http://app.taxoryn.com")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type,Authorization"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    @Test
+    @DisplayName("Config Safety: application-local.yml contains no hardcoded mail credentials")
+    void testApplicationLocalContainsNoHardcodedMailPassword() throws Exception {
+        org.springframework.core.io.Resource resource = new org.springframework.core.io.ClassPathResource("application-local.yml");
+        if (resource.exists()) {
+            String content = new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            org.assertj.core.api.Assertions.assertThat(content).doesNotContain("taxoryn@gmail.com");
+            org.assertj.core.api.Assertions.assertThat(content).doesNotContain("hudd pluc");
+            org.assertj.core.api.Assertions.assertThat(content).contains("username: ${SPRING_MAIL_USERNAME:");
+            org.assertj.core.api.Assertions.assertThat(content).contains("password: ${SPRING_MAIL_PASSWORD:");
+        }
+    }
 }
