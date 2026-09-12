@@ -68,6 +68,14 @@ public class NotificationScheduler {
     private final com.taxoryn.module.notification.email.service.EmailNotificationService emailNotificationService;
     private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
     private final com.taxoryn.module.user.repository.UserRepository userRepository;
+    private final com.taxoryn.module.notice.repository.TaxNoticeRepository taxNoticeRepository;
+
+    private static final Set<com.taxoryn.module.notice.enums.NoticeStatus> CLOSED_NOTICE_STATUSES = Set.of(
+            com.taxoryn.module.notice.enums.NoticeStatus.CLOSED,
+            com.taxoryn.module.notice.enums.NoticeStatus.DEMAND_DROPPED,
+            com.taxoryn.module.notice.enums.NoticeStatus.APPEAL_FILED,
+            com.taxoryn.module.notice.enums.NoticeStatus.RESOLVED
+    );
 
     /**
      * Runs daily at 07:00 AM, ahead of the working day, covering tasks due today, tasks already
@@ -88,6 +96,8 @@ public class NotificationScheduler {
                 remindDueGstFilings(org);
                 remindDueItrReturns(org);
                 remindDueTdsReturns(org);
+                remindDueTaxNotices(org);
+                remindOverdueTaxNotices(org);
                 remindOverdueInvoices(org);
                 remindClientDocumentRequests(org);
             } catch (Exception ex) {
@@ -410,6 +420,72 @@ public class NotificationScheduler {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private void remindDueTaxNotices(OrganizationEntity org) {
+        LocalDate from = LocalDate.now();
+        LocalDate to = from.plusDays(7);
+
+        List<com.taxoryn.module.notice.entity.TaxNoticeEntity> dueSoon = taxNoticeRepository
+                .findAllByOrganizationIdAndResponseDueDateBetweenAndStatusNotIn(org.getId(), from, to, CLOSED_NOTICE_STATUSES);
+
+        for (com.taxoryn.module.notice.entity.TaxNoticeEntity notice : dueSoon) {
+            if (notice.getAssignedEmployeeId() == null) {
+                continue;
+            }
+            employeeRepository.findById(notice.getAssignedEmployeeId()).ifPresent(emp -> {
+                if (emp.getUserId() != null) {
+                    notificationService.notify(
+                            org.getId(), emp.getUserId(), null,
+                            NotificationType.COMPLIANCE_DUE,
+                            "Tax Notice Response Due: " + notice.getNoticeNumber(),
+                            "Notice " + notice.getNoticeNumber() + " (" + notice.getDepartment() + ") response is due on " + notice.getResponseDueDate() + ".",
+                            Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                            "/notices/" + notice.getId(),
+                            "{\"noticeId\":\"" + notice.getId() + "\"}"
+                    );
+                }
+            });
+        }
+    }
+
+    private void remindOverdueTaxNotices(OrganizationEntity org) {
+        List<com.taxoryn.module.notice.entity.TaxNoticeEntity> overdue = taxNoticeRepository
+                .findAllByOrganizationIdAndResponseDueDateBeforeAndStatusNotIn(org.getId(), LocalDate.now(), CLOSED_NOTICE_STATUSES);
+
+        for (com.taxoryn.module.notice.entity.TaxNoticeEntity notice : overdue) {
+            if (notice.getAssignedEmployeeId() != null) {
+                employeeRepository.findById(notice.getAssignedEmployeeId()).ifPresent(emp -> {
+                    if (emp.getUserId() != null) {
+                        notificationService.notify(
+                                org.getId(), emp.getUserId(), null,
+                                NotificationType.COMPLIANCE_OVERDUE,
+                                "OVERDUE Tax Notice: " + notice.getNoticeNumber(),
+                                "Notice " + notice.getNoticeNumber() + " (" + notice.getDepartment() + ") was due on " + notice.getResponseDueDate() + " and is now OVERDUE.",
+                                Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                                "/notices/" + notice.getId(),
+                                "{\"noticeId\":\"" + notice.getId() + "\"}"
+                        );
+                    }
+                });
+            }
+
+            if (notice.getPartnerEmployeeId() != null) {
+                employeeRepository.findById(notice.getPartnerEmployeeId()).ifPresent(partner -> {
+                    if (partner.getUserId() != null) {
+                        notificationService.notify(
+                                org.getId(), partner.getUserId(), null,
+                                NotificationType.COMPLIANCE_OVERDUE,
+                                "Partner Escalation: Overdue Notice " + notice.getNoticeNumber(),
+                                "Notice " + notice.getNoticeNumber() + " is overdue since " + notice.getResponseDueDate() + ".",
+                                Set.of(NotificationChannel.IN_APP),
+                                "/notices/" + notice.getId(),
+                                "{\"noticeId\":\"" + notice.getId() + "\"}"
+                        );
+                    }
+                });
             }
         }
     }

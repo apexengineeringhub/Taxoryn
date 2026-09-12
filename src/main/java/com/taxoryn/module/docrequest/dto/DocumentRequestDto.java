@@ -36,6 +36,7 @@ public class DocumentRequestDto {
     private String requestedByName;
     private UUID taskId;
     private UUID complianceId;
+    private UUID noticeId;
     private Instant sentAt;
     private Instant completedAt;
     private Instant createdAt;

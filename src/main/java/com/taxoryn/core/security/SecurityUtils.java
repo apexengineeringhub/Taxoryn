@@ -352,7 +352,17 @@ public final class SecurityUtils {
             "CLIENT_PORTAL_DOCUMENT_VIEW",
             "CLIENT_PORTAL_PROFILE_VIEW",
             "CLIENT_PORTAL_PROFILE_UPDATE",
-            "CLIENT_PORTAL_STATUS_VIEW"
+            "CLIENT_PORTAL_STATUS_VIEW",
+            "NOTICE_VIEW",
+            "NOTICE_CREATE",
+            "NOTICE_UPDATE",
+            "NOTICE_ASSIGN",
+            "NOTICE_RESPONSE_CREATE",
+            "NOTICE_RESPONSE_REVIEW",
+            "NOTICE_APPROVE",
+            "NOTICE_SUBMIT",
+            "NOTICE_CLOSE",
+            "NOTICE_DELETE"
     );
 
     public static boolean isTenantDelegatablePermission(String permissionCode) {

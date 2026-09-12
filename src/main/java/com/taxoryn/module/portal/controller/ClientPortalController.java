@@ -31,6 +31,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,6 +55,7 @@ public class ClientPortalController {
 
     private final ClientPortalService clientPortalService;
     private final com.taxoryn.module.docrequest.service.DocumentRequestService documentRequestService;
+    private final com.taxoryn.module.notice.service.TaxNoticeService taxNoticeService;
 
     // =========================================================================
     // 1. User Management & Onboarding
@@ -307,5 +309,19 @@ public class ClientPortalController {
             @RequestPart("file") MultipartFile file) {
         com.taxoryn.module.docrequest.dto.DocumentRequestDto result = documentRequestService.uploadClientPortalItemDocument(itemId, file);
         return ResponseEntity.ok(ApiResponse.success("Document uploaded successfully", result));
+    }
+
+    // =========================================================================
+    // 9. Client Portal Tax Notices & Scrutiny Cases (Sanitized View)
+    // =========================================================================
+
+    @GetMapping("/notices")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Client tax notices", description = "Retrieves sanitized tax notices, hearing dates, and submission statuses for the authenticated client.")
+    public ResponseEntity<ApiResponse<com.taxoryn.core.response.PagedResponse<com.taxoryn.module.notice.dto.ClientNoticeDto>>> getClientNotices(
+            @ModelAttribute com.taxoryn.core.dto.PageRequestDto pageRequest) {
+        UUID clientId = com.taxoryn.core.security.SecurityUtils.requireCurrentClientId();
+        com.taxoryn.core.response.PagedResponse<com.taxoryn.module.notice.dto.ClientNoticeDto> notices = taxNoticeService.getClientPortalNotices(clientId, pageRequest);
+        return ResponseEntity.ok(ApiResponse.success("Tax notices retrieved successfully", notices));
     }
 }

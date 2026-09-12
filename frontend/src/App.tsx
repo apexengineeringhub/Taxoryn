@@ -57,6 +57,8 @@ const PlatformContentManagementPage = React.lazy(() => import('./pages/PlatformC
 const WhatsAppMessagesPage = React.lazy(() => import('./pages/WhatsAppMessagesPage').then(m => ({ default: m.WhatsAppMessagesPage })));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const NoticeCenterPage = React.lazy(() => import('./pages/NoticeCenterPage').then(m => ({ default: m.NoticeCenterPage })));
+const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').then(m => ({ default: m.NoticeDetailPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import {
@@ -245,6 +247,8 @@ export const App: React.FC = () => {
                 }
               />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
+              <Route path="/notices" element={<NoticeCenterPage />} />
+              <Route path="/notices/:id" element={<NoticeDetailPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route
                 path="/billing"

@@ -28,6 +28,7 @@ import {
   BarChart3,
   X,
   Settings,
+  Scale,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -148,6 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'] },
         { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'] },
         { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
+        { label: 'Notice Center', path: '/notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TASK_VIEW', 'CLIENT_VIEW'] },
         { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
       ],
     },

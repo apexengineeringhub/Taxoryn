@@ -27,6 +27,10 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID>,
 
     List<DocumentEntity> findAllByOrganizationIdAndTaskIdAndStatus(UUID organizationId, UUID taskId, DocumentStatus status);
 
+    List<DocumentEntity> findAllByOrganizationIdAndNoticeIdAndStatus(UUID organizationId, UUID noticeId, DocumentStatus status);
+
+    long countByOrganizationIdAndNoticeIdAndStatus(UUID organizationId, UUID noticeId, DocumentStatus status);
+
     long countByOrganizationIdAndStatus(UUID organizationId, DocumentStatus status);
 
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(d.fileSize), 0) FROM DocumentEntity d WHERE d.organizationId = :organizationId AND d.status = 'ACTIVE'")

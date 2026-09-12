@@ -48,6 +48,9 @@ public class CreateDocumentRequest {
     @Schema(description = "Optional linked compliance obligation ID")
     private UUID complianceId;
 
+    @Schema(description = "Optional linked tax notice ID")
+    private UUID noticeId;
+
     @NotEmpty(message = "At least one document item must be requested")
     @Valid
     @Builder.Default

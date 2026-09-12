@@ -204,6 +204,7 @@ export interface Task {
   // Task & Compliance Enhancement V1.1
   complianceId?: string;
   complianceTitle?: string;
+  noticeId?: string;
   statutoryDueDate?: string;
   documentRequestId?: string;
   documentRequestNumber?: string;
@@ -419,6 +420,7 @@ export interface DocumentItem {
   id: string;
   clientId?: string;
   clientName?: string;
+  noticeId?: string;
   filename: string;
   title?: string;
   fileType?: string;
@@ -2993,6 +2995,347 @@ export interface FinancialReport {
   collectedThisQuarter: number;
   outstandingInvoices: OutstandingInvoice[];
 }
+
+// ==============================================================================
+// 28. Tax Notice Management
+// ==============================================================================
+export type NoticeDepartment = 'INCOME_TAX' | 'GST' | 'TDS' | 'CUSTOMS' | 'OTHER';
+
+export type NoticeStatus =
+  | 'RECEIVED'
+  | 'UNDER_REVIEW'
+  | 'INFO_REQUESTED'
+  | 'RESPONSE_DRAFTING'
+  | 'INTERNAL_REVIEW'
+  | 'PARTNER_APPROVED'
+  | 'SUBMITTED'
+  | 'HEARING_SCHEDULED'
+  | 'RESOLVED'
+  | 'DEMAND_DROPPED'
+  | 'APPEAL_FILED'
+  | 'CLOSED';
+
+export type NoticePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type SubmissionMode =
+  | 'INCOME_TAX_PORTAL'
+  | 'GST_PORTAL'
+  | 'TRACES_PORTAL'
+  | 'EMAIL_SUBMISSION'
+  | 'PHYSICAL_FILING'
+  | 'FACILITY_CENTER'
+  | 'OTHER';
+
+export type ReviewStatus =
+  | 'DRAFT'
+  | 'PENDING_REVIEW'
+  | 'REVISION_REQUESTED'
+  | 'APPROVED_BY_REVIEWER'
+  | 'APPROVED_BY_PARTNER'
+  | 'SUBMITTED';
+
+export type HearingMode = 'VIRTUAL_VC' | 'PHYSICAL' | 'WRITTEN_SUBMISSION_ONLY';
+
+export type HearingStatus = 'SCHEDULED' | 'ADJOURNED' | 'COMPLETED' | 'CANCELLED';
+
+export type NoticeActivityType =
+  | 'NOTICE_CREATED'
+  | 'STATUS_CHANGED'
+  | 'PRIORITY_CHANGED'
+  | 'ASSIGNMENT_CHANGED'
+  | 'RESPONSE_DRAFTED'
+  | 'RESPONSE_SUBMITTED_FOR_REVIEW'
+  | 'REVISION_REQUESTED'
+  | 'RESPONSE_APPROVED'
+  | 'RESPONSE_PARTNER_APPROVED'
+  | 'RESPONSE_FILED'
+  | 'HEARING_SCHEDULED'
+  | 'HEARING_OUTCOME_RECORDED'
+  | 'DOCUMENT_ATTACHED'
+  | 'DOCUMENT_REQUESTED'
+  | 'TASK_CREATED'
+  | 'NOTICE_CLOSED'
+  | 'INTERNAL_NOTE_ADDED';
+
+export interface TaxNotice {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  clientPan?: string;
+  clientGstin?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  noticeNumber: string;
+  dinNumber?: string;
+  department: NoticeDepartment;
+  noticeType: string;
+  section?: string;
+  subject: string;
+  description?: string;
+  assessmentYear?: string;
+  financialYear?: string;
+  taxPeriod?: string;
+  demandAmount?: number;
+  noticeDate?: string;
+  receivedDate: string;
+  responseDueDate: string;
+  daysRemaining?: number;
+  isOverdue?: boolean;
+  hearingDate?: string;
+  hearingTime?: string;
+  status: NoticeStatus;
+  priority: NoticePriority;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  reviewerEmployeeId?: string;
+  reviewerEmployeeName?: string;
+  partnerEmployeeId?: string;
+  partnerEmployeeName?: string;
+  issuingAuthority?: string;
+  issuingOfficerName?: string;
+  portalAcknowledgementNumber?: string;
+  submissionMode?: SubmissionMode;
+  submittedAt?: string;
+  closureDate?: string;
+  closureRemarks?: string;
+  internalNotes?: string;
+  responsesCount?: number;
+  hearingsCount?: number;
+  openTasksCount?: number;
+  documentsCount?: number;
+  pendingRequestsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoticeResponse {
+  id: string;
+  organizationId: string;
+  noticeId: string;
+  version: number;
+  responseTitle: string;
+  responseSummary?: string;
+  legalGrounds?: string;
+  factsOfCase?: string;
+  preparedByUserId?: string;
+  preparedByUserName?: string;
+  reviewedByUserId?: string;
+  reviewedByUserName?: string;
+  approvedByUserId?: string;
+  approvedByUserName?: string;
+  reviewStatus: ReviewStatus;
+  reviewComments?: string;
+  submissionReference?: string;
+  submittedAt?: string;
+  acknowledgementNumber?: string;
+  acknowledgementDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoticeHearing {
+  id: string;
+  organizationId: string;
+  noticeId: string;
+  hearingDate: string;
+  hearingTime?: string;
+  hearingMode: HearingMode;
+  hearingLink?: string;
+  authorityName?: string;
+  officerName?: string;
+  designatedEmployeeId?: string;
+  designatedEmployeeName?: string;
+  designatedPartnerId?: string;
+  designatedPartnerName?: string;
+  status: HearingStatus;
+  proceedingsSummary?: string;
+  outcomeSummary?: string;
+  nextAction?: string;
+  nextHearingDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoticeActivity {
+  id: string;
+  organizationId: string;
+  noticeId: string;
+  activityType: NoticeActivityType;
+  performedByUserId?: string;
+  performerName?: string;
+  description: string;
+  fromState?: string;
+  toState?: string;
+  metadata?: string;
+  createdAt: string;
+}
+
+export interface NoticeDashboardStats {
+  totalActiveNotices: number;
+  overdueNotices: number;
+  dueTodayNotices: number;
+  dueThisWeekNotices: number;
+  pendingReviewNotices: number;
+  pendingPartnerApprovalNotices: number;
+  upcomingHearingsCount: number;
+  criticalPriorityCount: number;
+  resolvedThisMonthCount: number;
+  totalDemandUnderDispute: number;
+  byDepartment: Record<NoticeDepartment, number>;
+  byStatus: Record<NoticeStatus, number>;
+}
+
+export interface CreateTaxNoticeRequest {
+  clientId: string;
+  noticeNumber: string;
+  dinNumber?: string;
+  department: NoticeDepartment;
+  noticeType: string;
+  section?: string;
+  subject: string;
+  description?: string;
+  assessmentYear?: string;
+  financialYear?: string;
+  taxPeriod?: string;
+  demandAmount?: number;
+  noticeDate?: string;
+  receivedDate: string;
+  responseDueDate: string;
+  hearingDate?: string;
+  hearingTime?: string;
+  priority?: NoticePriority;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  partnerEmployeeId?: string;
+  issuingAuthority?: string;
+  issuingOfficerName?: string;
+  internalNotes?: string;
+  createIntakeTask?: boolean;
+  originalDocumentId?: string;
+}
+
+export interface UpdateTaxNoticeRequest {
+  clientId?: string;
+  noticeNumber?: string;
+  dinNumber?: string;
+  department?: NoticeDepartment;
+  noticeType?: string;
+  section?: string;
+  subject?: string;
+  description?: string;
+  assessmentYear?: string;
+  financialYear?: string;
+  taxPeriod?: string;
+  demandAmount?: number;
+  noticeDate?: string;
+  receivedDate?: string;
+  responseDueDate?: string;
+  hearingDate?: string;
+  hearingTime?: string;
+  status?: NoticeStatus;
+  priority?: NoticePriority;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  partnerEmployeeId?: string;
+  issuingAuthority?: string;
+  issuingOfficerName?: string;
+  internalNotes?: string;
+}
+
+export interface TaxNoticeFilterRequest {
+  search?: string;
+  clientId?: string;
+  department?: NoticeDepartment;
+  status?: NoticeStatus;
+  priority?: NoticePriority;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  partnerEmployeeId?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+  overdueOnly?: boolean;
+  upcomingHearing?: boolean;
+}
+
+export interface CreateNoticeResponseRequest {
+  responseTitle: string;
+  responseSummary?: string;
+  legalGrounds?: string;
+  factsOfCase?: string;
+  submitForReview?: boolean;
+}
+
+export interface ReviewNoticeResponseRequest {
+  action: 'SUBMIT_FOR_REVIEW' | 'APPROVE_REVIEW' | 'REQUEST_REVISION' | 'APPROVE_PARTNER';
+  comments?: string;
+}
+
+export interface ScheduleHearingRequest {
+  hearingDate: string;
+  hearingTime?: string;
+  hearingMode: HearingMode;
+  hearingLink?: string;
+  authorityName?: string;
+  officerName?: string;
+  designatedEmployeeId?: string;
+  designatedPartnerId?: string;
+  proceedingsSummary?: string;
+}
+
+export interface RecordHearingOutcomeRequest {
+  status: HearingStatus;
+  proceedingsSummary?: string;
+  outcomeSummary?: string;
+  nextAction?: string;
+  nextHearingDate?: string;
+}
+
+export interface SubmitNoticeRequest {
+  submissionMode: SubmissionMode;
+  portalAcknowledgementNumber?: string;
+  responseId?: string;
+  acknowledgementDate?: string;
+  acknowledgementDocumentId?: string;
+  submissionProofDocumentId?: string;
+  remarks?: string;
+}
+
+export interface CloseNoticeRequest {
+  closureStatus: NoticeStatus;
+  closureDate?: string;
+  closureRemarks?: string;
+  orderDocumentId?: string;
+}
+
+export interface ClientNotice {
+  id: string;
+  noticeNumber: string;
+  dinNumber?: string;
+  department: NoticeDepartment;
+  noticeType: string;
+  section?: string;
+  subject: string;
+  description?: string;
+  assessmentYear?: string;
+  financialYear?: string;
+  taxPeriod?: string;
+  demandAmount?: number;
+  noticeDate?: string;
+  receivedDate: string;
+  responseDueDate: string;
+  hearingDate?: string;
+  hearingTime?: string;
+  status: NoticeStatus;
+  issuingAuthority?: string;
+  portalAcknowledgementNumber?: string;
+  submissionMode?: SubmissionMode;
+  submittedAt?: string;
+  closureDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 
 

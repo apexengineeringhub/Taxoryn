@@ -35,6 +35,9 @@ public class ClientOverviewDto {
     @Schema(description = "Billing & Financial Summary")
     private ClientBillingSummary billingSummary;
 
+    @Schema(description = "Tax Notices & Litigation Summary")
+    private ClientNoticeSummary noticeSummary;
+
     @Schema(description = "Recent Communication History & Interaction Notes")
     private List<ClientNoteDto> recentNotes;
 
@@ -95,5 +98,17 @@ public class ClientOverviewDto {
         private double totalPaid;
         private double outstandingBalance;
         private String currency;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ClientNoticeSummary {
+        private long totalNotices;
+        private long activeNotices;
+        private long overdueNotices;
+        private long hearingsScheduled;
+        private java.math.BigDecimal totalDemandAmount;
     }
 }

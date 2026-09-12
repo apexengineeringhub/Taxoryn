@@ -13,8 +13,12 @@ import com.taxoryn.module.client.dto.ClientOverviewDto;
 import com.taxoryn.module.client.dto.ClientOverviewDto.ClientBillingSummary;
 import com.taxoryn.module.client.dto.ClientOverviewDto.ClientComplianceSummary;
 import com.taxoryn.module.client.dto.ClientOverviewDto.ClientDocumentSummary;
+import com.taxoryn.module.client.dto.ClientOverviewDto.ClientNoticeSummary;
 import com.taxoryn.module.client.dto.ClientOverviewDto.ClientTaskSummary;
 import com.taxoryn.module.client.dto.ClientOverviewDto.StatutoryDetails;
+import com.taxoryn.module.notice.entity.TaxNoticeEntity;
+import com.taxoryn.module.notice.enums.NoticeStatus;
+import com.taxoryn.module.notice.repository.TaxNoticeRepository;
 import com.taxoryn.module.client.dto.CreateClientNoteRequest;
 import com.taxoryn.module.client.dto.CreateClientRequest;
 import com.taxoryn.module.client.dto.UpdateClientRequest;
@@ -92,6 +96,7 @@ public class ClientServiceImpl implements ClientService {
     private final EmailNotificationService emailNotificationService;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    private final TaxNoticeRepository noticeRepository;
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
@@ -636,7 +641,27 @@ public class ClientServiceImpl implements ClientService {
                     .build();
         }
 
-        // 6. Recent Notes
+        // 6. Tax Notices Summary
+        List<TaxNoticeEntity> clientNotices = noticeRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
+        long totalNotices = clientNotices.size();
+        Set<NoticeStatus> closed = Set.of(NoticeStatus.RESOLVED, NoticeStatus.DEMAND_DROPPED, NoticeStatus.APPEAL_FILED, NoticeStatus.CLOSED);
+        long activeNotices = clientNotices.stream().filter(n -> !closed.contains(n.getStatus())).count();
+        long overdueNotices = clientNotices.stream().filter(n -> !closed.contains(n.getStatus()) && n.getResponseDueDate() != null && n.getResponseDueDate().isBefore(LocalDate.now())).count();
+        long hearingsScheduled = clientNotices.stream().filter(n -> n.getHearingDate() != null && !n.getHearingDate().isBefore(LocalDate.now())).count();
+        java.math.BigDecimal totalDemand = clientNotices.stream()
+                .filter(n -> !closed.contains(n.getStatus()) && n.getDemandAmount() != null)
+                .map(TaxNoticeEntity::getDemandAmount)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+
+        ClientNoticeSummary noticeSummary = ClientNoticeSummary.builder()
+                .totalNotices(totalNotices)
+                .activeNotices(activeNotices)
+                .overdueNotices(overdueNotices)
+                .hearingsScheduled(hearingsScheduled)
+                .totalDemandAmount(totalDemand)
+                .build();
+
+        // 7. Recent Notes
         List<ClientNoteEntity> noteEntities = clientNoteRepository.findTop10ByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);
         List<ClientNoteDto> recentNotes = clientMapper.toNoteDtoList(noteEntities);
 
@@ -647,6 +672,7 @@ public class ClientServiceImpl implements ClientService {
                 .complianceSummary(complianceSummary)
                 .documentsSummary(documentSummary)
                 .billingSummary(billingSummary)
+                .noticeSummary(noticeSummary)
                 .recentNotes(recentNotes)
                 .build();
     }

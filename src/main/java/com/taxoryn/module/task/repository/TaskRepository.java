@@ -47,6 +47,10 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
 
     List<TaskEntity> findAllByOrganizationIdAndComplianceId(UUID organizationId, UUID complianceId);
 
+    List<TaskEntity> findAllByOrganizationIdAndNoticeId(UUID organizationId, UUID noticeId);
+
+    long countByOrganizationIdAndNoticeIdAndStatusNot(UUID organizationId, UUID noticeId, TaskStatus status);
+
     List<TaskEntity> findAllByOrganizationIdAndDocumentRequestId(UUID organizationId, UUID documentRequestId);
 
     List<TaskEntity> findAllByOrganizationIdAndGstFilingId(UUID organizationId, UUID gstFilingId);

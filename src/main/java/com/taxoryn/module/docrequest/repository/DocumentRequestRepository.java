@@ -26,6 +26,10 @@ public interface DocumentRequestRepository extends JpaRepository<DocumentRequest
 
     List<DocumentRequestEntity> findAllByOrganizationIdAndGstFilingId(UUID organizationId, UUID gstFilingId);
 
+    List<DocumentRequestEntity> findAllByOrganizationIdAndNoticeId(UUID organizationId, UUID noticeId);
+
+    long countByOrganizationIdAndNoticeIdAndStatusIn(UUID organizationId, UUID noticeId, java.util.Collection<RequestStatus> statuses);
+
     List<DocumentRequestEntity> findAllByClientIdOrderByCreatedAtDesc(UUID clientId);
 
     Page<DocumentRequestEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
