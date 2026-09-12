@@ -123,7 +123,7 @@ taxoryn:
         storage-prefix: "quarantine/"
         retention-days: 30
   storage:
-    provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:LOCAL}}
+    provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:S3}}
     presigned-url-duration-minutes: ${STORAGE_PRESIGNED_URL_DURATION_MINUTES:15}
     local:
       base-dir: ${STORAGE_LOCAL_BASE_DIR:/app/data/documents}

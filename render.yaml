@@ -3,8 +3,13 @@
 #
 # This file manages deployment/runtime settings for the Taxoryn production service (SPRING_PROFILES_ACTIVE=prod).
 # For production deployments, deploy with SPRING_PROFILES_ACTIVE=prod and inject required secrets
-# (DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET, RESEND_API_KEY) via the Render dashboard Environment tab.
-# Production strictly fails fast at startup if any required secret is missing, weak, or insecure.
+# via the Render dashboard Environment tab:
+#   - Database: DB_URL, DB_USERNAME, DB_PASSWORD
+#   - Security: JWT_SECRET
+#   - Document Storage (Cloudflare R2 / S3): STORAGE_BUCKET, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_ENDPOINT
+#   - Notifications: RESEND_API_KEY (or MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD)
+#
+# Production strictly fails fast at startup if any required secret or storage configuration is missing, weak, or insecure.
 #
 # See docs/RENDER_KEEPALIVE.md for the full explanation of the health check and keep-alive setup.
 
@@ -22,3 +27,25 @@ services:
         value: 8088
       - key: JAVA_OPTS
         value: "-Xms128m -Xmx220m -Xss512k -XX:MetaspaceSize=96m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
+      - key: STORAGE_PROVIDER
+        value: S3
+      - key: STORAGE_REGION
+        value: auto
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: STORAGE_BUCKET
+        sync: false
+      - key: STORAGE_ACCESS_KEY
+        sync: false
+      - key: STORAGE_SECRET_KEY
+        sync: false
+      - key: STORAGE_ENDPOINT
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false

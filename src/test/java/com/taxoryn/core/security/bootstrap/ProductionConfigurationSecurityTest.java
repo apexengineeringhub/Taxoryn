@@ -242,6 +242,57 @@ class ProductionConfigurationSecurityTest {
         assertTrue(ex.getMessage().contains("STORAGE_SECRET_KEY is missing or weak"));
     }
 
+    @Test
+    @DisplayName("Fail-Fast: Production fails when storage provider is unsupported")
+    void testProductionFailsWhenStorageProviderUnsupported() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageProvider", "NFS");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Unsupported production storage provider"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when storage provider is blank")
+    void testProductionFailsWhenStorageProviderBlank() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageProvider", "   ");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Local filesystem storage"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when S3/R2 endpoint uses insecure HTTP in production")
+    void testProductionFailsWhenEndpointUsesInsecureHttp() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageS3Endpoint", "http://insecure-r2.cloudflarestorage.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Insecure HTTP S3/R2 endpoint rejected in production"));
+    }
+
+    @Test
+    @DisplayName("Success: Production passes with R2 alias provider and Cloudflare R2 HTTPS endpoint")
+    void testProductionPassesWithR2ProviderAndHttpsEndpoint() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageProvider", "CLOUDFLARE_R2");
+        ReflectionTestUtils.setField(validator, "storageS3Endpoint", "https://abc123def456.r2.cloudflarestorage.com");
+
+        UserEntity inactiveLegacyUser = UserEntity.builder()
+                .email("superadmin@taxoryn.com")
+                .status(UserStatus.INACTIVE)
+                .passwordHash("$2a$12$DISABLED.INACTIVE.ACCOUNT.LOCKOUT.HASH.taxoryn.prod.safe.guard000")
+                .build();
+        when(userRepository.findByEmailIgnoreCase("superadmin@taxoryn.com")).thenReturn(Optional.of(inactiveLegacyUser));
+
+        assertDoesNotThrow(validator::validateEnvironmentSecurity);
+    }
+
     // =========================================================================
     // 4. Notification Provider Fail-Fast Tests
     // =========================================================================

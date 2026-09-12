@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -87,17 +88,23 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.demo.enabled:false}")
     private boolean demoEnabled;
 
-    @Value("${taxoryn.storage.provider:LOCAL}")
+    @Value("${taxoryn.storage.provider:${STORAGE_PROVIDER:S3}}")
     private String storageProvider;
 
-    @Value("${taxoryn.storage.s3.bucket:${STORAGE_BUCKET:${STORAGE_S3_BUCKET:}}}")
+    @Value("${taxoryn.storage.s3.bucket:${STORAGE_BUCKET:${STORAGE_S3_BUCKET:${R2_BUCKET:${R2_BUCKET_NAME:${CLOUDFLARE_R2_BUCKET:${S3_BUCKET:${AWS_S3_BUCKET:${AWS_BUCKET:}}}}}}}}}")
     private String storageS3Bucket;
 
-    @Value("${taxoryn.storage.s3.access-key:${STORAGE_ACCESS_KEY:${STORAGE_S3_ACCESS_KEY:}}}")
+    @Value("${taxoryn.storage.s3.access-key:${STORAGE_ACCESS_KEY:${STORAGE_S3_ACCESS_KEY:${R2_ACCESS_KEY_ID:${R2_ACCESS_KEY:${CLOUDFLARE_R2_ACCESS_KEY_ID:${AWS_ACCESS_KEY_ID:${AWS_ACCESS_KEY:${AWS_KEY:}}}}}}}}}")
     private String storageS3AccessKey;
 
-    @Value("${taxoryn.storage.s3.secret-key:${STORAGE_SECRET_KEY:${STORAGE_S3_SECRET_KEY:}}}")
+    @Value("${taxoryn.storage.s3.secret-key:${STORAGE_SECRET_KEY:${STORAGE_SECRET_ACCESS_KEY:${STORAGE_S3_SECRET_KEY:${R2_SECRET_ACCESS_KEY:${R2_SECRET_KEY:${CLOUDFLARE_R2_SECRET_ACCESS_KEY:${AWS_SECRET_ACCESS_KEY:${AWS_SECRET_KEY:${AWS_SECRET:}}}}}}}}}}}")
     private String storageS3SecretKey;
+
+    @Value("${taxoryn.storage.s3.endpoint:${STORAGE_ENDPOINT:${STORAGE_S3_ENDPOINT:${R2_ENDPOINT:${CLOUDFLARE_R2_ENDPOINT:${AWS_ENDPOINT:${S3_ENDPOINT:}}}}}}}")
+    private String storageS3Endpoint;
+
+    @Value("${taxoryn.storage.s3.account-id:${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}}")
+    private String storageS3AccountId;
 
     @Value("${taxoryn.mail.enabled:false}")
     private boolean mailEnabled;
@@ -290,7 +297,9 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             throw new IllegalStateException(error);
         }
 
-        if ("S3".equalsIgnoreCase(storageProvider) || "R2".equalsIgnoreCase(storageProvider) || "CLOUD".equalsIgnoreCase(storageProvider)) {
+        String p = storageProvider.trim().toUpperCase();
+        if (p.equals("S3") || p.equals("R2") || p.equals("CLOUDFLARE") || p.equals("CLOUDFLARE_R2")
+                || p.equals("AWS") || p.equals("AWS_S3") || p.equals("MINIO") || p.equals("CLOUD")) {
             if (!StringUtils.hasText(storageS3Bucket)) {
                 String error = "CRITICAL SECURITY VIOLATION: Storage provider is '" + storageProvider + "' but STORAGE_BUCKET is not configured";
                 log.error(error);
@@ -306,8 +315,33 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
                 log.error(error);
                 throw new IllegalStateException(error);
             }
+            // If endpoint or accountId is supplied, validate endpoint URI scheme
+            String resolvedEndpoint = StringUtils.hasText(storageS3Endpoint) ? storageS3Endpoint.trim() :
+                    (StringUtils.hasText(storageS3AccountId) ? "https://" + storageS3AccountId.trim() + ".r2.cloudflarestorage.com" : null);
+            if (StringUtils.hasText(resolvedEndpoint)) {
+                try {
+                    URI uri = URI.create(resolvedEndpoint);
+                    String scheme = uri.getScheme();
+                    if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
+                        String error = "CRITICAL SECURITY VIOLATION: S3/R2 endpoint must use http:// or https:// scheme: " + resolvedEndpoint;
+                        log.error(error);
+                        throw new IllegalStateException(error);
+                    }
+                    String host = uri.getHost();
+                    boolean isLocalhost = host != null && (host.equalsIgnoreCase("localhost") || host.equals("127.0.0.1"));
+                    if ("http".equalsIgnoreCase(scheme) && !isLocalhost) {
+                        String error = "CRITICAL SECURITY VIOLATION: Insecure HTTP S3/R2 endpoint rejected in production: " + resolvedEndpoint;
+                        log.error(error);
+                        throw new IllegalStateException(error);
+                    }
+                } catch (IllegalArgumentException e) {
+                    String error = "CRITICAL SECURITY VIOLATION: Invalid S3/R2 endpoint URI: " + resolvedEndpoint;
+                    log.error(error);
+                    throw new IllegalStateException(error);
+                }
+            }
         } else {
-            String error = "CRITICAL SECURITY VIOLATION: Unsupported production storage provider '" + storageProvider + "'. Expected 'S3'";
+            String error = "CRITICAL SECURITY VIOLATION: Unsupported production storage provider '" + storageProvider + "'. Expected 'S3' or 'R2'";
             log.error(error);
             throw new IllegalStateException(error);
         }
