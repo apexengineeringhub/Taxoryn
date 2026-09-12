@@ -255,7 +255,7 @@ export const App: React.FC = () => {
                 path="/billing"
                 element={
                   <RoleRouteGuard
-                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT']}
                     requiredPermissions={['BILLING_VIEW', 'BILLING_READ']}
                   >
                     <BillingPage />
@@ -267,7 +267,7 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER']}
-                    requiredPermissions={['REPORT_VIEW', 'ORGANIZATION_VIEW']}
+                    requiredPermissions={['REPORT_VIEW', 'REPORTS_VIEW']}
                   >
                     <ReportsPage />
                   </RoleRouteGuard>
@@ -393,7 +393,7 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
-                    requiredPermissions={['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ']}
+                    requiredPermissions={['USER_VIEW', 'ROLE_READ']}
                   >
                     <TeamManagementPage />
                   </RoleRouteGuard>
@@ -413,7 +413,7 @@ export const App: React.FC = () => {
               <Route
                 path="/audit-logs"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['AUDIT_VIEW']}>
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT']} requiredPermissions={['AUDIT_VIEW', 'AUDIT_READ']}>
                     <AuditLogsPage />
                   </RoleRouteGuard>
                 }
@@ -437,7 +437,7 @@ export const App: React.FC = () => {
               <Route
                 path="/settings/whatsapp"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'TAXORYN_SUPPORT_ADMIN']}>
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'TAXORYN_SUPPORT_ADMIN']} requiredPermissions={['COMMUNICATION_MANAGE']}>
                     <WhatsAppMessagesPage />
                   </RoleRouteGuard>
                 }
@@ -453,7 +453,7 @@ export const App: React.FC = () => {
               <Route
                 path="/settings/subscription"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE']}>
                     <SubscriptionsPage />
                   </RoleRouteGuard>
                 }

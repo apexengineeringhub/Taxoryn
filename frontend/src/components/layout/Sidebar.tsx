@@ -159,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'PRACTICE',
       items: [
         { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
+        { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
         { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Notification Center', path: '/notifications', icon: Bell, requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES },
@@ -170,11 +170,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'ADMINISTRATION',
       isCollapsible: true,
       items: [
-        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
-        { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
-        { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
+        { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
       ],
     },
@@ -182,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'growth',
       sectionTitle: 'GROWTH',
       items: [
-        { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
       ],
     },
   ];

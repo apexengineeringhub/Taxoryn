@@ -94,7 +94,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         sectionTitle: 'PRACTICE',
         items: [
           { label: 'Client Portal Hub', path: '/portal', requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'Reports', path: '/reports', requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
+          { label: 'Reports', path: '/reports', requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
           { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
           { label: 'Client Onboarding', path: '/marketplace/onboarding', requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
           { label: 'Notification Center', path: '/notifications', requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES },
@@ -104,11 +104,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         id: 'administration',
         sectionTitle: 'ADMINISTRATION',
         items: [
-          { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', requiredPermissions: ['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+          { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
           { label: 'Billing & Invoices', path: '/billing', requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
-          { label: 'Activity & Audit', path: '/audit-logs', requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
-          { label: 'Branding & Themes', path: '/settings/branding', requiredPermissions: ['ORGANIZATION_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'Subscription', path: '/settings/subscription', requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+          { label: 'Activity & Audit', path: '/audit-logs', requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
+          { label: 'Branding & Themes', path: '/settings/branding', requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+          { label: 'Subscription', path: '/settings/subscription', requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
           { label: 'WhatsApp Alerts', path: '/settings/whatsapp', requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         ],
       },
@@ -116,7 +116,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         id: 'growth',
         sectionTitle: 'GROWTH',
         items: [
-          { label: 'Marketplace', path: '/settings/marketplace', requiredPermissions: ['MARKETPLACE_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+          { label: 'Marketplace', path: '/settings/marketplace', requiredPermissions: ['MARKETPLACE_MANAGE', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         ],
       },
       {
