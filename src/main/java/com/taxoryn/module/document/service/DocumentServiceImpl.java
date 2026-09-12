@@ -266,14 +266,14 @@ public class DocumentServiceImpl implements DocumentService {
             throw new ResourceNotFoundException("Document has been deleted", "id", id);
         }
 
-        byte[] data = storageService.retrieve(document.getStorageKey());
+        String storageKey = document.getStorageKey();
         auditService.logEvent("DOCUMENT_DOWNLOADED", "DOCUMENT", id.toString(), null, document.getFileName());
 
         return DocumentDownloadDto.builder()
                 .fileName(document.getFileName())
                 .contentType(document.getContentType())
                 .fileSize(document.getFileSize())
-                .data(data)
+                .stream(outputStream -> storageService.stream(storageKey, outputStream))
                 .build();
     }
 
@@ -291,14 +291,14 @@ public class DocumentServiceImpl implements DocumentService {
             throw new ResourceNotFoundException("Document has been deleted", "id", id);
         }
 
-        byte[] data = storageService.retrieve(document.getStorageKey());
+        String storageKey = document.getStorageKey();
         auditService.logEvent("DOCUMENT_PREVIEWED", "DOCUMENT", id.toString(), null, document.getFileName());
 
         return DocumentDownloadDto.builder()
                 .fileName(document.getFileName())
                 .contentType(document.getContentType())
                 .fileSize(document.getFileSize())
-                .data(data)
+                .stream(outputStream -> storageService.stream(storageKey, outputStream))
                 .build();
     }
 

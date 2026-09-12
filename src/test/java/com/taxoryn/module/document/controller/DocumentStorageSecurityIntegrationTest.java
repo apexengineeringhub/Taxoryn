@@ -279,8 +279,11 @@ class DocumentStorageSecurityIntegrationTest {
         String docId = uploadTestDocument(tokenOrg1, client1.getId(), "ITR_Computation_Alpha.pdf", confidentialBytes);
 
         // Tenant A can download successfully
-        mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
+        MvcResult downloadResult = mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
                         .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(downloadResult))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(confidentialBytes));
 
@@ -422,8 +425,11 @@ class DocumentStorageSecurityIntegrationTest {
         String docId = uploadTestDocument(tokenOrg1, client1.getId(), "Client1_Doc.pdf", content);
 
         // Client 1 can download via portal
-        mockMvc.perform(get("/api/v1/portal/documents/" + docId + "/download")
+        MvcResult portalResult = mockMvc.perform(get("/api/v1/portal/documents/" + docId + "/download")
                         .header(HttpHeaders.AUTHORIZATION, tokenClient1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(portalResult))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(content));
 

@@ -44,6 +44,15 @@ export const UserProfilePage: React.FC = () => {
   const [clientDetails, setClientDetails] = useState<ClientPortalProfile | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewBlobUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewBlobUrlRef.current) {
+        URL.revokeObjectURL(previewBlobUrlRef.current);
+      }
+    };
+  }, []);
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'CLIENT_ADMIN', 'PRACTICE_CLIENT', 'MARKETPLACE_CUSTOMER'].includes(r));
@@ -157,7 +166,18 @@ export const UserProfilePage: React.FC = () => {
         updatedAvatarUrl = usr.avatarUrl;
       }
 
-      setAvatarUrl(updatedAvatarUrl || URL.createObjectURL(file));
+      if (previewBlobUrlRef.current) {
+        URL.revokeObjectURL(previewBlobUrlRef.current);
+        previewBlobUrlRef.current = null;
+      }
+
+      if (updatedAvatarUrl) {
+        setAvatarUrl(updatedAvatarUrl);
+      } else {
+        const previewUrl = URL.createObjectURL(file);
+        previewBlobUrlRef.current = previewUrl;
+        setAvatarUrl(previewUrl);
+      }
       setSuccessMessage('Profile photo updated successfully.');
     } catch (err: any) {
       setErrorMessage(err.response?.data?.message || 'Failed to upload profile photo.');

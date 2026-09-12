@@ -211,6 +211,30 @@ public class LocalDocumentStorageService implements DocumentStorageService {
     }
 
     @Override
+    public java.io.InputStream openStream(String storageKey) {
+        Path filePath = resolveAndValidatePath(storageKey);
+        if (!Files.exists(filePath) || !Files.isRegularFile(filePath) || !Files.isReadable(filePath)) {
+            throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
+        }
+        try {
+            return Files.newInputStream(filePath);
+        } catch (IOException e) {
+            log.error("Failed to open input stream for key {}: {}", storageKey, e.getMessage(), e);
+            throw new InternalServerException("Failed to open document stream: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void stream(String storageKey, java.io.OutputStream outputStream) {
+        try (java.io.InputStream is = openStream(storageKey)) {
+            is.transferTo(outputStream);
+        } catch (IOException e) {
+            log.error("Failed to stream file from disk for key {}: {}", storageKey, e.getMessage(), e);
+            throw new InternalServerException("Failed to stream document content: " + e.getMessage());
+        }
+    }
+
+    @Override
     public void delete(String storageKey) {
         if (!StringUtils.hasText(storageKey)) return;
         try {

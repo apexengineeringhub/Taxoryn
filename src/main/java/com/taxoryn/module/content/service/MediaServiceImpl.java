@@ -162,9 +162,24 @@ public class MediaServiceImpl implements MediaService {
 
     @Override
     @Transactional(readOnly = true)
+    public org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody streamMediaContent(UUID id) {
+        MediaAssetEntity asset = findOrThrow(id);
+        String storageKey = asset.getStorageKey();
+        return outputStream -> storageService.stream(storageKey, outputStream);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public String getMediaContentType(UUID id) {
         MediaAssetEntity asset = findOrThrow(id);
         return asset.getContentType();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getMediaContentLength(UUID id) {
+        MediaAssetEntity asset = findOrThrow(id);
+        return asset.getFileSize() != null ? asset.getFileSize() : 0L;
     }
 
     private MediaAssetEntity findOrThrow(UUID id) {

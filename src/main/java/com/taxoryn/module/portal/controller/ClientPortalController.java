@@ -202,7 +202,7 @@ public class ClientPortalController {
     @GetMapping("/documents/{id}/download")
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Download client document", description = "Downloads a document belonging strictly to the authenticated client.")
-    public ResponseEntity<byte[]> downloadClientDocument(@PathVariable UUID id) {
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> downloadClientDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = clientPortalService.downloadClientDocument(id);
         String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
 
@@ -214,13 +214,13 @@ public class ClientPortalController {
                 .header(HttpHeaders.EXPIRES, "0")
                 .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
-                .body(download.getData());
+                .body(download.getStream());
     }
 
     @GetMapping("/documents/{id}/preview")
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Preview client document", description = "Previews a document belonging strictly to the authenticated client inline.")
-    public ResponseEntity<byte[]> previewClientDocument(@PathVariable UUID id) {
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> previewClientDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = clientPortalService.previewClientDocument(id);
         String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
 
@@ -232,7 +232,7 @@ public class ClientPortalController {
                 .header(HttpHeaders.EXPIRES, "0")
                 .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
-                .body(download.getData());
+                .body(download.getStream());
     }
 
     @GetMapping("/documents/{id}/download-url")

@@ -182,6 +182,7 @@ export const BulkEmployeeOnboardingPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Execute Bulk Onboarding

@@ -55,6 +55,10 @@ public class RateLimitingService {
         long windowMillis = 60_000L; // 1 minute window
         String bucketKey = (isAuthEndpoint ? "AUTH:" : "API:") + clientIp;
 
+        if (buckets.size() > 50_000) {
+            cleanupExpiredBuckets();
+        }
+
         TokenBucket bucket = buckets.computeIfAbsent(bucketKey, k -> new TokenBucket(limit, windowMillis));
         return bucket.tryConsume(limit, windowMillis);
     }

@@ -86,6 +86,31 @@ public interface DocumentStorageService {
     byte[] retrieve(String storageKey);
 
     /**
+     * Stream document binary data directly to the given output stream without loading the entire content into heap.
+     *
+     * @param storageKey Unique storage key
+     * @param outputStream Target OutputStream to stream the data to
+     */
+    default void stream(String storageKey, java.io.OutputStream outputStream) {
+        try (java.io.InputStream is = openStream(storageKey)) {
+            is.transferTo(outputStream);
+        } catch (java.io.IOException e) {
+            throw new com.taxoryn.core.exception.InternalServerException("Failed to stream document content: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Open an InputStream for the document content by storage key.
+     * Caller is responsible for closing the returned InputStream.
+     *
+     * @param storageKey Unique storage key
+     * @return InputStream to the document content
+     */
+    default java.io.InputStream openStream(String storageKey) {
+        return new java.io.ByteArrayInputStream(retrieve(storageKey));
+    }
+
+    /**
      * Delete document from storage backend.
      *
      * @param storageKey Unique storage key

@@ -34,6 +34,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -45,10 +46,12 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -462,14 +465,20 @@ public class SecureFileUploadSecurityIntegrationTest {
         TenantContext.clear();
 
         // 1. Download succeeds
-        mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/download")
+        MvcResult downloadResult = mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/download")
                         .header("Authorization", adminToken1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(downloadResult))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(VALID_PDF_BYTES));
 
         // 2. Preview succeeds
-        mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/preview")
+        MvcResult previewResult = mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/preview")
                         .header("Authorization", adminToken1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(previewResult))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(VALID_PDF_BYTES));
     }

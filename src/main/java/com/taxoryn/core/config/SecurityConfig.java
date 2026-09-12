@@ -91,6 +91,12 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> {
+                    auth.dispatcherTypeMatchers(
+                            jakarta.servlet.DispatcherType.ASYNC,
+                            jakarta.servlet.DispatcherType.ERROR,
+                            jakarta.servlet.DispatcherType.FORWARD
+                    ).permitAll();
+
                     auth.requestMatchers(
                             // Public Auth & Onboarding endpoints
                             "/api/auth/**",

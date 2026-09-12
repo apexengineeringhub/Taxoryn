@@ -191,6 +191,7 @@ export const ClientMigrationHubPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Parse CSV or Excel (.xlsx / .xls) File in Browser
@@ -380,6 +381,7 @@ export const ClientMigrationHubPage: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       return;
     }
 
@@ -401,6 +403,7 @@ export const ClientMigrationHubPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const validCount = parsedRows.filter((r) => r.isValid).length;
