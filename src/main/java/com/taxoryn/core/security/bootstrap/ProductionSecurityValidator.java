@@ -106,7 +106,7 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.storage.s3.account-id:${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}}")
     private String storageS3AccountId;
 
-    @Value("${taxoryn.security.malware-scanner.clamav.enabled:${CLAMAV_ENABLED:}}")
+    @Value("${taxoryn.security.malware-scanner.clamav.enabled:${CLAMAV_ENABLED:false}}")
     private String clamavEnabled;
 
     @Value("${taxoryn.security.malware-scanner.clamav.host:${CLAMAV_HOST:}}")
