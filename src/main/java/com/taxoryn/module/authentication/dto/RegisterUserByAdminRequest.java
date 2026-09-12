@@ -34,8 +34,8 @@ public class RegisterUserByAdminRequest {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 8, max = 100, message = "Password must be at least 8 characters")
-    @Schema(description = "Initial member password", example = "TemporaryPass123!")
+    @com.taxoryn.core.security.validation.StrongPassword
+    @Schema(description = "Initial member password meeting complexity standards (min 12 chars, upper, lower, digit, special)", example = "Tx9#SecureP@ss2026!")
     private String password;
 
     @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")

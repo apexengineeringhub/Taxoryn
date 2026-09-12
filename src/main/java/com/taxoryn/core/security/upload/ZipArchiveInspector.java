@@ -36,14 +36,43 @@ public class ZipArchiveInspector {
         if (data == null || data.length == 0) {
             return;
         }
+        inspectZipStream(new ByteArrayInputStream(data), data.length, originalFilename);
+    }
 
-        long compressedSize = data.length;
+    /**
+     * Inspects a ZIP/OpenXML file on disk without loading its uncompressed contents into heap memory.
+     *
+     * @param file path to the archive file on disk
+     * @param originalFilename filename for error reporting
+     * @throws BadRequestException if the archive is unsafe or violates security constraints
+     */
+    public void inspectZipArchive(java.nio.file.Path file, String originalFilename) {
+        if (file == null || !java.nio.file.Files.exists(file)) {
+            return;
+        }
+        try {
+            long size = java.nio.file.Files.size(file);
+            if (size == 0) {
+                return;
+            }
+            try (java.io.InputStream is = new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(file))) {
+                inspectZipStream(is, size, originalFilename);
+            }
+        } catch (BadRequestException bre) {
+            throw bre;
+        } catch (IOException e) {
+            log.warn("Failed to read archive file '{}': {}", originalFilename, e.getMessage());
+            throw new BadRequestException("Invalid or corrupted archive format");
+        }
+    }
+
+    private void inspectZipStream(java.io.InputStream inputStream, long compressedSize, String originalFilename) {
         long totalUncompressedBytes = 0;
         int entryCount = 0;
 
-        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(data))) {
+        try (ZipInputStream zis = new ZipInputStream(inputStream)) {
             ZipEntry entry;
-            byte[] buffer = new byte[4096];
+            byte[] buffer = new byte[8192];
 
             while ((entry = zis.getNextEntry()) != null) {
                 entryCount++;

@@ -113,7 +113,7 @@ class MarketplaceCustomerSecurityIntegrationTest {
                 .lastName("Sharma")
                 .email(testEmail)
                 .phone("9876543210")
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .customerType(CustomerType.INDIVIDUAL)
                 .city("Gurgaon")
                 .state("Haryana")
@@ -235,7 +235,7 @@ class MarketplaceCustomerSecurityIntegrationTest {
         RegisterCustomerRequest registerReq = RegisterCustomerRequest.builder()
                 .firstName("Karan")
                 .email(testEmail)
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .build();
 
         mockMvc.perform(post("/api/v1/marketplace/customer/register")
@@ -255,7 +255,7 @@ class MarketplaceCustomerSecurityIntegrationTest {
         // Log in to get customer JWT
         LoginRequest loginReq = LoginRequest.builder()
                 .email(testEmail)
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .build();
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
@@ -293,7 +293,7 @@ class MarketplaceCustomerSecurityIntegrationTest {
                 .lastName("Kapoor")
                 .email(testEmail)
                 .phone("9876501234")
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .build();
 
         mockMvc.perform(post("/api/v1/marketplace/customer/register")
@@ -307,7 +307,7 @@ class MarketplaceCustomerSecurityIntegrationTest {
 
         LoginRequest loginReq = LoginRequest.builder()
                 .email(testEmail)
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .build();
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")

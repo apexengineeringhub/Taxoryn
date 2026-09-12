@@ -31,6 +31,14 @@ public interface ClientPortalService {
 
     ClientPortalProfileDto updateProfile(UpdateClientPortalProfileRequest request);
 
+    ClientPortalProfileDto uploadProfileAvatar(MultipartFile file);
+
+    void deleteProfileAvatar();
+
+    com.taxoryn.module.user.service.ProfileImageService.AvatarContent getProfileAvatar();
+
+    byte[] getProfileAvatarContent();
+
     List<ClientGstStatusDto> getGstStatus();
 
     List<ClientItrStatusDto> getItrStatus();

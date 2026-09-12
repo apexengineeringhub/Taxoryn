@@ -34,6 +34,14 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID>,
 
     List<EmployeeEntity> findAllByOrganizationIdAndStatus(UUID organizationId, EmployeeEntity.EmployeeStatus status);
 
+    List<EmployeeEntity> findAllByOrganizationIdAndDepartmentIgnoreCase(UUID organizationId, String department);
+
+    List<EmployeeEntity> findAllByOrganizationIdAndDepartmentIgnoreCaseAndStatus(UUID organizationId, String department, EmployeeEntity.EmployeeStatus status);
+
+    long countByOrganizationIdAndDepartmentIgnoreCase(UUID organizationId, String department);
+
+    long countByOrganizationIdAndDepartmentIgnoreCaseAndStatus(UUID organizationId, String department, EmployeeEntity.EmployeeStatus status);
+
     @Query("SELECT COUNT(e), " +
            "SUM(CASE WHEN e.status = com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE THEN 1L ELSE 0L END) " +
            "FROM EmployeeEntity e WHERE e.organizationId = :organizationId")

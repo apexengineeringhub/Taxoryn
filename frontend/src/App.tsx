@@ -42,6 +42,7 @@ const CustomerOnboardingPortalPage = React.lazy(() => import('./pages/CustomerOn
 const RegisterCustomerPage = React.lazy(() => import('./pages/RegisterCustomerPage').then(m => ({ default: m.RegisterCustomerPage })));
 const MarketplaceCustomerDashboardPage = React.lazy(() => import('./pages/MarketplaceCustomerDashboardPage').then(m => ({ default: m.MarketplaceCustomerDashboardPage })));
 const CustomerProfilePage = React.lazy(() => import('./pages/CustomerProfilePage').then(m => ({ default: m.CustomerProfilePage })));
+const UserProfilePage = React.lazy(() => import('./pages/UserProfilePage').then(m => ({ default: m.UserProfilePage })));
 const CustomerTaxRequirementWizardPage = React.lazy(() => import('./pages/CustomerTaxRequirementWizardPage').then(m => ({ default: m.CustomerTaxRequirementWizardPage })));
 const CustomerTaxRequirementsListPage = React.lazy(() => import('./pages/CustomerTaxRequirementsListPage').then(m => ({ default: m.CustomerTaxRequirementsListPage })));
 const ApplicationFeedbackPage = React.lazy(() => import('./pages/ApplicationFeedbackPage').then(m => ({ default: m.ApplicationFeedbackPage })));
@@ -57,6 +58,8 @@ const PlatformContentManagementPage = React.lazy(() => import('./pages/PlatformC
 const WhatsAppMessagesPage = React.lazy(() => import('./pages/WhatsAppMessagesPage').then(m => ({ default: m.WhatsAppMessagesPage })));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const NoticeCenterPage = React.lazy(() => import('./pages/NoticeCenterPage').then(m => ({ default: m.NoticeCenterPage })));
+const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').then(m => ({ default: m.NoticeDetailPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import {
@@ -245,12 +248,14 @@ export const App: React.FC = () => {
                 }
               />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
+              <Route path="/notices" element={<NoticeCenterPage />} />
+              <Route path="/notices/:id" element={<NoticeDetailPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route
                 path="/billing"
                 element={
                   <RoleRouteGuard
-                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT']}
                     requiredPermissions={['BILLING_VIEW', 'BILLING_READ']}
                   >
                     <BillingPage />
@@ -262,7 +267,7 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER']}
-                    requiredPermissions={['REPORT_VIEW', 'ORGANIZATION_VIEW']}
+                    requiredPermissions={['REPORT_VIEW', 'REPORTS_VIEW']}
                   >
                     <ReportsPage />
                   </RoleRouteGuard>
@@ -388,7 +393,7 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
-                    requiredPermissions={['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ']}
+                    requiredPermissions={['USER_VIEW', 'ROLE_READ']}
                   >
                     <TeamManagementPage />
                   </RoleRouteGuard>
@@ -408,7 +413,7 @@ export const App: React.FC = () => {
               <Route
                 path="/audit-logs"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['AUDIT_VIEW']}>
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT']} requiredPermissions={['AUDIT_VIEW', 'AUDIT_READ']}>
                     <AuditLogsPage />
                   </RoleRouteGuard>
                 }
@@ -432,7 +437,7 @@ export const App: React.FC = () => {
               <Route
                 path="/settings/whatsapp"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'TAXORYN_SUPPORT_ADMIN']}>
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'TAXORYN_SUPPORT_ADMIN']} requiredPermissions={['COMMUNICATION_MANAGE']}>
                     <WhatsAppMessagesPage />
                   </RoleRouteGuard>
                 }
@@ -448,11 +453,12 @@ export const App: React.FC = () => {
               <Route
                 path="/settings/subscription"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE']}>
                     <SubscriptionsPage />
                   </RoleRouteGuard>
                 }
               />
+              <Route path="/profile" element={<UserProfilePage />} />
               <Route path="/settings/security" element={<AccountSecurityPage />} />
               <Route path="/profile/security" element={<AccountSecurityPage />} />
               <Route path="/feedback" element={<ApplicationFeedbackPage />} />

@@ -28,6 +28,7 @@ import {
   BarChart3,
   X,
   Settings,
+  Scale,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -38,6 +39,7 @@ import { TaxorynLogo } from '../common/TaxorynLogo';
 import {
   filterNavigationByPermissions,
   filterNavigationSections,
+  filterRoleNavigationItems,
   NavigationItem,
   NavigationSection,
   NOTIFICATION_PERMISSIONS,
@@ -59,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
   const location = useLocation();
 
-  const userAvatar = getEmployeeAvatar(user?.email || user?.id);
+  const userAvatar = user?.avatarUrl || getEmployeeAvatar(user?.email || user?.id);
   const isLight = currentTheme.mode === 'light';
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
@@ -99,7 +101,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
   ];
 
-  // 2. Client / Taxpayer Customer Portal Nav Sections (MY TAX, EXPLORE, ACCOUNT)
+  // 2. Client / Taxpayer Customer Portal Nav Sections (MY TAX, EXPLORE)
+  // Security & Password and Give Feedback are standardized outside sections in the global bottom area.
   const clientNavSections: NavigationSection[] = [
     {
       id: 'my-tax',
@@ -118,14 +121,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'EXPLORE',
       items: [
         { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store },
-      ],
-    },
-    {
-      id: 'account',
-      sectionTitle: 'ACCOUNT',
-      items: [
-        { label: 'Security & Password', path: '/settings/security', icon: Lock },
-        { label: 'Give Feedback', path: '/feedback', icon: MessageSquarePlus },
       ],
     },
   ];
@@ -148,6 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'] },
         { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'] },
         { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
+        { label: 'Notice Center', path: '/notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TASK_VIEW', 'CLIENT_VIEW'] },
         { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
       ],
     },
@@ -163,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'PRACTICE',
       items: [
         { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
+        { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
         { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Notification Center', path: '/notifications', icon: Bell, requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES },
@@ -174,11 +170,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'ADMINISTRATION',
       isCollapsible: true,
       items: [
-        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'EMPLOYEE_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
-        { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
-        { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
+        { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
       ],
     },
@@ -186,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'growth',
       sectionTitle: 'GROWTH',
       items: [
-        { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
       ],
     },
   ];
@@ -219,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
 
   // Filter sections and items with permission rules
   const visibleSections = filterNavigationSections(practiceNavSections, user);
-  const platformFilteredItems = filterNavigationByPermissions(platformNavItems, user);
+  const platformFilteredItems = filterRoleNavigationItems(platformNavItems, user);
   const visibleClientSections = filterNavigationSections(clientNavSections, user);
 
   const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(
@@ -577,8 +573,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={clsx('flex items-center justify-between p-2 rounded-lg border', isLight ? 'bg-white border-slate-200/80 shadow-2xs' : 'bg-white/5 border-white/5')}
         >
           <NavLink
-            to="/settings/security"
-            title="Account Security & Password Settings"
+            to="/profile"
+            title="My Profile & Settings"
             className="flex items-center gap-2.5 truncate hover:opacity-90 transition-opacity flex-1 min-w-0"
           >
             {userAvatar ? (

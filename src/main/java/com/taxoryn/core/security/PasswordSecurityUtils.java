@@ -37,6 +37,11 @@ public final class PasswordSecurityUtils {
             "changeme"
     );
 
+    public static final int MIN_LENGTH = 12;
+    public static final int MAX_LENGTH = 100;
+    public static final String PASSWORD_REQUIREMENTS_MESSAGE =
+            "Password must be at least 12 characters long and contain at least one uppercase letter, one lowercase letter, one digit, and one special character";
+
     private PasswordSecurityUtils() {
     }
 
@@ -75,10 +80,10 @@ public final class PasswordSecurityUtils {
     }
 
     /**
-     * Validates that a password satisfies production security requirements (>= 12 chars, upper, lower, digit, special, not weak).
+     * Validates that a password satisfies production security requirements (>= 12 chars, <= 100 chars, upper, lower, digit, special, not weak).
      */
     public static boolean isStrongProductionPassword(String password) {
-        if (password == null || password.length() < 12) {
+        if (password == null || password.length() < MIN_LENGTH || password.length() > MAX_LENGTH) {
             return false;
         }
         if (isKnownDefaultOrWeakPassword(password)) {
@@ -87,9 +92,21 @@ public final class PasswordSecurityUtils {
         boolean hasUpper = password.chars().anyMatch(Character::isUpperCase);
         boolean hasLower = password.chars().anyMatch(Character::isLowerCase);
         boolean hasDigit = password.chars().anyMatch(Character::isDigit);
-        boolean hasSpecial = password.chars().anyMatch(ch -> SPECIAL.indexOf(ch) >= 0);
+        boolean hasSpecial = password.chars().anyMatch(ch -> SPECIAL.indexOf(ch) >= 0 || (!Character.isLetterOrDigit(ch) && !Character.isWhitespace(ch)));
 
         return hasUpper && hasLower && hasDigit && hasSpecial;
+    }
+
+    /**
+     * Programmatic validator throwing BadRequestException with a clear security message.
+     */
+    public static void validatePassword(String password) {
+        if (!isStrongProductionPassword(password)) {
+            if (isKnownDefaultOrWeakPassword(password)) {
+                throw new com.taxoryn.core.exception.BadRequestException("Password is too weak or commonly used. Please choose a stronger password.");
+            }
+            throw new com.taxoryn.core.exception.BadRequestException(PASSWORD_REQUIREMENTS_MESSAGE);
+        }
     }
 
     /**

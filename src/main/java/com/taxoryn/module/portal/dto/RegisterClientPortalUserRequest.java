@@ -27,7 +27,8 @@ public class RegisterClientPortalUserRequest {
     @Schema(description = "User login email", example = "contact@clientbusiness.com")
     private String email;
 
-    @Schema(description = "User initial password (optional, user can set password via activation link)", example = "ClientPass123!")
+    @com.taxoryn.core.security.validation.StrongPassword(optional = true)
+    @Schema(description = "User initial password (optional, user can set password via activation link)", example = "Tx9#SecureP@ss2026!")
     private String password;
 
     @NotBlank(message = "First name is required")

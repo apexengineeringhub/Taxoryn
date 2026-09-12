@@ -40,6 +40,9 @@ public class DocumentDto {
     @Schema(description = "Associated Task ID")
     private UUID taskId;
 
+    @Schema(description = "Associated Tax Notice ID")
+    private UUID noticeId;
+
     @Schema(description = "Document category type", example = "FORM_16")
     private DocumentType documentType;
 

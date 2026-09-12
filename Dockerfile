@@ -50,6 +50,6 @@ EXPOSE 8088
 
 # Healthcheck monitoring - lightweight liveness check, no DB access (see /api/health)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD curl -f http://localhost:8088/api/health || exit 1
+  CMD curl -f "http://localhost:${PORT:-${SERVER_PORT:-8088}}/api/health" || exit 1
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/taxoryn.jar"]

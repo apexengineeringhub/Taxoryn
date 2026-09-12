@@ -25,20 +25,12 @@ public class ActivateOrganizationRequest {
     @Schema(description = "Raw activation/invitation token", example = "a1b2c3d4e5f6...", requiredMode = Schema.RequiredMode.REQUIRED)
     private String token;
 
-    @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
-    @Pattern(
-        regexp = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!._-]).*$",
-        message = "Password must contain at least one digit, one lowercase letter, one uppercase letter, and one special character"
-    )
-    @Schema(description = "Optional password setup for first-time employee onboarding", example = "SecurePass123!")
+    @com.taxoryn.core.security.validation.StrongPassword(optional = true)
+    @Schema(description = "Optional password setup for first-time onboarding", example = "Tx9#SecureP@ss2026!")
     private String password;
 
-    @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
-    @Pattern(
-        regexp = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!._-]).*$",
-        message = "Password must contain at least one digit, one lowercase letter, one uppercase letter, and one special character"
-    )
-    @Schema(description = "Alternative alias for password setup", example = "SecurePass123!")
+    @com.taxoryn.core.security.validation.StrongPassword(optional = true)
+    @Schema(description = "Alternative alias for password setup", example = "Tx9#SecureP@ss2026!")
     private String newPassword;
 
     public String getEffectivePassword() {

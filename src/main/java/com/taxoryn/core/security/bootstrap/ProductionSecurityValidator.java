@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -87,17 +88,32 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.demo.enabled:false}")
     private boolean demoEnabled;
 
-    @Value("${taxoryn.storage.provider:LOCAL}")
+    @Value("${taxoryn.storage.provider:${STORAGE_PROVIDER:S3}}")
     private String storageProvider;
 
-    @Value("${taxoryn.storage.s3.bucket:${STORAGE_BUCKET:${STORAGE_S3_BUCKET:}}}")
+    @Value("${taxoryn.storage.s3.bucket:${STORAGE_BUCKET:${STORAGE_S3_BUCKET:${R2_BUCKET:${R2_BUCKET_NAME:${CLOUDFLARE_R2_BUCKET:${S3_BUCKET:${AWS_S3_BUCKET:${AWS_BUCKET:}}}}}}}}}")
     private String storageS3Bucket;
 
-    @Value("${taxoryn.storage.s3.access-key:${STORAGE_ACCESS_KEY:${STORAGE_S3_ACCESS_KEY:}}}")
+    @Value("${taxoryn.storage.s3.access-key:${STORAGE_ACCESS_KEY:${STORAGE_S3_ACCESS_KEY:${R2_ACCESS_KEY_ID:${R2_ACCESS_KEY:${CLOUDFLARE_R2_ACCESS_KEY_ID:${AWS_ACCESS_KEY_ID:${AWS_ACCESS_KEY:${AWS_KEY:}}}}}}}}}")
     private String storageS3AccessKey;
 
-    @Value("${taxoryn.storage.s3.secret-key:${STORAGE_SECRET_KEY:${STORAGE_S3_SECRET_KEY:}}}")
+    @Value("${taxoryn.storage.s3.secret-key:${STORAGE_SECRET_KEY:${STORAGE_SECRET_ACCESS_KEY:${STORAGE_S3_SECRET_KEY:${R2_SECRET_ACCESS_KEY:${R2_SECRET_KEY:${CLOUDFLARE_R2_SECRET_ACCESS_KEY:${AWS_SECRET_ACCESS_KEY:${AWS_SECRET_KEY:${AWS_SECRET:}}}}}}}}}}}")
     private String storageS3SecretKey;
+
+    @Value("${taxoryn.storage.s3.endpoint:${STORAGE_ENDPOINT:${STORAGE_S3_ENDPOINT:${R2_ENDPOINT:${CLOUDFLARE_R2_ENDPOINT:${AWS_ENDPOINT:${S3_ENDPOINT:}}}}}}}")
+    private String storageS3Endpoint;
+
+    @Value("${taxoryn.storage.s3.account-id:${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}}")
+    private String storageS3AccountId;
+
+    @Value("${taxoryn.security.malware-scanner.clamav.enabled:${CLAMAV_ENABLED:}}")
+    private String clamavEnabled;
+
+    @Value("${taxoryn.security.malware-scanner.clamav.host:${CLAMAV_HOST:}}")
+    private String clamavHost;
+
+    @Value("${taxoryn.security.malware-scanner.clamav.port:${CLAMAV_PORT:3310}}")
+    private int clamavPort;
 
     @Value("${taxoryn.mail.enabled:false}")
     private boolean mailEnabled;
@@ -150,6 +166,24 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:https://app.taxoryn.com,https://taxoryn.com}}")
     private String corsAllowedOrigins;
 
+    @Value("${taxoryn.cors.allow-credentials:true}")
+    private boolean corsAllowCredentials;
+
+    @Value("${spring.jpa.hibernate.ddl-auto:${HIBERNATE_DDL_AUTO:validate}}")
+    private String hibernateDdlAuto;
+
+    @Value("${spring.flyway.validate-on-migrate:${FLYWAY_VALIDATE_ON_MIGRATE:true}}")
+    private boolean flywayValidateOnMigrate;
+
+    @Value("${spring.flyway.enabled:${FLYWAY_ENABLED:true}}")
+    private boolean flywayEnabled;
+
+    @Value("${springdoc.api-docs.enabled:true}")
+    private boolean springdocApiDocsEnabled;
+
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean springdocSwaggerUiEnabled;
+
     @Override
     public void afterSingletonsInstantiated() {
         validateEnvironmentSecurity();
@@ -192,17 +226,26 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
         // 5. Cloud Storage Configuration Validation
         validateStorageConfiguration();
 
-        // 6. External Notification Provider Credentials Validation
+        // 6. Production Malware & Antivirus Scanning (ClamAV) Validation
+        validateMalwareScannerConfiguration();
+
+        // 7. External Notification Provider Credentials Validation
         validateNotificationConfiguration();
 
-        // 7. Insecure Known Default Credential Check in Production DB
+        // 8. Insecure Known Default Credential Check in Production DB
         validateDatabaseUserSecurity();
 
-        // 8. Production Frontend Base URL Validation
+        // 9. Production Frontend Base URL Validation
         validateFrontendConfiguration();
 
-        // 9. Production CORS Configuration Validation
+        // 10. Production CORS Configuration Validation
         validateCorsConfiguration();
+
+        // 11. Production Database Schema Management & Flyway Validation
+        validateSchemaManagementConfiguration();
+
+        // 12. Production Swagger & OpenAPI Disabled Validation
+        validateSwaggerConfiguration();
 
         log.info("Phase 10 production environment configuration & secrets verification PASSED.");
     }
@@ -275,7 +318,9 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
             throw new IllegalStateException(error);
         }
 
-        if ("S3".equalsIgnoreCase(storageProvider) || "R2".equalsIgnoreCase(storageProvider) || "CLOUD".equalsIgnoreCase(storageProvider)) {
+        String p = storageProvider.trim().toUpperCase();
+        if (p.equals("S3") || p.equals("R2") || p.equals("CLOUDFLARE") || p.equals("CLOUDFLARE_R2")
+                || p.equals("AWS") || p.equals("AWS_S3") || p.equals("MINIO") || p.equals("CLOUD")) {
             if (!StringUtils.hasText(storageS3Bucket)) {
                 String error = "CRITICAL SECURITY VIOLATION: Storage provider is '" + storageProvider + "' but STORAGE_BUCKET is not configured";
                 log.error(error);
@@ -291,8 +336,56 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
                 log.error(error);
                 throw new IllegalStateException(error);
             }
+            // If endpoint or accountId is supplied, validate endpoint URI scheme
+            String resolvedEndpoint = StringUtils.hasText(storageS3Endpoint) ? storageS3Endpoint.trim() :
+                    (StringUtils.hasText(storageS3AccountId) ? "https://" + storageS3AccountId.trim() + ".r2.cloudflarestorage.com" : null);
+            if (StringUtils.hasText(resolvedEndpoint)) {
+                try {
+                    URI uri = URI.create(resolvedEndpoint);
+                    String scheme = uri.getScheme();
+                    if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
+                        String error = "CRITICAL SECURITY VIOLATION: S3/R2 endpoint must use http:// or https:// scheme: " + resolvedEndpoint;
+                        log.error(error);
+                        throw new IllegalStateException(error);
+                    }
+                    String host = uri.getHost();
+                    boolean isLocalhost = host != null && (host.equalsIgnoreCase("localhost") || host.equals("127.0.0.1"));
+                    if ("http".equalsIgnoreCase(scheme) && !isLocalhost) {
+                        String error = "CRITICAL SECURITY VIOLATION: Insecure HTTP S3/R2 endpoint rejected in production: " + resolvedEndpoint;
+                        log.error(error);
+                        throw new IllegalStateException(error);
+                    }
+                } catch (IllegalArgumentException e) {
+                    String error = "CRITICAL SECURITY VIOLATION: Invalid S3/R2 endpoint URI: " + resolvedEndpoint;
+                    log.error(error);
+                    throw new IllegalStateException(error);
+                }
+            }
         } else {
-            String error = "CRITICAL SECURITY VIOLATION: Unsupported production storage provider '" + storageProvider + "'. Expected 'S3'";
+            String error = "CRITICAL SECURITY VIOLATION: Unsupported production storage provider '" + storageProvider + "'. Expected 'S3' or 'R2'";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+    }
+
+    private void validateMalwareScannerConfiguration() {
+        if (!StringUtils.hasText(clamavEnabled)) {
+            String error = "CRITICAL SECURITY VIOLATION: CLAMAV_ENABLED is missing or empty in production. ClamAV malware scanning must be explicitly enabled (CLAMAV_ENABLED=true).";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (!"true".equalsIgnoreCase(clamavEnabled.trim())) {
+            String error = "CRITICAL SECURITY VIOLATION: Malware scanning (CLAMAV_ENABLED=true) is mandatory in production. Unscanned document uploads are prohibited (found: CLAMAV_ENABLED='" + clamavEnabled + "').";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (!StringUtils.hasText(clamavHost)) {
+            String error = "CRITICAL SECURITY VIOLATION: ClamAV is enabled in production but CLAMAV_HOST is not configured";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (clamavPort <= 0 || clamavPort > 65535) {
+            String error = "CRITICAL SECURITY VIOLATION: Invalid CLAMAV_PORT: " + clamavPort;
             log.error(error);
             throw new IllegalStateException(error);
         }
@@ -395,18 +488,99 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     }
 
     private void validateCorsConfiguration() {
-        if (StringUtils.hasText(corsAllowedOrigins)) {
-            String trimmed = corsAllowedOrigins.trim().toLowerCase();
-            if (trimmed.contains("*.vercel.app") || trimmed.contains("taxoryn-7x7f.vercel.app")) {
-                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include Vercel demo origins or wildcard Vercel domains ('" + corsAllowedOrigins + "')";
+        if (!StringUtils.hasText(corsAllowedOrigins)) {
+            String error = "CRITICAL SECURITY VIOLATION: Production CORS allowed origins (CORS_ALLOWED_ORIGINS / taxoryn.cors.allowed-origins) is missing or empty";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        String[] origins = corsAllowedOrigins.split(",");
+        boolean hasAllowedOrigin = false;
+
+        for (String rawOrigin : origins) {
+            String origin = rawOrigin.trim();
+            if (!StringUtils.hasText(origin)) {
+                continue;
+            }
+            hasAllowedOrigin = true;
+            String lower = origin.toLowerCase();
+
+            // 1. Forbid Vercel demo or wildcard domains
+            if (lower.contains("vercel.app")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include Vercel demo origins or wildcard Vercel domains ('" + origin + "')";
                 log.error(error);
                 throw new IllegalStateException(error);
             }
-            if (trimmed.contains("http://localhost") || trimmed.contains("http://127.0.0.1")) {
-                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include localhost HTTP origins in production ('" + corsAllowedOrigins + "')";
+
+            // 2. Forbid wildcard origins
+            if ("*".equals(origin) || lower.contains("*")) {
+                String error = "CRITICAL SECURITY VIOLATION: Wildcard origins ('" + origin + "') are strictly prohibited in production CORS";
                 log.error(error);
                 throw new IllegalStateException(error);
             }
+
+            // 3. Forbid localhost / 127.0.0.1
+            if (lower.contains("localhost") || lower.contains("127.0.0.1")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include localhost or loopback origins in production ('" + origin + "')";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            // 4. Enforce HTTPS scheme
+            if (!lower.startsWith("https://")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS origin must use HTTPS ('" + origin + "')";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            // 5. Must strictly match approved Taxoryn production domains
+            if (!lower.equals("https://app.taxoryn.com") && !lower.equals("https://taxoryn.com") && !lower.equals("https://api.taxoryn.com")) {
+                String error = "CRITICAL SECURITY VIOLATION: Untrusted origin ('" + origin + "') detected in production CORS. Only explicitly trusted Taxoryn production domains (https://app.taxoryn.com, https://taxoryn.com) are permitted";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+        }
+
+        if (!hasAllowedOrigin) {
+            String error = "CRITICAL SECURITY VIOLATION: Production CORS allowed origins contains no valid origins";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+    }
+
+    private void validateSchemaManagementConfiguration() {
+        if (!flywayEnabled) {
+            String error = "CRITICAL DATABASE INTEGRITY VIOLATION: Flyway must be enabled in production environments.";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        if (!flywayValidateOnMigrate) {
+            String error = "CRITICAL DATABASE INTEGRITY VIOLATION: Flyway 'validate-on-migrate' must be enabled (true) in production environments.";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        if (StringUtils.hasText(hibernateDdlAuto)) {
+            String normalizedDdl = hibernateDdlAuto.trim().toLowerCase();
+            if ("update".equals(normalizedDdl) || "create".equals(normalizedDdl) || "create-drop".equals(normalizedDdl)) {
+                String error = String.format("CRITICAL DATABASE INTEGRITY VIOLATION: Hibernate 'ddl-auto' cannot be '%s' in production. Production schema must be strictly migration-driven ('validate' or 'none').", hibernateDdlAuto);
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+        }
+    }
+
+    private void validateSwaggerConfiguration() {
+        if (springdocApiDocsEnabled) {
+            String error = "CRITICAL SECURITY VIOLATION: OpenAPI generation (springdoc.api-docs.enabled) must be disabled (false) in production";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (springdocSwaggerUiEnabled) {
+            String error = "CRITICAL SECURITY VIOLATION: Swagger UI (springdoc.swagger-ui.enabled) must be disabled (false) in production";
+            log.error(error);
+            throw new IllegalStateException(error);
         }
     }
 }

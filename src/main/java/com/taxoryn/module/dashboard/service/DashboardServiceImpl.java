@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -182,11 +183,8 @@ public class DashboardServiceImpl implements DashboardService {
         // Department Manager
         String dept = scope.getDepartment();
         if (StringUtils.hasText(dept)) {
-            List<EmployeeEntity> deptEmps = employeeRepository.findAllByOrganizationId(organizationId).stream()
-                    .filter(e -> dept.equalsIgnoreCase(e.getDepartment()))
-                    .toList();
-            long total = deptEmps.size();
-            long active = deptEmps.stream().filter(e -> e.getStatus() == EmployeeStatus.ACTIVE).count();
+            long total = employeeRepository.countByOrganizationIdAndDepartmentIgnoreCase(organizationId, dept);
+            long active = employeeRepository.countByOrganizationIdAndDepartmentIgnoreCaseAndStatus(organizationId, dept, EmployeeStatus.ACTIVE);
             return EmployeeStatsDto.builder().total(total).active(active).build();
         }
 
@@ -265,17 +263,8 @@ public class DashboardServiceImpl implements DashboardService {
             return GstStatsDto.builder().totalGstClients(0).returnsDue(0).returnsOverdue(0).returnsFiled(0).build();
         }
 
-        List<GstProfileEntity> profiles = gstProfileRepository.findAllByOrganizationId(organizationId).stream()
-                .filter(p -> accessibleClientIds.contains(p.getClientId()))
-                .toList();
-
-        long totalGstClients = profiles.stream().map(GstProfileEntity::getClientId).distinct().count();
-
-        List<GstReturnFilingEntity> allFilings = new ArrayList<>();
-        for (GstProfileEntity prof : profiles) {
-            allFilings.addAll(gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(organizationId, prof.getClientId()));
-        }
-
+        List<GstReturnFilingEntity> allFilings = gstReturnFilingRepository.findAllByOrganizationIdAndClientIdIn(organizationId, accessibleClientIds);
+        long totalGstClients = allFilings.stream().map(GstReturnFilingEntity::getClientId).filter(Objects::nonNull).distinct().count();
         long returnsFiled = allFilings.stream().filter(f -> f.getFilingStatus() == GstFilingStatus.FILED).count();
         long returnsOverdue = allFilings.stream().filter(f -> f.getFilingStatus() != GstFilingStatus.FILED && f.getDueDate() != null && f.getDueDate().isBefore(today)).count();
         long returnsDue = allFilings.stream().filter(f -> f.getFilingStatus() != GstFilingStatus.FILED && (f.getDueDate() == null || !f.getDueDate().isBefore(today))).count();
@@ -317,11 +306,9 @@ public class DashboardServiceImpl implements DashboardService {
             return ItrStatsDto.builder().totalItrClients(0).pending(0).filed(0).overdue(0).build();
         }
 
-        List<ItrReturnEntity> returns = itrReturnRepository.findAllByOrganizationId(organizationId).stream()
-                .filter(r -> accessibleClientIds.contains(r.getClientId()))
-                .toList();
+        List<ItrReturnEntity> returns = itrReturnRepository.findAllByOrganizationIdAndClientIdIn(organizationId, accessibleClientIds);
 
-        long totalItrClients = returns.stream().map(ItrReturnEntity::getClientId).distinct().count();
+        long totalItrClients = returns.stream().map(ItrReturnEntity::getClientId).filter(Objects::nonNull).distinct().count();
         long filed = returns.stream().filter(r -> r.getStatus() == ItrStatus.FILED || r.getStatus() == ItrStatus.COMPLETED).count();
         long overdue = returns.stream().filter(r -> r.getStatus() != ItrStatus.FILED && r.getStatus() != ItrStatus.COMPLETED && r.getDueDate() != null && r.getDueDate().isBefore(today)).count();
         long pending = returns.stream().filter(r -> r.getStatus() != ItrStatus.FILED && r.getStatus() != ItrStatus.COMPLETED && (r.getDueDate() == null || !r.getDueDate().isBefore(today))).count();
@@ -363,11 +350,9 @@ public class DashboardServiceImpl implements DashboardService {
             return TdsStatsDto.builder().totalTdsClients(0).pending(0).filed(0).overdue(0).build();
         }
 
-        List<TdsReturnEntity> returns = tdsReturnRepository.findAllByOrganizationId(organizationId).stream()
-                .filter(r -> accessibleClientIds.contains(r.getClientId()))
-                .toList();
+        List<TdsReturnEntity> returns = tdsReturnRepository.findAllByOrganizationIdAndClientIdIn(organizationId, accessibleClientIds);
 
-        long totalTdsClients = returns.stream().map(TdsReturnEntity::getClientId).distinct().count();
+        long totalTdsClients = returns.stream().map(TdsReturnEntity::getClientId).filter(Objects::nonNull).distinct().count();
         long filed = returns.stream().filter(r -> r.getFilingStatus() == TdsFilingStatus.FILED).count();
         long overdue = returns.stream().filter(r -> r.getFilingStatus() != TdsFilingStatus.FILED && r.getDueDate() != null && r.getDueDate().isBefore(today)).count();
         long pending = returns.stream().filter(r -> r.getFilingStatus() != TdsFilingStatus.FILED && (r.getDueDate() == null || !r.getDueDate().isBefore(today))).count();
@@ -408,9 +393,7 @@ public class DashboardServiceImpl implements DashboardService {
                 employees = employeeRepository.findAllByOrganizationId(organizationId);
             }
         } else if (scope.isDepartmentManager() && StringUtils.hasText(scope.getDepartment())) {
-            employees = employeeRepository.findAllByOrganizationId(organizationId).stream()
-                    .filter(e -> scope.getDepartment().equalsIgnoreCase(e.getDepartment()))
-                    .toList();
+            employees = employeeRepository.findAllByOrganizationIdAndDepartmentIgnoreCase(organizationId, scope.getDepartment());
         } else {
             // Staff individual: only self
             if (scope.getEmployee() != null) {

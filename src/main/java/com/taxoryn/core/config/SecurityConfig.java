@@ -40,8 +40,26 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler accessDeniedHandler;
     private final CustomUserDetailsService userDetailsService;
 
-    @Value("${taxoryn.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8088,http://localhost:8089,https://taxoryn.com,https://*.taxoryn.com,https://app.taxoryn.com}")
+    @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8080,https://app.taxoryn.com,https://taxoryn.com}}")
     private String allowedOrigins;
+
+    @Value("${taxoryn.cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD}")
+    private String allowedMethods;
+
+    @Value("${taxoryn.cors.allowed-headers:*}")
+    private String allowedHeaders;
+
+    @Value("${taxoryn.cors.allow-credentials:true}")
+    private boolean allowCredentials;
+
+    @Value("${taxoryn.cors.max-age:3600}")
+    private long maxAge;
+
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean swaggerUiEnabled;
+
+    @Value("${springdoc.api-docs.enabled:true}")
+    private boolean apiDocsEnabled;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -72,62 +90,72 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
                 )
-                .authorizeHttpRequests(auth -> auth
-                        // Public Auth & Onboarding endpoints
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/api/v1/auth/**",
-                                "/api/subscriptions/plans",
-                                "/api/v1/subscriptions/plans",
-                                "/api/marketplace/search",
-                                "/api/marketplace/featured",
-                                "/api/marketplace/profiles/**",
-                                "/api/marketplace/leads",
-                                "/api/marketplace/consultations",
-                                "/api/marketplace/reviews/**",
-                                "/api/marketplace/tax-services/**",
-                                "/api/v1/marketplace/search",
-                                "/api/v1/marketplace/featured",
-                                "/api/v1/marketplace/profiles/**",
-                                "/api/v1/marketplace/leads",
-                                "/api/v1/marketplace/consultations",
-                                "/api/v1/marketplace/reviews/**",
-                                "/api/v1/marketplace/tax-services/**",
-                                "/api/v1/marketplace/onboarding/proposal/**",
-                                "/api/v1/marketplace/onboarding/session/**",
-                                "/api/marketplace/customer/register",
-                                "/api/v1/marketplace/customer/register",
-                                "/api/public/content/**",
-                                "/api/v1/public/content/**",
-                                "/api/public/media/**",
-                                "/api/v1/public/media/**",
-                                "/api/notifications/whatsapp/webhook",
-                                "/api/v1/notifications/whatsapp/webhook",
-                                "/api/v1/public/seo/**",
-                                "/robots.txt",
-                                "/sitemap.xml"
-                        ).permitAll()
-                        // Swagger & OpenAPI
-                        .requestMatchers(
+                .authorizeHttpRequests(auth -> {
+                    auth.dispatcherTypeMatchers(
+                            jakarta.servlet.DispatcherType.ASYNC,
+                            jakarta.servlet.DispatcherType.ERROR,
+                            jakarta.servlet.DispatcherType.FORWARD
+                    ).permitAll();
+
+                    auth.requestMatchers(
+                            // Public Auth & Onboarding endpoints
+                            "/api/auth/**",
+                            "/api/v1/auth/**",
+                            "/api/subscriptions/plans",
+                            "/api/v1/subscriptions/plans",
+                            "/api/marketplace/search",
+                            "/api/marketplace/featured",
+                            "/api/marketplace/profiles/**",
+                            "/api/marketplace/leads",
+                            "/api/marketplace/consultations",
+                            "/api/marketplace/reviews/**",
+                            "/api/marketplace/tax-services/**",
+                            "/api/v1/marketplace/search",
+                            "/api/v1/marketplace/featured",
+                            "/api/v1/marketplace/profiles/**",
+                            "/api/v1/marketplace/leads",
+                            "/api/v1/marketplace/consultations",
+                            "/api/v1/marketplace/reviews/**",
+                            "/api/v1/marketplace/tax-services/**",
+                            "/api/v1/marketplace/onboarding/proposal/**",
+                            "/api/v1/marketplace/onboarding/session/**",
+                            "/api/marketplace/customer/register",
+                            "/api/v1/marketplace/customer/register",
+                            "/api/public/content/**",
+                            "/api/v1/public/content/**",
+                            "/api/public/media/**",
+                            "/api/v1/public/media/**",
+                            "/api/notifications/whatsapp/webhook",
+                            "/api/v1/notifications/whatsapp/webhook",
+                            "/api/v1/public/seo/**",
+                            "/robots.txt",
+                            "/sitemap.xml"
+                    ).permitAll();
+
+                    // Swagger & OpenAPI (only permitted when documentation is explicitly enabled)
+                    if (swaggerUiEnabled || apiDocsEnabled) {
+                        auth.requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/api-docs/**",
                                 "/swagger-resources/**",
                                 "/webjars/**"
-                        ).permitAll()
-                        // Actuator Health & Metrics
-                        .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/info"
-                        ).permitAll()
-                        // Lightweight liveness endpoint for Render keep-alive / external uptime monitors.
-                        // No auth, no DB access - see com.taxoryn.core.health.HealthController.
-                        .requestMatchers("/", "/api/health", "/favicon.ico", "/error").permitAll()
-                        // All other API endpoints require authentication
-                        .requestMatchers("/api/**").authenticated()
-                        .anyRequest().authenticated()
-                )
+                        ).permitAll();
+                    }
+
+                    auth.requestMatchers(
+                            // Actuator Health & Metrics
+                            "/actuator/health",
+                            "/actuator/info"
+                    ).permitAll()
+                    // Lightweight liveness endpoint for Render keep-alive / external uptime monitors.
+                    // No auth, no DB access - see com.taxoryn.core.health.HealthController.
+                    .requestMatchers("/", "/api/health", "/favicon.ico", "/error").permitAll()
+                    // All other API endpoints require authentication
+                    .requestMatchers("/api/**").authenticated()
+                    .anyRequest().authenticated();
+                })
                 .headers(headers -> headers
                         .frameOptions(org.springframework.security.config.annotation.web.configurers.HeadersConfigurer.FrameOptionsConfig::deny)
                         .contentTypeOptions(contentType -> {})
@@ -148,12 +176,36 @@ public class SecurityConfig {
                 .filter(org.springframework.util.StringUtils::hasText)
                 .toList();
 
-        configuration.setAllowedOriginPatterns(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
-        configuration.setAllowedHeaders(List.of("*"));
+        List<String> methods = Arrays.stream(allowedMethods.split(","))
+                .map(String::trim)
+                .filter(org.springframework.util.StringUtils::hasText)
+                .toList();
+
+        List<String> headers = "*".equals(allowedHeaders.trim())
+                ? List.of("*")
+                : Arrays.stream(allowedHeaders.split(","))
+                        .map(String::trim)
+                        .filter(org.springframework.util.StringUtils::hasText)
+                        .toList();
+
+        // Security Guard: Wildcard origin '*' cannot be combined with allowCredentials=true
+        if (allowCredentials && origins.contains("*")) {
+            throw new IllegalStateException("CRITICAL SECURITY ERROR: CORS wildcard origin '*' cannot be combined with allow-credentials=true");
+        }
+
+        // Use setAllowedOriginPatterns only if wildcard pattern is used, otherwise set exact allowed origins
+        boolean hasPattern = origins.stream().anyMatch(o -> o.contains("*"));
+        if (hasPattern) {
+            configuration.setAllowedOriginPatterns(origins);
+        } else {
+            configuration.setAllowedOrigins(origins);
+        }
+
+        configuration.setAllowedMethods(methods.isEmpty() ? List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD") : methods);
+        configuration.setAllowedHeaders(headers.isEmpty() ? List.of("*") : headers);
         configuration.setExposedHeaders(List.of("X-Trace-Id", "Authorization", "Set-Cookie"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        configuration.setAllowCredentials(allowCredentials);
+        configuration.setMaxAge(maxAge);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

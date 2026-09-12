@@ -6,7 +6,7 @@ spring:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
     show-sql: false
   flyway:
     enabled: false
@@ -27,7 +27,7 @@ taxoryn:
     reset-password-base-url: ${taxoryn.frontend.reset-password-url}
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-    expiration-ms: 3600000
+    expiration-ms: 900000
     refresh-expiration-ms: 86400000
     issuer: taxoryn-test
   marketplace:
@@ -57,3 +57,9 @@ logging:
   level:
     root: WARN
     com.taxoryn: DEBUG
+
+management:
+  health:
+    mail:
+      enabled: false
+

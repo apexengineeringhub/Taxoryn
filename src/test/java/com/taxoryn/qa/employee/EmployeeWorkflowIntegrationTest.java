@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(classes = com.taxoryn.TaxorynApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class EmployeeWorkflowIntegrationTest {

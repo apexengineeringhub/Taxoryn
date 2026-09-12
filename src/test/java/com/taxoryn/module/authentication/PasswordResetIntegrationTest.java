@@ -14,12 +14,15 @@ import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.entity.UserEntity.UserStatus;
 import com.taxoryn.module.user.repository.UserRepository;
+import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -40,6 +43,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,6 +77,9 @@ class PasswordResetIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @MockBean
+    private EmailNotificationService emailNotificationService;
 
     private UserEntity testUser;
     private OrganizationEntity testOrg;
@@ -415,6 +426,189 @@ class PasswordResetIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(refreshReq)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Autowired
+    private com.taxoryn.module.authentication.service.AuthService authService;
+
+    @Test
+    @DisplayName("K1. Security: Allowed Origin header does not alter reset URL; server configuration is strictly used")
+    void testForgotPassword_AllowedOriginHeader_UsesConfiguredUrl() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .header("Origin", "http://localhost:5173")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).isNotNull();
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("K2. Security: Cross-origin attacker Origin is rejected by CORS with 403 Forbidden")
+    void testForgotPassword_AttackerOriginHeader_BlockedByCors() throws Exception {
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .header("Origin", "https://attacker.example")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("K3. Security: Direct service invocation strictly uses server configured reset URL")
+    void testForgotPassword_DirectServiceCall_UsesConfiguredServerUrl() {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        authService.forgotPassword(forgotRequest, "198.51.100.25");
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).isNotNull();
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("L. Security: Attacker Referer header is completely ignored and reset URL uses server configuration")
+    void testForgotPassword_AttackerRefererHeader_Ignored() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .header("Referer", "https://evil-phishing.com/account/login?redirect=true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).isNotNull();
+        assertThat(generatedUrl).doesNotContain("evil-phishing.com");
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("M. Security: Attacker Host header is completely ignored and reset URL uses server configuration")
+    void testForgotPassword_AttackerHostHeader_Ignored() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .header("Host", "attacker-controlled-host.com")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).isNotNull();
+        assertThat(generatedUrl).doesNotContain("attacker-controlled-host.com");
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("N. Security: Attacker X-Forwarded-Host header is completely ignored and reset URL uses server configuration")
+    void testForgotPassword_AttackerXForwardedHostHeader_Ignored() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .header("X-Forwarded-Host", "malicious-forwarded-host.com")
+                        .header("X-Forwarded-Proto", "https")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).isNotNull();
+        assertThat(generatedUrl).doesNotContain("malicious-forwarded-host.com");
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("O. Security: Missing Origin/Referer headers strictly uses configured server reset URL")
+    void testForgotPassword_MissingOriginAndReferer_UsesCanonicalConfiguredUrl() throws Exception {
+        reset(emailNotificationService);
+
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq(testUser.getEmail()),
+                anyString(),
+                urlCaptor.capture(),
+                anyLong()
+        );
+
+        String generatedUrl = urlCaptor.getValue();
+        assertThat(generatedUrl).startsWith("http://localhost:5173/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("P. Security: Missing reset-password-url configuration fails fast with IllegalStateException")
+    void testForgotPassword_MissingResetPasswordUrlConfig_ThrowsException() {
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest(testUser.getEmail());
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "resetPasswordBaseUrl", "");
+
+        try {
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> {
+                authService.forgotPassword(forgotRequest, "127.0.0.1");
+            });
+        } finally {
+            // Restore configuration for subsequent tests
+            org.springframework.test.util.ReflectionTestUtils.setField(authService, "resetPasswordBaseUrl", "http://localhost:5173/reset-password");
+        }
     }
 
     private String hashToken(String rawToken) throws Exception {

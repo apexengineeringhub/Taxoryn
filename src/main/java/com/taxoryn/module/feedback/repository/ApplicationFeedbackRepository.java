@@ -17,4 +17,14 @@ public interface ApplicationFeedbackRepository extends JpaRepository<Application
     Page<ApplicationFeedbackEntity> findByUserIdAndPracticeIdOrderByCreatedAtDesc(UUID userId, UUID practiceId, Pageable pageable);
 
     long countByStatus(ApplicationFeedbackStatus status);
+
+    long countByStatusIn(java.util.Collection<ApplicationFeedbackStatus> statuses);
+
+    long countByPriorityInAndStatusNotIn(
+            java.util.Collection<com.taxoryn.module.feedback.entity.ApplicationFeedbackPriority> priorities,
+            java.util.Collection<ApplicationFeedbackStatus> excludedStatuses
+    );
+
+    @org.springframework.data.jpa.repository.Query("SELECT f.category, COUNT(f) FROM ApplicationFeedbackEntity f GROUP BY f.category")
+    java.util.List<Object[]> countGroupedByCategory();
 }

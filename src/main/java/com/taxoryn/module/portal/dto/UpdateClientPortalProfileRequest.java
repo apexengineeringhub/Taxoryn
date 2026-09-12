@@ -13,11 +13,17 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Update Client Contact Information")
 public class UpdateClientPortalProfileRequest {
 
+    @Schema(description = "Operating / Display Name")
+    private String displayName;
+
     @Schema(description = "Primary contact email")
     private String email;
 
     @Schema(description = "Primary contact phone")
     private String phone;
+
+    @Schema(description = "Profile avatar or logo URL")
+    private String avatarUrl;
 
     @Schema(description = "Street address line 1")
     private String addressLine1;

@@ -25,13 +25,20 @@ public class MediaPublicController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Stream media asset content by ID")
-    public ResponseEntity<byte[]> streamMedia(@PathVariable UUID id) {
-        byte[] content = mediaService.getMediaContent(id);
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> streamMedia(@PathVariable UUID id) {
         String contentType = mediaService.getMediaContentType(id);
+        long contentLength = mediaService.getMediaContentLength(id);
+        org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody stream = mediaService.streamMediaContent(id);
 
-        return ResponseEntity.ok()
+        var builder = ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType != null ? contentType : "image/png"))
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic())
-                .body(content);
+                .header("X-Content-Type-Options", "nosniff");
+
+        if (contentLength > 0) {
+            builder.contentLength(contentLength);
+        }
+
+        return builder.body(stream);
     }
 }

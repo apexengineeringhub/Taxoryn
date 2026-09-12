@@ -30,7 +30,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,6 +56,7 @@ public class ClientPortalController {
 
     private final ClientPortalService clientPortalService;
     private final com.taxoryn.module.docrequest.service.DocumentRequestService documentRequestService;
+    private final com.taxoryn.module.notice.service.TaxNoticeService taxNoticeService;
 
     // =========================================================================
     // 1. User Management & Onboarding
@@ -106,12 +109,44 @@ public class ClientPortalController {
     }
 
     @PutMapping("/profile")
-    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN')")
-    @Operation(summary = "Update client contact information", description = "Updates address, email, or contact phone for the authenticated client.")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Update client contact information", description = "Updates address, email, contact phone, or avatar for the authenticated client.")
     public ResponseEntity<ApiResponse<ClientPortalProfileDto>> updateProfile(
             @Valid @RequestBody UpdateClientPortalProfileRequest request) {
         ClientPortalProfileDto profile = clientPortalService.updateProfile(request);
         return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", profile));
+    }
+
+    @PostMapping(value = "/profile/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Upload client profile avatar", description = "Uploads and scans a profile photo / avatar for the authenticated client.")
+    public ResponseEntity<ApiResponse<ClientPortalProfileDto>> uploadProfileAvatar(
+            @RequestParam("file") MultipartFile file) {
+        ClientPortalProfileDto profile = clientPortalService.uploadProfileAvatar(file);
+        return ResponseEntity.ok(ApiResponse.success("Avatar uploaded successfully", profile));
+    }
+
+    @DeleteMapping("/profile/avatar")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_UPDATE') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Delete client profile avatar", description = "Removes the avatar photo for the authenticated client.")
+    public ResponseEntity<ApiResponse<Void>> deleteProfileAvatar() {
+        clientPortalService.deleteProfileAvatar();
+        return ResponseEntity.ok(ApiResponse.success("Avatar deleted successfully", null));
+    }
+
+    @GetMapping("/profile/avatar")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Stream client avatar image", description = "Streams the avatar binary image for the authenticated client.")
+    public ResponseEntity<byte[]> streamProfileAvatar() {
+        com.taxoryn.module.user.service.ProfileImageService.AvatarContent avatar = clientPortalService.getProfileAvatar();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(avatar.getContentType()))
+                .contentLength(avatar.getFileSize())
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("Expires", "0")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(avatar.getData());
     }
 
     // =========================================================================
@@ -170,7 +205,7 @@ public class ClientPortalController {
     @GetMapping("/documents/{id}/download")
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Download client document", description = "Downloads a document belonging strictly to the authenticated client.")
-    public ResponseEntity<byte[]> downloadClientDocument(@PathVariable UUID id) {
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> downloadClientDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = clientPortalService.downloadClientDocument(id);
         String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
 
@@ -182,13 +217,13 @@ public class ClientPortalController {
                 .header(HttpHeaders.EXPIRES, "0")
                 .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
-                .body(download.getData());
+                .body(download.getStream());
     }
 
     @GetMapping("/documents/{id}/preview")
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Preview client document", description = "Previews a document belonging strictly to the authenticated client inline.")
-    public ResponseEntity<byte[]> previewClientDocument(@PathVariable UUID id) {
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> previewClientDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = clientPortalService.previewClientDocument(id);
         String safeDispositionName = sanitizeHeaderFilename(download.getFileName());
 
@@ -200,7 +235,7 @@ public class ClientPortalController {
                 .header(HttpHeaders.EXPIRES, "0")
                 .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(download.getFileSize()))
-                .body(download.getData());
+                .body(download.getStream());
     }
 
     @GetMapping("/documents/{id}/download-url")
@@ -307,5 +342,19 @@ public class ClientPortalController {
             @RequestPart("file") MultipartFile file) {
         com.taxoryn.module.docrequest.dto.DocumentRequestDto result = documentRequestService.uploadClientPortalItemDocument(itemId, file);
         return ResponseEntity.ok(ApiResponse.success("Document uploaded successfully", result));
+    }
+
+    // =========================================================================
+    // 9. Client Portal Tax Notices & Scrutiny Cases (Sanitized View)
+    // =========================================================================
+
+    @GetMapping("/notices")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Client tax notices", description = "Retrieves sanitized tax notices, hearing dates, and submission statuses for the authenticated client.")
+    public ResponseEntity<ApiResponse<com.taxoryn.core.response.PagedResponse<com.taxoryn.module.notice.dto.ClientNoticeDto>>> getClientNotices(
+            @ModelAttribute com.taxoryn.core.dto.PageRequestDto pageRequest) {
+        UUID clientId = com.taxoryn.core.security.SecurityUtils.requireCurrentClientId();
+        com.taxoryn.core.response.PagedResponse<com.taxoryn.module.notice.dto.ClientNoticeDto> notices = taxNoticeService.getClientPortalNotices(clientId, pageRequest);
+        return ResponseEntity.ok(ApiResponse.success("Tax notices retrieved successfully", notices));
     }
 }

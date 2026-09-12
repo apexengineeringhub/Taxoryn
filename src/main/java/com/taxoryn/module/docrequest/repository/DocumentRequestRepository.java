@@ -26,13 +26,32 @@ public interface DocumentRequestRepository extends JpaRepository<DocumentRequest
 
     List<DocumentRequestEntity> findAllByOrganizationIdAndGstFilingId(UUID organizationId, UUID gstFilingId);
 
+    List<DocumentRequestEntity> findAllByOrganizationIdAndNoticeId(UUID organizationId, UUID noticeId);
+
+    long countByOrganizationIdAndNoticeIdAndStatusIn(UUID organizationId, UUID noticeId, java.util.Collection<RequestStatus> statuses);
+
     List<DocumentRequestEntity> findAllByClientIdOrderByCreatedAtDesc(UUID clientId);
 
     Page<DocumentRequestEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
 
+    long countByOrganizationId(UUID organizationId);
+
     long countByOrganizationIdAndStatus(UUID organizationId, RequestStatus status);
+ 
+    long countByOrganizationIdAndStatusIn(UUID organizationId, java.util.Collection<RequestStatus> statuses);
+
+    long countByOrganizationIdAndStatusNotIn(UUID organizationId, java.util.Collection<RequestStatus> statuses);
+
+    long countByOrganizationIdAndDueDateAndStatusNot(UUID organizationId, java.time.LocalDate dueDate, RequestStatus status);
+
+    long countByOrganizationIdAndDueDateBeforeAndStatusNot(UUID organizationId, java.time.LocalDate dueDate, RequestStatus status);
+
+    @Query("SELECT DISTINCT d.clientId FROM DocumentRequestEntity d WHERE d.organizationId = :organizationId AND d.status IN :statuses AND d.clientId IS NOT NULL")
+    List<UUID> findDistinctClientIdsByOrganizationIdAndStatusIn(@Param("organizationId") UUID organizationId, @Param("statuses") java.util.Collection<RequestStatus> statuses);
 
     List<DocumentRequestEntity> findAllByOrganizationIdAndStatusIn(UUID organizationId, java.util.Collection<RequestStatus> statuses);
 
     List<DocumentRequestEntity> findAllByOrganizationIdAndClientIdAndStatusIn(UUID organizationId, UUID clientId, java.util.Collection<RequestStatus> statuses);
+
+    List<DocumentRequestEntity> findAllByOrganizationIdAndClientIdIn(UUID organizationId, java.util.Collection<UUID> clientIds);
 }

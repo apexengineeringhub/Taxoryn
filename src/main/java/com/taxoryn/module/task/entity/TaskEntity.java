@@ -69,6 +69,9 @@ public class TaskEntity extends TenantAuditableEntity {
     @Column(name = "tds_return_id")
     private UUID tdsReturnId;
 
+    @Column(name = "notice_id")
+    private UUID noticeId;
+
     @Column(name = "blocked_reason", columnDefinition = "TEXT")
     private String blockedReason;
 
@@ -81,6 +84,7 @@ public class TaskEntity extends TenantAuditableEntity {
         TDS,
         AUDIT,
         COMPLIANCE,
+        NOTICE,
         BILLING,
         OTHER
     }

@@ -487,6 +487,9 @@ export const TdsDataMigrationHubPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   const downloadReturnTemplate = () => {
@@ -504,6 +507,9 @@ export const TdsDataMigrationHubPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   return (

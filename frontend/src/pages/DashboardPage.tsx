@@ -95,25 +95,6 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {isStaff && (
-        <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="text-base">🔒</span>
-            <div>
-              <p className="text-xs font-bold text-amber-900">
-                Departmental Role-Based Data Boundary Active ({user?.firstName} {user?.lastName || ''})
-              </p>
-              <p className="text-[11px] text-amber-700">
-                Under firm security policy, you have restricted visibility to your assigned client accounts and direct deliverables. Financial realization and billing data are isolated.
-              </p>
-            </div>
-          </div>
-          <span className="text-[11px] font-bold bg-amber-200/70 text-amber-800 px-2.5 py-1 rounded-md">
-            {dashboard?.clients?.total ?? 0} Assigned Accounts
-          </span>
-        </div>
-      )}
-
       {/* Top Row: Core Practice KPI Cards (5 Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* 1. Active Clients Card */}

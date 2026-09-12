@@ -37,12 +37,76 @@ public interface DocumentStorageService {
     }
 
     /**
+     * Store document content directly from a local path/temporary file without loading into heap memory.
+     *
+     * @param organizationId Tenant organization ID
+     * @param clientId Client ID (optional)
+     * @param documentId Document ID (optional)
+     * @param originalFilename Original name of the uploaded file
+     * @param contentType MIME type of the content
+     * @param sourceFile Path to source file
+     * @return Unique storage key
+     */
+    default String store(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, java.nio.file.Path sourceFile) {
+        try {
+            byte[] bytes = java.nio.file.Files.readAllBytes(sourceFile);
+            return store(organizationId, clientId, documentId, originalFilename, contentType, bytes);
+        } catch (java.io.IOException e) {
+            throw new com.taxoryn.core.exception.InternalServerException("Failed to read source file for storage: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Store document content from an input stream with known content length.
+     *
+     * @param organizationId Tenant organization ID
+     * @param clientId Client ID (optional)
+     * @param documentId Document ID (optional)
+     * @param originalFilename Original name of the uploaded file
+     * @param contentType MIME type of the content
+     * @param inputStream Input stream
+     * @param contentLength Size of stream in bytes
+     * @return Unique storage key
+     */
+    default String store(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, java.io.InputStream inputStream, long contentLength) {
+        try {
+            byte[] bytes = inputStream.readAllBytes();
+            return store(organizationId, clientId, documentId, originalFilename, contentType, bytes);
+        } catch (java.io.IOException e) {
+            throw new com.taxoryn.core.exception.InternalServerException("Failed to read input stream for storage: " + e.getMessage());
+        }
+    }
+
+    /**
      * Retrieve document binary data by storage key.
      *
      * @param storageKey Unique storage key
      * @return Binary file content
      */
     byte[] retrieve(String storageKey);
+
+    /**
+     * Stream document binary data directly to the given output stream without loading the entire content into heap.
+     *
+     * @param storageKey Unique storage key
+     * @param outputStream Target OutputStream to stream the data to
+     */
+    default void stream(String storageKey, java.io.OutputStream outputStream) {
+        try (java.io.InputStream is = openStream(storageKey)) {
+            is.transferTo(outputStream);
+        } catch (java.io.IOException e) {
+            throw new com.taxoryn.core.exception.InternalServerException("Failed to stream document content: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Open an InputStream for the document content by storage key.
+     * Caller is responsible for closing the returned InputStream.
+     *
+     * @param storageKey Unique storage key
+     * @return InputStream to the document content
+     */
+    java.io.InputStream openStream(String storageKey);
 
     /**
      * Delete document from storage backend.

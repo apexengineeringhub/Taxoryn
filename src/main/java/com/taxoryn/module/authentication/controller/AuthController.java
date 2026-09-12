@@ -44,8 +44,9 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthCookieUtil authCookieUtil;
+    private final com.taxoryn.core.security.proxy.ClientIpResolver clientIpResolver;
 
-    @PostMapping("/register-organization")
+    @PostMapping({"/register-organization", "/register"})
     @Operation(summary = "Register organization & admin", description = "Onboards a new tenant organization in inactive state awaiting email activation.")
     public ResponseEntity<ApiResponse<RegisterOrganizationResponse>> registerOrganization(
             @Valid @RequestBody RegisterOrganizationRequest request,
@@ -180,8 +181,7 @@ public class AuthController {
             @Valid @RequestBody ForgotPasswordRequest request,
             HttpServletRequest servletRequest) {
         String clientIp = extractClientIp(servletRequest);
-        String origin = extractOrigin(servletRequest);
-        authService.forgotPassword(request, clientIp, origin);
+        authService.forgotPassword(request, clientIp);
         return ResponseEntity.ok(ApiResponse.success(
                 "If an account exists for this email, you will receive password reset instructions.",
                 null
@@ -201,39 +201,7 @@ public class AuthController {
         ));
     }
 
-    private String extractOrigin(HttpServletRequest request) {
-        String origin = request.getHeader("Origin");
-        if (org.springframework.util.StringUtils.hasText(origin)) {
-            return origin.trim();
-        }
-        String referer = request.getHeader("Referer");
-        if (org.springframework.util.StringUtils.hasText(referer)) {
-            try {
-                java.net.URI uri = java.net.URI.create(referer.trim());
-                String scheme = uri.getScheme();
-                String host = uri.getHost();
-                int port = uri.getPort();
-                if (scheme != null && host != null) {
-                    if (port > 0 && port != 80 && port != 443) {
-                        return scheme + "://" + host + ":" + port;
-                    }
-                    return scheme + "://" + host;
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
-    }
-
     private String extractClientIp(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (org.springframework.util.StringUtils.hasText(xfHeader)) {
-            return xfHeader.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (org.springframework.util.StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "0.0.0.0";
+        return clientIpResolver.resolveClientIp(request);
     }
 }

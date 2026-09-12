@@ -41,6 +41,8 @@ public class TaskDto {
     private String documentRequestStatus;
     private Integer documentRequestItemsCount;
     private Integer documentRequestReceivedCount;
+    private UUID noticeId;
+    private String noticeNumber;
     private String blockedReason;
     private Boolean isOverdue;
     private Boolean isDueToday;

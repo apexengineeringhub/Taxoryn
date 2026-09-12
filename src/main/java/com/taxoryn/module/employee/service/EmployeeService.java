@@ -17,6 +17,20 @@ public interface EmployeeService {
 
     EmployeeDto updateEmployee(UUID employeeId, UpdateEmployeeRequest request);
 
+    EmployeeDto getMyEmployeeProfile();
+
+    EmployeeDto updateMyEmployeeProfile(com.taxoryn.module.user.dto.UpdateUserProfileRequest request);
+
+    EmployeeDto uploadMyEmployeeAvatar(org.springframework.web.multipart.MultipartFile file);
+
+    com.taxoryn.module.user.service.ProfileImageService.AvatarContent getEmployeeAvatar(UUID employeeId);
+
+    com.taxoryn.module.user.service.ProfileImageService.AvatarContent getMyEmployeeAvatar();
+
+    byte[] getEmployeeAvatarContent(UUID employeeId);
+
+    byte[] getMyEmployeeAvatarContent();
+
     EmployeeDto getEmployeeById(UUID employeeId);
 
     PagedResponse<EmployeeDto> getEmployees(EmployeeFilterRequest filterRequest);

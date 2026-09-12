@@ -169,7 +169,7 @@ class MarketplaceCustomerServiceTest {
                 .lastName("Kumar")
                 .email("suresh.kumar@example.com")
                 .phone("9876543210")
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .customerType(CustomerType.INDIVIDUAL)
                 .city("Chennai")
                 .state("Tamil Nadu")
@@ -187,7 +187,7 @@ class MarketplaceCustomerServiceTest {
                 .permissions(Set.of())
                 .build();
         when(roleRepository.findByCodeAndIsSystemRoleTrue("MARKETPLACE_CUSTOMER")).thenReturn(Optional.of(role));
-        when(passwordEncoder.encode("Password123!")).thenReturn("encodedHash123");
+        when(passwordEncoder.encode("SecureCustPass123!")).thenReturn("encodedHash123");
         when(jwtTokenProvider.generateAccessToken(eq(customerUserId), isNull(), isNull(), eq("suresh.kumar@example.com"), any(), any()))
                 .thenReturn("mock-access-token");
 
@@ -231,7 +231,7 @@ class MarketplaceCustomerServiceTest {
         RegisterCustomerRequest req = RegisterCustomerRequest.builder()
                 .firstName("Duplicate")
                 .email("existing@example.com")
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .build();
 
         when(userRepository.findByEmailIgnoreCase("existing@example.com"))

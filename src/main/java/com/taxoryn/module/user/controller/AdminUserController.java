@@ -169,6 +169,10 @@ public class AdminUserController {
                 .or(() -> organizationRepository.findAll().stream().filter(o -> "Taxoryn Platform Operations".equalsIgnoreCase(o.getName()) || "Taxoryn Platform Global".equalsIgnoreCase(o.getName())).findFirst())
                 .orElseGet(() -> organizationRepository.findAll().stream().findFirst().orElse(null));
 
+        if (StringUtils.hasText(request.getTemporaryPassword())) {
+            com.taxoryn.core.security.PasswordSecurityUtils.validatePassword(request.getTemporaryPassword());
+        }
+
         String rawPassword = StringUtils.hasText(request.getTemporaryPassword())
                 ? request.getTemporaryPassword()
                 : com.taxoryn.core.security.PasswordSecurityUtils.generateSecureTemporaryPassword();

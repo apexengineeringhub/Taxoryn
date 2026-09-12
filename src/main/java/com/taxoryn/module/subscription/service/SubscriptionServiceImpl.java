@@ -259,7 +259,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private SubscriptionEntity getOrCreateSubscriptionEntity(UUID organizationId) {
         return subscriptionRepository.findByOrganizationId(organizationId)
-                .orElseGet(() -> createInitialSubscription(organizationId, SubscriptionPlan.STARTER));
+                .orElseGet(() -> {
+                    try {
+                        return createInitialSubscription(organizationId, SubscriptionPlan.STARTER);
+                    } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        return subscriptionRepository.findByOrganizationId(organizationId)
+                                .orElseThrow(() -> e);
+                    }
+                });
     }
 
     private void validateSubscriptionActive(SubscriptionEntity sub) {

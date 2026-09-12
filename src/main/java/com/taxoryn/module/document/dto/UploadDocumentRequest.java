@@ -42,6 +42,9 @@ public class UploadDocumentRequest {
     @Schema(description = "Associated Task ID (optional)")
     private UUID taskId;
 
+    @Schema(description = "Associated Tax Notice ID (optional)")
+    private UUID noticeId;
+
     @Schema(description = "Document description or notes")
     private String notes;
 }

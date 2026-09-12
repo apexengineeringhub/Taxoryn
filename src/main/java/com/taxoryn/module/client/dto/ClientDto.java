@@ -58,6 +58,9 @@ public class ClientDto {
     @Schema(description = "Primary contact phone", example = "+919811122233")
     private String phone;
 
+    @Schema(description = "Client profile avatar/logo URL")
+    private String avatarUrl;
+
     @Schema(description = "Alternate phone number", example = "+919811144455")
     private String altPhone;
 

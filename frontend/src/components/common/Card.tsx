@@ -9,6 +9,7 @@ interface CardProps {
   className?: string;
   bodyClassName?: string;
   noPadding?: boolean;
+  onClick?: () => void;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -19,9 +20,13 @@ export const Card: React.FC<CardProps> = ({
   className,
   bodyClassName,
   noPadding = false,
+  onClick,
 }) => {
   return (
-    <div className={clsx('bg-white border border-slate-200/80 rounded-xl shadow-card', className)}>
+    <div
+      onClick={onClick}
+      className={clsx('bg-white border border-slate-200/80 rounded-xl shadow-card', className)}
+    >
       {(title || action) && (
         <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
           <div className="min-w-0">

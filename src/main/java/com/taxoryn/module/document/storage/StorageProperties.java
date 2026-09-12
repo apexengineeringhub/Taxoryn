@@ -38,14 +38,10 @@ public class StorageProperties {
         if (StringUtils.hasText(provider)) {
             String p = provider.trim().toUpperCase();
             if (p.equals("S3") || p.equals("R2") || p.equals("CLOUDFLARE") || p.equals("CLOUDFLARE_R2")
-                    || p.equals("AWS") || p.equals("AWS_S3") || p.equals("MINIO")) {
+                    || p.equals("AWS") || p.equals("AWS_S3") || p.equals("MINIO") || p.equals("CLOUD")) {
                 return true;
             }
             if (p.equals("LOCAL")) {
-                if (s3 != null && StringUtils.hasText(s3.getAccessKey()) && StringUtils.hasText(s3.getSecretKey())
-                        && (StringUtils.hasText(s3.getEndpoint()) || StringUtils.hasText(s3.getAccountId()))) {
-                    return true;
-                }
                 return false;
             }
         }

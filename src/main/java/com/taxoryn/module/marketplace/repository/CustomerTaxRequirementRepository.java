@@ -37,6 +37,10 @@ public interface CustomerTaxRequirementRepository extends JpaRepository<Customer
 
     long countByCustomerIdAndStatus(UUID customerId, TaxRequirementStatus status);
 
+    long countByStatus(TaxRequirementStatus status);
+
+    long countByStatusIn(Collection<TaxRequirementStatus> statuses);
+
     boolean existsByCustomerIdAndTaxServiceIdAndFinancialYearAndStatusIn(
             UUID customerId,
             UUID taxServiceId,

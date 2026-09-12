@@ -60,6 +60,14 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "whatsappEnabled", false);
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://app.taxoryn.com");
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://taxoryn.com");
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");
+        ReflectionTestUtils.setField(validator, "flywayValidateOnMigrate", true);
+        ReflectionTestUtils.setField(validator, "flywayEnabled", true);
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "true");
+        ReflectionTestUtils.setField(validator, "clamavHost", "clamav");
+        ReflectionTestUtils.setField(validator, "clamavPort", 3310);
+        ReflectionTestUtils.setField(validator, "springdocApiDocsEnabled", false);
+        ReflectionTestUtils.setField(validator, "springdocSwaggerUiEnabled", false);
     }
 
     // =========================================================================
@@ -237,6 +245,57 @@ class ProductionConfigurationSecurityTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
         assertTrue(ex.getMessage().contains("STORAGE_SECRET_KEY is missing or weak"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when storage provider is unsupported")
+    void testProductionFailsWhenStorageProviderUnsupported() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageProvider", "NFS");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Unsupported production storage provider"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when storage provider is blank")
+    void testProductionFailsWhenStorageProviderBlank() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageProvider", "   ");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Local filesystem storage"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when S3/R2 endpoint uses insecure HTTP in production")
+    void testProductionFailsWhenEndpointUsesInsecureHttp() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageS3Endpoint", "http://insecure-r2.cloudflarestorage.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Insecure HTTP S3/R2 endpoint rejected in production"));
+    }
+
+    @Test
+    @DisplayName("Success: Production passes with R2 alias provider and Cloudflare R2 HTTPS endpoint")
+    void testProductionPassesWithR2ProviderAndHttpsEndpoint() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "storageProvider", "CLOUDFLARE_R2");
+        ReflectionTestUtils.setField(validator, "storageS3Endpoint", "https://abc123def456.r2.cloudflarestorage.com");
+
+        UserEntity inactiveLegacyUser = UserEntity.builder()
+                .email("superadmin@taxoryn.com")
+                .status(UserStatus.INACTIVE)
+                .passwordHash("$2a$12$DISABLED.INACTIVE.ACCOUNT.LOCKOUT.HASH.taxoryn.prod.safe.guard000")
+                .build();
+        when(userRepository.findByEmailIgnoreCase("superadmin@taxoryn.com")).thenReturn(Optional.of(inactiveLegacyUser));
+
+        assertDoesNotThrow(validator::validateEnvironmentSecurity);
     }
 
     // =========================================================================
@@ -419,7 +478,85 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,http://localhost:5173");
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
-        assertTrue(ex.getMessage().contains("Production CORS cannot include localhost HTTP origins"));
+        assertTrue(ex.getMessage().contains("Production CORS cannot include localhost or loopback origins"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains 127.0.0.1 loopback in production")
+    void testProductionFailsWhenCorsContains127001InProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,http://127.0.0.1:8080");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS cannot include localhost or loopback origins"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains wildcard '*' in production")
+    void testProductionFailsWhenCorsContainsWildcardInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "*");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Wildcard origins ('*') are strictly prohibited"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS is missing or empty in production")
+    void testProductionFailsWhenCorsIsEmptyInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "   ");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS allowed origins"));
+        assertTrue(ex.getMessage().contains("missing or empty"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains non-HTTPS origin")
+    void testProductionFailsWhenCorsNonHttps() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "http://app.taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS origin must use HTTPS"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains arbitrary untrusted origin")
+    void testProductionFailsWhenCorsContainsArbitraryUntrustedOrigin() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://evil.example");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Untrusted origin ('https://evil.example') detected in production CORS"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains arbitrary taxoryn.com subdomain")
+    void testProductionFailsWhenCorsContainsArbitrarySubdomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://evil.taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Untrusted origin ('https://evil.taxoryn.com') detected in production CORS"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains tenant subdomain")
+    void testProductionFailsWhenCorsContainsTenantSubdomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://tenant.taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Untrusted origin ('https://tenant.taxoryn.com') detected in production CORS"));
     }
 
     // =========================================================================
@@ -452,4 +589,128 @@ class ProductionConfigurationSecurityTest {
 
         assertDoesNotThrow(validator::validateEnvironmentSecurity);
     }
+
+    // =========================================================================
+    // 7. Database Schema Management & Flyway Hardening Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Hibernate ddl-auto is 'update'")
+    void testProductionFailsWhenHibernateDdlAutoIsUpdate() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "update");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Hibernate 'ddl-auto' cannot be 'update' in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Hibernate ddl-auto is 'create'")
+    void testProductionFailsWhenHibernateDdlAutoIsCreate() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "create");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Hibernate 'ddl-auto' cannot be 'create' in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Flyway validate-on-migrate is disabled")
+    void testProductionFailsWhenFlywayValidateOnMigrateIsFalse() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "flywayValidateOnMigrate", false);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Flyway 'validate-on-migrate' must be enabled (true) in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when Flyway is disabled in production")
+    void testProductionFailsWhenFlywayIsDisabled() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "flywayEnabled", false);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Flyway must be enabled in production"));
+    }
+
+    // =========================================================================
+    // 8. Malware Scanner (ClamAV) Production Fail-Fast Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_ENABLED is false")
+    void testProductionFailsWhenClamAvDisabledInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "false");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Malware scanning (CLAMAV_ENABLED=true) is mandatory in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_ENABLED is missing or empty")
+    void testProductionFailsWhenClamAvEnabledMissingInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavEnabled", "");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("CLAMAV_ENABLED is missing or empty in production"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_HOST is missing or blank")
+    void testProductionFailsWhenClamAvHostMissingInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavHost", "   ");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("CLAMAV_HOST is not configured"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CLAMAV_PORT is invalid")
+    void testProductionFailsWhenClamAvPortInvalidInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "clamavPort", -1);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Invalid CLAMAV_PORT"));
+    }
+
+    // =========================================================================
+    // 9. Swagger & OpenAPI Production Fail-Fast Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when springdoc.api-docs.enabled is true in production")
+    void testProductionFailsWhenApiDocsEnabledInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "springdocApiDocsEnabled", true);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("OpenAPI generation (springdoc.api-docs.enabled) must be disabled"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when springdoc.swagger-ui.enabled is true in production")
+    void testProductionFailsWhenSwaggerUiEnabledInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "springdocSwaggerUiEnabled", true);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Swagger UI (springdoc.swagger-ui.enabled) must be disabled"));
+    }
 }
+
+

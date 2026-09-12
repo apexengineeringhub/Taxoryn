@@ -228,6 +228,9 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional(readOnly = true)
     public List<DocumentRequestDto> getClientRequests(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
         return docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId)
                 .stream().map(this::toDto).toList();
     }

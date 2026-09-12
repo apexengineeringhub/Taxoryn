@@ -13,11 +13,17 @@ spring:
       leak-detection-threshold: 60000
       pool-name: TaxorynHikariPool
   flyway:
-    validate-on-migrate: false
+    validate-on-migrate: true
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 25MB
+      max-request-size: 30MB
+      file-size-threshold: 2MB
   jpa:
     show-sql: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: false
@@ -85,7 +91,7 @@ taxoryn:
     # SECURITY: Injected via JWT_SECRET runtime variable.
     # ProductionSecurityValidator ensures secret is non-null, >= 256 bits, and not a known default.
     secret: ${JWT_SECRET:}
-    expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+    expiration-ms: ${JWT_EXPIRATION_MS:900000} # 15 minutes
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
     issuer: ${JWT_ISSUER:taxoryn-platform}
   cors:
@@ -98,8 +104,26 @@ taxoryn:
     enabled: ${RATE_LIMIT_ENABLED:true}
     auth-limit: ${RATE_LIMIT_AUTH:15}
     api-limit: ${RATE_LIMIT_API:300}
+  security:
+    trusted-proxy:
+      enabled: ${TRUSTED_PROXY_ENABLED:true}
+      trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,127.0.0.0/8,::1/128,0:0:0:0:0:0:0:1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10}
+      trust-all-proxies: false
+      cf-header-enabled: ${TRUSTED_PROXY_CF_ENABLED:true}
+    malware-scanner:
+      clamav:
+        enabled: ${CLAMAV_ENABLED:}
+        host: ${CLAMAV_HOST:}
+        port: ${CLAMAV_PORT:3310}
+        connection-timeout-ms: ${CLAMAV_CONNECTION_TIMEOUT:3000}
+        read-timeout-ms: ${CLAMAV_READ_TIMEOUT:15000}
+        fail-closed: ${CLAMAV_FAIL_CLOSED:true}
+      quarantine:
+        enabled: true
+        storage-prefix: "quarantine/"
+        retention-days: 30
   storage:
-    provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:LOCAL}}
+    provider: ${STORAGE_PROVIDER:${TAXORYN_STORAGE_PROVIDER:S3}}
     presigned-url-duration-minutes: ${STORAGE_PRESIGNED_URL_DURATION_MINUTES:15}
     local:
       base-dir: ${STORAGE_LOCAL_BASE_DIR:/app/data/documents}
@@ -124,6 +148,13 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+
+# Disable Swagger UI & OpenAPI in Production
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 
 # Clean Production Logging
 logging:

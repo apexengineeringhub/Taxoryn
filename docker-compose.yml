@@ -34,6 +34,12 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       TAXORYN_EMAIL_FROM: ${TAXORYN_EMAIL_FROM:-info@taxoryn.com}
       TAXORYN_EMAIL_REPLY_TO: ${TAXORYN_EMAIL_REPLY_TO:-info@taxoryn.com}
+      CLAMAV_ENABLED: ${CLAMAV_ENABLED:-true}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_CONNECTION_TIMEOUT: ${CLAMAV_CONNECTION_TIMEOUT:-3000}
+      CLAMAV_READ_TIMEOUT: ${CLAMAV_READ_TIMEOUT:-15000}
+      CLAMAV_FAIL_CLOSED: ${CLAMAV_FAIL_CLOSED:-true}
     volumes:
       - taxoryn_documents:/app/data/documents
       - taxoryn_logs:/app/logs
@@ -86,12 +92,33 @@ services:
     profiles:
       - tools
 
+  clamav:
+    image: clamav/clamav:latest
+    container_name: taxoryn_clamav
+    restart: unless-stopped
+    ports:
+      - "${CLAMAV_PORT:-3310}:3310"
+    environment:
+      CLAMAV_NO_FRESHCLAM: "false"
+    volumes:
+      - taxoryn_clamav_db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'PING' | nc localhost 3310 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - taxoryn-network
+
 volumes:
   taxoryn_pgdata:
     driver: local
   taxoryn_documents:
     driver: local
   taxoryn_logs:
+    driver: local
+  taxoryn_clamav_db:
     driver: local
 
 networks:

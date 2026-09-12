@@ -25,6 +25,9 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -150,6 +153,34 @@ public class S3DocumentStorageService implements DocumentStorageService {
         if (data == null || data.length == 0) {
             throw new BadRequestException("Cannot store empty document file");
         }
+        return putObjectToS3(organizationId, clientId, documentId, originalFilename, contentType, RequestBody.fromBytes(data));
+    }
+
+    @Override
+    public String store(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, java.nio.file.Path sourceFile) {
+        if (sourceFile == null || !java.nio.file.Files.exists(sourceFile)) {
+            throw new BadRequestException("Source file does not exist");
+        }
+        try {
+            long size = java.nio.file.Files.size(sourceFile);
+            if (size == 0) {
+                throw new BadRequestException("Cannot store empty document file");
+            }
+        } catch (java.io.IOException e) {
+            throw new InternalServerException("Failed to inspect source file: " + e.getMessage());
+        }
+        return putObjectToS3(organizationId, clientId, documentId, originalFilename, contentType, RequestBody.fromFile(sourceFile.toFile()));
+    }
+
+    @Override
+    public String store(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, java.io.InputStream inputStream, long contentLength) {
+        if (inputStream == null || contentLength <= 0) {
+            throw new BadRequestException("Cannot store empty document file");
+        }
+        return putObjectToS3(organizationId, clientId, documentId, originalFilename, contentType, RequestBody.fromInputStream(inputStream, contentLength));
+    }
+
+    private String putObjectToS3(UUID organizationId, UUID clientId, UUID documentId, String originalFilename, String contentType, RequestBody requestBody) {
         ensureClientInitialized();
 
         String safeExt = getSafeExtension(originalFilename);
@@ -176,7 +207,7 @@ public class S3DocumentStorageService implements DocumentStorageService {
                     .contentType(mimeType)
                     .build();
 
-            s3Client.putObject(putRequest, RequestBody.fromBytes(data));
+            s3Client.putObject(putRequest, requestBody);
         } catch (S3Exception e) {
             String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
             log.error("S3/R2 bucket [{}] rejected upload: {}", bucket, errorMsg, e);
@@ -239,6 +270,48 @@ public class S3DocumentStorageService implements DocumentStorageService {
         } catch (Exception e) {
             log.error("Failed to retrieve object from S3: {}", e.getMessage(), e);
             throw new InternalServerException("Failed to retrieve document from object storage: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public java.io.InputStream openStream(String storageKey) {
+        validateStorageKey(storageKey);
+        ensureClientInitialized();
+
+        String bucket = storageProperties.getS3().getBucket();
+        try {
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(storageKey)
+                    .build();
+
+            return s3Client.getObject(getRequest);
+        } catch (NoSuchKeyException e) {
+            log.warn("Object not found in S3 bucket [{}] for key: {}", bucket, storageKey);
+            throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                throw new ResourceNotFoundException("Document file", "storageKey", "[REDACTED]");
+            }
+            String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
+            log.error("Failed to open stream for object from S3: {}", errorMsg, e);
+            throw new InternalServerException("Failed to retrieve document from object storage");
+        } catch (SdkException e) {
+            log.error("S3 client connection error during openStream: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to connect to object storage: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to open stream for object from S3: {}", e.getMessage(), e);
+            throw new InternalServerException("Failed to retrieve document from object storage: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void stream(String storageKey, java.io.OutputStream outputStream) {
+        try (java.io.InputStream is = openStream(storageKey)) {
+            is.transferTo(outputStream);
+        } catch (IOException e) {
+            log.error("Failed to stream S3 object for key {}: {}", storageKey, e.getMessage(), e);
+            throw new InternalServerException("Failed to stream document content from object storage: " + e.getMessage());
         }
     }
 

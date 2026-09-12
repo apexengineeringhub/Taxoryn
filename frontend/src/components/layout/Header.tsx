@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const userAvatar = getEmployeeAvatar(user?.email || user?.id);
+  const userAvatar = user?.avatarUrl || getEmployeeAvatar(user?.email || user?.id);
 
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
 

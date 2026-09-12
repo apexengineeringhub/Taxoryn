@@ -4,6 +4,7 @@ import com.taxoryn.core.dto.PageRequestDto;
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.core.security.PasswordSecurityUtils;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.role.entity.RoleEntity;
@@ -34,16 +35,18 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
     private final RoleService roleService;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final ProfileImageService profileImageService;
 
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<UserDto> getUsers(PageRequestDto pageRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         Page<UserEntity> page = userRepository.findAllByOrganizationId(organizationId, pageRequest.toPageable());
-        return PagedResponse.of(page, userMapper::toDto);
+        return PagedResponse.of(page, this::toEnrichedDto);
     }
 
     @Override
@@ -51,7 +54,7 @@ public class UserServiceImpl implements UserService {
     public UserDto getUserById(UUID userId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UserEntity entity = getUserEntityById(userId, organizationId);
-        return userMapper.toDto(entity);
+        return toEnrichedDto(entity);
     }
 
     @Override
@@ -60,7 +63,125 @@ public class UserServiceImpl implements UserService {
         UUID userId = SecurityUtils.getCurrentUserId();
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UserEntity entity = getUserEntityById(userId, organizationId);
-        return userMapper.toDto(entity);
+        return toEnrichedDto(entity);
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateMyProfile(com.taxoryn.module.user.dto.UpdateUserProfileRequest request) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        if (org.springframework.util.StringUtils.hasText(request.getFirstName())) {
+            user.setFirstName(request.getFirstName().trim());
+        }
+        if (request.getLastName() != null) {
+            user.setLastName(request.getLastName().trim());
+        }
+        if (request.getPhone() != null) {
+            user.setPhone(request.getPhone().trim());
+        }
+        // Avatar mutations MUST ONLY occur through dedicated /avatar endpoints.
+        // Ignore request.getAvatarUrl() to prevent untrusted storage key injection.
+
+        UserEntity saved = userRepository.save(user);
+
+        // Sync with linked Employee record if present
+        if (organizationId != null) {
+            employeeRepository.findByOrganizationIdAndUserId(organizationId, userId).ifPresent(emp -> {
+                emp.setFirstName(saved.getFirstName());
+                emp.setLastName(saved.getLastName());
+                emp.setPhone(saved.getPhone());
+                employeeRepository.save(emp);
+            });
+        }
+
+        log.info("Updated self-service user profile for userId={} in tenant={}", userId, organizationId);
+        return toEnrichedDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserDto uploadMyAvatar(org.springframework.web.multipart.MultipartFile file) {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        String storedKey = profileImageService.storeAvatar(organizationId, userId, "user", file, user.getAvatarUrl());
+        user.setAvatarUrl(storedKey);
+        UserEntity saved = userRepository.save(user);
+
+        if (organizationId != null) {
+            employeeRepository.findByOrganizationIdAndUserId(organizationId, userId).ifPresent(emp -> {
+                emp.setAvatarUrl(storedKey);
+                employeeRepository.save(emp);
+            });
+        }
+
+        log.info("Uploaded avatar for userId={} in tenant={}", userId, organizationId);
+        return toEnrichedDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public void deleteMyAvatar() {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        if (org.springframework.util.StringUtils.hasText(user.getAvatarUrl())) {
+            profileImageService.deleteAvatar(user.getAvatarUrl());
+            user.setAvatarUrl(null);
+            userRepository.save(user);
+        }
+
+        if (organizationId != null) {
+            employeeRepository.findByOrganizationIdAndUserId(organizationId, userId).ifPresent(emp -> {
+                emp.setAvatarUrl(null);
+                employeeRepository.save(emp);
+            });
+        }
+        log.info("Deleted avatar for userId={} in tenant={}", userId, organizationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileImageService.AvatarContent getAvatar(UUID userId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+        if (!org.springframework.util.StringUtils.hasText(user.getAvatarUrl())) {
+            throw new ResourceNotFoundException("User avatar", "userId", userId);
+        }
+        return profileImageService.retrieveAvatar(user.getAvatarUrl());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileImageService.AvatarContent getMyAvatar() {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        return getAvatar(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getAvatarContent(UUID userId) {
+        return getAvatar(userId).getData();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getMyAvatarContent() {
+        return getMyAvatar().getData();
+    }
+
+    private UserDto toEnrichedDto(UserEntity entity) {
+        if (entity == null) return null;
+        UserDto dto = userMapper.toDto(entity);
+        if (dto != null && entity.getAvatarUrl() != null) {
+            dto.setAvatarUrl(profileImageService.resolveAvatarUrl(entity.getAvatarUrl()));
+        }
+        return dto;
     }
 
     @Override
@@ -71,6 +192,8 @@ public class UserServiceImpl implements UserService {
         if (userRepository.existsByOrganizationIdAndEmailIgnoreCase(organizationId, request.getEmail())) {
             throw new DuplicateResourceException("User", "email", request.getEmail());
         }
+
+        PasswordSecurityUtils.validatePassword(request.getPassword());
 
         // 1. RBAC Privilege Escalation & Delegation Boundary Check
         SecurityUtils.validateRoleDelegation(request.getRoleCodes(), null);

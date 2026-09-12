@@ -17,6 +17,20 @@ public interface UserService {
 
     UserDto getCurrentUserProfile();
 
+    UserDto updateMyProfile(com.taxoryn.module.user.dto.UpdateUserProfileRequest request);
+
+    UserDto uploadMyAvatar(org.springframework.web.multipart.MultipartFile file);
+
+    void deleteMyAvatar();
+
+    ProfileImageService.AvatarContent getAvatar(UUID userId);
+
+    ProfileImageService.AvatarContent getMyAvatar();
+
+    byte[] getAvatarContent(UUID userId);
+
+    byte[] getMyAvatarContent();
+
     UserDto createUser(CreateUserRequest request);
 
     UserDto updateUser(UUID userId, UpdateUserRequest request);

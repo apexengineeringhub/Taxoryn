@@ -25,6 +25,7 @@ public class ClientPortalProfileDto {
     private String tan;
     private String email;
     private String phone;
+    private String avatarUrl;
     private String addressLine1;
     private String addressLine2;
     private String city;

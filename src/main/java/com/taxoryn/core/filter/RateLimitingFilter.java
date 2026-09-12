@@ -26,6 +26,7 @@ import java.time.Instant;
 public class RateLimitingFilter extends OncePerRequestFilter {
 
     private final RateLimitingService rateLimitingService;
+    private final com.taxoryn.core.security.proxy.ClientIpResolver clientIpResolver;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -40,7 +41,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return;
         }
 
-        String clientIp = extractClientIp(request);
+        String clientIp = clientIpResolver.resolveClientIp(request);
         boolean isAuth = isAuthEndpoint(uri);
 
         RateLimitResult result = rateLimitingService.checkRateLimit(clientIp, isAuth);
@@ -61,8 +62,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private boolean isAuthEndpoint(String uri) {
-        return uri.startsWith("/api/auth/") ||
-               uri.startsWith("/api/v1/auth/") ||
+        return uri.startsWith("/api/auth") ||
+               uri.startsWith("/api/v1/auth") ||
+               uri.startsWith("/api/portal/auth") ||
+               uri.startsWith("/api/v1/portal/auth") ||
+               uri.startsWith("/api/portal/register") ||
+               uri.startsWith("/api/v1/portal/register") ||
+               uri.startsWith("/api/portal/activate") ||
+               uri.startsWith("/api/v1/portal/activate") ||
                uri.startsWith("/api/marketplace/leads") ||
                uri.startsWith("/api/v1/marketplace/leads") ||
                uri.startsWith("/api/marketplace/consultations") ||
@@ -71,7 +78,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                uri.startsWith("/api/v1/marketplace/reviews") ||
                uri.startsWith("/api/marketplace/customer/register") ||
                uri.startsWith("/api/v1/marketplace/customer/register") ||
-               uri.startsWith("/api/v1/marketplace/onboarding/proposal");
+               uri.startsWith("/api/marketplace/onboarding") ||
+               uri.startsWith("/api/v1/marketplace/onboarding");
     }
 
     private boolean isExcludedPath(String uri) {
@@ -81,18 +89,6 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                uri.startsWith("/actuator") ||
                uri.startsWith("/webjars") ||
                uri.equals("/api/health");
-    }
-
-    private String extractClientIp(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(xfHeader)) {
-            return xfHeader.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "0.0.0.0";
     }
 
     private void sendRateLimitResponse(HttpServletRequest request, HttpServletResponse response, long retryAfter)

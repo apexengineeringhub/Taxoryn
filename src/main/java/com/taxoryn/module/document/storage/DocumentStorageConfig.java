@@ -40,12 +40,19 @@ public class DocumentStorageConfig {
             return s3Service;
         } else {
             if (isProd) {
-                log.warn(">>> PRODUCTION WARNING: Storage provider is set to LOCAL filesystem storage at '{}'. In multi-instance / container deployments, configure STORAGE_PROVIDER=S3 with Cloudflare R2 / AWS S3 for persistent storage.",
-                        storageProperties.getLocal().getBaseDir());
-            } else {
-                log.info(">>> ACTIVE DOCUMENT STORAGE: LOCAL Filesystem Provider (base-dir='{}')",
-                        storageProperties.getLocal().getBaseDir());
+                // Fail closed here rather than only relying on ProductionSecurityValidator (which
+                // runs later, via SmartInitializingSingleton, after this bean would already have
+                // been constructed). This bean is the actual point where LOCAL vs S3/R2 is chosen,
+                // so it must never let production silently start on ephemeral local disk storage.
+                String error = "CRITICAL SECURITY VIOLATION: Local filesystem storage ('taxoryn.storage.provider=LOCAL') "
+                        + "is prohibited in production. Configure persistent S3/Cloudflare R2 storage "
+                        + "(STORAGE_PROVIDER=S3, STORAGE_BUCKET, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, "
+                        + "and STORAGE_ENDPOINT or R2_ACCOUNT_ID).";
+                log.error(error);
+                throw new IllegalStateException(error);
             }
+            log.info(">>> ACTIVE DOCUMENT STORAGE: LOCAL Filesystem Provider (base-dir='{}')",
+                    storageProperties.getLocal().getBaseDir());
             LocalDocumentStorageService localService = new LocalDocumentStorageService(storageProperties);
             localService.init();
             return localService;

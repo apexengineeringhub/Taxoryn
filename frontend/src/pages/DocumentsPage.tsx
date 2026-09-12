@@ -50,9 +50,13 @@ export const DocumentsPage: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isBuilderModalOpen, setIsBuilderModalOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
   const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>(
     () => searchParams.get('clientId') || ''
   );
+
+  const selectedClientObj = clients.find((c) => c.id === selectedClientIdForCreate);
 
   useEffect(() => {
     if (activeMainTab === 'vault') {
@@ -82,16 +86,22 @@ export const DocumentsPage: React.FC = () => {
 
   const loadClientsList = async () => {
     try {
+      setIsLoadingClients(true);
+      setClientError(null);
       const res = await clientApi.getAll({ size: 100 });
-      setClients(res.content || []);
+      const clientList = res.content || [];
+      setClients(clientList);
       const paramClientId = searchParams.get('clientId');
-      if (paramClientId && res.content?.some((c: Client) => c.id === paramClientId)) {
+      if (paramClientId && clientList.some((c: Client) => c.id === paramClientId)) {
         setSelectedClientIdForCreate(paramClientId);
-      } else if (res.content && res.content.length > 0 && !selectedClientIdForCreate) {
-        setSelectedClientIdForCreate(res.content[0].id);
+      } else if (clientList.length > 0 && !selectedClientIdForCreate) {
+        setSelectedClientIdForCreate(clientList[0].id);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load clients', err);
+      setClientError(err?.response?.data?.message || 'Failed to load organization clients');
+    } finally {
+      setIsLoadingClients(false);
     }
   };
 
@@ -320,8 +330,10 @@ export const DocumentsPage: React.FC = () => {
       a.download = fileName || 'document.pdf';
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 1000);
     } catch (err: any) {
       alert(`Failed to download document: ${err?.response?.data?.message || err?.message || 'Download failed'}`);
     }
@@ -372,8 +384,6 @@ export const DocumentsPage: React.FC = () => {
       ),
     },
   ];
-
-  const selectedClientObj = clients.find((c) => c.id === selectedClientIdForCreate);
 
   return (
     <div className="space-y-6">
@@ -552,20 +562,42 @@ export const DocumentsPage: React.FC = () => {
           subtitle="Choose the client for whom you wish to create a document checklist."
         >
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Select Client *</label>
-              <select
-                value={selectedClientIdForCreate}
-                onChange={(e) => setSelectedClientIdForCreate(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white font-medium"
-              >
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.displayName} ({c.pan}) — {c.clientType}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isLoadingClients ? (
+              <div className="flex items-center justify-center py-6 text-xs text-slate-500">
+                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mr-2" />
+                Loading organization clients...
+              </div>
+            ) : clientError ? (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center justify-between">
+                <span>{clientError}</span>
+                <button
+                  type="button"
+                  onClick={loadClientsList}
+                  className="ml-2 underline font-semibold hover:text-rose-800 shrink-0"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : clients.length === 0 ? (
+              <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
+                No active clients found in your organization. Please onboard a client first.
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Client *</label>
+                <select
+                  value={selectedClientIdForCreate}
+                  onChange={(e) => setSelectedClientIdForCreate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white font-medium"
+                >
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.displayName} ({c.pan || 'No PAN'}) — {c.clientType}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="pt-4 flex justify-end gap-2">
               <Button variant="outline" type="button" onClick={() => setIsCreateModalOpen(false)}>
@@ -573,6 +605,7 @@ export const DocumentsPage: React.FC = () => {
               </Button>
               <Button
                 type="button"
+                disabled={!selectedClientIdForCreate || clients.length === 0}
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   setIsBuilderModalOpen(true);

@@ -100,7 +100,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
 
-    @Value("${taxoryn.jwt.expiration-ms:86400000}")
+    @Value("${taxoryn.jwt.expiration-ms:900000}")
     private long jwtExpirationMs;
 
     @Value("${taxoryn.jwt.refresh-expiration-ms:604800000}")
@@ -158,6 +158,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public RegisterOrganizationResponse registerOrganization(RegisterOrganizationRequest request, String clientIp) {
+        PasswordSecurityUtils.validatePassword(request.getAdminPassword());
+
         String orgEmail = request.getOrganizationEmail().toLowerCase().trim();
         String adminEmail = request.getAdminEmail().toLowerCase().trim();
 
@@ -291,6 +293,7 @@ public class AuthServiceImpl implements AuthService {
             // If a password was provided during activation (e.g. Employee password setup), update password hash
             String effectivePassword = request.getEffectivePassword();
             if (StringUtils.hasText(effectivePassword)) {
+                PasswordSecurityUtils.validatePassword(effectivePassword);
                 user.setPasswordHash(passwordEncoder.encode(effectivePassword));
             }
 
@@ -361,6 +364,7 @@ public class AuthServiceImpl implements AuthService {
 
             String effectivePassword = request.getEffectivePassword();
             if (StringUtils.hasText(effectivePassword)) {
+                PasswordSecurityUtils.validatePassword(effectivePassword);
                 user.setPasswordHash(passwordEncoder.encode(effectivePassword));
             }
 
@@ -713,6 +717,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserDto registerUserByAdmin(RegisterUserByAdminRequest request) {
+        PasswordSecurityUtils.validatePassword(request.getPassword());
+
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
         // Check MAX_USERS Subscription Limit
@@ -960,12 +966,6 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request, String clientIp) {
-        forgotPassword(request, clientIp, null);
-    }
-
-    @Override
-    @Transactional
-    public void forgotPassword(ForgotPasswordRequest request, String clientIp, String requestOrigin) {
         String email = request.getEmail().toLowerCase().trim();
         Optional<UserEntity> userOpt = userRepository.findByEmailIgnoreCase(email);
 
@@ -988,15 +988,8 @@ public class AuthServiceImpl implements AuthService {
                         .build();
                 passwordResetTokenRepository.save(tokenEntity);
 
-                // 4. Construct complete reset URL with raw token and dynamic origin support
-                String baseUrl = resetPasswordBaseUrl;
-                if (org.springframework.util.StringUtils.hasText(requestOrigin)
-                        && (requestOrigin.startsWith("http://") || requestOrigin.startsWith("https://"))) {
-                    baseUrl = requestOrigin.replaceAll("/+$", "") + "/reset-password";
-                }
-                String resetUrl = baseUrl.contains("?")
-                        ? baseUrl + "&token=" + rawToken
-                        : baseUrl + "?token=" + rawToken;
+                // 4. Construct complete reset URL strictly using configured server base URL
+                String resetUrl = buildTrustedResetPasswordUrl(rawToken);
 
                 // 5. Dispatch branded password reset email
                 emailNotificationService.sendPasswordResetEmail(
@@ -1027,14 +1020,22 @@ public class AuthServiceImpl implements AuthService {
         // Generic return for anti-enumeration security
     }
 
+    private String buildTrustedResetPasswordUrl(String rawToken) {
+        if (!org.springframework.util.StringUtils.hasText(resetPasswordBaseUrl)) {
+            throw new IllegalStateException("Trusted reset password URL configuration is missing");
+        }
+        String baseUrl = resetPasswordBaseUrl.trim();
+        return baseUrl.contains("?")
+                ? baseUrl + "&token=" + rawToken
+                : baseUrl + "?token=" + rawToken;
+    }
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
     @Transactional
     public void resetPassword(ResetPasswordRequest request, String clientIp) {
-        if (PasswordSecurityUtils.isKnownDefaultOrWeakPassword(request.getNewPassword())) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Password is too weak or commonly used. Please choose a stronger password.");
-        }
+        PasswordSecurityUtils.validatePassword(request.getNewPassword());
 
         String rawToken = request.getToken().trim();
         String tokenHash = hashToken(rawToken);
@@ -1143,7 +1144,10 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.BAD_REQUEST, "New password must be different from your current password");
         }
 
-        // 3. Verify confirmation match
+        // 3. Verify complexity of new password
+        PasswordSecurityUtils.validatePassword(request.getNewPassword());
+
+        // 4. Verify confirmation match
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new AppException(ErrorCode.BAD_REQUEST, "New password and confirm password do not match");
         }

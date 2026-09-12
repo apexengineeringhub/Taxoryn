@@ -40,5 +40,6 @@ public class CreateTaskRequest {
     private LocalDate dueDate;
     private UUID complianceId;
     private UUID documentRequestId;
+    private UUID noticeId;
     private String blockedReason;
 }

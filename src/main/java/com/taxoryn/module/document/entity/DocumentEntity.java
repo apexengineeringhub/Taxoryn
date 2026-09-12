@@ -38,6 +38,9 @@ public class DocumentEntity extends TenantAuditableEntity {
     @Column(name = "task_id")
     private UUID taskId;
 
+    @Column(name = "notice_id")
+    private UUID noticeId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "document_type", nullable = false, length = 50)
     @Builder.Default
@@ -80,7 +83,7 @@ public class DocumentEntity extends TenantAuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "scan_status", nullable = false, length = 30)
     @Builder.Default
-    private DocumentScanStatus scanStatus = DocumentScanStatus.CLEAN;
+    private DocumentScanStatus scanStatus = DocumentScanStatus.PENDING_SCAN;
 
     @Column(name = "scanned_at")
     private java.time.Instant scannedAt;
@@ -112,6 +115,11 @@ public class DocumentEntity extends TenantAuditableEntity {
         BOARD_RESOLUTION,
         MOA_AOA,
         PARTNERSHIP_DEED,
+        TAX_NOTICE_ORIGINAL,
+        NOTICE_RESPONSE_DRAFT,
+        NOTICE_SUBMISSION_PROOF,
+        NOTICE_ACKNOWLEDGEMENT,
+        NOTICE_ORDER_COMMUNICATION,
         OTHER
     }
 

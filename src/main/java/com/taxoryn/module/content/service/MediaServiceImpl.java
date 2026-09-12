@@ -76,44 +76,56 @@ public class MediaServiceImpl implements MediaService {
                 ? file.getOriginalFilename().trim()
                 : "media_" + UUID.randomUUID() + ".png";
 
-        byte[] bytes;
+        java.nio.file.Path tempFile = null;
         try {
-            bytes = file.getBytes();
+            tempFile = java.nio.file.Files.createTempFile("taxoryn_media_", ".tmp");
+            try (java.io.InputStream is = file.getInputStream()) {
+                java.nio.file.Files.copy(is, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            // Anti-malware and disguised executable scan
+            ScanResult scanResult = malwareScanner.scan(tempFile, originalFilename);
+            if (scanResult == null) {
+                log.error("SECURITY ALERT: Malware scanner returned null result for media asset '{}'. Enforcing fail-closed policy.", originalFilename);
+                throw new BusinessValidationException("We could not complete the security scan for this media file. Please try again.");
+            }
+            if (scanResult.isInfected()) {
+                log.warn("SECURITY ALERT: Malware detected in media asset '{}': {}", originalFilename, scanResult.getDetails());
+                throw new BusinessValidationException("Malware detected in uploaded media file: " + scanResult.getThreatName());
+            }
+            if (scanResult.isFailed() || !scanResult.isClean()) {
+                log.error("SECURITY ALERT: Malware scanning failed for media asset '{}': {}", originalFilename, scanResult.getDetails());
+                throw new BusinessValidationException("We could not complete the security scan for this media file. Please try again.");
+            }
+
+            String storageKey = storageService.store(null, null, null, originalFilename, contentType, tempFile);
+
+            MediaAssetEntity asset = MediaAssetEntity.builder()
+                    .filename(originalFilename)
+                    .contentType(contentType)
+                    .fileSize(file.getSize())
+                    .storageKey(storageKey)
+                    .publicUrl("")
+                    .altText(StringUtils.hasText(altText) ? altText.trim() : originalFilename)
+                    .uploadedById(userId)
+                    .uploadedByName(StringUtils.hasText(userName) ? userName : "Taxoryn Admin")
+                    .build();
+
+            MediaAssetEntity saved = mediaAssetRepository.save(asset);
+            saved.setPublicUrl("/api/v1/public/media/" + saved.getId());
+            saved = mediaAssetRepository.save(saved);
+            log.info("Uploaded platform media asset: id={}, filename='{}', size={} bytes", saved.getId(), saved.getFilename(), saved.getFileSize());
+            return toDto(saved);
         } catch (IOException e) {
-            log.error("Failed to read media upload bytes for {}", originalFilename, e);
+            log.error("Failed to stream media upload for {}", originalFilename, e);
             throw new BusinessValidationException("Failed to read uploaded media content.");
+        } finally {
+            if (tempFile != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(tempFile);
+                } catch (Exception ignored) {}
+            }
         }
-
-        // Anti-malware and disguised executable scan
-        ScanResult scanResult = malwareScanner.scan(bytes, originalFilename);
-        if (scanResult.isInfected()) {
-            log.warn("SECURITY ALERT: Malware detected in media asset '{}': {}", originalFilename, scanResult.getDetails());
-            throw new BusinessValidationException("Malware detected in uploaded media file: " + scanResult.getThreatName());
-        }
-        if (scanResult.isFailed()) {
-            log.error("SECURITY ALERT: Malware scanning failed for media asset '{}': {}", originalFilename, scanResult.getDetails());
-            throw new BusinessValidationException("Malware scanning failed: " + scanResult.getDetails());
-        }
-
-        String storageKey = storageService.store(null, originalFilename, contentType, bytes);
-
-        MediaAssetEntity asset = MediaAssetEntity.builder()
-                .filename(originalFilename)
-                .contentType(contentType)
-                .fileSize(file.getSize())
-                .storageKey(storageKey)
-                .publicUrl("")
-                .altText(StringUtils.hasText(altText) ? altText.trim() : originalFilename)
-                .uploadedById(userId)
-                .uploadedByName(StringUtils.hasText(userName) ? userName : "Taxoryn Admin")
-                .build();
-
-        MediaAssetEntity saved = mediaAssetRepository.save(asset);
-        saved.setPublicUrl("/api/v1/public/media/" + saved.getId());
-        saved = mediaAssetRepository.save(saved);
-        log.info("Uploaded platform media asset: id={}, filename='{}', size={} bytes", saved.getId(), saved.getFilename(), saved.getFileSize());
-
-        return toDto(saved);
     }
 
     @Override
@@ -150,9 +162,24 @@ public class MediaServiceImpl implements MediaService {
 
     @Override
     @Transactional(readOnly = true)
+    public org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody streamMediaContent(UUID id) {
+        MediaAssetEntity asset = findOrThrow(id);
+        String storageKey = asset.getStorageKey();
+        return outputStream -> storageService.stream(storageKey, outputStream);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public String getMediaContentType(UUID id) {
         MediaAssetEntity asset = findOrThrow(id);
         return asset.getContentType();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getMediaContentLength(UUID id) {
+        MediaAssetEntity asset = findOrThrow(id);
+        return asset.getFileSize() != null ? asset.getFileSize() : 0L;
     }
 
     private MediaAssetEntity findOrThrow(UUID id) {

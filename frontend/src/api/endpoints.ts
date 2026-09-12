@@ -124,6 +124,8 @@ import {
   FeedbackTeam,
   Organization,
   User,
+  UpdateUserProfileRequest,
+  UpdateClientPortalProfileRequest,
   PlatformDashboardSummary,
   SupportDashboardSummary,
   LearnContentSummary,
@@ -146,6 +148,21 @@ import {
   ClientReport,
   WorkManagementReport,
   FinancialReport,
+  TaxNotice,
+  NoticeResponse,
+  NoticeHearing,
+  NoticeActivity,
+  NoticeDashboardStats,
+  CreateTaxNoticeRequest,
+  UpdateTaxNoticeRequest,
+  TaxNoticeFilterRequest,
+  CreateNoticeResponseRequest,
+  ReviewNoticeResponseRequest,
+  ScheduleHearingRequest,
+  RecordHearingOutcomeRequest,
+  SubmitNoticeRequest,
+  CloseNoticeRequest,
+  ClientNotice,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -195,6 +212,35 @@ export const authApi = {
   resetPassword: async (payload: { token: string; newPassword: string }) => {
     const res = await apiClient.post<ApiResponse<void>>('/v1/auth/reset-password', payload);
     return res.data;
+  },
+};
+
+export const userApi = {
+  getMe: async () => {
+    const res = await apiClient.get<ApiResponse<User>>('/v1/users/me');
+    return res.data.data;
+  },
+  updateMyProfile: async (payload: UpdateUserProfileRequest) => {
+    const res = await apiClient.put<ApiResponse<User>>('/v1/users/me', payload);
+    return res.data.data;
+  },
+  uploadMyAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<User>>('/v1/users/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  deleteMyAvatar: async () => {
+    const res = await apiClient.delete<ApiResponse<User>>('/v1/users/me/avatar');
+    return res.data.data;
+  },
+  getMyAvatarUrl: () => {
+    return '/api/v1/users/me/avatar';
+  },
+  getUserAvatarUrl: (userId: string) => {
+    return `/api/v1/users/${userId}/avatar`;
   },
 };
 
@@ -1116,6 +1162,25 @@ export const employeeApi = {
     const res = await apiClient.post<ApiResponse<any>>('/v1/employees/bulk', employees);
     return res.data.data;
   },
+  getMyProfile: async () => {
+    const res = await apiClient.get<ApiResponse<Employee>>('/v1/employees/me');
+    return res.data.data;
+  },
+  updateMyProfile: async (payload: { firstName?: string; lastName?: string; phone?: string }) => {
+    const res = await apiClient.put<ApiResponse<Employee>>('/v1/employees/me', payload);
+    return res.data.data;
+  },
+  uploadMyAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  getEmployeeAvatarUrl: (employeeId: string) => {
+    return `/api/v1/employees/${employeeId}/avatar`;
+  },
 };
 
 // --- 12. Audit Logs ---
@@ -1152,9 +1217,24 @@ export const portalApi = {
     const res = await apiClient.get<ApiResponse<ClientPortalProfile>>('/v1/portal/profile');
     return res.data.data;
   },
-  updateProfile: async (payload: Partial<ClientPortalProfile>) => {
+  updateProfile: async (payload: Partial<ClientPortalProfile> | UpdateClientPortalProfileRequest) => {
     const res = await apiClient.put<ApiResponse<ClientPortalProfile>>('/v1/portal/profile', payload);
     return res.data.data;
+  },
+  uploadAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<ClientPortalProfile>>('/v1/portal/profile/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  deleteAvatar: async () => {
+    const res = await apiClient.delete<ApiResponse<ClientPortalProfile>>('/v1/portal/profile/avatar');
+    return res.data.data;
+  },
+  getAvatarUrl: () => {
+    return '/api/v1/portal/profile/avatar';
   },
   getGstStatus: async () => {
     const res = await apiClient.get<ApiResponse<ClientGstStatus[]>>('/v1/portal/gst-status');
@@ -2254,6 +2334,88 @@ export const reportsApi = {
     return res.data.data;
   },
 };
+
+// --- 30. Tax Notices API ---
+export const noticesApi = {
+  getNotices: async (params?: TaxNoticeFilterRequest & { page?: number; size?: number; sortBy?: string; sortDirection?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<TaxNotice>>>('/v1/notices', { params });
+    return res.data.data;
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<NoticeDashboardStats>>('/v1/notices/dashboard/stats');
+    return res.data.data;
+  },
+  getNoticeById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<TaxNotice>>(`/v1/notices/${id}`);
+    return res.data.data;
+  },
+  createNotice: async (payload: CreateTaxNoticeRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>('/v1/notices', payload);
+    return res.data.data;
+  },
+  updateNotice: async (id: string, payload: UpdateTaxNoticeRequest) => {
+    const res = await apiClient.put<ApiResponse<TaxNotice>>(`/v1/notices/${id}`, payload);
+    return res.data.data;
+  },
+  deleteNotice: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/notices/${id}`);
+    return res.data;
+  },
+  getNoticesByClient: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<TaxNotice[]>>(`/v1/notices/client/${clientId}`);
+    return res.data.data;
+  },
+  // Responses & Maker-Checker
+  getResponses: async (noticeId: string) => {
+    const res = await apiClient.get<ApiResponse<NoticeResponse[]>>(`/v1/notices/${noticeId}/responses`);
+    return res.data.data;
+  },
+  createResponse: async (noticeId: string, payload: CreateNoticeResponseRequest) => {
+    const res = await apiClient.post<ApiResponse<NoticeResponse>>(`/v1/notices/${noticeId}/responses`, payload);
+    return res.data.data;
+  },
+  reviewResponse: async (noticeId: string, responseId: string, payload: ReviewNoticeResponseRequest) => {
+    const res = await apiClient.post<ApiResponse<NoticeResponse>>(`/v1/notices/${noticeId}/responses/${responseId}/review`, payload);
+    return res.data.data;
+  },
+  // Hearings
+  getHearings: async (noticeId: string) => {
+    const res = await apiClient.get<ApiResponse<NoticeHearing[]>>(`/v1/notices/${noticeId}/hearings`);
+    return res.data.data;
+  },
+  scheduleHearing: async (noticeId: string, payload: ScheduleHearingRequest) => {
+    const res = await apiClient.post<ApiResponse<NoticeHearing>>(`/v1/notices/${noticeId}/hearings`, payload);
+    return res.data.data;
+  },
+  recordHearingOutcome: async (noticeId: string, hearingId: string, payload: RecordHearingOutcomeRequest) => {
+    const res = await apiClient.put<ApiResponse<NoticeHearing>>(`/v1/notices/${noticeId}/hearings/${hearingId}/outcome`, payload);
+    return res.data.data;
+  },
+  // Filing & Closure
+  submitNotice: async (noticeId: string, payload: SubmitNoticeRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${noticeId}/submit`, payload);
+    return res.data.data;
+  },
+  closeNotice: async (noticeId: string, payload: CloseNoticeRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${noticeId}/close`, payload);
+    return res.data.data;
+  },
+  // Activities & Notes
+  getActivities: async (noticeId: string) => {
+    const res = await apiClient.get<ApiResponse<NoticeActivity[]>>(`/v1/notices/${noticeId}/activities`);
+    return res.data.data;
+  },
+  addInternalNote: async (noticeId: string, note: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/notices/${noticeId}/notes`, { note });
+    return res.data;
+  },
+  // Client Portal Notices
+  getClientPortalNotices: async (params?: { page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientNotice>>>('/v1/portal/notices', { params });
+    return res.data.data;
+  },
+};
+
 
 
 

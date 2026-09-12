@@ -41,6 +41,7 @@ public class CreatePlatformUserRequest {
     @Schema(description = "Initial account status", example = "ACTIVE")
     private UserStatus status = UserStatus.ACTIVE;
 
-    @Schema(description = "Temporary password (optional; if omitted, standard default password will be assigned)", example = "Password123!")
+    @com.taxoryn.core.security.validation.StrongPassword(optional = true)
+    @Schema(description = "Temporary password (optional; if omitted, high-entropy secure temporary password will be generated)", example = "Tx9#SecureP@ss2026!")
     private String temporaryPassword;
 }

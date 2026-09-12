@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
         for (FieldError fieldError : result.getFieldErrors()) {
             validationErrors.add(ValidationError.builder()
                     .field(fieldError.getField())
-                    .rejectedValue(fieldError.getRejectedValue())
+                    .rejectedValue(com.taxoryn.core.security.validation.SensitiveFieldSanitizer.sanitizeRejectedValue(fieldError.getField(), fieldError.getRejectedValue()))
                     .message(fieldError.getDefaultMessage())
                     .build());
         }
@@ -63,7 +63,7 @@ public class GlobalExceptionHandler {
         List<ValidationError> validationErrors = ex.getConstraintViolations().stream()
                 .map(cv -> ValidationError.builder()
                         .field(cv.getPropertyPath().toString())
-                        .rejectedValue(cv.getInvalidValue())
+                        .rejectedValue(com.taxoryn.core.security.validation.SensitiveFieldSanitizer.sanitizeRejectedValue(cv.getPropertyPath().toString(), cv.getInvalidValue()))
                         .message(cv.getMessage())
                         .build())
                 .toList();

@@ -186,6 +186,7 @@ class StrongTenantIsolationAndAbacTest {
                 .contentType("application/pdf")
                 .fileSize(1024L)
                 .status(DocumentEntity.DocumentStatus.ACTIVE)
+                .scanStatus(DocumentEntity.DocumentScanStatus.CLEAN)
                 .build();
         doc.setId(docId);
         doc.setOrganizationId(tenantAId);
@@ -201,7 +202,6 @@ class StrongTenantIsolationAndAbacTest {
 
         when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(staffScope);
         when(securityScopeEvaluator.getAccessibleClientIds(staffScope)).thenReturn(Set.of(client1Id));
-        when(storageService.retrieve(doc.getStorageKey())).thenReturn("data".getBytes());
 
         DocumentDownloadDto result = documentService.downloadDocument(docId);
         assertNotNull(result);

@@ -26,7 +26,7 @@ public class TokenBlacklistService {
      */
     public void blacklistToken(String token, Date expiryDate) {
         if (token != null && expiryDate != null) {
-            blacklistedTokens.put(token, expiryDate);
+            blacklistedTokens.put(hashToken(token), expiryDate);
             log.debug("Token blacklisted until {}", expiryDate);
         }
     }
@@ -41,15 +41,29 @@ public class TokenBlacklistService {
         if (token == null) {
             return false;
         }
-        Date expiryDate = blacklistedTokens.get(token);
+        String key = hashToken(token);
+        Date expiryDate = blacklistedTokens.get(key);
         if (expiryDate == null) {
             return false;
         }
         if (expiryDate.before(new Date())) {
-            blacklistedTokens.remove(token);
+            blacklistedTokens.remove(key);
             return false;
         }
         return true;
+    }
+
+    private String hashToken(String token) {
+        if (token.length() <= 64) {
+            return token;
+        }
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (Exception e) {
+            return token;
+        }
     }
 
     /**

@@ -11,6 +11,25 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Core Rate Limiting Service for Taxoryn API Protection.
+ * <p>
+ * <b>Architecture Note: Instance-Local Token Bucket (Pilot Deployment)</b>:
+ * <ul>
+ *   <li>The current implementation maintains an in-memory {@link ConcurrentHashMap} of {@link TokenBucket}s.</li>
+ *   <li>For a single Render instance (pilot), this provides microsecond-level rate limiting with zero external
+ *       infrastructure dependencies, zero network latency, and low memory footprint (~128 bytes per active IP).</li>
+ *   <li>Buckets idle for longer than 5 minutes are evicted automatically via {@link #cleanupExpiredBuckets()}
+ *       to prevent unbounded memory growth.</li>
+ * </ul>
+ * <p>
+ * <b>Future Distributed Scaling Enhancement (Redis Roadmap)</b>:
+ * <ul>
+ *   <li>When horizontal scaling across multiple Render instances or Kubernetes replica pods is deployed,
+ *       rate limiting should be migrated to a distributed backend (e.g. Redis via Bucket4j-redis or Lua token bucket scripts).</li>
+ *   <li>This will ensure shared rate limit counters across all running cluster nodes.</li>
+ * </ul>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,6 +54,10 @@ public class RateLimitingService {
         int limit = isAuthEndpoint ? authLimitPerMinute : apiLimitPerMinute;
         long windowMillis = 60_000L; // 1 minute window
         String bucketKey = (isAuthEndpoint ? "AUTH:" : "API:") + clientIp;
+
+        if (buckets.size() > 50_000) {
+            cleanupExpiredBuckets();
+        }
 
         TokenBucket bucket = buckets.computeIfAbsent(bucketKey, k -> new TokenBucket(limit, windowMillis));
         return bucket.tryConsume(limit, windowMillis);

@@ -34,6 +34,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -45,10 +46,12 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -462,15 +465,53 @@ public class SecureFileUploadSecurityIntegrationTest {
         TenantContext.clear();
 
         // 1. Download succeeds
-        mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/download")
+        MvcResult downloadResult = mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/download")
                         .header("Authorization", adminToken1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(downloadResult))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(VALID_PDF_BYTES));
 
         // 2. Preview succeeds
-        mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/preview")
+        MvcResult previewResult = mockMvc.perform(get("/api/v1/documents/" + cleanDoc.getId() + "/preview")
                         .header("Authorization", adminToken1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(previewResult))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(VALID_PDF_BYTES));
+    }
+
+    @Test
+    @DisplayName("13. Fail-Closed Download Gate: Document with LEGACY_UNSCANNED status cannot be downloaded or previewed")
+    void testLegacyUnscannedDocumentDownloadBlocked() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+
+        String storageKey = storageService.store(org1.getId(), "legacy.pdf", "application/pdf", VALID_PDF_BYTES);
+        DocumentEntity legacyDoc = documentRepository.save(DocumentEntity.builder()
+                .clientId(client1.getId())
+                .documentType(DocumentType.FORM_16)
+                .fileName("legacy.pdf")
+                .contentType("application/pdf")
+                .fileSize(VALID_PDF_BYTES.length)
+                .storageKey(storageKey)
+                .storageProvider(StorageProvider.LOCAL)
+                .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.LEGACY_UNSCANNED)
+                .scanResultDetails("Legacy document created prior to mandatory malware scanning enforcement")
+                .build());
+
+        TenantContext.clear();
+
+        // 1. Download blocked with 403 Forbidden
+        mockMvc.perform(get("/api/v1/documents/" + legacyDoc.getId() + "/download")
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isForbidden());
+
+        // 2. Preview blocked with 403 Forbidden
+        mockMvc.perform(get("/api/v1/documents/" + legacyDoc.getId() + "/preview")
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isForbidden());
     }
 }
