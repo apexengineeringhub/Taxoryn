@@ -45,7 +45,7 @@ public class AuthController {
     private final AuthService authService;
     private final AuthCookieUtil authCookieUtil;
 
-    @PostMapping("/register-organization")
+    @PostMapping({"/register-organization", "/register"})
     @Operation(summary = "Register organization & admin", description = "Onboards a new tenant organization in inactive state awaiting email activation.")
     public ResponseEntity<ApiResponse<RegisterOrganizationResponse>> registerOrganization(
             @Valid @RequestBody RegisterOrganizationRequest request,

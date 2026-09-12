@@ -187,7 +187,7 @@ class MarketplaceCustomerServiceTest {
                 .permissions(Set.of())
                 .build();
         when(roleRepository.findByCodeAndIsSystemRoleTrue("MARKETPLACE_CUSTOMER")).thenReturn(Optional.of(role));
-        when(passwordEncoder.encode("Password123!")).thenReturn("encodedHash123");
+        when(passwordEncoder.encode("SecureCustPass123!")).thenReturn("encodedHash123");
         when(jwtTokenProvider.generateAccessToken(eq(customerUserId), isNull(), isNull(), eq("suresh.kumar@example.com"), any(), any()))
                 .thenReturn("mock-access-token");
 

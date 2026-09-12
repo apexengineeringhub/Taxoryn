@@ -118,12 +118,13 @@ class UnifiedPasswordPolicySecurityTest {
                 .roles(new HashSet<>(Set.of(orgAdminRole)))
                 .build());
 
-        testClient = clientRepository.save(ClientEntity.builder()
-                .organizationId(testOrg.getId())
+        ClientEntity client = ClientEntity.builder()
                 .displayName("Client Corp " + unique)
                 .email("client." + unique + "@corp.in")
-                .clientType(ClientEntity.ClientType.COMPANY)
-                .build());
+                .status(ClientEntity.ClientStatus.ACTIVE)
+                .build();
+        client.setOrganizationId(testOrg.getId());
+        testClient = clientRepository.save(client);
 
         adminToken = "Bearer " + jwtTokenProvider.generateAccessToken(
                 testAdmin.getId(),
@@ -411,4 +412,29 @@ class UnifiedPasswordPolicySecurityTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
+
+    // =========================================================================
+    // 8. INTEGRATION TESTS: ACCOUNT / EMPLOYEE ACTIVATION WITH PASSWORD SETUP
+    // =========================================================================
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Short1!",
+            "alllowercase123!",
+            "NoSpecial123456",
+            "password123!"
+    })
+    @DisplayName("POST /api/auth/activate rejects non-compliant activation passwords")
+    void testActivation_RejectsNonCompliantPasswords(String weakPassword) throws Exception {
+        ActivateOrganizationRequest request = ActivateOrganizationRequest.builder()
+                .token("some-dummy-activation-token")
+                .password(weakPassword)
+                .build();
+
+        mockMvc.perform(post("/api/auth/activate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
 }
+

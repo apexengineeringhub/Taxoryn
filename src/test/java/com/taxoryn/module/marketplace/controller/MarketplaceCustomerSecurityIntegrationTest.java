@@ -307,7 +307,7 @@ class MarketplaceCustomerSecurityIntegrationTest {
 
         LoginRequest loginReq = LoginRequest.builder()
                 .email(testEmail)
-                .password("Password123!")
+                .password("SecureCustPass123!")
                 .build();
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
