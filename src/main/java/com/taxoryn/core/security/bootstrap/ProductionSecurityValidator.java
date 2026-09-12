@@ -150,6 +150,9 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:https://app.taxoryn.com,https://taxoryn.com}}")
     private String corsAllowedOrigins;
 
+    @Value("${taxoryn.cors.allow-credentials:true}")
+    private boolean corsAllowCredentials;
+
     @Value("${spring.jpa.hibernate.ddl-auto:${HIBERNATE_DDL_AUTO:validate}}")
     private String hibernateDdlAuto;
 
@@ -407,18 +410,63 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     }
 
     private void validateCorsConfiguration() {
-        if (StringUtils.hasText(corsAllowedOrigins)) {
-            String trimmed = corsAllowedOrigins.trim().toLowerCase();
-            if (trimmed.contains("*.vercel.app") || trimmed.contains("taxoryn-7x7f.vercel.app")) {
-                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include Vercel demo origins or wildcard Vercel domains ('" + corsAllowedOrigins + "')";
+        if (!StringUtils.hasText(corsAllowedOrigins)) {
+            String error = "CRITICAL SECURITY VIOLATION: Production CORS allowed origins (CORS_ALLOWED_ORIGINS / taxoryn.cors.allowed-origins) is missing or empty";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        String[] origins = corsAllowedOrigins.split(",");
+        boolean hasAllowedOrigin = false;
+
+        for (String rawOrigin : origins) {
+            String origin = rawOrigin.trim();
+            if (!StringUtils.hasText(origin)) {
+                continue;
+            }
+            hasAllowedOrigin = true;
+            String lower = origin.toLowerCase();
+
+            // 1. Forbid Vercel demo or wildcard domains
+            if (lower.contains("vercel.app")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include Vercel demo origins or wildcard Vercel domains ('" + origin + "')";
                 log.error(error);
                 throw new IllegalStateException(error);
             }
-            if (trimmed.contains("http://localhost") || trimmed.contains("http://127.0.0.1")) {
-                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include localhost HTTP origins in production ('" + corsAllowedOrigins + "')";
+
+            // 2. Forbid wildcard origins
+            if ("*".equals(origin) || lower.contains("*")) {
+                String error = "CRITICAL SECURITY VIOLATION: Wildcard origins ('" + origin + "') are strictly prohibited in production CORS";
                 log.error(error);
                 throw new IllegalStateException(error);
             }
+
+            // 3. Forbid localhost / 127.0.0.1
+            if (lower.contains("localhost") || lower.contains("127.0.0.1")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS cannot include localhost or loopback origins in production ('" + origin + "')";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            // 4. Enforce HTTPS scheme
+            if (!lower.startsWith("https://")) {
+                String error = "CRITICAL SECURITY VIOLATION: Production CORS origin must use HTTPS ('" + origin + "')";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            // 5. Must strictly match approved Taxoryn production domains
+            if (!lower.equals("https://app.taxoryn.com") && !lower.equals("https://taxoryn.com") && !lower.matches("^https://[a-zA-Z0-9-]+\\.taxoryn\\.com$")) {
+                String error = "CRITICAL SECURITY VIOLATION: Untrusted origin ('" + origin + "') detected in production CORS. Only explicitly trusted Taxoryn production domains (e.g. https://app.taxoryn.com, https://taxoryn.com) are permitted";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+        }
+
+        if (!hasAllowedOrigin) {
+            String error = "CRITICAL SECURITY VIOLATION: Production CORS allowed origins contains no valid origins";
+            log.error(error);
+            throw new IllegalStateException(error);
         }
     }
 

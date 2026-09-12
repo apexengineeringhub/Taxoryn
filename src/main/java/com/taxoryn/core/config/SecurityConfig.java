@@ -40,8 +40,20 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler accessDeniedHandler;
     private final CustomUserDetailsService userDetailsService;
 
-    @Value("${taxoryn.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8088,http://localhost:8089,https://taxoryn.com,https://*.taxoryn.com,https://app.taxoryn.com}")
+    @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8080,https://app.taxoryn.com,https://taxoryn.com}}")
     private String allowedOrigins;
+
+    @Value("${taxoryn.cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD}")
+    private String allowedMethods;
+
+    @Value("${taxoryn.cors.allowed-headers:*}")
+    private String allowedHeaders;
+
+    @Value("${taxoryn.cors.allow-credentials:true}")
+    private boolean allowCredentials;
+
+    @Value("${taxoryn.cors.max-age:3600}")
+    private long maxAge;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -148,12 +160,36 @@ public class SecurityConfig {
                 .filter(org.springframework.util.StringUtils::hasText)
                 .toList();
 
-        configuration.setAllowedOriginPatterns(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
-        configuration.setAllowedHeaders(List.of("*"));
+        List<String> methods = Arrays.stream(allowedMethods.split(","))
+                .map(String::trim)
+                .filter(org.springframework.util.StringUtils::hasText)
+                .toList();
+
+        List<String> headers = "*".equals(allowedHeaders.trim())
+                ? List.of("*")
+                : Arrays.stream(allowedHeaders.split(","))
+                        .map(String::trim)
+                        .filter(org.springframework.util.StringUtils::hasText)
+                        .toList();
+
+        // Security Guard: Wildcard origin '*' cannot be combined with allowCredentials=true
+        if (allowCredentials && origins.contains("*")) {
+            throw new IllegalStateException("CRITICAL SECURITY ERROR: CORS wildcard origin '*' cannot be combined with allow-credentials=true");
+        }
+
+        // Use setAllowedOriginPatterns only if wildcard pattern is used, otherwise set exact allowed origins
+        boolean hasPattern = origins.stream().anyMatch(o -> o.contains("*"));
+        if (hasPattern) {
+            configuration.setAllowedOriginPatterns(origins);
+        } else {
+            configuration.setAllowedOrigins(origins);
+        }
+
+        configuration.setAllowedMethods(methods.isEmpty() ? List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD") : methods);
+        configuration.setAllowedHeaders(headers.isEmpty() ? List.of("*") : headers);
         configuration.setExposedHeaders(List.of("X-Trace-Id", "Authorization", "Set-Cookie"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        configuration.setAllowCredentials(allowCredentials);
+        configuration.setMaxAge(maxAge);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

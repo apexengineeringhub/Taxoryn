@@ -55,6 +55,9 @@ class AuditServiceTest {
     @Mock
     private ClientRepository clientRepository;
 
+    @Mock
+    private com.taxoryn.core.security.proxy.ClientIpResolver clientIpResolver;
+
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 

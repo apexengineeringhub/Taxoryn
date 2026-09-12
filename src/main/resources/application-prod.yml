@@ -105,6 +105,11 @@ taxoryn:
     auth-limit: ${RATE_LIMIT_AUTH:15}
     api-limit: ${RATE_LIMIT_API:300}
   security:
+    trusted-proxy:
+      enabled: ${TRUSTED_PROXY_ENABLED:true}
+      trusted-proxies: ${TRUSTED_PROXIES:127.0.0.1/32,127.0.0.0/8,::1/128,0:0:0:0:0:0:0:1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10}
+      trust-all-proxies: false
+      cf-header-enabled: ${TRUSTED_PROXY_CF_ENABLED:true}
     malware-scanner:
       clamav:
         enabled: ${CLAMAV_ENABLED:false}

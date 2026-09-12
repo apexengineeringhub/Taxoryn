@@ -51,6 +51,7 @@ public class AuditServiceImpl implements AuditService {
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
     private final ObjectMapper objectMapper;
+    private final com.taxoryn.core.security.proxy.ClientIpResolver clientIpResolver;
 
     private static final Set<String> SECURITY_ACTIONS = Set.of(
             "REFRESH_TOKEN_ROTATED",
@@ -734,21 +735,7 @@ public class AuditServiceImpl implements AuditService {
         if (request == null) {
             return "127.0.0.1";
         }
-
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(xForwardedFor)) {
-            String[] ips = xForwardedFor.split(",");
-            if (ips.length > 0 && StringUtils.hasText(ips[0])) {
-                return ips[0].trim();
-            }
-        }
-
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(xRealIp)) {
-            return xRealIp.trim();
-        }
-
-        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "127.0.0.1";
+        return clientIpResolver.resolveClientIp(request);
     }
 
     private String resolveUserAgent() {

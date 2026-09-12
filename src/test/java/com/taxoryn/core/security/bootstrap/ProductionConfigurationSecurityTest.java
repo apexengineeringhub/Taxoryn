@@ -422,7 +422,63 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,http://localhost:5173");
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
-        assertTrue(ex.getMessage().contains("Production CORS cannot include localhost HTTP origins"));
+        assertTrue(ex.getMessage().contains("Production CORS cannot include localhost or loopback origins"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains 127.0.0.1 loopback in production")
+    void testProductionFailsWhenCorsContains127001InProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,http://127.0.0.1:8080");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS cannot include localhost or loopback origins"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains wildcard '*' in production")
+    void testProductionFailsWhenCorsContainsWildcardInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "*");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Wildcard origins ('*') are strictly prohibited"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS is missing or empty in production")
+    void testProductionFailsWhenCorsIsEmptyInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "   ");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS allowed origins"));
+        assertTrue(ex.getMessage().contains("missing or empty"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains non-HTTPS origin")
+    void testProductionFailsWhenCorsNonHttps() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "http://app.taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Production CORS origin must use HTTPS"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when CORS contains arbitrary untrusted origin")
+    void testProductionFailsWhenCorsContainsArbitraryUntrustedOrigin() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://evil.example");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Untrusted origin ('https://evil.example') detected in production CORS"));
     }
 
     // =========================================================================

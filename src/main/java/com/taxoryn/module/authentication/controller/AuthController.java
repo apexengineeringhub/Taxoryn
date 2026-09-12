@@ -44,6 +44,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthCookieUtil authCookieUtil;
+    private final com.taxoryn.core.security.proxy.ClientIpResolver clientIpResolver;
 
     @PostMapping({"/register-organization", "/register"})
     @Operation(summary = "Register organization & admin", description = "Onboards a new tenant organization in inactive state awaiting email activation.")
@@ -226,14 +227,6 @@ public class AuthController {
     }
 
     private String extractClientIp(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (org.springframework.util.StringUtils.hasText(xfHeader)) {
-            return xfHeader.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (org.springframework.util.StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "0.0.0.0";
+        return clientIpResolver.resolveClientIp(request);
     }
 }
