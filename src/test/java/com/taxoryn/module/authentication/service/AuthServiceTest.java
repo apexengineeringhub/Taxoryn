@@ -48,10 +48,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import com.taxoryn.module.authentication.dto.ActivateOrganizationRequest;
+import com.taxoryn.module.authentication.dto.ForgotPasswordRequest;
 import com.taxoryn.module.authentication.dto.RegisterOrganizationResponse;
 import com.taxoryn.module.authentication.dto.ResendActivationRequest;
 import com.taxoryn.module.authentication.entity.CustomerEmailVerificationTokenEntity;
 import com.taxoryn.module.authentication.entity.OrganizationActivationTokenEntity;
+import com.taxoryn.module.authentication.entity.PasswordResetTokenEntity;
 import com.taxoryn.module.authentication.repository.OrganizationActivationTokenRepository;
 import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.authentication.entity.RefreshTokenEntity;
@@ -164,6 +166,8 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(authService, "jwtRefreshExpirationMs", 604800000L);
         ReflectionTestUtils.setField(authService, "activationBaseUrl", "https://app.taxoryn.com/activate");
         ReflectionTestUtils.setField(authService, "activationExpirationHours", 24L);
+        ReflectionTestUtils.setField(authService, "resetPasswordBaseUrl", "https://app.taxoryn.com/reset-password");
+        ReflectionTestUtils.setField(authService, "passwordResetExpirationMinutes", 30L);
         userId = UUID.randomUUID();
         tenantId = UUID.randomUUID();
 
@@ -801,5 +805,70 @@ class AuthServiceTest {
         verify(customerEmailVerificationTokenRepository).invalidateAllPendingTokensForUser(eq(userId), any());
         verify(customerEmailVerificationTokenRepository).save(any(CustomerEmailVerificationTokenEntity.class));
         verify(emailNotificationService).sendCustomerEmailVerification(eq("customer@example.com"), eq("Rohan"), anyString(), eq(24L));
+    }
+
+    @Test
+    @DisplayName("Forgot password constructs trusted server URL and sends email")
+    void testForgotPassword_Success_BuildsTrustedUrl() {
+        UserEntity user = UserEntity.builder()
+                .email("test@taxoryn.com")
+                .firstName("Aditya")
+                .lastName("Verma")
+                .status(UserEntity.UserStatus.ACTIVE)
+                .organizationId(tenantId)
+                .build();
+        user.setId(userId);
+
+        when(userRepository.findByEmailIgnoreCase("test@taxoryn.com")).thenReturn(Optional.of(user));
+
+        ForgotPasswordRequest request = new ForgotPasswordRequest("test@taxoryn.com");
+        authService.forgotPassword(request, "198.51.100.1");
+
+        verify(passwordResetTokenRepository).invalidateAllPendingTokensForUser(eq(userId), any());
+        verify(passwordResetTokenRepository).save(any(PasswordResetTokenEntity.class));
+
+        org.mockito.ArgumentCaptor<String> urlCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(emailNotificationService).sendPasswordResetEmail(
+                eq("test@taxoryn.com"),
+                eq("Aditya Verma"),
+                urlCaptor.capture(),
+                eq(30L)
+        );
+
+        String capturedUrl = urlCaptor.getValue();
+        org.assertj.core.api.Assertions.assertThat(capturedUrl)
+                .startsWith("https://app.taxoryn.com/reset-password?token=");
+    }
+
+    @Test
+    @DisplayName("Forgot password throws IllegalStateException when trusted reset URL is missing")
+    void testForgotPassword_MissingResetPasswordUrl_ThrowsException() {
+        UserEntity user = UserEntity.builder()
+                .email("test@taxoryn.com")
+                .firstName("Aditya")
+                .lastName("Verma")
+                .status(UserEntity.UserStatus.ACTIVE)
+                .organizationId(tenantId)
+                .build();
+        user.setId(userId);
+
+        when(userRepository.findByEmailIgnoreCase("test@taxoryn.com")).thenReturn(Optional.of(user));
+
+        ReflectionTestUtils.setField(authService, "resetPasswordBaseUrl", "   ");
+
+        ForgotPasswordRequest request = new ForgotPasswordRequest("test@taxoryn.com");
+        assertThrows(IllegalStateException.class, () -> authService.forgotPassword(request, "198.51.100.1"));
+    }
+
+    @Test
+    @DisplayName("Forgot password for non-existent user returns cleanly (anti-enumeration)")
+    void testForgotPassword_UserNotFound_AntiEnumeration() {
+        when(userRepository.findByEmailIgnoreCase("unknown@taxoryn.com")).thenReturn(Optional.empty());
+
+        ForgotPasswordRequest request = new ForgotPasswordRequest("unknown@taxoryn.com");
+        authService.forgotPassword(request, "198.51.100.1");
+
+        verify(passwordResetTokenRepository, never()).save(any());
+        verify(emailNotificationService, never()).sendPasswordResetEmail(anyString(), anyString(), anyString(), anyLong());
     }
 }

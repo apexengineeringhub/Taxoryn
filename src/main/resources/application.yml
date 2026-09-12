@@ -150,8 +150,10 @@ taxoryn:
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
     operations-sorter: method
     tags-sorter: alpha
     try-it-out-enabled: true

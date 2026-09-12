@@ -327,4 +327,146 @@ class DocumentServiceTest {
         assertEquals(0L, res.getExpiresInSeconds());
         assertNull(res.getExpiresAt());
     }
+
+    @Test
+    @DisplayName("SECURITY: Access denied when downloading non-CLEAN document (INFECTED, SCAN_FAILED, LEGACY_UNSCANNED, PENDING_SCAN)")
+    void testDownloadDocumentBlockedForNonCleanStatuses() {
+        for (DocumentScanStatus status : DocumentScanStatus.values()) {
+            if (status == DocumentScanStatus.CLEAN) continue;
+
+            DocumentEntity doc = DocumentEntity.builder()
+                    .fileName("Unsafe.pdf")
+                    .contentType("application/pdf")
+                    .fileSize(100L)
+                    .storageKey("key_" + status)
+                    .status(DocumentStatus.ACTIVE)
+                    .scanStatus(status)
+                    .clientId(clientId)
+                    .build();
+            doc.setId(documentId);
+            doc.setOrganizationId(tenantId);
+
+            when(documentRepository.findByIdAndOrganizationId(documentId, tenantId)).thenReturn(Optional.of(doc));
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> documentService.downloadDocument(documentId),
+                    "Download must be denied for status " + status);
+        }
+    }
+
+    @Test
+    @DisplayName("SECURITY: Access denied when previewing non-CLEAN document")
+    void testPreviewDocumentBlockedForNonCleanStatuses() {
+        DocumentEntity doc = DocumentEntity.builder()
+                .fileName("Infected.pdf")
+                .contentType("application/pdf")
+                .fileSize(100L)
+                .storageKey("key_infected")
+                .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.INFECTED)
+                .clientId(clientId)
+                .build();
+        doc.setId(documentId);
+        doc.setOrganizationId(tenantId);
+
+        when(documentRepository.findByIdAndOrganizationId(documentId, tenantId)).thenReturn(Optional.of(doc));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> documentService.previewDocument(documentId));
+    }
+
+    @Test
+    @DisplayName("SECURITY: Access denied when requesting presigned URL for non-CLEAN document")
+    void testGetDownloadUrlBlockedForNonCleanStatuses() {
+        DocumentEntity doc = DocumentEntity.builder()
+                .fileName("FailedScan.pdf")
+                .contentType("application/pdf")
+                .fileSize(100L)
+                .storageKey("key_failed")
+                .status(DocumentStatus.ACTIVE)
+                .scanStatus(DocumentScanStatus.SCAN_FAILED)
+                .clientId(clientId)
+                .build();
+        doc.setId(documentId);
+        doc.setOrganizationId(tenantId);
+
+        when(documentRepository.findByIdAndOrganizationId(documentId, tenantId)).thenReturn(Optional.of(doc));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> documentService.getDocumentDownloadUrl(documentId));
+    }
+
+    @Test
+    @DisplayName("SECURITY: Upload fails closed when malware scanner returns null result")
+    void testUploadDocumentNullScanResultFailsClosed() {
+        byte[] content = "Sample data".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file = new MockMultipartFile("file", "sample.pdf", "application/pdf", content);
+        UploadDocumentRequest request = UploadDocumentRequest.builder()
+                .clientId(clientId)
+                .documentType(DocumentType.OTHER)
+                .build();
+
+        ClientEntity client = ClientEntity.builder().displayName("Test Client").build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(malwareScanner.scan(any(java.nio.file.Path.class), eq("sample.pdf"))).thenReturn(null);
+
+        com.taxoryn.core.exception.BadRequestException ex = assertThrows(
+                com.taxoryn.core.exception.BadRequestException.class,
+                () -> documentService.uploadDocument(file, request));
+
+        assertEquals("We could not complete the security scan for this document. Please try again.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("SECURITY: Upload fails closed when malware scanner returns FAILED result")
+    void testUploadDocumentFailedScanResultFailsClosed() {
+        byte[] content = "Sample data".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file = new MockMultipartFile("file", "sample.pdf", "application/pdf", content);
+        UploadDocumentRequest request = UploadDocumentRequest.builder()
+                .clientId(clientId)
+                .documentType(DocumentType.OTHER)
+                .build();
+
+        ClientEntity client = ClientEntity.builder().displayName("Test Client").build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(malwareScanner.scan(any(java.nio.file.Path.class), eq("sample.pdf")))
+                .thenReturn(com.taxoryn.core.security.upload.ScanResult.failed("ClamAV", "Connection timeout to daemon"));
+
+        com.taxoryn.core.exception.BadRequestException ex = assertThrows(
+                com.taxoryn.core.exception.BadRequestException.class,
+                () -> documentService.uploadDocument(file, request));
+
+        assertEquals("We could not complete the security scan for this document. Please try again.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("SECURITY: Upload fails closed when malware scanner detects infection")
+    void testUploadDocumentInfectedScanResultFailsClosed() {
+        byte[] content = "Sample data".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file = new MockMultipartFile("file", "sample.pdf", "application/pdf", content);
+        UploadDocumentRequest request = UploadDocumentRequest.builder()
+                .clientId(clientId)
+                .documentType(DocumentType.OTHER)
+                .build();
+
+        ClientEntity client = ClientEntity.builder().displayName("Test Client").build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(malwareScanner.scan(any(java.nio.file.Path.class), eq("sample.pdf")))
+                .thenReturn(com.taxoryn.core.security.upload.ScanResult.infected("Win.Trojan.Agent", "ClamAV", "Infection match"));
+
+        com.taxoryn.core.exception.BadRequestException ex = assertThrows(
+                com.taxoryn.core.exception.BadRequestException.class,
+                () -> documentService.uploadDocument(file, request));
+
+        assertEquals("Malware detected in uploaded file: Win.Trojan.Agent", ex.getMessage());
+    }
 }

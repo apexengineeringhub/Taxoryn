@@ -66,6 +66,8 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "clamavEnabled", "true");
         ReflectionTestUtils.setField(validator, "clamavHost", "clamav");
         ReflectionTestUtils.setField(validator, "clamavPort", 3310);
+        ReflectionTestUtils.setField(validator, "springdocApiDocsEnabled", false);
+        ReflectionTestUtils.setField(validator, "springdocSwaggerUiEnabled", false);
     }
 
     // =========================================================================
@@ -660,6 +662,32 @@ class ProductionConfigurationSecurityTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
         assertTrue(ex.getMessage().contains("Invalid CLAMAV_PORT"));
+    }
+
+    // =========================================================================
+    // 9. Swagger & OpenAPI Production Fail-Fast Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when springdoc.api-docs.enabled is true in production")
+    void testProductionFailsWhenApiDocsEnabledInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "springdocApiDocsEnabled", true);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("OpenAPI generation (springdoc.api-docs.enabled) must be disabled"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when springdoc.swagger-ui.enabled is true in production")
+    void testProductionFailsWhenSwaggerUiEnabledInProd() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "springdocSwaggerUiEnabled", true);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("Swagger UI (springdoc.swagger-ui.enabled) must be disabled"));
     }
 }
 

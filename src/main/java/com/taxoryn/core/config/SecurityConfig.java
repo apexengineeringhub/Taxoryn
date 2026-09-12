@@ -55,6 +55,12 @@ public class SecurityConfig {
     @Value("${taxoryn.cors.max-age:3600}")
     private long maxAge;
 
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean swaggerUiEnabled;
+
+    @Value("${springdoc.api-docs.enabled:true}")
+    private boolean apiDocsEnabled;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(12);
@@ -84,62 +90,66 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
                 )
-                .authorizeHttpRequests(auth -> auth
-                        // Public Auth & Onboarding endpoints
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/api/v1/auth/**",
-                                "/api/subscriptions/plans",
-                                "/api/v1/subscriptions/plans",
-                                "/api/marketplace/search",
-                                "/api/marketplace/featured",
-                                "/api/marketplace/profiles/**",
-                                "/api/marketplace/leads",
-                                "/api/marketplace/consultations",
-                                "/api/marketplace/reviews/**",
-                                "/api/marketplace/tax-services/**",
-                                "/api/v1/marketplace/search",
-                                "/api/v1/marketplace/featured",
-                                "/api/v1/marketplace/profiles/**",
-                                "/api/v1/marketplace/leads",
-                                "/api/v1/marketplace/consultations",
-                                "/api/v1/marketplace/reviews/**",
-                                "/api/v1/marketplace/tax-services/**",
-                                "/api/v1/marketplace/onboarding/proposal/**",
-                                "/api/v1/marketplace/onboarding/session/**",
-                                "/api/marketplace/customer/register",
-                                "/api/v1/marketplace/customer/register",
-                                "/api/public/content/**",
-                                "/api/v1/public/content/**",
-                                "/api/public/media/**",
-                                "/api/v1/public/media/**",
-                                "/api/notifications/whatsapp/webhook",
-                                "/api/v1/notifications/whatsapp/webhook",
-                                "/api/v1/public/seo/**",
-                                "/robots.txt",
-                                "/sitemap.xml"
-                        ).permitAll()
-                        // Swagger & OpenAPI
-                        .requestMatchers(
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers(
+                            // Public Auth & Onboarding endpoints
+                            "/api/auth/**",
+                            "/api/v1/auth/**",
+                            "/api/subscriptions/plans",
+                            "/api/v1/subscriptions/plans",
+                            "/api/marketplace/search",
+                            "/api/marketplace/featured",
+                            "/api/marketplace/profiles/**",
+                            "/api/marketplace/leads",
+                            "/api/marketplace/consultations",
+                            "/api/marketplace/reviews/**",
+                            "/api/marketplace/tax-services/**",
+                            "/api/v1/marketplace/search",
+                            "/api/v1/marketplace/featured",
+                            "/api/v1/marketplace/profiles/**",
+                            "/api/v1/marketplace/leads",
+                            "/api/v1/marketplace/consultations",
+                            "/api/v1/marketplace/reviews/**",
+                            "/api/v1/marketplace/tax-services/**",
+                            "/api/v1/marketplace/onboarding/proposal/**",
+                            "/api/v1/marketplace/onboarding/session/**",
+                            "/api/marketplace/customer/register",
+                            "/api/v1/marketplace/customer/register",
+                            "/api/public/content/**",
+                            "/api/v1/public/content/**",
+                            "/api/public/media/**",
+                            "/api/v1/public/media/**",
+                            "/api/notifications/whatsapp/webhook",
+                            "/api/v1/notifications/whatsapp/webhook",
+                            "/api/v1/public/seo/**",
+                            "/robots.txt",
+                            "/sitemap.xml"
+                    ).permitAll();
+
+                    // Swagger & OpenAPI (only permitted when documentation is explicitly enabled)
+                    if (swaggerUiEnabled || apiDocsEnabled) {
+                        auth.requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/api-docs/**",
                                 "/swagger-resources/**",
                                 "/webjars/**"
-                        ).permitAll()
-                        // Actuator Health & Metrics
-                        .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/info"
-                        ).permitAll()
-                        // Lightweight liveness endpoint for Render keep-alive / external uptime monitors.
-                        // No auth, no DB access - see com.taxoryn.core.health.HealthController.
-                        .requestMatchers("/", "/api/health", "/favicon.ico", "/error").permitAll()
-                        // All other API endpoints require authentication
-                        .requestMatchers("/api/**").authenticated()
-                        .anyRequest().authenticated()
-                )
+                        ).permitAll();
+                    }
+
+                    auth.requestMatchers(
+                            // Actuator Health & Metrics
+                            "/actuator/health",
+                            "/actuator/info"
+                    ).permitAll()
+                    // Lightweight liveness endpoint for Render keep-alive / external uptime monitors.
+                    // No auth, no DB access - see com.taxoryn.core.health.HealthController.
+                    .requestMatchers("/", "/api/health", "/favicon.ico", "/error").permitAll()
+                    // All other API endpoints require authentication
+                    .requestMatchers("/api/**").authenticated()
+                    .anyRequest().authenticated();
+                })
                 .headers(headers -> headers
                         .frameOptions(org.springframework.security.config.annotation.web.configurers.HeadersConfigurer.FrameOptionsConfig::deny)
                         .contentTypeOptions(contentType -> {})

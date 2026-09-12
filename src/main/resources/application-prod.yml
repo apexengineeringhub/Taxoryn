@@ -149,6 +149,13 @@ management:
       probes:
         enabled: true
 
+# Disable Swagger UI & OpenAPI in Production
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 # Clean Production Logging
 logging:
   level:

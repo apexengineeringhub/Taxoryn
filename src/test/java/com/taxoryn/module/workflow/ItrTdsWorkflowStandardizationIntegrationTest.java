@@ -58,7 +58,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@SpringBootTest
+@SpringBootTest(classes = com.taxoryn.TaxorynApplication.class)
 @ActiveProfiles("test")
 @Transactional
 public class ItrTdsWorkflowStandardizationIntegrationTest {

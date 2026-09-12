@@ -85,6 +85,10 @@ public class MediaServiceImpl implements MediaService {
 
             // Anti-malware and disguised executable scan
             ScanResult scanResult = malwareScanner.scan(tempFile, originalFilename);
+            if (scanResult == null) {
+                log.error("SECURITY ALERT: Malware scanner returned null result for media asset '{}'. Enforcing fail-closed policy.", originalFilename);
+                throw new BusinessValidationException("We could not complete the security scan for this media file. Please try again.");
+            }
             if (scanResult.isInfected()) {
                 log.warn("SECURITY ALERT: Malware detected in media asset '{}': {}", originalFilename, scanResult.getDetails());
                 throw new BusinessValidationException("Malware detected in uploaded media file: " + scanResult.getThreatName());

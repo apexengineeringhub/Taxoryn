@@ -139,6 +139,12 @@ public class DocumentServiceImpl implements DocumentService {
             // 1. Multi-layer file validation (filename, extension, MIME, magic bytes, zip bomb inspection)
             fileValidator.validate(originalFilename, contentType, tempFile);
 
+            if (malwareScanner == null) {
+                log.error("SECURITY ALERT: Malware scanner bean is null for file '{}' for tenant {}. Enforcing fail-closed policy.",
+                        originalFilename, organizationId);
+                throw new InternalServerException("Malware scanner service is not available");
+            }
+
             // 2. Malware and Antivirus signature scanning (Fail-closed)
             ScanResult scanResult = malwareScanner.scan(tempFile, originalFilename);
             if (scanResult == null) {

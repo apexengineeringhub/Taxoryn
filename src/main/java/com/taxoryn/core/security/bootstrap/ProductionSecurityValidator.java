@@ -178,6 +178,12 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${spring.flyway.enabled:${FLYWAY_ENABLED:true}}")
     private boolean flywayEnabled;
 
+    @Value("${springdoc.api-docs.enabled:true}")
+    private boolean springdocApiDocsEnabled;
+
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean springdocSwaggerUiEnabled;
+
     @Override
     public void afterSingletonsInstantiated() {
         validateEnvironmentSecurity();
@@ -237,6 +243,9 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
 
         // 11. Production Database Schema Management & Flyway Validation
         validateSchemaManagementConfiguration();
+
+        // 12. Production Swagger & OpenAPI Disabled Validation
+        validateSwaggerConfiguration();
 
         log.info("Phase 10 production environment configuration & secrets verification PASSED.");
     }
@@ -559,6 +568,19 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
                 log.error(error);
                 throw new IllegalStateException(error);
             }
+        }
+    }
+
+    private void validateSwaggerConfiguration() {
+        if (springdocApiDocsEnabled) {
+            String error = "CRITICAL SECURITY VIOLATION: OpenAPI generation (springdoc.api-docs.enabled) must be disabled (false) in production";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+        if (springdocSwaggerUiEnabled) {
+            String error = "CRITICAL SECURITY VIOLATION: Swagger UI (springdoc.swagger-ui.enabled) must be disabled (false) in production";
+            log.error(error);
+            throw new IllegalStateException(error);
         }
     }
 }
