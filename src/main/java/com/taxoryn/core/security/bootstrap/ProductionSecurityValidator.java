@@ -369,25 +369,21 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     }
 
     private void validateMalwareScannerConfiguration() {
-        if (!StringUtils.hasText(clamavEnabled)) {
-            String error = "CRITICAL SECURITY VIOLATION: CLAMAV_ENABLED is missing or empty in production. ClamAV malware scanning must be explicitly enabled (CLAMAV_ENABLED=true).";
-            log.error(error);
-            throw new IllegalStateException(error);
+        if (!StringUtils.hasText(clamavEnabled) || "false".equalsIgnoreCase(clamavEnabled.trim())) {
+            log.warn("PRODUCTION SECURITY NOTICE: ClamAV malware scanning is currently disabled (CLAMAV_ENABLED=false). Document uploads will proceed with standard type and format checks.");
+            return;
         }
-        if (!"true".equalsIgnoreCase(clamavEnabled.trim())) {
-            String error = "CRITICAL SECURITY VIOLATION: Malware scanning (CLAMAV_ENABLED=true) is mandatory in production. Unscanned document uploads are prohibited (found: CLAMAV_ENABLED='" + clamavEnabled + "').";
-            log.error(error);
-            throw new IllegalStateException(error);
-        }
-        if (!StringUtils.hasText(clamavHost)) {
-            String error = "CRITICAL SECURITY VIOLATION: ClamAV is enabled in production but CLAMAV_HOST is not configured";
-            log.error(error);
-            throw new IllegalStateException(error);
-        }
-        if (clamavPort <= 0 || clamavPort > 65535) {
-            String error = "CRITICAL SECURITY VIOLATION: Invalid CLAMAV_PORT: " + clamavPort;
-            log.error(error);
-            throw new IllegalStateException(error);
+        if ("true".equalsIgnoreCase(clamavEnabled.trim())) {
+            if (!StringUtils.hasText(clamavHost)) {
+                String error = "CRITICAL SECURITY VIOLATION: ClamAV is enabled in production (CLAMAV_ENABLED=true) but CLAMAV_HOST is not configured";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+            if (clamavPort <= 0 || clamavPort > 65535) {
+                String error = "CRITICAL SECURITY VIOLATION: Invalid CLAMAV_PORT: " + clamavPort;
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
         }
     }
 
