@@ -119,8 +119,10 @@ export const DocumentRequestReviewModal: React.FC<DocumentRequestReviewModalProp
       a.download = fileName || 'document.pdf';
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 1000);
     } catch (err) {
       setFeedback({ type: 'error', message: 'Failed to download document.' });
     }

@@ -175,7 +175,7 @@ class DocumentServiceTest {
 
     @Test
     @DisplayName("Download document successfully")
-    void testDownloadDocumentSuccess() {
+    void testDownloadDocumentSuccess() throws Exception {
         byte[] content = "Binary document content".getBytes(StandardCharsets.UTF_8);
 
         DocumentEntity document = DocumentEntity.builder()
@@ -190,14 +190,16 @@ class DocumentServiceTest {
         document.setOrganizationId(tenantId);
 
         when(documentRepository.findByIdAndOrganizationId(documentId, tenantId)).thenReturn(Optional.of(document));
-        when(storageService.retrieve("key123")).thenReturn(content);
 
         DocumentDownloadDto download = documentService.downloadDocument(documentId);
 
         assertNotNull(download);
         assertEquals("Invoice.pdf", download.getFileName());
         assertEquals("application/pdf", download.getContentType());
-        assertArrayEquals(content, download.getData());
+        assertNotNull(download.getStream());
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        download.getStream().writeTo(baos);
+        verify(storageService).stream(org.mockito.ArgumentMatchers.eq("key123"), org.mockito.ArgumentMatchers.any());
     }
 
     @Test

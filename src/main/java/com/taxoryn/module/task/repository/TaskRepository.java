@@ -21,6 +21,8 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
 
     Page<TaskEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
 
+    List<TaskEntity> findAllByOrganizationId(UUID organizationId);
+
     Optional<TaskEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
     Page<TaskEntity> findAllByOrganizationIdAndAssignedTo(UUID organizationId, UUID assignedTo, Pageable pageable);
@@ -28,6 +30,8 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
     Page<TaskEntity> findAllByOrganizationIdAndClientId(UUID organizationId, UUID clientId, Pageable pageable);
 
     java.util.List<TaskEntity> findAllByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
+
+    java.util.List<TaskEntity> findAllByOrganizationIdAndClientIdIn(UUID organizationId, Collection<UUID> clientIds);
 
     long countByOrganizationIdAndClientIdAndStatusNot(UUID organizationId, UUID clientId, TaskStatus status);
 
@@ -42,6 +46,16 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
     long countByOrganizationIdAndStatusInAndDueDateBetween(UUID organizationId, Collection<TaskStatus> statuses, LocalDate startDate, LocalDate endDate);
 
     long countByOrganizationIdAndStatusInAndDueDateBefore(UUID organizationId, Collection<TaskStatus> statuses, LocalDate date);
+    
+    long countByOrganizationIdAndStatusNotIn(UUID organizationId, Collection<TaskStatus> statuses);
+
+    long countByOrganizationIdAndStatusNotInAndDueDateBefore(UUID organizationId, Collection<TaskStatus> statuses, LocalDate date);
+
+    @Query("SELECT DISTINCT t.clientId FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.status NOT IN :excludedStatuses AND t.clientId IS NOT NULL")
+    List<UUID> findDistinctClientIdsByOrganizationIdAndStatusNotIn(@Param("organizationId") UUID organizationId, @Param("excludedStatuses") Collection<TaskStatus> excludedStatuses);
+
+    @Query("SELECT DISTINCT t.clientId FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.status NOT IN :excludedStatuses AND t.dueDate < :currentDate AND t.clientId IS NOT NULL")
+    List<UUID> findDistinctClientIdsByOrganizationIdAndStatusNotInAndDueDateBefore(@Param("organizationId") UUID organizationId, @Param("excludedStatuses") Collection<TaskStatus> excludedStatuses, @Param("currentDate") LocalDate currentDate);
 
     long countByOrganizationIdAndStatusAndCompletedAtGreaterThanEqual(UUID organizationId, TaskStatus status, java.time.Instant since);
 

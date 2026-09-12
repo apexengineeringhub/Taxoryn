@@ -35,6 +35,8 @@ public interface ClientPortalService {
 
     void deleteProfileAvatar();
 
+    com.taxoryn.module.user.service.ProfileImageService.AvatarContent getProfileAvatar();
+
     byte[] getProfileAvatarContent();
 
     List<ClientGstStatusDto> getGstStatus();

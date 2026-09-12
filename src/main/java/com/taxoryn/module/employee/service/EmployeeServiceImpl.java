@@ -120,9 +120,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (request.getPhone() != null) {
             employee.setPhone(request.getPhone().trim());
         }
-        if (request.getAvatarUrl() != null) {
-            employee.setAvatarUrl(request.getAvatarUrl().trim());
-        }
+        // Avatar mutations MUST ONLY occur through dedicated /avatar endpoints.
+        // Ignore request.getAvatarUrl() to prevent untrusted storage key injection.
 
         EmployeeEntity saved = employeeRepository.save(employee);
 
@@ -131,7 +130,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             u.setFirstName(saved.getFirstName());
             u.setLastName(saved.getLastName());
             u.setPhone(saved.getPhone());
-            u.setAvatarUrl(saved.getAvatarUrl());
             userRepository.save(u);
         });
 
@@ -169,7 +167,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] getEmployeeAvatarContent(UUID employeeId) {
+    public com.taxoryn.module.user.service.ProfileImageService.AvatarContent getEmployeeAvatar(UUID employeeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
@@ -182,7 +180,19 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (!StringUtils.hasText(avatarKey)) {
             throw new ResourceNotFoundException("Employee avatar", "employeeId", employeeId);
         }
-        return profileImageService.retrieveAvatarContent(avatarKey);
+        return profileImageService.retrieveAvatar(avatarKey);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.user.service.ProfileImageService.AvatarContent getMyEmployeeAvatar() {
+        return getEmployeeAvatar(getMyEmployeeProfile().getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getEmployeeAvatarContent(UUID employeeId) {
+        return getEmployeeAvatar(employeeId).getData();
     }
 
     @Override

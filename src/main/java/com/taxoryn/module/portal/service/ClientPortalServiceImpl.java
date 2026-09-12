@@ -478,7 +478,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         if (StringUtils.hasText(request.getDisplayName())) client.setDisplayName(request.getDisplayName().trim());
         if (StringUtils.hasText(request.getEmail())) client.setEmail(request.getEmail().trim());
         if (StringUtils.hasText(request.getPhone())) client.setPhone(request.getPhone().trim());
-        if (request.getAvatarUrl() != null) client.setAvatarUrl(request.getAvatarUrl().trim());
+        // Avatar mutations MUST ONLY occur through dedicated /avatar endpoints.
+        // Ignore request.getAvatarUrl() to prevent untrusted storage key injection.
         if (StringUtils.hasText(request.getAddressLine1())) client.setAddressLine1(request.getAddressLine1().trim());
         if (StringUtils.hasText(request.getAddressLine2())) client.setAddressLine2(request.getAddressLine2().trim());
         if (StringUtils.hasText(request.getCity())) client.setCity(request.getCity().trim());
@@ -527,7 +528,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] getProfileAvatarContent() {
+    public com.taxoryn.module.user.service.ProfileImageService.AvatarContent getProfileAvatar() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
@@ -538,7 +539,13 @@ public class ClientPortalServiceImpl implements ClientPortalService {
             throw new ResourceNotFoundException("Client avatar", "clientId", clientId);
         }
 
-        return profileImageService.retrieveAvatarContent(client.getAvatarUrl());
+        return profileImageService.retrieveAvatar(client.getAvatarUrl());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getProfileAvatarContent() {
+        return getProfileAvatar().getData();
     }
 
     @Override

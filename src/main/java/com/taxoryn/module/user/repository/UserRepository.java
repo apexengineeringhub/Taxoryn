@@ -32,6 +32,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     long countByOrganizationIdAndClientIdIsNull(UUID organizationId);
 
+    long countByStatus(UserEntity.UserStatus status);
+
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(DISTINCT u) FROM UserEntity u JOIN u.roles r WHERE u.organizationId = :organizationId AND r.code IN ('ORG_ADMIN', 'PRACTICE_ADMIN', 'PRACTICE_OWNER') AND u.status = com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE")
     long countActiveOrgAdmins(@org.springframework.data.repository.query.Param("organizationId") UUID organizationId);
 }

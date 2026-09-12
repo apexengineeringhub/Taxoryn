@@ -106,9 +106,7 @@ public interface DocumentStorageService {
      * @param storageKey Unique storage key
      * @return InputStream to the document content
      */
-    default java.io.InputStream openStream(String storageKey) {
-        return new java.io.ByteArrayInputStream(retrieve(storageKey));
-    }
+    java.io.InputStream openStream(String storageKey);
 
     /**
      * Delete document from storage backend.

@@ -316,7 +316,9 @@ export const BulkTasksGeneratorPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   // Parse CSV or Excel (.xlsx / .xls) Tasks with Intelligent PAN Match & Auto-Onboard Support

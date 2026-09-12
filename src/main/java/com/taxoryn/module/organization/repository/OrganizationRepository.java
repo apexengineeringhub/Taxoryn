@@ -13,4 +13,11 @@ public interface OrganizationRepository extends JpaRepository<OrganizationEntity
     Optional<OrganizationEntity> findByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCase(String email);
+
+    long countByStatus(OrganizationEntity.OrganizationStatus status);
+
+    long countByCreatedAtAfter(java.time.Instant timestamp);
+
+    @org.springframework.data.jpa.repository.Query("SELECT o.subscriptionPlan, COUNT(o) FROM OrganizationEntity o GROUP BY o.subscriptionPlan")
+    java.util.List<Object[]> countBySubscriptionPlanGrouped();
 }

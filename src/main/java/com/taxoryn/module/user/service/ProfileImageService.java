@@ -88,6 +88,16 @@ public class ProfileImageService {
         return false;
     }
 
+    @lombok.Data
+    @lombok.Builder
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class AvatarContent {
+        private String contentType;
+        private byte[] data;
+        private long fileSize;
+    }
+
     public void scanForMalware(byte[] bytes, String originalFilename) {
         if (malwareScanner != null) {
             try {
@@ -161,7 +171,7 @@ public class ProfileImageService {
 
         if (documentStorageService.supportsPresignedUrls()) {
             try {
-                return documentStorageService.generatePresignedDownloadUrl(avatarKeyOrUrl, "avatar.png", Duration.ofHours(24));
+                return documentStorageService.generatePresignedDownloadUrl(avatarKeyOrUrl, "avatar.png", Duration.ofMinutes(15));
             } catch (Exception ex) {
                 log.warn("Failed to generate presigned avatar URL for key [{}]: {}", avatarKeyOrUrl, ex.getMessage());
             }
@@ -175,6 +185,48 @@ public class ProfileImageService {
             throw new BadRequestException("Storage key is required");
         }
         return documentStorageService.retrieve(storageKey);
+    }
+
+    public AvatarContent retrieveAvatar(String storageKey) {
+        byte[] bytes = retrieveAvatarContent(storageKey);
+        String contentType = detectImageContentType(bytes, storageKey);
+        return AvatarContent.builder()
+                .data(bytes)
+                .contentType(contentType)
+                .fileSize(bytes != null ? bytes.length : 0L)
+                .build();
+    }
+
+    public String detectImageContentType(byte[] header, String storageKey) {
+        if (header != null && header.length >= 3) {
+            // JPEG: FF D8 FF
+            if ((header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF) {
+                return "image/jpeg";
+            }
+            // PNG: 89 50 4E 47 0D 0A 1A 0A
+            if (header.length >= 8
+                    && (header[0] & 0xFF) == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47
+                    && header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A) {
+                return "image/png";
+            }
+            // GIF: GIF87a or GIF89a (0x47 0x49 0x46 0x38)
+            if (header.length >= 6 && header[0] == 'G' && header[1] == 'I' && header[2] == 'F' && header[3] == '8') {
+                return "image/gif";
+            }
+            // WEBP: RIFF....WEBP (0x52 0x49 0x46 0x46 ... 0x57 0x45 0x42 0x50)
+            if (header.length >= 12 && header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F'
+                    && header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P') {
+                return "image/webp";
+            }
+        }
+        if (StringUtils.hasText(storageKey)) {
+            String lower = storageKey.toLowerCase();
+            if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+            if (lower.endsWith(".png")) return "image/png";
+            if (lower.endsWith(".webp")) return "image/webp";
+            if (lower.endsWith(".gif")) return "image/gif";
+        }
+        return "image/png";
     }
 
     private String getSafeImageExtension(String filename, String contentType) {

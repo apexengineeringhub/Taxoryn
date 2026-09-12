@@ -82,9 +82,8 @@ public class UserServiceImpl implements UserService {
         if (request.getPhone() != null) {
             user.setPhone(request.getPhone().trim());
         }
-        if (request.getAvatarUrl() != null) {
-            user.setAvatarUrl(request.getAvatarUrl().trim());
-        }
+        // Avatar mutations MUST ONLY occur through dedicated /avatar endpoints.
+        // Ignore request.getAvatarUrl() to prevent untrusted storage key injection.
 
         UserEntity saved = userRepository.save(user);
 
@@ -94,7 +93,6 @@ public class UserServiceImpl implements UserService {
                 emp.setFirstName(saved.getFirstName());
                 emp.setLastName(saved.getLastName());
                 emp.setPhone(saved.getPhone());
-                emp.setAvatarUrl(saved.getAvatarUrl());
                 employeeRepository.save(emp);
             });
         }
@@ -149,20 +147,32 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] getAvatarContent(UUID userId) {
+    public ProfileImageService.AvatarContent getAvatar(UUID userId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UserEntity user = getUserEntityById(userId, organizationId);
         if (!org.springframework.util.StringUtils.hasText(user.getAvatarUrl())) {
             throw new ResourceNotFoundException("User avatar", "userId", userId);
         }
-        return profileImageService.retrieveAvatarContent(user.getAvatarUrl());
+        return profileImageService.retrieveAvatar(user.getAvatarUrl());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProfileImageService.AvatarContent getMyAvatar() {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        return getAvatar(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getAvatarContent(UUID userId) {
+        return getAvatar(userId).getData();
     }
 
     @Override
     @Transactional(readOnly = true)
     public byte[] getMyAvatarContent() {
-        UUID userId = SecurityUtils.getCurrentUserId();
-        return getAvatarContent(userId);
+        return getMyAvatar().getData();
     }
 
     private UserDto toEnrichedDto(UserEntity entity) {

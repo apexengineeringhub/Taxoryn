@@ -43,6 +43,10 @@ public interface MarketplaceLeadRepository extends JpaRepository<MarketplaceLead
 
     long countByOrganizationId(UUID organizationId);
 
+    long countByLeadStatus(MarketplaceLeadEntity.LeadStatus status);
+
+    long countByLeadStatusIn(Collection<MarketplaceLeadEntity.LeadStatus> statuses);
+
     List<MarketplaceLeadEntity> findAllByCustomerIdOrderByCreatedAtDesc(UUID customerId);
 
     Page<MarketplaceLeadEntity> findByCustomerIdOrderByCreatedAtDesc(UUID customerId, Pageable pageable);

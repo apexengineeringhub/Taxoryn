@@ -23,6 +23,10 @@ public interface UserService {
 
     void deleteMyAvatar();
 
+    ProfileImageService.AvatarContent getAvatar(UUID userId);
+
+    ProfileImageService.AvatarContent getMyAvatar();
+
     byte[] getAvatarContent(UUID userId);
 
     byte[] getMyAvatarContent();

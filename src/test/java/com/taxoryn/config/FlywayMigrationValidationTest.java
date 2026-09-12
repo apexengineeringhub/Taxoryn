@@ -53,8 +53,8 @@ public class FlywayMigrationValidationTest {
 
         // Verify all versions from 1 to latest are present without unexpected duplicates
         int maxVersion = versionNumbers.stream().max(Integer::compareTo).orElse(0);
-        assertThat(maxVersion).isEqualTo(63);
-        assertThat(versionNumbers).hasSize(63);
+        assertThat(maxVersion).isEqualTo(64);
+        assertThat(versionNumbers).hasSize(64);
     }
 
     @Test
@@ -81,7 +81,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(63);
+        assertThat(allMigrations.length).isEqualTo(64);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -94,6 +94,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v63 = infoService.all()[62];
         assertThat(v63.getVersion().getVersion()).isEqualTo("63");
         assertThat(v63.getDescription()).isEqualTo("correct legacy document scan status");
+
+        MigrationInfo v64 = infoService.all()[63];
+        assertThat(v64.getVersion().getVersion()).isEqualTo("64");
+        assertThat(v64.getDescription()).isEqualTo("add profile image support");
     }
 
     @Test

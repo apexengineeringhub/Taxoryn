@@ -330,8 +330,10 @@ export const DocumentsPage: React.FC = () => {
       a.download = fileName || 'document.pdf';
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 1000);
     } catch (err: any) {
       alert(`Failed to download document: ${err?.response?.data?.message || err?.message || 'Download failed'}`);
     }

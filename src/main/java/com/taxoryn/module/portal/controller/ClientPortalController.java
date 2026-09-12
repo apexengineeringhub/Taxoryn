@@ -138,12 +138,15 @@ public class ClientPortalController {
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_PROFILE_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Stream client avatar image", description = "Streams the avatar binary image for the authenticated client.")
     public ResponseEntity<byte[]> streamProfileAvatar() {
-        byte[] bytes = clientPortalService.getProfileAvatarContent();
+        com.taxoryn.module.user.service.ProfileImageService.AvatarContent avatar = clientPortalService.getProfileAvatar();
         return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_PNG)
-                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .contentType(MediaType.parseMediaType(avatar.getContentType()))
+                .contentLength(avatar.getFileSize())
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("Expires", "0")
                 .header("X-Content-Type-Options", "nosniff")
-                .body(bytes);
+                .body(avatar.getData());
     }
 
     // =========================================================================

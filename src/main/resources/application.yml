@@ -45,7 +45,7 @@ spring:
           writetimeout: ${SMTP_WRITE_TIMEOUT:15000}
 
 server:
-  port: 8088
+  port: ${PORT:${SERVER_PORT:8088}}
   servlet:
     context-path: /
   compression:

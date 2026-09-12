@@ -57,26 +57,14 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
         log.debug("Compiling PlatformDashboardSummary for SuperAdmin");
 
         // 1. Practices Metrics
-        List<OrganizationEntity> allOrgs = organizationRepository.findAll();
-        long totalPractices = allOrgs.size();
-        long activePractices = allOrgs.stream()
-                .filter(o -> o.getStatus() == OrganizationEntity.OrganizationStatus.ACTIVE)
-                .count();
-        long suspendedPractices = allOrgs.stream()
-                .filter(o -> o.getStatus() == OrganizationEntity.OrganizationStatus.SUSPENDED)
-                .count();
-        long inactivePractices = allOrgs.stream()
-                .filter(o -> o.getStatus() == OrganizationEntity.OrganizationStatus.INACTIVE)
-                .count();
-
-        long pendingVerificationPractices = marketplaceProfileRepository.findAll().stream()
-                .filter(p -> p.getVerificationStatus() == MarketplaceProfileEntity.VerificationStatus.PENDING)
-                .count();
+        long totalPractices = organizationRepository.count();
+        long activePractices = organizationRepository.countByStatus(OrganizationEntity.OrganizationStatus.ACTIVE);
+        long suspendedPractices = organizationRepository.countByStatus(OrganizationEntity.OrganizationStatus.SUSPENDED);
+        long inactivePractices = organizationRepository.countByStatus(OrganizationEntity.OrganizationStatus.INACTIVE);
+        long pendingVerificationPractices = marketplaceProfileRepository.countByVerificationStatus(MarketplaceProfileEntity.VerificationStatus.PENDING);
 
         Instant startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-        long newPracticesThisMonth = allOrgs.stream()
-                .filter(o -> o.getCreatedAt() != null && o.getCreatedAt().isAfter(startOfMonth))
-                .count();
+        long newPracticesThisMonth = organizationRepository.countByCreatedAtAfter(startOfMonth);
 
         PracticeEcosystemDto practiceEcosystem = PracticeEcosystemDto.builder()
                 .totalPractices(totalPractices)
@@ -128,22 +116,13 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
 
         // 3. Marketplace Funnel
         long totalRequirements = taxRequirementRepository.count();
-        long activeRequirements = taxRequirementRepository.findAll().stream()
-                .filter(r -> r.getStatus() == TaxRequirementStatus.SUBMITTED)
-                .count();
-        long matchedRequirements = taxRequirementRepository.findAll().stream()
-                .filter(r -> r.getStatus() == TaxRequirementStatus.SUBMITTED || r.getStatus() == TaxRequirementStatus.CLOSED)
-                .count();
+        long activeRequirements = taxRequirementRepository.countByStatus(TaxRequirementStatus.SUBMITTED);
+        long matchedRequirements = taxRequirementRepository.countByStatusIn(List.of(TaxRequirementStatus.SUBMITTED, TaxRequirementStatus.CLOSED));
 
-        List<MarketplaceLeadEntity> allLeads = marketplaceLeadRepository.findAll();
-        long totalEnquiries = allLeads.size();
-        long acceptedEnquiries = allLeads.stream()
-                .filter(l -> l.getLeadStatus() == MarketplaceLeadEntity.LeadStatus.ACCEPTED
-                        || l.getLeadStatus() == MarketplaceLeadEntity.LeadStatus.CONVERTED)
-                .count();
-        long completedServices = allLeads.stream()
-                .filter(l -> l.getLeadStatus() == MarketplaceLeadEntity.LeadStatus.CONVERTED)
-                .count();
+        long totalEnquiries = marketplaceLeadRepository.count();
+        long acceptedEnquiries = marketplaceLeadRepository.countByLeadStatusIn(List.of(
+                MarketplaceLeadEntity.LeadStatus.ACCEPTED, MarketplaceLeadEntity.LeadStatus.CONVERTED));
+        long completedServices = marketplaceLeadRepository.countByLeadStatus(MarketplaceLeadEntity.LeadStatus.CONVERTED);
 
         double conversionRate = totalEnquiries > 0
                 ? ((double) completedServices / totalEnquiries) * 100.0
@@ -165,17 +144,21 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
         long businessCount = 0;
         long enterpriseCount = 0;
 
-        for (OrganizationEntity org : allOrgs) {
-            OrganizationEntity.SubscriptionPlan plan = org.getSubscriptionPlan();
-            if (plan != null) {
-                switch (plan) {
-                    case PROFESSIONAL -> proCount++;
-                    case BUSINESS -> businessCount++;
-                    case ENTERPRISE -> enterpriseCount++;
-                    case STARTER -> starterCount++;
+        List<Object[]> planCounts = organizationRepository.countBySubscriptionPlanGrouped();
+        if (planCounts != null) {
+            for (Object[] row : planCounts) {
+                OrganizationEntity.SubscriptionPlan plan = (OrganizationEntity.SubscriptionPlan) row[0];
+                long count = row[1] instanceof Number n ? n.longValue() : 0L;
+                if (plan != null) {
+                    switch (plan) {
+                        case PROFESSIONAL -> proCount += count;
+                        case BUSINESS -> businessCount += count;
+                        case ENTERPRISE -> enterpriseCount += count;
+                        case STARTER -> starterCount += count;
+                    }
+                } else {
+                    starterCount += count;
                 }
-            } else {
-                starterCount++;
             }
         }
 
@@ -198,27 +181,28 @@ public class PlatformDashboardServiceImpl implements PlatformDashboardService {
                 .build();
 
         // 5. Feedback Operations
-        List<ApplicationFeedbackEntity> allFeedback = feedbackRepository.findAll();
-        long totalFeedback = allFeedback.size();
-        long newFeedback = allFeedback.stream().filter(f -> f.getStatus() == ApplicationFeedbackStatus.NEW).count();
-        long underReview = allFeedback.stream().filter(f -> f.getStatus() == ApplicationFeedbackStatus.UNDER_REVIEW).count();
-        long assigned = allFeedback.stream().filter(f -> f.getStatus() == ApplicationFeedbackStatus.ASSIGNED).count();
-        long inProgress = allFeedback.stream().filter(f -> f.getStatus() == ApplicationFeedbackStatus.IN_PROGRESS).count();
-        long resolved = allFeedback.stream().filter(f -> f.getStatus() == ApplicationFeedbackStatus.RESOLVED || f.getStatus() == ApplicationFeedbackStatus.CLOSED).count();
+        long totalFeedback = feedbackRepository.count();
+        long newFeedback = feedbackRepository.countByStatus(ApplicationFeedbackStatus.NEW);
+        long underReview = feedbackRepository.countByStatus(ApplicationFeedbackStatus.UNDER_REVIEW);
+        long assigned = feedbackRepository.countByStatus(ApplicationFeedbackStatus.ASSIGNED);
+        long inProgress = feedbackRepository.countByStatus(ApplicationFeedbackStatus.IN_PROGRESS);
+        long resolved = feedbackRepository.countByStatusIn(List.of(ApplicationFeedbackStatus.RESOLVED, ApplicationFeedbackStatus.CLOSED));
         long escalatedToEng = engineeringIssueRepository.count();
 
-        long criticalOpen = allFeedback.stream()
-                .filter(f -> (f.getPriority() == ApplicationFeedbackPriority.CRITICAL || f.getPriority() == ApplicationFeedbackPriority.HIGH)
-                        && f.getStatus() != ApplicationFeedbackStatus.RESOLVED
-                        && f.getStatus() != ApplicationFeedbackStatus.CLOSED
-                        && f.getStatus() != ApplicationFeedbackStatus.REJECTED)
-                .count();
+        long criticalOpen = feedbackRepository.countByPriorityInAndStatusNotIn(
+                List.of(ApplicationFeedbackPriority.CRITICAL, ApplicationFeedbackPriority.HIGH),
+                List.of(ApplicationFeedbackStatus.RESOLVED, ApplicationFeedbackStatus.CLOSED, ApplicationFeedbackStatus.REJECTED)
+        );
 
-        Map<String, Long> topCategories = allFeedback.stream()
-                .collect(Collectors.groupingBy(
-                        f -> f.getCategory() != null ? f.getCategory().name() : "GENERAL",
-                        Collectors.counting()
-                ));
+        Map<String, Long> topCategories = new LinkedHashMap<>();
+        List<Object[]> catRows = feedbackRepository.countGroupedByCategory();
+        if (catRows != null) {
+            for (Object[] r : catRows) {
+                String catName = r[0] != null ? r[0].toString() : "GENERAL";
+                long count = r[1] instanceof Number n ? n.longValue() : 0L;
+                topCategories.put(catName, count);
+            }
+        }
 
         FeedbackOperationsDto feedbackOperations = FeedbackOperationsDto.builder()
                 .totalFeedback(totalFeedback)

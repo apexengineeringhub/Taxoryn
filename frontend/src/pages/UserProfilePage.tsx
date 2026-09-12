@@ -98,6 +98,12 @@ export const UserProfilePage: React.FC = () => {
 
   useEffect(() => {
     loadUserProfile();
+    return () => {
+      if (previewBlobUrlRef.current) {
+        URL.revokeObjectURL(previewBlobUrlRef.current);
+        previewBlobUrlRef.current = null;
+      }
+    };
   }, []);
 
   const handleProfileSave = async (e: React.FormEvent) => {

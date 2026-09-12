@@ -202,7 +202,6 @@ class StrongTenantIsolationAndAbacTest {
 
         when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(staffScope);
         when(securityScopeEvaluator.getAccessibleClientIds(staffScope)).thenReturn(Set.of(client1Id));
-        when(storageService.retrieve(doc.getStorageKey())).thenReturn("data".getBytes());
 
         DocumentDownloadDto result = documentService.downloadDocument(docId);
         assertNotNull(result);

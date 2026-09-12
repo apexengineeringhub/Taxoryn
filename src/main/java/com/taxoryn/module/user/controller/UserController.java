@@ -73,24 +73,30 @@ public class UserController {
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Stream own avatar image", description = "Streams the avatar binary image for the authenticated user.")
     public ResponseEntity<byte[]> streamMyAvatar() {
-        byte[] bytes = userService.getMyAvatarContent();
+        com.taxoryn.module.user.service.ProfileImageService.AvatarContent avatar = userService.getMyAvatar();
         return ResponseEntity.ok()
-                .contentType(org.springframework.http.MediaType.IMAGE_PNG)
-                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .contentType(org.springframework.http.MediaType.parseMediaType(avatar.getContentType()))
+                .contentLength(avatar.getFileSize())
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "private, no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("Expires", "0")
                 .header("X-Content-Type-Options", "nosniff")
-                .body(bytes);
+                .body(avatar.getData());
     }
 
     @GetMapping("/{userId}/avatar")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Stream user avatar image", description = "Streams the avatar binary image for a specific user in the tenant.")
     public ResponseEntity<byte[]> streamUserAvatar(@PathVariable UUID userId) {
-        byte[] bytes = userService.getAvatarContent(userId);
+        com.taxoryn.module.user.service.ProfileImageService.AvatarContent avatar = userService.getAvatar(userId);
         return ResponseEntity.ok()
-                .contentType(org.springframework.http.MediaType.IMAGE_PNG)
-                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .contentType(org.springframework.http.MediaType.parseMediaType(avatar.getContentType()))
+                .contentLength(avatar.getFileSize())
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "private, no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("Expires", "0")
                 .header("X-Content-Type-Options", "nosniff")
-                .body(bytes);
+                .body(avatar.getData());
     }
 
     @GetMapping

@@ -128,21 +128,21 @@ public class ReportServiceImpl implements ReportService {
         }
 
         // 2. Active Tax Jobs
-        List<GstReturnFilingEntity> gstFilings = gstReturnFilingRepository.findAllByOrganizationId(organizationId);
-        List<ItrReturnEntity> itrReturns = itrReturnRepository.findAllByOrganizationId(organizationId);
-        List<TdsReturnEntity> tdsReturns = tdsReturnRepository.findAllByOrganizationId(organizationId);
-
-        long pendingGst = gstFilings.stream().filter(f -> f.getFilingStatus() != GstFilingStatus.FILED && f.getFilingStatus() != GstFilingStatus.CANCELLED).count();
-        long pendingItr = itrReturns.stream().filter(r -> r.getStatus() != ItrStatus.COMPLETED && r.getStatus() != ItrStatus.FILED && r.getStatus() != ItrStatus.CANCELLED).count();
-        long pendingTds = tdsReturns.stream().filter(r -> r.getFilingStatus() != TdsFilingStatus.FILED && r.getFilingStatus() != TdsFilingStatus.CANCELLED).count();
+        long pendingGst = gstReturnFilingRepository.countByOrganizationIdAndFilingStatusNotIn(
+                organizationId, List.of(GstFilingStatus.FILED, GstFilingStatus.CANCELLED));
+        long pendingItr = itrReturnRepository.countByOrganizationIdAndStatusNotIn(
+                organizationId, List.of(ItrStatus.COMPLETED, ItrStatus.FILED, ItrStatus.CANCELLED));
+        long pendingTds = tdsReturnRepository.countByOrganizationIdAndFilingStatusNotIn(
+                organizationId, List.of(TdsFilingStatus.FILED, TdsFilingStatus.CANCELLED));
         long activeTaxJobs = pendingGst + pendingItr + pendingTds;
 
         // 3. Tasks
-        List<TaskEntity> tasks = taskRepository.findAllByOrganizationId(organizationId, org.springframework.data.domain.Pageable.unpaged()).getContent();
-        long openTasks = tasks.stream().filter(t -> t.getStatus() == TaskStatus.TODO || t.getStatus() == TaskStatus.IN_PROGRESS).count();
-        long reviewTasks = tasks.stream().filter(t -> t.getStatus() == TaskStatus.UNDER_REVIEW).count();
-        long completedTasks = tasks.stream().filter(t -> t.getStatus() == TaskStatus.COMPLETED).count();
-        long overdueTasks = tasks.stream().filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED && t.getDueDate() != null && t.getDueDate().isBefore(today)).count();
+        long openTasks = taskRepository.countByOrganizationIdAndStatusIn(
+                organizationId, List.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS));
+        long reviewTasks = taskRepository.countByOrganizationIdAndStatus(organizationId, TaskStatus.UNDER_REVIEW);
+        long completedTasks = taskRepository.countByOrganizationIdAndStatus(organizationId, TaskStatus.COMPLETED);
+        long overdueTasks = taskRepository.countByOrganizationIdAndStatusNotInAndDueDateBefore(
+                organizationId, List.of(TaskStatus.COMPLETED, TaskStatus.CANCELLED), today);
 
         // 4. Compliance Obligations
         List<ComplianceObligationEntity> obligations = complianceObligationRepository.findAllByOrganizationIdAndDueDateBetween(
@@ -154,9 +154,10 @@ public class ReportServiceImpl implements ReportService {
         long complianceCompleted = obligations.stream().filter(o -> o.getStatus() == ComplianceStatus.COMPLETED).count();
 
         // 5. Document Requests
-        List<DocumentRequestEntity> docRequests = documentRequestRepository.findAllByOrganizationId(organizationId, org.springframework.data.domain.Pageable.unpaged()).getContent();
-        long documentRequestsPending = docRequests.stream().filter(d -> d.getStatus() == RequestStatus.SENT || d.getStatus() == RequestStatus.PARTIALLY_COMPLETED).count();
-        long documentRequestsOpen = docRequests.stream().filter(d -> d.getStatus() != RequestStatus.COMPLETED && d.getStatus() != RequestStatus.CANCELLED).count();
+        long documentRequestsPending = documentRequestRepository.countByOrganizationIdAndStatusIn(
+                organizationId, List.of(RequestStatus.SENT, RequestStatus.PARTIALLY_COMPLETED));
+        long documentRequestsOpen = documentRequestRepository.countByOrganizationIdAndStatusNotIn(
+                organizationId, List.of(RequestStatus.COMPLETED, RequestStatus.CANCELLED));
 
         // 6. Financial Summary
         boolean hasBilling = securityScopeEvaluator.hasBillingAccess(scope);
@@ -400,44 +401,74 @@ public class ReportServiceImpl implements ReportService {
         long activeClients = allClients.stream().filter(c -> c.getStatus() == ClientStatus.ACTIVE).count();
         long inactiveClients = totalClients - activeClients;
 
-        // Fetch Tasks, Filings, Document Requests, and Compliance
-        List<TaskEntity> tasks = taskRepository.findAllByOrganizationId(organizationId, org.springframework.data.domain.Pageable.unpaged()).getContent();
-        List<DocumentRequestEntity> docRequests = documentRequestRepository.findAllByOrganizationId(organizationId, org.springframework.data.domain.Pageable.unpaged()).getContent();
+        // Fetch Tasks, Document Requests, and Compliance
+        Set<UUID> clientsWithOpenTasks;
+        Set<UUID> clientsWithOverdueTasks;
+        Set<UUID> clientsWithPendingDocs;
+        long pendingClientActions;
+        long clientActionsDueToday;
+        long clientActionsOverdue;
+        long totalDocRequests;
+
         List<ComplianceObligationEntity> obligations = complianceObligationRepository.findAllByOrganizationIdAndDueDateBetween(
                 organizationId, today.minusYears(1), today.plusYears(1));
         if (accessibleClientIds != null) {
-            tasks = tasks.stream().filter(t -> accessibleClientIds.contains(t.getClientId())).toList();
-            docRequests = docRequests.stream().filter(d -> accessibleClientIds.contains(d.getClientId())).toList();
             obligations = obligations.stream().filter(o -> accessibleClientIds.contains(o.getClientId())).toList();
         }
-
-        Set<UUID> clientsWithOpenTasks = tasks.stream()
-                .filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED && t.getClientId() != null)
-                .map(TaskEntity::getClientId)
-                .collect(Collectors.toSet());
-
-        Set<UUID> clientsWithOverdueTasks = tasks.stream()
-                .filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED && t.getClientId() != null && t.getDueDate() != null && t.getDueDate().isBefore(today))
-                .map(TaskEntity::getClientId)
-                .collect(Collectors.toSet());
-
-        Set<UUID> clientsWithPendingDocs = docRequests.stream()
-                .filter(d -> (d.getStatus() == RequestStatus.SENT || d.getStatus() == RequestStatus.PARTIALLY_COMPLETED) && d.getClientId() != null)
-                .map(DocumentRequestEntity::getClientId)
-                .collect(Collectors.toSet());
 
         Set<UUID> clientsWithOverdueCompliance = obligations.stream()
                 .filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && o.getClientId() != null && o.getDueDate() != null && o.getDueDate().isBefore(today))
                 .map(ComplianceObligationEntity::getClientId)
                 .collect(Collectors.toSet());
 
-        // Follow-up Summary
-        long pendingClientActions = docRequests.stream().filter(d -> d.getStatus() == RequestStatus.SENT || d.getStatus() == RequestStatus.PARTIALLY_COMPLETED).count();
-        long clientActionsDueToday = docRequests.stream().filter(d -> d.getDueDate() != null && today.equals(d.getDueDate()) && d.getStatus() != RequestStatus.COMPLETED).count();
-        long clientActionsOverdue = docRequests.stream().filter(d -> d.getDueDate() != null && d.getDueDate().isBefore(today) && d.getStatus() != RequestStatus.COMPLETED).count();
+        List<TaskEntity> tasks;
+        List<DocumentRequestEntity> docRequests;
+
+        if (accessibleClientIds == null) {
+            clientsWithOpenTasks = new HashSet<>(taskRepository.findDistinctClientIdsByOrganizationIdAndStatusNotIn(
+                    organizationId, List.of(TaskStatus.COMPLETED, TaskStatus.CANCELLED)));
+            clientsWithOverdueTasks = new HashSet<>(taskRepository.findDistinctClientIdsByOrganizationIdAndStatusNotInAndDueDateBefore(
+                    organizationId, List.of(TaskStatus.COMPLETED, TaskStatus.CANCELLED), today));
+            clientsWithPendingDocs = new HashSet<>(documentRequestRepository.findDistinctClientIdsByOrganizationIdAndStatusIn(
+                    organizationId, List.of(RequestStatus.SENT, RequestStatus.PARTIALLY_COMPLETED)));
+
+            pendingClientActions = documentRequestRepository.countByOrganizationIdAndStatusIn(
+                    organizationId, List.of(RequestStatus.SENT, RequestStatus.PARTIALLY_COMPLETED));
+            clientActionsDueToday = documentRequestRepository.countByOrganizationIdAndDueDateAndStatusNot(
+                    organizationId, today, RequestStatus.COMPLETED);
+            clientActionsOverdue = documentRequestRepository.countByOrganizationIdAndDueDateBeforeAndStatusNot(
+                    organizationId, today, RequestStatus.COMPLETED);
+            totalDocRequests = documentRequestRepository.countByOrganizationId(organizationId);
+
+            tasks = taskRepository.findAllByOrganizationId(organizationId);
+            docRequests = documentRequestRepository.findAllByOrganizationIdAndStatusIn(
+                    organizationId, List.of(RequestStatus.SENT, RequestStatus.PARTIALLY_COMPLETED, RequestStatus.OVERDUE, RequestStatus.DRAFT));
+        } else {
+            tasks = accessibleClientIds.isEmpty() ? Collections.emptyList() : taskRepository.findAllByOrganizationIdAndClientIdIn(organizationId, accessibleClientIds);
+            docRequests = accessibleClientIds.isEmpty() ? Collections.emptyList() : documentRequestRepository.findAllByOrganizationIdAndClientIdIn(organizationId, accessibleClientIds);
+
+            clientsWithOpenTasks = tasks.stream()
+                    .filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED && t.getClientId() != null)
+                    .map(TaskEntity::getClientId)
+                    .collect(Collectors.toSet());
+
+            clientsWithOverdueTasks = tasks.stream()
+                    .filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED && t.getClientId() != null && t.getDueDate() != null && t.getDueDate().isBefore(today))
+                    .map(TaskEntity::getClientId)
+                    .collect(Collectors.toSet());
+
+            clientsWithPendingDocs = docRequests.stream()
+                    .filter(d -> (d.getStatus() == RequestStatus.SENT || d.getStatus() == RequestStatus.PARTIALLY_COMPLETED) && d.getClientId() != null)
+                    .map(DocumentRequestEntity::getClientId)
+                    .collect(Collectors.toSet());
+
+            pendingClientActions = docRequests.stream().filter(d -> d.getStatus() == RequestStatus.SENT || d.getStatus() == RequestStatus.PARTIALLY_COMPLETED).count();
+            clientActionsDueToday = docRequests.stream().filter(d -> d.getDueDate() != null && today.equals(d.getDueDate()) && d.getStatus() != RequestStatus.COMPLETED).count();
+            clientActionsOverdue = docRequests.stream().filter(d -> d.getDueDate() != null && d.getDueDate().isBefore(today) && d.getStatus() != RequestStatus.COMPLETED).count();
+            totalDocRequests = docRequests.size();
+        }
 
         // Document Requests Item Pipeline
-        long totalDocRequests = docRequests.size();
         long docRequestsAwaitingUpload;
         long docRequestsUploaded;
         long docRequestsAccepted;
@@ -525,11 +556,10 @@ public class ReportServiceImpl implements ReportService {
 
         // Tenant/RBAC scope: staff only see their own workload; managers see their department;
         // firm admins see the whole practice. This also prevents individual-level employee
-        // surveillance by junior staff (see Section 12/34 of the Reports spec).
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         Set<UUID> accessibleAssigneeIds = scope.isFirmAdmin() ? null : scope.getAccessibleAssigneeIds();
 
-        List<TaskEntity> tasks = taskRepository.findAllByOrganizationId(organizationId, org.springframework.data.domain.Pageable.unpaged()).getContent();
+        List<TaskEntity> tasks = taskRepository.findAllByOrganizationId(organizationId);
         if (accessibleAssigneeIds != null) {
             tasks = tasks.stream()
                     .filter(t -> t.getAssignedTo() != null && accessibleAssigneeIds.contains(t.getAssignedTo()))
@@ -842,22 +872,9 @@ public class ReportServiceImpl implements ReportService {
         int quarterStartMonth = ((currentMonth - 1) / 3) * 3 + 1;
         LocalDate startOfQuarter = today.withMonth(quarterStartMonth).withDayOfMonth(1);
 
-        BigDecimal collectedThisMonth = BigDecimal.ZERO;
-        BigDecimal collectedThisQuarter = BigDecimal.ZERO;
-        long totalPaymentsCount = 0;
-
-        List<InvoicePaymentEntity> payments = invoicePaymentRepository.findAll();
-        for (InvoicePaymentEntity pay : payments) {
-            if (organizationId.equals(pay.getOrganizationId()) && pay.getPaymentDate() != null && pay.getAmount() != null) {
-                totalPaymentsCount++;
-                if (!pay.getPaymentDate().isBefore(startOfMonth)) {
-                    collectedThisMonth = collectedThisMonth.add(pay.getAmount());
-                }
-                if (!pay.getPaymentDate().isBefore(startOfQuarter)) {
-                    collectedThisQuarter = collectedThisQuarter.add(pay.getAmount());
-                }
-            }
-        }
+        BigDecimal collectedThisMonth = invoicePaymentRepository.sumAmountByOrganizationIdAndPaymentDateAfterOrEqual(organizationId, startOfMonth);
+        BigDecimal collectedThisQuarter = invoicePaymentRepository.sumAmountByOrganizationIdAndPaymentDateAfterOrEqual(organizationId, startOfQuarter);
+        long totalPaymentsCount = invoicePaymentRepository.countByOrganizationIdAndPaymentDateNotNullAndAmountNotNull(organizationId);
 
         return FinancialReportDto.builder()
                 .hasBillingAccess(true)

@@ -108,6 +108,25 @@ class UserProfileSecurityIntegrationTest {
             (byte) 0xFF, (byte) 0xD9
     };
 
+    // Standard valid GIF image bytes (GIF89a)
+    private static final byte[] VALID_GIF_BYTES = new byte[] {
+            'G', 'I', 'F', '8', '9', 'a',
+            0x01, 0x00, 0x01, 0x00, (byte) 0x80, 0x00, 0x00,
+            0x00, 0x00, 0x00, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+            0x2C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+            0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3B
+    };
+
+    // Standard valid WEBP image bytes
+    private static final byte[] VALID_WEBP_BYTES = new byte[] {
+            'R', 'I', 'F', 'F',
+            0x14, 0x00, 0x00, 0x00,
+            'W', 'E', 'B', 'P',
+            'V', 'P', '8', ' ',
+            0x08, 0x00, 0x00, 0x00,
+            0x30, 0x01, 0x00, (byte) 0x9D, 0x01, 0x2A, 0x01, 0x00
+    };
+
     @BeforeEach
     void setUp() {
         TenantContext.clear();
@@ -438,6 +457,158 @@ class UserProfileSecurityIntegrationTest {
         mockMvc.perform(get("/api/v1/users/" + employeeUser1.getId() + "/avatar")
                         .header("Authorization", "Bearer " + employeeToken2))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Security & Privacy: Avatar streaming endpoints enforce private cache-control and security headers")
+    void testAvatarStreaming_CachePrivacyAndSecurityHeaders() throws Exception {
+        // Upload avatar for employee1
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", VALID_PNG_BYTES);
+        mockMvc.perform(multipart("/api/v1/users/me/avatar")
+                        .file(file)
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk());
+
+        // 1. Check /users/me/avatar headers
+        mockMvc.perform(get("/api/v1/users/me/avatar")
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "private, no-cache, no-store, must-revalidate"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Pragma", "no-cache"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Expires", "0"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(VALID_PNG_BYTES));
+
+        // 2. Check /employees/me/avatar headers
+        mockMvc.perform(get("/api/v1/employees/me/avatar")
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "private, no-cache, no-store, must-revalidate"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Pragma", "no-cache"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Expires", "0"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"));
+
+        // 3. Upload client avatar and check /portal/profile/avatar headers
+        MockMultipartFile clientFile = new MockMultipartFile("file", "client.png", "image/png", VALID_PNG_BYTES);
+        mockMvc.perform(multipart("/api/v1/portal/profile/avatar")
+                        .file(clientFile)
+                        .header("Authorization", "Bearer " + clientToken1))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/portal/profile/avatar")
+                        .header("Authorization", "Bearer " + clientToken1))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "private, no-cache, no-store, must-revalidate"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Pragma", "no-cache"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Expires", "0"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/png"));
+    }
+
+    @Test
+    @DisplayName("MIME Correctness: Avatar endpoints dynamically detect and serve correct MIME type for PNG, JPEG, GIF, WEBP")
+    void testAvatarStreaming_DynamicMimeTypeDetection() throws Exception {
+        // 1. JPEG
+        MockMultipartFile jpegFile = new MockMultipartFile("file", "photo.jpg", "image/jpeg", VALID_JPEG_BYTES);
+        mockMvc.perform(multipart("/api/v1/users/me/avatar")
+                        .file(jpegFile)
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/users/me/avatar")
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/jpeg"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(VALID_JPEG_BYTES));
+
+        // 2. GIF
+        MockMultipartFile gifFile = new MockMultipartFile("file", "anim.gif", "image/gif", VALID_GIF_BYTES);
+        mockMvc.perform(multipart("/api/v1/users/me/avatar")
+                        .file(gifFile)
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/users/me/avatar")
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/gif"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(VALID_GIF_BYTES));
+
+        // 3. WEBP
+        MockMultipartFile webpFile = new MockMultipartFile("file", "graphic.webp", "image/webp", VALID_WEBP_BYTES);
+        mockMvc.perform(multipart("/api/v1/users/me/avatar")
+                        .file(webpFile)
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/users/me/avatar")
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("image/webp"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(VALID_WEBP_BYTES));
+    }
+
+    @Test
+    @DisplayName("Security: Untrusted avatarUrl in profile update DTO is ignored and does not mutate avatar storage key")
+    void testUntrustedAvatarUrl_IgnoredInProfileUpdate() throws Exception {
+        // Upload genuine avatar first
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", VALID_PNG_BYTES);
+        mockMvc.perform(multipart("/api/v1/users/me/avatar")
+                        .file(file)
+                        .header("Authorization", "Bearer " + employeeToken1))
+                .andExpect(status().isOk());
+
+        UserEntity userBefore = userRepository.findById(employeeUser1.getId()).orElseThrow();
+        String authoritativeAvatarKey = userBefore.getAvatarUrl();
+        assertThat(authoritativeAvatarKey).isNotNull();
+
+        // Attempt untrusted avatar URL injection via PUT /users/me
+        UpdateUserProfileRequest userRequest = UpdateUserProfileRequest.builder()
+                .firstName("Alice-Hacked")
+                .avatarUrl("https://attacker.com/malicious-avatar.png")
+                .build();
+
+        mockMvc.perform(put("/api/v1/users/me")
+                        .header("Authorization", "Bearer " + employeeToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(userRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.firstName").value("Alice-Hacked"));
+
+        UserEntity userAfter = userRepository.findById(employeeUser1.getId()).orElseThrow();
+        assertThat(userAfter.getAvatarUrl()).isEqualTo(authoritativeAvatarKey);
+
+        // Attempt untrusted avatar URL injection via PUT /employees/me
+        UpdateUserProfileRequest empRequest = UpdateUserProfileRequest.builder()
+                .firstName("Alice-Emp-Hacked")
+                .avatarUrl("tenants/org_foreign/avatars/stolen.png")
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/me")
+                        .header("Authorization", "Bearer " + employeeToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(empRequest)))
+                .andExpect(status().isOk());
+
+        EmployeeEntity empAfter = employeeRepository.findByOrganizationIdAndUserId(org1.getId(), employeeUser1.getId()).orElseThrow();
+        assertThat(empAfter.getAvatarUrl()).isEqualTo(authoritativeAvatarKey);
+
+        // Attempt untrusted avatar URL injection via PUT /portal/profile
+        UpdateClientPortalProfileRequest clientReq = UpdateClientPortalProfileRequest.builder()
+                .displayName("Legit Corp")
+                .avatarUrl("https://malicious.site/cross-tenant-avatar.jpg")
+                .build();
+
+        mockMvc.perform(put("/api/v1/portal/profile")
+                        .header("Authorization", "Bearer " + clientToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(clientReq)))
+                .andExpect(status().isOk());
+
+        ClientEntity clientAfter = clientRepository.findById(client1.getId()).orElseThrow();
+        assertThat(clientAfter.getAvatarUrl()).isNull(); // Wasn't uploaded, so must remain null despite payload
     }
 
     @Test

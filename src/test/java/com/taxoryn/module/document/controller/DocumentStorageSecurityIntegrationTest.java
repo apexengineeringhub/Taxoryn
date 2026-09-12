@@ -520,4 +520,98 @@ class DocumentStorageSecurityIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, tokenOrg2))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("11. Scan Status Gating: INFECTED, PENDING_SCAN, SCAN_FAILED, and LEGACY_UNSCANNED documents cannot be downloaded or previewed")
+    void unscannedOrInfectedDocumentsCannotBeDownloadedOrPreviewed() throws Exception {
+        byte[] content = "%PDF-1.4 Gated Document".getBytes(StandardCharsets.UTF_8);
+        String docId = uploadTestDocument(tokenOrg1, client1.getId(), "GatedDoc.pdf", content);
+
+        // 1. INFECTED
+        DocumentEntity docEntity = documentRepository.findById(UUID.fromString(docId)).orElseThrow();
+        docEntity.setScanStatus(DocumentEntity.DocumentScanStatus.INFECTED);
+        docEntity = documentRepository.save(docEntity);
+
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/preview")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+
+        // 2. PENDING_SCAN
+        docEntity = documentRepository.findById(UUID.fromString(docId)).orElseThrow();
+        docEntity.setScanStatus(DocumentEntity.DocumentScanStatus.PENDING_SCAN);
+        docEntity = documentRepository.save(docEntity);
+
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/preview")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+
+        // 3. SCAN_FAILED
+        docEntity = documentRepository.findById(UUID.fromString(docId)).orElseThrow();
+        docEntity.setScanStatus(DocumentEntity.DocumentScanStatus.SCAN_FAILED);
+        docEntity = documentRepository.save(docEntity);
+
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/preview")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+
+        // 4. LEGACY_UNSCANNED
+        docEntity = documentRepository.findById(UUID.fromString(docId)).orElseThrow();
+        docEntity.setScanStatus(DocumentEntity.DocumentScanStatus.LEGACY_UNSCANNED);
+        docEntity = documentRepository.save(docEntity);
+
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/documents/" + docId + "/preview")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("12. Large Payload Streaming: 5MB document streams cleanly without loading whole file into heap byte[]")
+    void largePayloadStreamingDownloadAndPreviewIntegrity() throws Exception {
+        byte[] largeBytes = new byte[5 * 1024 * 1024]; // 5 MB
+        byte[] header = "%PDF-1.4 5MB Streaming Payload\n".getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(header, 0, largeBytes, 0, header.length);
+        for (int i = header.length; i < largeBytes.length; i++) {
+            largeBytes[i] = (byte) ((i % 127) + 1);
+        }
+
+        String docId = uploadTestDocument(tokenOrg1, client1.getId(), "LargeStreamingReport.pdf", largeBytes);
+
+        // Verify Streaming Download
+        MvcResult downloadResult = mockMvc.perform(get("/api/v1/documents/" + docId + "/download")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(downloadResult))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, String.valueOf(largeBytes.length)))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"LargeStreamingReport.pdf\""))
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(content().bytes(largeBytes));
+
+        // Verify Streaming Preview
+        MvcResult previewResult = mockMvc.perform(get("/api/v1/documents/" + docId + "/preview")
+                        .header(HttpHeaders.AUTHORIZATION, tokenOrg1))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(previewResult))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, String.valueOf(largeBytes.length)))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"LargeStreamingReport.pdf\""))
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(content().bytes(largeBytes));
+    }
 }

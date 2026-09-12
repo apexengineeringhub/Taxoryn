@@ -23,6 +23,10 @@ public interface EmployeeService {
 
     EmployeeDto uploadMyEmployeeAvatar(org.springframework.web.multipart.MultipartFile file);
 
+    com.taxoryn.module.user.service.ProfileImageService.AvatarContent getEmployeeAvatar(UUID employeeId);
+
+    com.taxoryn.module.user.service.ProfileImageService.AvatarContent getMyEmployeeAvatar();
+
     byte[] getEmployeeAvatarContent(UUID employeeId);
 
     byte[] getMyEmployeeAvatarContent();
