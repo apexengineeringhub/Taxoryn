@@ -246,6 +246,9 @@ public class ClientServiceImpl implements ClientService {
     @Transactional(readOnly = true)
     public ClientDto getClientById(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required to query client");
+        }
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
@@ -265,6 +268,9 @@ public class ClientServiceImpl implements ClientService {
     @Transactional(readOnly = true)
     public PagedResponse<ClientDto> getClients(ClientFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required to query clients");
+        }
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         Specification<ClientEntity> spec = (root, query, cb) -> {
