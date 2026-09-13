@@ -79,6 +79,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
           { label: 'GST Compliance', path: '/gst', requiredPermissions: ['GST_VIEW'] },
           { label: 'ITR Compliance', path: '/itr', requiredPermissions: ['ITR_VIEW'] },
           { label: 'TDS Compliance', path: '/tds', requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
+          { label: 'Notice Center', path: '/notices', requiredPermissions: ['NOTICE_VIEW'] },
           { label: 'Tax Calendar', path: '/calendar', requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
         ],
       },

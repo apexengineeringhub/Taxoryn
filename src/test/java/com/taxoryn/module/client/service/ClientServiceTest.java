@@ -2,6 +2,7 @@ package com.taxoryn.module.client.service;
 
 import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
+import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.TenantContext;
 import com.taxoryn.module.client.dto.AssignClientEmployeeRequest;
@@ -645,5 +646,104 @@ class ClientServiceTest {
                 () -> clientService.resendPortalInvitation(clientId)
         );
         assertEquals("The email address is already registered and cannot be used for this client portal account.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Practitioner scope: Access allowed for assigned client")
+    void testPractitioner_GetClientById_Assigned_Success() {
+        UUID empId = UUID.randomUUID();
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Assigned Client")
+                .assignedEmployeeId(empId)
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        PracticeSecurityScope practitionerScope = PracticeSecurityScope.builder()
+                .roleTier(PracticeSecurityScope.RoleTier.STAFF_INDIVIDUAL)
+                .organizationId(tenantId)
+                .userId(UUID.randomUUID())
+                .employeeId(empId)
+                .isFirmAdmin(false)
+                .isDepartmentManager(false)
+                .isStaff(true)
+                .accessibleAssigneeIds(Set.of(empId))
+                .build();
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(practitionerScope);
+        when(clientMapper.toDto(client)).thenReturn(ClientDto.builder()
+                .id(clientId)
+                .displayName("Assigned Client")
+                .build());
+
+        ClientDto result = clientService.getClientById(clientId);
+        assertNotNull(result);
+        assertEquals("Assigned Client", result.getDisplayName());
+    }
+
+    @Test
+    @DisplayName("Practitioner scope: Access denied for unassigned or other practitioner's client")
+    void testPractitioner_GetClientById_Unassigned_ThrowsAccessDenied() {
+        UUID otherEmpId = UUID.randomUUID();
+        UUID myEmpId = UUID.randomUUID();
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Other Practitioner Client")
+                .assignedEmployeeId(otherEmpId)
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        PracticeSecurityScope practitionerScope = PracticeSecurityScope.builder()
+                .roleTier(PracticeSecurityScope.RoleTier.STAFF_INDIVIDUAL)
+                .organizationId(tenantId)
+                .userId(UUID.randomUUID())
+                .employeeId(myEmpId)
+                .isFirmAdmin(false)
+                .isDepartmentManager(false)
+                .isStaff(true)
+                .accessibleAssigneeIds(Set.of(myEmpId))
+                .build();
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(practitionerScope);
+        when(securityScopeEvaluator.getAccessibleClientIds(practitionerScope)).thenReturn(Set.of());
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> clientService.getClientById(clientId));
+    }
+
+    @Test
+    @DisplayName("Practitioner scope: Update denied for unassigned client")
+    void testPractitioner_UpdateClient_Unassigned_ThrowsAccessDenied() {
+        UUID myEmpId = UUID.randomUUID();
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Unassigned Client")
+                .assignedEmployeeId(null)
+                .build();
+        client.setId(clientId);
+        client.setOrganizationId(tenantId);
+
+        PracticeSecurityScope practitionerScope = PracticeSecurityScope.builder()
+                .roleTier(PracticeSecurityScope.RoleTier.STAFF_INDIVIDUAL)
+                .organizationId(tenantId)
+                .userId(UUID.randomUUID())
+                .employeeId(myEmpId)
+                .isFirmAdmin(false)
+                .isDepartmentManager(false)
+                .isStaff(true)
+                .accessibleAssigneeIds(Set.of(myEmpId))
+                .build();
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(practitionerScope);
+        when(securityScopeEvaluator.getAccessibleClientIds(practitionerScope)).thenReturn(Set.of());
+
+        UpdateClientRequest req = UpdateClientRequest.builder()
+                .displayName("Modified Name")
+                .build();
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> clientService.updateClient(clientId, req));
     }
 }

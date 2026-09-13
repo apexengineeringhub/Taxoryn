@@ -38,6 +38,16 @@ export const GstCompliancePage: React.FC = () => {
   const [filings, setFilings] = useState<GstReturnFiling[]>([]);
   const [profiles, setProfiles] = useState<GstProfile[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PREPARED' | 'FILED' | 'OVERDUE'>(
+    () => {
+      const s = searchParams.get('status')?.toUpperCase();
+      if (s === 'FILED') return 'FILED';
+      if (s === 'OVERDUE') return 'OVERDUE';
+      if (s === 'PENDING' || s === 'DUE') return 'PENDING';
+      if (s === 'PREPARED' || s === 'UNDER_REVIEW') return 'PREPARED';
+      return 'ALL';
+    }
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   // Modals & Drawers
@@ -104,6 +114,14 @@ export const GstCompliancePage: React.FC = () => {
   useEffect(() => {
     if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
       setIsNewFilingModalOpen(true);
+    }
+    const targetStatus = searchParams.get('status')?.toUpperCase();
+    if (targetStatus) {
+      if (targetStatus === 'FILED') setStatusFilter('FILED');
+      else if (targetStatus === 'OVERDUE') setStatusFilter('OVERDUE');
+      else if (targetStatus === 'PENDING' || targetStatus === 'DUE') setStatusFilter('PENDING');
+      else if (targetStatus === 'PREPARED') setStatusFilter('PREPARED');
+      else if (targetStatus === 'ALL') setStatusFilter('ALL');
     }
   }, [searchParams]);
 
@@ -326,6 +344,15 @@ export const GstCompliancePage: React.FC = () => {
   const filedCount = filings.filter((f) => f.filingStatus === 'FILED').length;
   const overdueCount = filings.filter((f) => f.filingStatus !== 'FILED' && new Date(f.dueDate) < new Date()).length;
 
+  const displayFilings = React.useMemo(() => {
+    if (statusFilter === 'ALL') return filings;
+    if (statusFilter === 'FILED') return filings.filter((f) => f.filingStatus === 'FILED');
+    if (statusFilter === 'PENDING') return filings.filter((f) => f.filingStatus === 'PENDING' || f.filingStatus === 'PREPARED' || f.filingStatus === 'UNDER_REVIEW');
+    if (statusFilter === 'PREPARED') return filings.filter((f) => f.filingStatus === 'PREPARED' || f.filingStatus === 'UNDER_REVIEW');
+    if (statusFilter === 'OVERDUE') return filings.filter((f) => f.filingStatus !== 'FILED' && new Date(f.dueDate) < new Date());
+    return filings;
+  }, [filings, statusFilter]);
+
   const columns: Column<GstReturnFiling>[] = [
     {
       header: 'Client & GSTIN',
@@ -515,27 +542,75 @@ export const GstCompliancePage: React.FC = () => {
 
       {/* Metrics Bar */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('ALL')}
+          className={clsx(
+            'bg-white border rounded-xl p-3.5 shadow-2xs text-left transition-all hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+            statusFilter === 'ALL' ? 'border-brand-500 ring-1 ring-brand-500/20' : 'border-slate-200'
+          )}
+        >
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Filings</div>
           <div className="text-xl font-black text-slate-900 mt-1">{totalCount}</div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'PENDING' ? 'ALL' : 'PENDING')}
+          className={clsx(
+            'bg-white border rounded-xl p-3.5 shadow-2xs text-left transition-all hover:border-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500',
+            statusFilter === 'PENDING' ? 'border-amber-500 ring-1 ring-amber-500/20 bg-amber-50/20' : 'border-slate-200'
+          )}
+        >
           <div className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Pending Preparation</div>
           <div className="text-xl font-black text-amber-700 mt-1">{pendingCount}</div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Prepared / Under Review</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'PREPARED' ? 'ALL' : 'PREPARED')}
+          className={clsx(
+            'bg-white border rounded-xl p-3.5 shadow-2xs text-left transition-all hover:border-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+            statusFilter === 'PREPARED' ? 'border-blue-500 ring-1 ring-blue-500/20 bg-blue-50/20' : 'border-slate-200'
+          )}
+        >
+          <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Prepared / Review</div>
           <div className="text-xl font-black text-blue-700 mt-1">{preparedCount}</div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'FILED' ? 'ALL' : 'FILED')}
+          className={clsx(
+            'bg-white border rounded-xl p-3.5 shadow-2xs text-left transition-all hover:border-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+            statusFilter === 'FILED' ? 'border-emerald-500 ring-1 ring-emerald-500/20 bg-emerald-50/20' : 'border-slate-200'
+          )}
+        >
           <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Filed & ARN Recorded</div>
           <div className="text-xl font-black text-emerald-700 mt-1">{filedCount}</div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'OVERDUE' ? 'ALL' : 'OVERDUE')}
+          className={clsx(
+            'bg-white border rounded-xl p-3.5 shadow-2xs text-left transition-all hover:border-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500',
+            statusFilter === 'OVERDUE' ? 'border-rose-500 ring-1 ring-rose-500/20 bg-rose-50/20' : 'border-slate-200'
+          )}
+        >
           <div className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Overdue Returns</div>
           <div className="text-xl font-black text-rose-700 mt-1">{overdueCount}</div>
-        </div>
+        </button>
       </div>
+
+      {statusFilter !== 'ALL' && (
+        <div className="flex items-center justify-between px-3.5 py-2 bg-brand-50/60 border border-brand-200 rounded-lg text-xs font-medium text-slate-700">
+          <span>Filtering by status: <strong className="text-brand-700 font-bold uppercase">{statusFilter}</strong> ({displayFilings.length} {displayFilings.length === 1 ? 'record' : 'records'})</span>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('ALL')}
+            className="text-xs text-brand-600 hover:text-brand-800 underline font-bold"
+          >
+            Clear Filter (Show All)
+          </button>
+        </div>
+      )}
 
       {/* Return Type Tab Filter */}
       <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -558,7 +633,7 @@ export const GstCompliancePage: React.FC = () => {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={filings}
+        data={displayFilings}
         isLoading={isLoading}
         searchPlaceholder="Search by GSTIN, Client name, or ARN..."
       />

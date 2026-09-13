@@ -52,6 +52,13 @@ server:
     enabled: true
     mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
     min-response-size: 1024
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:20}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:4}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:100}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:20}
+    connection-timeout: 20000
 
 app:
   frontend-url: ${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:http://localhost:5173}}}
@@ -170,4 +177,6 @@ management:
   health:
     mail:
       enabled: false
+
+
 

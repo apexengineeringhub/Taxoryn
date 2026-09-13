@@ -449,4 +449,198 @@ class ClientManagementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.portalStatus").value("INVITED"));
     }
+
+    @Test
+    @DisplayName("8. PRACTITIONER client scoping: Practitioner sees ONLY their assigned clients")
+    void testPractitionerClientFilteringStrictScoping() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+        ClientEntity clientA;
+        ClientEntity clientB;
+        ClientEntity clientC;
+        ClientEntity clientD;
+        String poojaToken;
+        String rahulToken;
+
+        try {
+            // Role
+            RoleEntity practitionerRole = roleRepository.findByCodeAndIsSystemRoleTrue("PRACTITIONER")
+                    .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                            .code("PRACTITIONER")
+                            .name("Practitioner")
+                            .isSystemRole(true)
+                            .permissions(new HashSet<>())
+                            .build()));
+
+            // Practitioner Pooja (User & Employee)
+            UserEntity userPooja = userRepository.save(UserEntity.builder()
+                    .email("pooja@apextax.com")
+                    .passwordHash(passwordEncoder.encode("SecretPass123!"))
+                    .firstName("Pooja")
+                    .lastName("Sharma")
+                    .status(UserStatus.ACTIVE)
+                    .roles(new HashSet<>(Set.of(practitionerRole)))
+                    .build());
+
+            EmployeeEntity empPooja = employeeRepository.save(EmployeeEntity.builder()
+                    .employeeCode("EMP-POOJA")
+                    .firstName("Pooja")
+                    .lastName("Sharma")
+                    .email("pooja@apextax.com")
+                    .userId(userPooja.getId())
+                    .department("Taxation")
+                    .designation("Tax Practitioner")
+                    .status(EmployeeStatus.ACTIVE)
+                    .build());
+
+            // Practitioner Anjani (User & Employee)
+            UserEntity userAnjani = userRepository.save(UserEntity.builder()
+                    .email("anjani@apextax.com")
+                    .passwordHash(passwordEncoder.encode("SecretPass123!"))
+                    .firstName("Anjani")
+                    .lastName("Kumar")
+                    .status(UserStatus.ACTIVE)
+                    .roles(new HashSet<>(Set.of(practitionerRole)))
+                    .build());
+
+            EmployeeEntity empAnjani = employeeRepository.save(EmployeeEntity.builder()
+                    .employeeCode("EMP-ANJANI")
+                    .firstName("Anjani")
+                    .lastName("Kumar")
+                    .email("anjani@apextax.com")
+                    .userId(userAnjani.getId())
+                    .department("Taxation")
+                    .designation("Tax Practitioner")
+                    .status(EmployeeStatus.ACTIVE)
+                    .build());
+
+            // Practitioner Rahul (User & Employee)
+            UserEntity userRahul = userRepository.save(UserEntity.builder()
+                    .email("rahul@apextax.com")
+                    .passwordHash(passwordEncoder.encode("SecretPass123!"))
+                    .firstName("Rahul")
+                    .lastName("Verma")
+                    .status(UserStatus.ACTIVE)
+                    .roles(new HashSet<>(Set.of(practitionerRole)))
+                    .build());
+
+            EmployeeEntity empRahul = employeeRepository.save(EmployeeEntity.builder()
+                    .employeeCode("EMP-RAHUL")
+                    .firstName("Rahul")
+                    .lastName("Verma")
+                    .email("rahul@apextax.com")
+                    .userId(userRahul.getId())
+                    .department("Audit")
+                    .designation("Senior Practitioner")
+                    .status(EmployeeStatus.ACTIVE)
+                    .build());
+
+            // Setup Clients
+            // Client A -> Assigned to Pooja
+            clientA = clientRepository.save(ClientEntity.builder()
+                    .displayName("Client A - Pooja Account")
+                    .legalName("Client A Pvt Ltd")
+                    .pan("AAACA1111A")
+                    .clientType(ClientType.PRIVATE_LIMITED)
+                    .email("clientA@domain.com")
+                    .assignedEmployeeId(empPooja.getId())
+                    .status(ClientStatus.ACTIVE)
+                    .build());
+
+            // Client B -> Assigned to Anjani
+            clientB = clientRepository.save(ClientEntity.builder()
+                    .displayName("Client B - Anjani Account")
+                    .legalName("Client B Pvt Ltd")
+                    .pan("AAACB2222B")
+                    .clientType(ClientType.PRIVATE_LIMITED)
+                    .email("clientB@domain.com")
+                    .assignedEmployeeId(empAnjani.getId())
+                    .status(ClientStatus.ACTIVE)
+                    .build());
+
+            // Client C -> Assigned to Rahul
+            clientC = clientRepository.save(ClientEntity.builder()
+                    .displayName("Client C - Rahul Account")
+                    .legalName("Client C Pvt Ltd")
+                    .pan("AAACC3333C")
+                    .clientType(ClientType.PRIVATE_LIMITED)
+                    .email("clientC@domain.com")
+                    .assignedEmployeeId(empRahul.getId())
+                    .status(ClientStatus.ACTIVE)
+                    .build());
+
+            // Client D -> Unassigned
+            clientD = clientRepository.save(ClientEntity.builder()
+                    .displayName("Client D - Unassigned Account")
+                    .legalName("Client D Pvt Ltd")
+                    .pan("AAACD4444D")
+                    .clientType(ClientType.PRIVATE_LIMITED)
+                    .email("clientD@domain.com")
+                    .assignedEmployeeId(null)
+                    .status(ClientStatus.ACTIVE)
+                    .build());
+
+            poojaToken = "Bearer " + jwtTokenProvider.generateAccessToken(
+                    userPooja.getId(),
+                    org1.getId(),
+                    userPooja.getEmail(),
+                    Set.of("PRACTITIONER"),
+                    Set.of("CLIENT_VIEW", "CLIENT_READ", "CLIENT_UPDATE")
+            );
+
+            rahulToken = "Bearer " + jwtTokenProvider.generateAccessToken(
+                    userRahul.getId(),
+                    org1.getId(),
+                    userRahul.getEmail(),
+                    Set.of("PRACTITIONER"),
+                    Set.of("CLIENT_VIEW", "CLIENT_READ", "CLIENT_UPDATE")
+            );
+        } finally {
+            TenantContext.clear();
+        }
+
+        // When Pooja logs in:
+        // 1. GET /api/v1/clients must show ONLY Client A (assigned to Pooja)
+        mockMvc.perform(get("/api/v1/clients")
+                        .header("Authorization", poojaToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(clientA.getId().toString()))
+                .andExpect(jsonPath("$.data.content[0].displayName").value("Client A - Pooja Account"));
+
+        // 2. GET /api/v1/clients/{clientA.getId()} succeeds (200 OK)
+        mockMvc.perform(get("/api/v1/clients/" + clientA.getId())
+                        .header("Authorization", poojaToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(clientA.getId().toString()));
+
+        // 3. GET /api/v1/clients/{clientB.getId()} (Anjani's client) is FORBIDDEN (403)
+        mockMvc.perform(get("/api/v1/clients/" + clientB.getId())
+                        .header("Authorization", poojaToken))
+                .andExpect(status().isForbidden());
+
+        // 4. GET /api/v1/clients/{clientC.getId()} (Rahul's client) is FORBIDDEN (403)
+        mockMvc.perform(get("/api/v1/clients/" + clientC.getId())
+                        .header("Authorization", poojaToken))
+                .andExpect(status().isForbidden());
+
+        // 5. GET /api/v1/clients/{clientD.getId()} (Unassigned client) is FORBIDDEN (403)
+        mockMvc.perform(get("/api/v1/clients/" + clientD.getId())
+                        .header("Authorization", poojaToken))
+                .andExpect(status().isForbidden());
+
+        // 6. When Rahul logs in, he only sees Client C
+        mockMvc.perform(get("/api/v1/clients")
+                        .header("Authorization", rahulToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(clientC.getId().toString()))
+                .andExpect(jsonPath("$.data.content[0].displayName").value("Client C - Rahul Account"));
+
+        // 7. When ORG_ADMIN logs in, they see all clients (client1 from setUp + A + B + C + D = 5)
+        mockMvc.perform(get("/api/v1/clients")
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(5));
+    }
 }

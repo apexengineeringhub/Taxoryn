@@ -43,7 +43,12 @@ export const ClientsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(() => searchParams.get('action') === 'new' || searchParams.get('create') === 'true');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>(
+    () => {
+      const s = searchParams.get('status')?.toUpperCase();
+      return (s && ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ARCHIVED'].includes(s)) ? (s as any) : 'ALL';
+    }
+  );
   const [portalStatusFilter, setPortalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'INACTIVE' | 'NOT_PROVISIONED' | 'NOT_ENABLED'>('ALL');
 
   // Confirmation Modal State
@@ -71,6 +76,10 @@ export const ClientsPage: React.FC = () => {
   useEffect(() => {
     if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
       setIsModalOpen(true);
+    }
+    const targetStatus = searchParams.get('status')?.toUpperCase();
+    if (targetStatus && ['ALL', 'ACTIVE', 'INACTIVE', 'SUSPENDED', 'ARCHIVED'].includes(targetStatus)) {
+      setStatusFilter(targetStatus as any);
     }
   }, [searchParams]);
 

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { ActionableMetric } from '../components/common/ActionableMetric';
 import { dashboardApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { OrganizationDashboard } from '../types';
@@ -98,167 +99,226 @@ export const DashboardPage: React.FC = () => {
       {/* Top Row: Core Practice KPI Cards (5 Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* 1. Active Clients Card */}
-        <Link
-          to="/clients"
-          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-slate-300 transition-all group block"
-        >
-          <div className="flex items-center justify-between">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:border-slate-300 transition-all block">
+          <Link to="/clients" className="flex items-center justify-between group">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-600 transition-colors">
               {isStaff ? 'My Assigned Accounts' : 'Active Clients'}
             </span>
             <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
               <Users className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
           <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-slate-900">
-              {isLoading ? '...' : dashboard?.clients?.active ?? 0}
-            </span>
-            <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-              {isStaff ? `of ${dashboard?.clients?.total ?? 0} assigned` : `of ${dashboard?.clients?.total ?? 0} total`}
-            </span>
+            <ActionableMetric
+              metric="CLIENTS_ACTIVE"
+              value={isLoading ? '...' : dashboard?.clients?.active ?? 0}
+              variant="display"
+              color="default"
+              ariaLabel={`View ${dashboard?.clients?.active ?? 0} active clients`}
+            />
+            <ActionableMetric
+              metric="CLIENTS_TOTAL"
+              value={isStaff ? `of ${dashboard?.clients?.total ?? 0} assigned` : `of ${dashboard?.clients?.total ?? 0} total`}
+              variant="pill"
+              color="default"
+              ariaLabel={`View all ${dashboard?.clients?.total ?? 0} clients`}
+            />
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center text-xs text-slate-500 justify-between">
             <span>{isStaff ? 'Inactive Accounts:' : 'Inactive / Prospects:'}</span>
-            <span className="font-semibold text-slate-700">{dashboard?.clients?.inactive ?? 0}</span>
+            <ActionableMetric
+              metric="CLIENTS_INACTIVE"
+              value={dashboard?.clients?.inactive ?? 0}
+              variant="inline"
+              color="default"
+              ariaLabel={`View ${dashboard?.clients?.inactive ?? 0} inactive clients`}
+            />
           </div>
-        </Link>
+        </div>
 
         {/* 2. GST Compliance Card */}
-        <Link
-          to="/gst"
-          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-emerald-300 transition-all group block"
-        >
-          <div className="flex items-center justify-between">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:border-emerald-300 transition-all block">
+          <Link to="/gst" className="flex items-center justify-between group">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
               GST Compliance
             </span>
             <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all">
               <Building2 className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
           <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-emerald-600">
-              {isLoading ? '...' : dashboard?.gst?.totalGstClients ?? 0}
-            </span>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              GST Clients
-            </span>
+            <ActionableMetric
+              metric="GST_CLIENTS"
+              value={isLoading ? '...' : dashboard?.gst?.totalGstClients ?? 0}
+              variant="display"
+              color="emerald"
+              ariaLabel={`View ${dashboard?.gst?.totalGstClients ?? 0} GST clients`}
+            />
+            <ActionableMetric
+              metric="GST_CLIENTS"
+              value="GST Clients"
+              variant="pill"
+              color="emerald"
+              ariaLabel="View GST Compliance Hub"
+            />
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-emerald-700 font-medium">Filed: {dashboard?.gst?.returnsFiled ?? 0}</span>
-            <span className="text-amber-700 font-medium">Due: {dashboard?.gst?.returnsDue ?? 0}</span>
-            <span className="text-rose-600 font-bold">Overdue: {dashboard?.gst?.returnsOverdue ?? 0}</span>
+            <ActionableMetric metric="GST_FILED" label="Filed" value={dashboard?.gst?.returnsFiled ?? 0} variant="inline" color="emerald" />
+            <ActionableMetric metric="GST_DUE" label="Due" value={dashboard?.gst?.returnsDue ?? 0} variant="inline" color="amber" />
+            <ActionableMetric metric="GST_OVERDUE" label="Overdue" value={dashboard?.gst?.returnsOverdue ?? 0} variant="inline" color="rose" />
           </div>
-        </Link>
+        </div>
 
         {/* 3. ITR Compliance Card */}
-        <Link
-          to="/itr"
-          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-purple-300 transition-all group block"
-        >
-          <div className="flex items-center justify-between">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:border-purple-300 transition-all block">
+          <Link to="/itr" className="flex items-center justify-between group">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-purple-600 transition-colors">
               ITR Compliance
             </span>
             <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-all">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
           <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-purple-600">
-              {isLoading ? '...' : dashboard?.itr?.totalItrClients ?? 0}
-            </span>
-            <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-              ITR Clients
-            </span>
+            <ActionableMetric
+              metric="ITR_CLIENTS"
+              value={isLoading ? '...' : dashboard?.itr?.totalItrClients ?? 0}
+              variant="display"
+              color="purple"
+              ariaLabel={`View ${dashboard?.itr?.totalItrClients ?? 0} ITR clients`}
+            />
+            <ActionableMetric
+              metric="ITR_CLIENTS"
+              value="ITR Clients"
+              variant="pill"
+              color="purple"
+              ariaLabel="View ITR Compliance Hub"
+            />
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-purple-700 font-medium">Filed: {dashboard?.itr?.filed ?? 0}</span>
-            <span className="text-amber-700 font-medium">Pending: {dashboard?.itr?.pending ?? 0}</span>
-            <span className="text-rose-600 font-bold">Overdue: {dashboard?.itr?.overdue ?? 0}</span>
+            <ActionableMetric metric="ITR_FILED" label="Filed" value={dashboard?.itr?.filed ?? 0} variant="inline" color="purple" />
+            <ActionableMetric metric="ITR_PENDING" label="Pending" value={dashboard?.itr?.pending ?? 0} variant="inline" color="amber" />
+            <ActionableMetric metric="ITR_OVERDUE" label="Overdue" value={dashboard?.itr?.overdue ?? 0} variant="inline" color="rose" />
           </div>
-        </Link>
+        </div>
 
         {/* 4. TDS Compliance Card */}
-        <Link
-          to="/tds"
-          className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-indigo-300 transition-all group block"
-        >
-          <div className="flex items-center justify-between">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:border-indigo-300 transition-all block">
+          <Link to="/tds" className="flex items-center justify-between group">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
               TDS Compliance
             </span>
             <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
               <Percent className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
           <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-indigo-600">
-              {isLoading ? '...' : dashboard?.tds?.totalTdsClients ?? 0}
-            </span>
-            <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-              TAN Clients
-            </span>
+            <ActionableMetric
+              metric="TDS_CLIENTS"
+              value={isLoading ? '...' : dashboard?.tds?.totalTdsClients ?? 0}
+              variant="display"
+              color="indigo"
+              ariaLabel={`View ${dashboard?.tds?.totalTdsClients ?? 0} TAN clients`}
+            />
+            <ActionableMetric
+              metric="TDS_CLIENTS"
+              value="TAN Clients"
+              variant="pill"
+              color="indigo"
+              ariaLabel="View TDS Compliance Hub"
+            />
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-indigo-700 font-medium">Filed: {dashboard?.tds?.filed ?? 0}</span>
-            <span className="text-amber-700 font-medium">Pending: {dashboard?.tds?.pending ?? 0}</span>
-            <span className="text-rose-600 font-bold">Overdue: {dashboard?.tds?.overdue ?? 0}</span>
+            <ActionableMetric metric="TDS_FILED" label="Filed" value={dashboard?.tds?.filed ?? 0} variant="inline" color="indigo" />
+            <ActionableMetric metric="TDS_PENDING" label="Pending" value={dashboard?.tds?.pending ?? 0} variant="inline" color="amber" />
+            <ActionableMetric metric="TDS_OVERDUE" label="Overdue" value={dashboard?.tds?.overdue ?? 0} variant="inline" color="rose" />
           </div>
-        </Link>
+        </div>
 
         {/* 5. Fee Realization for Admins OR Assigned Deliverables for Staff */}
         {hasBillingAccess ? (
-          <Link
-            to="/billing"
-            className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-amber-300 transition-all group block"
-          >
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:border-amber-300 transition-all block">
+            <Link to="/billing" className="flex items-center justify-between group">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
                 Fee Realization
               </span>
               <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all">
                 <Receipt className="w-5 h-5" />
               </div>
-            </div>
+            </Link>
             <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-2xl font-black text-slate-900 truncate">
-                {isLoading ? '...' : formatCurrency(dashboard?.billing?.paidAmount)}
-              </span>
-              <span className="text-xs font-semibold text-slate-400">Collected</span>
+              <ActionableMetric
+                metric="BILLING_COLLECTED"
+                value={isLoading ? '...' : formatCurrency(dashboard?.billing?.paidAmount)}
+                variant="kpi"
+                color="default"
+                ariaLabel={`View collected invoices totaling ${formatCurrency(dashboard?.billing?.paidAmount)}`}
+              />
+              <ActionableMetric
+                metric="BILLING_COLLECTED"
+                value="Collected"
+                className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+                ariaLabel="View collected invoices"
+              />
             </div>
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
               <span className="text-slate-500">Outstanding:</span>
-              <span className="font-bold text-rose-600">{formatCurrency(dashboard?.billing?.outstandingAmount)}</span>
+              <ActionableMetric
+                metric="BILLING_OUTSTANDING"
+                value={formatCurrency(dashboard?.billing?.outstandingAmount)}
+                variant="inline"
+                color="rose"
+                ariaLabel={`View outstanding invoices totaling ${formatCurrency(dashboard?.billing?.outstandingAmount)}`}
+              />
             </div>
-          </Link>
+          </div>
         ) : (
-          <Link
-            to="/tasks"
-            className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:shadow-card-hover hover:border-blue-300 transition-all group block"
-          >
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-card hover:border-blue-300 transition-all block">
+            <Link to="/tasks" className="flex items-center justify-between group">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-600 transition-colors">
                 🎯 My Deliverables
               </span>
               <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
-            </div>
+            </Link>
             <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-blue-600">
-                {isLoading ? '...' : dashboard?.tasks?.pending ?? 0}
-              </span>
-              <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                Pending Tasks
-              </span>
+              <ActionableMetric
+                metric="TASKS_PENDING"
+                context={{ isStaff }}
+                value={isLoading ? '...' : dashboard?.tasks?.pending ?? 0}
+                variant="display"
+                color="blue"
+                ariaLabel={`View ${dashboard?.tasks?.pending ?? 0} pending deliverables`}
+              />
+              <ActionableMetric
+                metric="TASKS_PENDING"
+                context={{ isStaff }}
+                value="Pending Tasks"
+                variant="pill"
+                color="blue"
+                ariaLabel="View pending tasks"
+              />
             </div>
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-              <span className="text-emerald-700 font-medium">Completed: {dashboard?.tasks?.completed ?? 0}</span>
-              <span className="text-rose-600 font-bold">Overdue: {dashboard?.tasks?.overdue ?? 0}</span>
+              <ActionableMetric
+                metric="TASKS_COMPLETED"
+                context={{ isStaff }}
+                label="Completed"
+                value={dashboard?.tasks?.completed ?? 0}
+                variant="inline"
+                color="emerald"
+              />
+              <ActionableMetric
+                metric="TASKS_OVERDUE"
+                context={{ isStaff }}
+                label="Overdue"
+                value={dashboard?.tasks?.overdue ?? 0}
+                variant="inline"
+                color="rose"
+              />
             </div>
-          </Link>
+          </div>
         )}
       </div>
 
@@ -271,31 +331,55 @@ export const DashboardPage: React.FC = () => {
           className="lg:col-span-1"
         >
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                  {dashboard?.tasks?.total ?? 0}
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800">{isStaff ? 'My Total Assigned Tasks' : 'Total Active Tasks'}</p>
-                  <p className="text-[10px] text-slate-500">{isStaff ? 'Directly assigned to you' : 'Across all practice assignments'}</p>
+            <ActionableMetric
+              metric="TASKS_TOTAL"
+              context={{ isStaff }}
+              value={dashboard?.tasks?.total ?? 0}
+              className="block w-full"
+            >
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-blue-300 hover:bg-blue-50/50 transition-colors w-full">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                    {dashboard?.tasks?.total ?? 0}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-bold text-slate-800">{isStaff ? 'My Total Assigned Tasks' : 'Total Active Tasks'}</p>
+                    <p className="text-[10px] text-slate-500">{isStaff ? 'Directly assigned to you' : 'Across all practice assignments'}</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            </ActionableMetric>
 
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-lg">
+              <ActionableMetric
+                metric="TASKS_PENDING"
+                context={{ isStaff }}
+                value={dashboard?.tasks?.pending ?? 0}
+                className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-lg hover:border-amber-400 hover:bg-amber-100/70 transition-all flex flex-col items-center justify-center"
+              >
                 <p className="text-xs text-amber-800 font-medium">Pending</p>
                 <p className="text-lg font-black text-amber-900 mt-0.5">{dashboard?.tasks?.pending ?? 0}</p>
-              </div>
-              <div className="p-3 bg-rose-50/70 border border-rose-200/60 rounded-lg">
+              </ActionableMetric>
+
+              <ActionableMetric
+                metric="TASKS_OVERDUE"
+                context={{ isStaff }}
+                value={dashboard?.tasks?.overdue ?? 0}
+                className="p-3 bg-rose-50/70 border border-rose-200/60 rounded-lg hover:border-rose-400 hover:bg-rose-100/70 transition-all flex flex-col items-center justify-center"
+              >
                 <p className="text-xs text-rose-800 font-medium">Overdue</p>
                 <p className="text-lg font-black text-rose-900 mt-0.5">{dashboard?.tasks?.overdue ?? 0}</p>
-              </div>
-              <div className="p-3 bg-emerald-50/70 border border-emerald-200/60 rounded-lg">
+              </ActionableMetric>
+
+              <ActionableMetric
+                metric="TASKS_COMPLETED"
+                context={{ isStaff }}
+                value={dashboard?.tasks?.completed ?? 0}
+                className="p-3 bg-emerald-50/70 border border-emerald-200/60 rounded-lg hover:border-emerald-400 hover:bg-emerald-100/70 transition-all flex flex-col items-center justify-center"
+              >
                 <p className="text-xs text-emerald-800 font-medium">Completed</p>
                 <p className="text-lg font-black text-emerald-900 mt-0.5">{dashboard?.tasks?.completed ?? 0}</p>
-              </div>
+              </ActionableMetric>
             </div>
           </div>
         </Card>
@@ -335,16 +419,31 @@ export const DashboardPage: React.FC = () => {
                         <span className="block text-[10px] font-normal text-slate-400">{emp.employeeCode} • {emp.designation}</span>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{emp.department || 'General Tax'}</td>
-                      <td className="px-4 py-3 text-center font-bold text-slate-800">{emp.assignedTasks}</td>
                       <td className="px-4 py-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold text-xs border border-amber-200/50">
-                          {emp.pendingTasks}
-                        </span>
+                        <ActionableMetric
+                          metric="EMPLOYEE_ASSIGNED"
+                          context={{ employeeId: emp.employeeId }}
+                          value={emp.assignedTasks}
+                          variant="table-cell"
+                        />
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-semibold text-xs border border-rose-200/50">
-                          {emp.overdueTasks}
-                        </span>
+                        <ActionableMetric
+                          metric="EMPLOYEE_PENDING"
+                          context={{ employeeId: emp.employeeId }}
+                          value={emp.pendingTasks}
+                          variant="pill"
+                          color="amber"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <ActionableMetric
+                          metric="EMPLOYEE_OVERDUE"
+                          context={{ employeeId: emp.employeeId }}
+                          value={emp.overdueTasks}
+                          variant="pill"
+                          color="rose"
+                        />
                       </td>
                     </tr>
                   ))
@@ -368,18 +467,33 @@ export const DashboardPage: React.FC = () => {
                       <p className="text-[10px] text-slate-400">{emp.employeeCode} • {emp.designation} • {emp.department || 'General Tax'}</p>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                      <ActionableMetric
+                        metric="EMPLOYEE_ASSIGNED"
+                        context={{ employeeId: emp.employeeId }}
+                        value={emp.assignedTasks}
+                        className="p-2 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-300 transition-colors block text-center"
+                      >
                         <p className="text-[10px] text-slate-500">Assigned</p>
                         <p className="font-bold text-slate-800">{emp.assignedTasks}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/50">
+                      </ActionableMetric>
+                      <ActionableMetric
+                        metric="EMPLOYEE_PENDING"
+                        context={{ employeeId: emp.employeeId }}
+                        value={emp.pendingTasks}
+                        className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/50 hover:border-amber-400 transition-colors block text-center"
+                      >
                         <p className="text-[10px] text-amber-700">Pending</p>
                         <p className="font-bold text-amber-800">{emp.pendingTasks}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-rose-50/70 border border-rose-200/50">
+                      </ActionableMetric>
+                      <ActionableMetric
+                        metric="EMPLOYEE_OVERDUE"
+                        context={{ employeeId: emp.employeeId }}
+                        value={emp.overdueTasks}
+                        className="p-2 rounded-lg bg-rose-50/70 border border-rose-200/50 hover:border-rose-400 transition-colors block text-center"
+                      >
                         <p className="text-[10px] text-rose-700">Overdue</p>
                         <p className="font-bold text-rose-800">{emp.overdueTasks}</p>
-                      </div>
+                      </ActionableMetric>
                     </div>
                   </li>
                 ))}

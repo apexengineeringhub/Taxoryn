@@ -91,7 +91,7 @@ describe('Taxoryn Sidebar Information Architecture & RBAC Visibility Standard', 
         { label: 'GST Compliance', path: '/gst', requiredPermissions: ['GST_VIEW'] },
         { label: 'ITR Compliance', path: '/itr', requiredPermissions: ['ITR_VIEW'] },
         { label: 'TDS Compliance', path: '/tds', requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
-        { label: 'Notice Center', path: '/notices', requiredPermissions: ['NOTICE_VIEW', 'TASK_VIEW', 'CLIENT_VIEW'] },
+        { label: 'Notice Center', path: '/notices', requiredPermissions: ['NOTICE_VIEW'] },
         { label: 'Tax Calendar', path: '/calendar', requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
       ],
     },
@@ -345,5 +345,131 @@ describe('Taxoryn Sidebar Information Architecture & RBAC Visibility Standard', 
     assert.ok(GLOBAL_SIDEBAR_PATHS.has('/feedback'));
     assert.ok(GLOBAL_SIDEBAR_LABELS.has('Security & Password'));
     assert.ok(GLOBAL_SIDEBAR_LABELS.has('Give Feedback'));
+  });
+
+  it('Notice Center Navigation Visibility: User with NOTICE_VIEW sees Notice Center', () => {
+    const userWithNoticeView = {
+      id: 'notice-user-1',
+      email: 'notice@taxpractice.com',
+      firstName: 'Notice',
+      lastName: 'User',
+      roles: ['PRACTICE_EMPLOYEE'],
+      permissions: ['NOTICE_VIEW'],
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, userWithNoticeView as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    const visibleLabels = sections.flatMap((s) => s.items.map((i) => i.label));
+
+    assert.strictEqual(visiblePaths.includes('/notices'), true, 'User with NOTICE_VIEW must see /notices');
+    assert.strictEqual(visibleLabels.includes('Notice Center'), true, 'User with NOTICE_VIEW must see Notice Center');
+  });
+
+  it('Notice Center Navigation Visibility: User without NOTICE_VIEW does NOT see Notice Center', () => {
+    const userWithoutNoticeView = {
+      id: 'no-notice-user-1',
+      email: 'nonotice@taxpractice.com',
+      firstName: 'NoNotice',
+      lastName: 'User',
+      roles: ['PRACTICE_EMPLOYEE'],
+      permissions: ['CLIENT_VIEW', 'TASK_VIEW'], // No NOTICE_VIEW
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, userWithoutNoticeView as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    const visibleLabels = sections.flatMap((s) => s.items.map((i) => i.label));
+
+    assert.strictEqual(visiblePaths.includes('/notices'), false, 'User without NOTICE_VIEW must NOT see /notices');
+    assert.strictEqual(visibleLabels.includes('Notice Center'), false, 'User without NOTICE_VIEW must NOT see Notice Center');
+  });
+
+  it('Notice Center Navigation Visibility: Practitioner with NOTICE_VIEW sees Notice Center', () => {
+    const practitionerUser = {
+      id: 'practitioner-1',
+      email: 'pooja@taxpractice.com',
+      firstName: 'Pooja',
+      lastName: 'Practitioner',
+      roles: ['PRACTITIONER'],
+      permissions: ['NOTICE_VIEW', 'CLIENT_VIEW'],
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, practitionerUser as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    assert.strictEqual(visiblePaths.includes('/notices'), true, 'Practitioner with NOTICE_VIEW must see /notices');
+  });
+
+  it('Notice Center Navigation Visibility: Staff with NOTICE_VIEW sees Notice Center', () => {
+    const staffWithNotice = {
+      id: 'staff-notice-1',
+      email: 'staff@taxpractice.com',
+      firstName: 'Staff',
+      lastName: 'Notice',
+      roles: ['STAFF', 'PRACTICE_EMPLOYEE'],
+      permissions: ['NOTICE_VIEW', 'TASK_VIEW'],
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, staffWithNotice as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    assert.strictEqual(visiblePaths.includes('/notices'), true, 'Staff with NOTICE_VIEW must see /notices');
+  });
+
+  it('Notice Center Navigation Visibility: Tax Professional with NOTICE_VIEW sees Notice Center', () => {
+    const taxProfUser = {
+      id: 'tax-prof-1',
+      email: 'taxprof@taxpractice.com',
+      firstName: 'Tax',
+      lastName: 'Professional',
+      roles: ['TAX_PROFESSIONAL'],
+      permissions: ['NOTICE_VIEW', 'GST_VIEW', 'ITR_VIEW'],
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, taxProfUser as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    assert.strictEqual(visiblePaths.includes('/notices'), true, 'Tax Professional with NOTICE_VIEW must see /notices');
+  });
+
+  it('Notice Center Navigation Visibility: Manager with NOTICE_VIEW sees Notice Center', () => {
+    const managerWithNotice = {
+      id: 'manager-notice-1',
+      email: 'manager@taxpractice.com',
+      firstName: 'Manager',
+      lastName: 'Notice',
+      roles: ['MANAGER'],
+      permissions: ['NOTICE_VIEW', 'REPORT_VIEW'],
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, managerWithNotice as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    assert.strictEqual(visiblePaths.includes('/notices'), true, 'Manager with NOTICE_VIEW must see /notices');
+  });
+
+  it('Notice Center Navigation Visibility: Org Admin / Partner with NOTICE_VIEW sees Notice Center', () => {
+    const orgAdminWithNotice = {
+      id: 'orgadmin-notice-1',
+      email: 'admin@taxpractice.com',
+      firstName: 'Admin',
+      lastName: 'Notice',
+      roles: ['ORG_ADMIN', 'PARTNER'],
+      permissions: ['NOTICE_VIEW', 'CLIENT_VIEW', 'USER_VIEW'],
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, orgAdminWithNotice as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    assert.strictEqual(visiblePaths.includes('/notices'), true, 'Org Admin / Partner with NOTICE_VIEW must see /notices');
+  });
+
+  it('Notice Center Navigation Visibility: Notice Center does NOT require TASK_VIEW or CLIENT_VIEW', () => {
+    const noticeOnlyUser = {
+      id: 'notice-only-1',
+      email: 'noticeonly@taxpractice.com',
+      firstName: 'Notice',
+      lastName: 'Only',
+      roles: ['PRACTICE_EMPLOYEE'],
+      permissions: ['NOTICE_VIEW'], // ONLY NOTICE_VIEW, no TASK_VIEW or CLIENT_VIEW
+    };
+
+    const sections = filterNavigationSections(fullPracticeNavSections, noticeOnlyUser as any);
+    const visiblePaths = sections.flatMap((s) => s.items.map((i) => i.path));
+    assert.strictEqual(visiblePaths.includes('/notices'), true, 'Notice Center must be visible with only NOTICE_VIEW without requiring TASK_VIEW or CLIENT_VIEW');
   });
 });
