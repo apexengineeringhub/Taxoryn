@@ -66,11 +66,11 @@ public class S3DocumentStorageService implements DocumentStorageService {
             throw new IllegalStateException("S3 configuration block is missing in StorageProperties");
         }
 
-        String endpoint = s3Props.getResolvedEndpoint();
-        String regionStr = StringUtils.hasText(s3Props.getRegion()) ? s3Props.getRegion().trim() : "auto";
-        String accessKey = s3Props.getAccessKey();
-        String secretKey = s3Props.getSecretKey();
-        String bucket = s3Props.getBucket();
+        String endpoint = sanitizeCredential(s3Props.getResolvedEndpoint());
+        String regionStr = StringUtils.hasText(s3Props.getRegion()) ? sanitizeCredential(s3Props.getRegion()) : "auto";
+        String accessKey = sanitizeCredential(s3Props.getAccessKey());
+        String secretKey = sanitizeCredential(s3Props.getSecretKey());
+        String bucket = sanitizeCredential(s3Props.getBucket());
 
         if (!StringUtils.hasText(bucket)) {
             throw new IllegalStateException("S3/R2 bucket name is required ('taxoryn.storage.s3.bucket' / STORAGE_BUCKET)");
@@ -107,12 +107,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
                     .region(region)
                     .serviceConfiguration(s3Configuration);
 
-            StaticCredentialsProvider creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey.trim(), secretKey.trim()));
+            StaticCredentialsProvider creds = StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey));
             clientBuilder.credentialsProvider(creds);
             presignerBuilder.credentialsProvider(creds);
 
             if (StringUtils.hasText(endpoint)) {
-                URI endpointUri = URI.create(endpoint.trim());
+                URI endpointUri = URI.create(endpoint);
                 clientBuilder.endpointOverride(endpointUri);
                 presignerBuilder.endpointOverride(endpointUri);
             }
@@ -460,5 +460,18 @@ public class S3DocumentStorageService implements DocumentStorageService {
     private String sanitizeHeaderFilename(String filename) {
         if (!StringUtils.hasText(filename)) return "document.bin";
         return filename.replaceAll("[\r\n\"\\\\]", "_");
+    }
+
+    private String sanitizeCredential(String val) {
+        if (val == null) {
+            return null;
+        }
+        String trimmed = val.trim();
+        if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            if (trimmed.length() >= 2) {
+                trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+            }
+        }
+        return trimmed;
     }
 }
