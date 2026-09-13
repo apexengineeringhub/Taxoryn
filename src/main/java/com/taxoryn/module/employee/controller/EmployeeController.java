@@ -94,6 +94,16 @@ public class EmployeeController {
                 .body(avatar.getData());
     }
 
+    @PostMapping(value = "/{employeeId}/avatar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE') or hasAuthority('EMPLOYEE_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Upload employee avatar", description = "Uploads and scans an avatar photo for a specific employee in the tenant.")
+    public ResponseEntity<ApiResponse<EmployeeDto>> uploadEmployeeAvatar(
+            @PathVariable UUID employeeId,
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        EmployeeDto updated = employeeService.uploadEmployeeAvatar(employeeId, file);
+        return ResponseEntity.ok(ApiResponse.success("Avatar uploaded successfully", updated));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('EMPLOYEE_READ') or hasAuthority('TASK_VIEW') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_WRITE') or hasAuthority('TASK_UPDATE') or hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
     @Operation(summary = "List & search employees with filters", description = "Retrieves paginated employees with keyword search (name, email, phone, code) and filtering by department, status, designation, or manager.")
