@@ -91,6 +91,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
             }
         }
 
+        if (StringUtils.hasText(accessKey) && accessKey.length() == 64 && StringUtils.hasText(secretKey) && secretKey.length() == 32) {
+            log.warn("CONFIG WARNING: STORAGE_ACCESS_KEY is 64 chars and STORAGE_SECRET_KEY is 32 chars. They appear to be reversed! Access Key ID should be 32 chars and Secret Access Key should be 64 chars.");
+        } else if (StringUtils.hasText(secretKey) && secretKey.length() != 64) {
+            log.warn("CONFIG WARNING: S3/R2 secret key length is {} characters. Cloudflare R2 Secret Access Keys are standardly 64 hexadecimal characters. (A ~40 character value indicates the Cloudflare API Bearer token was configured instead of the S3 Secret Access Key).", secretKey.length());
+        }
+
         try {
             Region region = Region.of(regionStr);
 
@@ -125,8 +131,10 @@ public class S3DocumentStorageService implements DocumentStorageService {
             this.s3Presigner = presignerBuilder.build();
 
             String endpointHost = StringUtils.hasText(endpoint) ? URI.create(endpoint.trim()).getHost() : "AWS Default";
-            log.info("Initialized S3DocumentStorageService for Cloudflare R2 / S3 [provider=S3, bucket={}, region={}, endpointHost={}, accessKeyConfigured={}, secretKeyConfigured={}, chunkedEncoding={}, pathStyleAccess={}]",
-                    bucket, regionStr, endpointHost, StringUtils.hasText(accessKey), StringUtils.hasText(secretKey), chunked, pathStyle);
+            String maskedAccess = StringUtils.hasText(accessKey) ? accessKey.substring(0, Math.min(4, accessKey.length())) + "...(len=" + accessKey.length() + ")" : "NONE";
+            String maskedSecret = StringUtils.hasText(secretKey) ? secretKey.substring(0, Math.min(4, secretKey.length())) + "...(len=" + secretKey.length() + ")" : "NONE";
+            log.info("Initialized S3DocumentStorageService for Cloudflare R2 / S3 [provider=S3, bucket={}, region={}, endpointHost={}, accessKey={}, secretKey={}, chunkedEncoding={}, pathStyleAccess={}]",
+                    bucket, regionStr, endpointHost, maskedAccess, maskedSecret, chunked, pathStyle);
         } catch (Exception e) {
             log.error("Failed to initialize AWS S3 / Cloudflare R2 client: {}", e.getMessage(), e);
             throw new IllegalStateException("Failed to initialize S3/R2 storage client: " + e.getMessage(), e);
