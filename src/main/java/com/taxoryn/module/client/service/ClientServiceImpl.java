@@ -180,6 +180,8 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        validateClientAccess(client);
+
         ClientDto oldSnapshot = enrichDto(client);
 
         if (StringUtils.hasText(request.getPan())) {
@@ -252,16 +254,20 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        validateClientAccess(client);
+
+        return enrichDto(client);
+    }
+
+    private void validateClientAccess(ClientEntity client) {
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         if (!scope.isFirmAdmin()) {
             Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
             boolean isAssigned = (client.getAssignedEmployeeId() != null && scope.getAccessibleAssigneeIds() != null && scope.getAccessibleAssigneeIds().contains(client.getAssignedEmployeeId()));
-            if (!isAssigned && (accessibleClientIds == null || !accessibleClientIds.contains(clientId))) {
-                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view clients outside your assigned department or portfolio.");
+            if (!isAssigned && (accessibleClientIds == null || !accessibleClientIds.contains(client.getId()))) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to access clients outside your assigned department or portfolio.");
             }
         }
-
-        return enrichDto(client);
     }
 
     @Override
@@ -382,6 +388,8 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        validateClientAccess(client);
+
         ClientStatus oldStatus = client.getStatus();
         ClientStatus newStatus = request.getStatus();
         client.setStatus(newStatus);
@@ -406,6 +414,8 @@ public class ClientServiceImpl implements ClientService {
 
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
 
         UserStatus targetStatus = request.getPortalStatus();
         List<UserEntity> portalUsers = userRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
@@ -533,6 +543,8 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        validateClientAccess(client);
+
         employeeRepository.findByIdAndOrganizationId(request.getEmployeeId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.getEmployeeId()));
 
@@ -552,6 +564,8 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        validateClientAccess(client);
+
         ClientStatus oldStatus = client.getStatus();
         client.setStatus(ClientStatus.ARCHIVED);
         clientRepository.save(client);
@@ -570,14 +584,8 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        validateClientAccess(client);
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-        if (!scope.isFirmAdmin()) {
-            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-            boolean isAssigned = (client.getAssignedEmployeeId() != null && scope.getAccessibleAssigneeIds() != null && scope.getAccessibleAssigneeIds().contains(client.getAssignedEmployeeId()));
-            if (!isAssigned && (accessibleClientIds == null || !accessibleClientIds.contains(clientId))) {
-                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view clients outside your assigned department or portfolio.");
-            }
-        }
 
         ClientDto clientDto = enrichDto(client);
 
@@ -687,8 +695,10 @@ public class ClientServiceImpl implements ClientService {
     @Transactional
     public ClientNoteDto addClientNote(UUID clientId, CreateClientNoteRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
 
         UUID currentUserId = SecurityUtils.getCurrentUserId();
 
@@ -710,8 +720,10 @@ public class ClientServiceImpl implements ClientService {
     @Transactional(readOnly = true)
     public List<ClientNoteDto> getClientNotes(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
 
         List<ClientNoteEntity> notes = clientNoteRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);
         return clientMapper.toNoteDtoList(notes);
@@ -1051,6 +1063,8 @@ public class ClientServiceImpl implements ClientService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
 
         if (!StringUtils.hasText(client.getEmail())) {
             throw new com.taxoryn.core.exception.BadRequestException("Cannot send portal invitation: client has no registered email address");

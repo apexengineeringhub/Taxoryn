@@ -47,7 +47,11 @@ public class PracticeSecurityScopeEvaluator {
         boolean hasAdminRole = roles != null && (
                 roles.contains("ORG_ADMIN") || roles.contains("ROLE_ORG_ADMIN")
                 || roles.contains("SUPER_ADMIN") || roles.contains("ROLE_SUPER_ADMIN")
+                || roles.contains("TAXORYN_SUPERADMIN") || roles.contains("ROLE_TAXORYN_SUPERADMIN")
+                || roles.contains("PRACTICE_OWNER") || roles.contains("ROLE_PRACTICE_OWNER")
+                || roles.contains("PRACTICE_ADMIN") || roles.contains("ROLE_PRACTICE_ADMIN")
                 || roles.contains("PARTNER") || roles.contains("ROLE_PARTNER")
+                || roles.contains("CA_PARTNER") || roles.contains("ROLE_CA_PARTNER")
         );
 
         // 2. Retrieve linked EmployeeEntity
@@ -75,8 +79,8 @@ public class PracticeSecurityScopeEvaluator {
         }
 
         boolean hasManagerRole = roles != null && (
-                roles.contains("PRACTITIONER") || roles.contains("ROLE_PRACTITIONER")
-                || roles.contains("MANAGER") || roles.contains("ROLE_MANAGER")
+                roles.contains("MANAGER") || roles.contains("ROLE_MANAGER")
+                || roles.contains("TAX_MANAGER") || roles.contains("ROLE_TAX_MANAGER")
         );
 
         // Check if employee has direct reportees

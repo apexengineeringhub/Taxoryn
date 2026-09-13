@@ -50,6 +50,16 @@ spring:
           timeout: 15000
           writetimeout: 15000
 
+server:
+  port: ${PORT:${SERVER_PORT:8088}}
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:20}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:4}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:100}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:20}
+    connection-timeout: 20000
+
 app:
   frontend-url: ${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:https://app.taxoryn.com}}}
 
