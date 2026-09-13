@@ -66,10 +66,10 @@ public class S3DocumentStorageService implements DocumentStorageService {
             throw new IllegalStateException("S3 configuration block is missing in StorageProperties");
         }
 
-        String endpoint = sanitizeCredential(s3Props.getResolvedEndpoint());
+        String endpoint = sanitizeEndpoint(s3Props.getResolvedEndpoint());
         String regionStr = StringUtils.hasText(s3Props.getRegion()) ? sanitizeCredential(s3Props.getRegion()) : "auto";
-        String accessKey = sanitizeCredential(s3Props.getAccessKey());
-        String secretKey = sanitizeCredential(s3Props.getSecretKey());
+        String accessKey = sanitizeHexKey(s3Props.getAccessKey());
+        String secretKey = sanitizeHexKey(s3Props.getSecretKey());
         String bucket = sanitizeCredential(s3Props.getBucket());
 
         if (!StringUtils.hasText(bucket)) {
@@ -83,22 +83,20 @@ public class S3DocumentStorageService implements DocumentStorageService {
         }
 
         if (StringUtils.hasText(endpoint)) {
-            while (endpoint.endsWith("/")) {
-                endpoint = endpoint.substring(0, endpoint.length() - 1);
-            }
             if (!endpoint.startsWith("https://") && !endpoint.contains("localhost") && !endpoint.contains("127.0.0.1")) {
                 log.warn("SECURITY WARNING: S3/R2 endpoint is configured with non-HTTPS protocol: {}", endpoint);
             }
         }
 
         if (StringUtils.hasText(accessKey) && accessKey.length() == 64 && StringUtils.hasText(secretKey) && secretKey.length() == 32) {
-            log.warn("CONFIG WARNING: STORAGE_ACCESS_KEY is 64 chars and STORAGE_SECRET_KEY is 32 chars. They appear to be reversed! Access Key ID should be 32 chars and Secret Access Key should be 64 chars.");
-        } else if (StringUtils.hasText(secretKey) && secretKey.length() != 64) {
-            log.warn("CONFIG WARNING: S3/R2 secret key length is {} characters. Cloudflare R2 Secret Access Keys are standardly 64 hexadecimal characters. (A ~40 character value indicates the Cloudflare API Bearer token was configured instead of the S3 Secret Access Key).", secretKey.length());
+            log.warn("CONFIG WARNING: STORAGE_ACCESS_KEY is 64 chars and STORAGE_SECRET_KEY is 32 chars. Swapping them to correct AccessKeyID (32) and SecretAccessKey (64).");
+            String temp = accessKey;
+            accessKey = secretKey;
+            secretKey = temp;
         }
 
         try {
-            Region region = Region.of(regionStr);
+            Region region = resolveRegion(regionStr);
 
             boolean pathStyle = s3Props.isPathStyleAccess();
             boolean chunked = s3Props.isChunkedEncodingEnabled();
@@ -472,6 +470,41 @@ public class S3DocumentStorageService implements DocumentStorageService {
     private String sanitizeHeaderFilename(String filename) {
         if (!StringUtils.hasText(filename)) return "document.bin";
         return filename.replaceAll("[\r\n\"\\\\]", "_");
+    }
+
+    private String sanitizeHexKey(String val) {
+        if (val == null) {
+            return null;
+        }
+        String noSpacesOrQuotes = val.replaceAll("[\\s\\u00A0\\u200B\\uFEFF\\r\\n\\t\"'`\\\\]", "");
+        String hexOnly = noSpacesOrQuotes.replaceAll("[^0-9a-fA-F]", "");
+        if (hexOnly.length() == 32 || hexOnly.length() == 64 || hexOnly.length() == 40 || hexOnly.length() == 20) {
+            return hexOnly;
+        }
+        if (hexOnly.length() == 65) {
+            log.warn("Auto-correcting S3/R2 secret key from 65 to 64 hexadecimal characters.");
+            return hexOnly.substring(0, 64);
+        }
+        return noSpacesOrQuotes;
+    }
+
+    private String sanitizeEndpoint(String val) {
+        if (val == null) return null;
+        String ep = val.replaceAll("[\\s\\u00A0\\u200B\\uFEFF\\r\\n\\t\"'`]", "");
+        while (ep.endsWith("/")) {
+            ep = ep.substring(0, ep.length() - 1);
+        }
+        return ep;
+    }
+
+    private Region resolveRegion(String regionStr) {
+        if (!StringUtils.hasText(regionStr) || "auto".equalsIgnoreCase(regionStr)) {
+            return Region.of("auto");
+        }
+        if ("us-east-1".equalsIgnoreCase(regionStr) || "useast1".equalsIgnoreCase(regionStr)) {
+            return Region.US_EAST_1;
+        }
+        return Region.of(regionStr.trim().toLowerCase());
     }
 
     private String sanitizeCredential(String val) {
