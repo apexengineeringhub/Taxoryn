@@ -140,24 +140,25 @@ public class PracticeSecurityScopeEvaluator {
             return null; // unrestricted
         }
 
-        UUID orgId = scope.getOrganizationId();
-        Set<UUID> assigneeIds = scope.getAccessibleAssigneeIds();
-        if (assigneeIds == null || assigneeIds.isEmpty()) {
-            return Collections.emptySet();
-        }
-
         Set<UUID> accessibleClientIds = new HashSet<>();
 
-        // 1. Clients directly assigned to these employees
-        List<UUID> assignedClientIds = clientRepository.findIdsByOrganizationIdAndAssignedEmployeeIdIn(orgId, assigneeIds);
-        if (assignedClientIds != null) {
-            accessibleClientIds.addAll(assignedClientIds);
-        }
+        // 0. If caller is a client user or linked to a client record, grant access to their own client
+        SecurityUtils.getCurrentClientId().ifPresent(accessibleClientIds::add);
 
-        // 2. Clients where these employees have active tasks assigned
-        List<UUID> taskClientIds = taskRepository.findClientIdsByAssignedToIn(orgId, assigneeIds);
-        if (taskClientIds != null) {
-            accessibleClientIds.addAll(taskClientIds);
+        UUID orgId = scope.getOrganizationId();
+        Set<UUID> assigneeIds = scope.getAccessibleAssigneeIds();
+        if (assigneeIds != null && !assigneeIds.isEmpty() && orgId != null) {
+            // 1. Clients directly assigned to these employees
+            List<UUID> assignedClientIds = clientRepository.findIdsByOrganizationIdAndAssignedEmployeeIdIn(orgId, assigneeIds);
+            if (assignedClientIds != null) {
+                accessibleClientIds.addAll(assignedClientIds);
+            }
+
+            // 2. Clients where these employees have active tasks assigned
+            List<UUID> taskClientIds = taskRepository.findClientIdsByAssignedToIn(orgId, assigneeIds);
+            if (taskClientIds != null) {
+                accessibleClientIds.addAll(taskClientIds);
+            }
         }
 
         return accessibleClientIds;

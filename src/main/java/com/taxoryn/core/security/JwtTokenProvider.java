@@ -241,6 +241,9 @@ public class JwtTokenProvider {
     }
 
     public void invalidateToken(String token) {
+        if (!org.springframework.util.StringUtils.hasText(token) || !validateToken(token)) {
+            return;
+        }
         try {
             Date expiration = getExpirationFromToken(token);
             if (tokenBlacklistService != null) {
