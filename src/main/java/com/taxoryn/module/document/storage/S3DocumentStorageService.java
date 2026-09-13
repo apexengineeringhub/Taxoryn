@@ -97,6 +97,7 @@ public class S3DocumentStorageService implements DocumentStorageService {
             S3Configuration s3Configuration = S3Configuration.builder()
                     .pathStyleAccessEnabled(pathStyle)
                     .chunkedEncodingEnabled(chunked)
+                    .checksumValidationEnabled(false)
                     .build();
 
             S3ClientBuilder clientBuilder = S3Client.builder()
