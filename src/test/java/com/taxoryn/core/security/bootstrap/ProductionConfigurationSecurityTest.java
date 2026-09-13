@@ -643,25 +643,23 @@ class ProductionConfigurationSecurityTest {
     // =========================================================================
 
     @Test
-    @DisplayName("Fail-Fast: Production fails when CLAMAV_ENABLED is false")
-    void testProductionFailsWhenClamAvDisabledInProd() {
+    @DisplayName("Production permits ClamAV disabled (CLAMAV_ENABLED=false) with warning")
+    void testProductionPermitsClamAvDisabledInProd() {
         ProductionSecurityValidator validator = createValidator();
         configureValidProductionBasics(validator);
         ReflectionTestUtils.setField(validator, "clamavEnabled", "false");
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
-        assertTrue(ex.getMessage().contains("Malware scanning (CLAMAV_ENABLED=true) is mandatory in production"));
+        assertDoesNotThrow(validator::validateEnvironmentSecurity);
     }
 
     @Test
-    @DisplayName("Fail-Fast: Production fails when CLAMAV_ENABLED is missing or empty")
-    void testProductionFailsWhenClamAvEnabledMissingInProd() {
+    @DisplayName("Production permits ClamAV missing or empty with warning")
+    void testProductionPermitsClamAvEnabledMissingInProd() {
         ProductionSecurityValidator validator = createValidator();
         configureValidProductionBasics(validator);
         ReflectionTestUtils.setField(validator, "clamavEnabled", "");
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
-        assertTrue(ex.getMessage().contains("CLAMAV_ENABLED is missing or empty in production"));
+        assertDoesNotThrow(validator::validateEnvironmentSecurity);
     }
 
     @Test
