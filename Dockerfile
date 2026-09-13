@@ -45,7 +45,7 @@ USER taxoryn:taxoryn
 # cgroup memory limit kills the whole JVM with an untraceable SIGKILL (exit 137).
 ENV PORT=8088 \
     SERVER_PORT=8088 \
-    JAVA_OPTS="-Xms128m -Xmx220m -Xss512k -XX:MetaspaceSize=96m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
+    JAVA_OPTS="-Xms64m -Xmx192m -Xss384k -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=200m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
 
 EXPOSE 8088
 

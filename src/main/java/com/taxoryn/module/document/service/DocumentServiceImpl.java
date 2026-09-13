@@ -442,12 +442,17 @@ public class DocumentServiceImpl implements DocumentService {
         // (e.g. ClientServiceImpl#getClientById) so an employee restricted to their own
         // assigned/accessible clients cannot pull another employee's client document vault
         // just because both clients belong to the same organization.
-        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-        if (!scope.isFirmAdmin()) {
-            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-            if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
-                throw new org.springframework.security.access.AccessDeniedException(
-                        "Access denied: You do not have permission to view documents for this client.");
+        UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
+        if (currentClientId != null && currentClientId.equals(clientId)) {
+            // Authorized: Client portal user accessing their own client document vault
+        } else {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (!scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You do not have permission to view documents for this client.");
+                }
             }
         }
 
