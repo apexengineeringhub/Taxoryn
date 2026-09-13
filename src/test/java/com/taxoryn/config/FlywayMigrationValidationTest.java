@@ -53,8 +53,8 @@ public class FlywayMigrationValidationTest {
 
         // Verify all versions from 1 to latest are present without unexpected duplicates
         int maxVersion = versionNumbers.stream().max(Integer::compareTo).orElse(0);
-        assertThat(maxVersion).isEqualTo(65);
-        assertThat(versionNumbers).hasSize(65);
+        assertThat(maxVersion).isEqualTo(66);
+        assertThat(versionNumbers).hasSize(66);
     }
 
     @Test
@@ -81,7 +81,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(65);
+        assertThat(allMigrations.length).isEqualTo(66);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -121,6 +121,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v65 = infoService.all()[64];
         assertThat(v65.getVersion().getVersion()).isEqualTo("65");
         assertThat(v65.getDescription()).isEqualTo("fix notice audit columns type");
+
+        MigrationInfo v66 = infoService.all()[65];
+        assertThat(v66.getVersion().getVersion()).isEqualTo("66");
+        assertThat(v66.getDescription()).isEqualTo("cleanup legacy demo data");
     }
 
     @Test
@@ -264,7 +268,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(65);
+        assertThat(all).hasSize(66);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];

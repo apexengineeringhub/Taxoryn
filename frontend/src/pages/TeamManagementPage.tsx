@@ -72,18 +72,64 @@ export const TeamManagementPage: React.FC = () => {
     }
   };
 
-  const { getEmployeeAvatar, setEmployeeAvatar, currentTheme } = useBranding();
+  const { currentTheme } = useBranding();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [targetEmployeeEmail, setTargetEmployeeEmail] = useState<string | null>(null);
+  const [targetEmployee, setTargetEmployee] = useState<Employee | null>(null);
+  const [uploadingAvatarEmployeeId, setUploadingAvatarEmployeeId] = useState<string | null>(null);
 
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && targetEmployeeEmail) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEmployeeAvatar(targetEmployeeEmail, reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const currentTarget = targetEmployee;
+    // Always reset the input so selecting the same file triggers onChange again
+    e.target.value = '';
+
+    if (!file || !currentTarget) return;
+
+    // Validate client-side image constraints
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      setFeedbackBanner({
+        type: 'error',
+        message: 'Invalid file format. Please upload a PNG, JPEG, WEBP, or GIF image.',
+      });
+      return;
+    }
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      setFeedbackBanner({
+        type: 'error',
+        message: 'File size exceeds 5MB limit. Please choose a smaller image.',
+      });
+      return;
+    }
+
+    setUploadingAvatarEmployeeId(currentTarget.id);
+    setFeedbackBanner(null);
+
+    try {
+      const updatedEmployee = await teamApi.uploadEmployeeAvatar(currentTarget.id, file);
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.id === currentTarget.id
+            ? { ...emp, avatarUrl: updatedEmployee.avatarUrl }
+            : emp
+        )
+      );
+      setFeedbackBanner({
+        type: 'success',
+        message: `Profile photo uploaded successfully for ${currentTarget.firstName} ${currentTarget.lastName || ''}.`,
+      });
+    } catch (err: any) {
+      console.error('Failed to upload employee photo', err);
+      const apiMsg = err.response?.data?.message || err.message || 'Failed to upload employee profile photo.';
+      setFeedbackBanner({
+        type: 'error',
+        message: apiMsg,
+      });
+    } finally {
+      setUploadingAvatarEmployeeId(null);
+      setTargetEmployee(null);
     }
   };
 
@@ -183,13 +229,12 @@ export const TeamManagementPage: React.FC = () => {
     {
       header: 'Staff Member',
       accessor: (row) => {
-        const avatar = getEmployeeAvatar(row.email || row.id);
         return (
           <div className="flex items-center gap-3">
             <div className="relative group shrink-0">
-              {avatar ? (
+              {row.avatarUrl ? (
                 <img
-                  src={avatar}
+                  src={row.avatarUrl}
                   alt={row.firstName}
                   className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs"
                 />
@@ -368,15 +413,18 @@ export const TeamManagementPage: React.FC = () => {
 
             {/* Photo Action */}
             <button
+              disabled={uploadingAvatarEmployeeId === row.id}
               onClick={() => {
-                setTargetEmployeeEmail(row.email || row.id);
+                setTargetEmployee(row);
                 fileInputRef.current?.click();
               }}
-              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+              className={`px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors ${
+                uploadingAvatarEmployeeId === row.id ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
               title="Upload staff profile picture"
             >
-              <Camera className="w-3.5 h-3.5 text-slate-500" />
-              Photo
+              <Camera className={`w-3.5 h-3.5 text-slate-500 ${uploadingAvatarEmployeeId === row.id ? 'animate-spin' : ''}`} />
+              {uploadingAvatarEmployeeId === row.id ? 'Uploading...' : 'Photo'}
             </button>
           </div>
         );

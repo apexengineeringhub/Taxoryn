@@ -1115,6 +1115,14 @@ export const teamApi = {
     const res = await apiClient.post<ApiResponse<void>>(`/v1/employees/${employeeId}/resend-invitation`);
     return res.data;
   },
+  uploadEmployeeAvatar: async (employeeId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<Employee>>(`/v1/employees/${employeeId}/avatar`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
   deleteEmployee: async (employeeId: string) => {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/employees/${employeeId}`);
     return res.data;
@@ -1174,6 +1182,14 @@ export const employeeApi = {
     const formData = new FormData();
     formData.append('file', file);
     const res = await apiClient.post<ApiResponse<Employee>>('/v1/employees/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  uploadEmployeeAvatar: async (employeeId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<Employee>>(`/v1/employees/${employeeId}/avatar`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data;

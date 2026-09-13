@@ -152,7 +152,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                     throw new ResourceNotFoundException("Employee profile not found for user: " + userId);
                 });
 
-        String storedKey = profileImageService.storeAvatar(organizationId, employee.getId(), "employee", file, employee.getAvatarUrl());
+        String oldKey = employee.getAvatarUrl();
+        String storedKey = profileImageService.storeAvatar(organizationId, employee.getId(), "employee", file, oldKey);
         employee.setAvatarUrl(storedKey);
         EmployeeEntity saved = employeeRepository.save(employee);
 
@@ -161,7 +162,39 @@ public class EmployeeServiceImpl implements EmployeeService {
             userRepository.save(u);
         });
 
-        log.info("Uploaded avatar for employee id={} in tenant={}", saved.getId(), organizationId);
+        auditService.logEvent(organizationId, userId, "EMPLOYEE_AVATAR_UPLOADED", "EMPLOYEE", saved.getId().toString(), oldKey, storedKey);
+        log.info("Uploaded own avatar for employee id={} in tenant={}", saved.getId(), organizationId);
+        return enrichDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeDto uploadEmployeeAvatar(UUID employeeId, org.springframework.web.multipart.MultipartFile file) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
+        EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
+
+        String oldKey = employee.getAvatarUrl();
+        String storedKey = profileImageService.storeAvatar(organizationId, employee.getId(), "employee", file, oldKey);
+        employee.setAvatarUrl(storedKey);
+        EmployeeEntity saved = employeeRepository.save(employee);
+
+        if (employee.getUserId() != null) {
+            userRepository.findByIdAndOrganizationId(employee.getUserId(), organizationId).ifPresent(u -> {
+                u.setAvatarUrl(storedKey);
+                userRepository.save(u);
+            });
+        } else if (employee.getEmail() != null) {
+            userRepository.findByOrganizationIdAndEmailIgnoreCase(organizationId, employee.getEmail()).ifPresent(u -> {
+                u.setAvatarUrl(storedKey);
+                userRepository.save(u);
+            });
+        }
+
+        auditService.logEvent(organizationId, currentUserId, "EMPLOYEE_AVATAR_UPLOADED", "EMPLOYEE", saved.getId().toString(), oldKey, storedKey);
+        log.info("Uploaded avatar for employee id={} by actor userId={} in tenant={}", saved.getId(), currentUserId, organizationId);
         return enrichDto(saved);
     }
 

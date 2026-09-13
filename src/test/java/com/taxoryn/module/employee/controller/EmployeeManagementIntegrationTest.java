@@ -32,6 +32,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -41,6 +42,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -653,6 +655,108 @@ class EmployeeManagementIntegrationTest {
                 .andExpect(jsonPath("$.data.roleName").value("Staff Accountant"))
                 .andExpect(jsonPath("$.data.designation").value("Senior Tax Associate"))
                 .andExpect(jsonPath("$.data.department").value("Taxation"));
+    }
+
+    @Test
+    @DisplayName("19. Admin can upload employee avatar and receive updated EmployeeDto with avatarUrl")
+    void testAdminUploadEmployeeAvatar() throws Exception {
+        byte[] validPng = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "avatar.png",
+                "image/png",
+                validPng
+        );
+
+        mockMvc.perform(multipart("/api/v1/employees/" + employee1.getId() + "/avatar")
+                        .file(file)
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(employee1.getId().toString()))
+                .andExpect(jsonPath("$.data.avatarUrl").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("20. Cross-tenant employee avatar upload is rejected with 404")
+    void testCrossTenantEmployeeAvatarUploadRejected() throws Exception {
+        // Create employee in Org 2
+        EmployeeEntity org2Emp;
+        try {
+            TenantContext.setTenantId(org2.getId());
+            org2Emp = employeeRepository.save(EmployeeEntity.builder()
+                    .employeeCode("EMP-ORG2-99")
+                    .firstName("Org2")
+                    .lastName("Staff")
+                    .email("org2staff@kapadiatax.com")
+                    .department("Audit")
+                    .designation("Senior")
+                    .status(EmployeeStatus.ACTIVE)
+                    .build());
+        } finally {
+            TenantContext.clear();
+        }
+
+        byte[] validPng = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "avatar.png",
+                "image/png",
+                validPng
+        );
+
+        mockMvc.perform(multipart("/api/v1/employees/" + org2Emp.getId() + "/avatar")
+                        .file(file)
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("21. Uploading invalid file format for employee avatar is rejected with 400")
+    void testUploadInvalidFileFormatRejected() throws Exception {
+        MockMultipartFile textFile = new MockMultipartFile(
+                "file",
+                "script.sh",
+                "text/plain",
+                "echo hello".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/v1/employees/" + employee1.getId() + "/avatar")
+                        .file(textFile)
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("22. Uploading empty file for employee avatar is rejected with 400")
+    void testUploadEmptyFileRejected() throws Exception {
+        MockMultipartFile emptyFile = new MockMultipartFile(
+                "file",
+                "empty.png",
+                "image/png",
+                new byte[0]
+        );
+
+        mockMvc.perform(multipart("/api/v1/employees/" + employee1.getId() + "/avatar")
+                        .file(emptyFile)
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("23. Unauthenticated employee avatar upload returns 401")
+    void testUnauthenticatedAvatarUploadReturns401() throws Exception {
+        byte[] validPng = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "avatar.png",
+                "image/png",
+                validPng
+        );
+
+        mockMvc.perform(multipart("/api/v1/employees/" + employee1.getId() + "/avatar")
+                        .file(file))
+                .andExpect(status().isUnauthorized());
     }
 }
 
