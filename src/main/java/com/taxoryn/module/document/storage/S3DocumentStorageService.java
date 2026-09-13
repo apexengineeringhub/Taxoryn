@@ -478,13 +478,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
         if (val == null) {
             return null;
         }
-        String trimmed = val.trim().replaceAll("[\r\n\t]", "");
-        while ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-            if (trimmed.length() >= 2) {
-                trimmed = trimmed.substring(1, trimmed.length() - 1).trim().replaceAll("[\r\n\t]", "");
-            } else {
-                break;
-            }
+        String trimmed = val.replaceAll("[\\s\\u00A0\\u200B\\uFEFF\\r\\n\\t]", "");
+        while (trimmed.startsWith("\"") || trimmed.startsWith("'") || trimmed.startsWith("`")) {
+            trimmed = trimmed.substring(1);
+        }
+        while (trimmed.endsWith("\"") || trimmed.endsWith("'") || trimmed.endsWith("`")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
     }
