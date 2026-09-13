@@ -83,6 +83,9 @@ public class S3DocumentStorageService implements DocumentStorageService {
         }
 
         if (StringUtils.hasText(endpoint)) {
+            while (endpoint.endsWith("/")) {
+                endpoint = endpoint.substring(0, endpoint.length() - 1);
+            }
             if (!endpoint.startsWith("https://") && !endpoint.contains("localhost") && !endpoint.contains("127.0.0.1")) {
                 log.warn("SECURITY WARNING: S3/R2 endpoint is configured with non-HTTPS protocol: {}", endpoint);
             }
@@ -467,10 +470,12 @@ public class S3DocumentStorageService implements DocumentStorageService {
         if (val == null) {
             return null;
         }
-        String trimmed = val.trim();
-        if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        String trimmed = val.trim().replaceAll("[\r\n\t]", "");
+        while ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
             if (trimmed.length() >= 2) {
-                trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+                trimmed = trimmed.substring(1, trimmed.length() - 1).trim().replaceAll("[\r\n\t]", "");
+            } else {
+                break;
             }
         }
         return trimmed;
