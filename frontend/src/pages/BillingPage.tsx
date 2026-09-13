@@ -119,7 +119,15 @@ export const BillingPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'ISSUED' | 'PAID' | 'PARTIALLY_PAID' | 'DRAFT' | 'OVERDUE'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ISSUED' | 'PAID' | 'PARTIALLY_PAID' | 'DRAFT' | 'OVERDUE'>(() => {
+    const s = searchParams.get('status')?.toUpperCase() || searchParams.get('tab')?.toUpperCase();
+    if (s === 'PAID') return 'PAID';
+    if (s === 'ISSUED' || s === 'OUTSTANDING' || s === 'UNPAID') return 'ISSUED';
+    if (s === 'PARTIALLY_PAID') return 'PARTIALLY_PAID';
+    if (s === 'DRAFT') return 'DRAFT';
+    if (s === 'OVERDUE') return 'OVERDUE';
+    return 'ALL';
+  });
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(
@@ -190,6 +198,15 @@ export const BillingPage: React.FC = () => {
       if (cId) {
         setNewClientId(cId);
       }
+    }
+    const s = searchParams.get('status')?.toUpperCase() || searchParams.get('tab')?.toUpperCase();
+    if (s) {
+      if (s === 'PAID') setActiveTab('PAID');
+      else if (s === 'ISSUED' || s === 'OUTSTANDING' || s === 'UNPAID') setActiveTab('ISSUED');
+      else if (s === 'PARTIALLY_PAID') setActiveTab('PARTIALLY_PAID');
+      else if (s === 'DRAFT') setActiveTab('DRAFT');
+      else if (s === 'OVERDUE') setActiveTab('OVERDUE');
+      else if (s === 'ALL') setActiveTab('ALL');
     }
   }, [searchParams]);
 

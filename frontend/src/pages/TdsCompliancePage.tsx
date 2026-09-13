@@ -46,7 +46,21 @@ import clsx from 'clsx';
 export const TdsCompliancePage: React.FC = () => {
   const [searchParams] = useSearchParams();
   // Main State
-  const [activeMainTab, setActiveMainTab] = useState<'RETURNS' | 'PROFILES' | 'CHALLANS' | 'CALCULATOR' | 'CERTIFICATES'>('RETURNS');
+  const [activeMainTab, setActiveMainTab] = useState<'RETURNS' | 'PROFILES' | 'CHALLANS' | 'CALCULATOR' | 'CERTIFICATES'>(() => {
+    const tab = searchParams.get('tab')?.toUpperCase();
+    if (tab === 'PROFILES' || tab === 'CLIENTS') return 'PROFILES';
+    if (tab === 'CHALLANS') return 'CHALLANS';
+    if (tab === 'CALCULATOR') return 'CALCULATOR';
+    if (tab === 'CERTIFICATES') return 'CERTIFICATES';
+    return 'RETURNS';
+  });
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'FILED' | 'PENDING' | 'OVERDUE'>(() => {
+    const s = searchParams.get('status')?.toUpperCase();
+    if (s === 'FILED') return 'FILED';
+    if (s === 'OVERDUE') return 'OVERDUE';
+    if (s === 'PENDING' || s === 'DUE') return 'PENDING';
+    return 'ALL';
+  });
   const [selectedQuarter, setSelectedQuarter] = useState<string>('Q1');
   const [financialYear, setFinancialYear] = useState<string>('2026-27');
   const [formFilter, setFormFilter] = useState<string>('ALL');
@@ -132,6 +146,17 @@ export const TdsCompliancePage: React.FC = () => {
         setNewProfileClientId(targetClientId);
       }
       setIsBatchModalOpen(true);
+    }
+    const targetTab = searchParams.get('tab')?.toUpperCase();
+    if (targetTab === 'PROFILES' || targetTab === 'CLIENTS') setActiveMainTab('PROFILES');
+    else if (targetTab === 'RETURNS') setActiveMainTab('RETURNS');
+
+    const targetStatus = searchParams.get('status')?.toUpperCase();
+    if (targetStatus) {
+      if (targetStatus === 'FILED') setStatusFilter('FILED');
+      else if (targetStatus === 'OVERDUE') setStatusFilter('OVERDUE');
+      else if (targetStatus === 'PENDING' || targetStatus === 'DUE') setStatusFilter('PENDING');
+      else if (targetStatus === 'ALL') setStatusFilter('ALL');
     }
   }, [searchParams]);
 
@@ -313,7 +338,17 @@ export const TdsCompliancePage: React.FC = () => {
       r.clientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.tan?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.tokenNumber?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchForm && matchSearch;
+
+    let matchStatus = true;
+    if (statusFilter === 'FILED') {
+      matchStatus = r.filingStatus === 'FILED';
+    } else if (statusFilter === 'PENDING') {
+      matchStatus = r.filingStatus !== 'FILED';
+    } else if (statusFilter === 'OVERDUE') {
+      matchStatus = r.filingStatus !== 'FILED' && new Date(r.dueDate || '') < new Date();
+    }
+
+    return matchForm && matchSearch && matchStatus;
   });
 
   // Table Columns - Quarterly Returns
@@ -602,6 +637,19 @@ export const TdsCompliancePage: React.FC = () => {
               />
             </div>
           </div>
+
+          {statusFilter !== 'ALL' && (
+            <div className="flex items-center justify-between px-3.5 py-2 bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300">
+              <span>Filtering TDS returns by status: <strong className="text-indigo-700 dark:text-indigo-400 font-bold uppercase">{statusFilter}</strong> ({filteredReturns.length} {filteredReturns.length === 1 ? 'statement' : 'statements'})</span>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('ALL')}
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
+              >
+                Clear Filter (Show All)
+              </button>
+            </div>
+          )}
 
           {/* DataTable */}
           <DataTable

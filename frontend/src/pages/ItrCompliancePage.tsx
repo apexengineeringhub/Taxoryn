@@ -32,6 +32,15 @@ export const ItrCompliancePage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [assessmentYear, setAssessmentYear] = useState<string>('2026-27');
   const [activeTab, setActiveTab] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'FILED' | 'PENDING' | 'OVERDUE'>(
+    () => {
+      const s = searchParams.get('status')?.toUpperCase();
+      if (s === 'FILED' || s === 'COMPLETED') return 'FILED';
+      if (s === 'OVERDUE') return 'OVERDUE';
+      if (s === 'PENDING' || s === 'DUE') return 'PENDING';
+      return 'ALL';
+    }
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -83,6 +92,13 @@ export const ItrCompliancePage: React.FC = () => {
         if (match?.pan) setNewPan(match.pan);
       }
       setIsNewReturnModalOpen(true);
+    }
+    const targetStatus = searchParams.get('status')?.toUpperCase();
+    if (targetStatus) {
+      if (targetStatus === 'FILED' || targetStatus === 'COMPLETED') setStatusFilter('FILED');
+      else if (targetStatus === 'OVERDUE') setStatusFilter('OVERDUE');
+      else if (targetStatus === 'PENDING' || targetStatus === 'DUE') setStatusFilter('PENDING');
+      else if (targetStatus === 'ALL') setStatusFilter('ALL');
     }
   }, [searchParams, clients]);
 
@@ -568,6 +584,14 @@ const DEMO_PRACTICE_TAXPAYERS = [
     },
   ];
 
+  const displayReturns = React.useMemo(() => {
+    if (statusFilter === 'ALL') return returns;
+    if (statusFilter === 'FILED') return returns.filter((r) => r.status === 'FILED' || r.status === 'COMPLETED');
+    if (statusFilter === 'PENDING') return returns.filter((r) => r.status !== 'FILED' && r.status !== 'COMPLETED');
+    if (statusFilter === 'OVERDUE') return returns.filter((r) => r.status !== 'FILED' && r.status !== 'COMPLETED' && r.dueDate && new Date(r.dueDate) < new Date());
+    return returns;
+  }, [returns, statusFilter]);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -694,10 +718,23 @@ const DEMO_PRACTICE_TAXPAYERS = [
         </div>
       )}
 
+      {statusFilter !== 'ALL' && (
+        <div className="flex items-center justify-between px-3.5 py-2 bg-purple-50/60 border border-purple-200 rounded-lg text-xs font-medium text-slate-700">
+          <span>Filtering by status: <strong className="text-purple-700 font-bold uppercase">{statusFilter}</strong> ({displayReturns.length} {displayReturns.length === 1 ? 'record' : 'records'})</span>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('ALL')}
+            className="text-xs text-purple-600 hover:text-purple-800 underline font-bold"
+          >
+            Clear Filter (Show All)
+          </button>
+        </div>
+      )}
+
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={returns}
+        data={displayReturns}
         isLoading={isLoading}
         searchPlaceholder="Search by PAN, client name, or Ack number..."
       />

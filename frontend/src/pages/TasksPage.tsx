@@ -133,7 +133,7 @@ export const TasksPage: React.FC = () => {
     })(),
   });
 
-  // Auto-open create task modal if action=new is present in searchParams
+  // Synchronize state when searchParams change
   useEffect(() => {
     if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
       const targetClientId = searchParams.get('clientId');
@@ -141,6 +141,44 @@ export const TasksPage: React.FC = () => {
         setFormData((prev) => ({ ...prev, clientId: targetClientId }));
       }
       setIsModalOpen(true);
+    }
+
+    const tab = searchParams.get('tab') as 'WORKLIST' | 'ALL_TASKS' | null;
+    if (tab) setActiveTab(tab);
+
+    const scope = searchParams.get('scope') as 'MY_WORK' | 'TEAM_WORK' | null;
+    if (scope) setWorklistScope(scope);
+
+    const bucket = searchParams.get('bucket') as any;
+    if (bucket) setWorklistBucket(bucket);
+
+    const assignedTo = searchParams.get('assignedTo');
+    if (assignedTo !== null && assignedTo !== undefined) {
+      setWorklistAssignee(assignedTo);
+      setAssigneeFilter(assignedTo || 'ALL');
+      setTaskScope(assignedTo ? 'ALL_TASKS' : 'MY_TASKS');
+    }
+
+    const category = searchParams.get('category');
+    if (category !== null && category !== undefined) {
+      setWorklistCategory(category);
+      setCategoryFilter(category || 'ALL');
+    }
+
+    const status = searchParams.get('status')?.toUpperCase();
+    if (status) {
+      if (status === 'OVERDUE') {
+        setWorklistBucket('OVERDUE');
+      } else if (status === 'COMPLETED') {
+        setWorklistBucket('COMPLETED');
+        setStatusFilter('COMPLETED');
+      } else if (['TODO', 'IN_PROGRESS', 'UNDER_REVIEW', 'BLOCKED'].includes(status)) {
+        setStatusFilter(status as any);
+      } else if (status === 'PENDING') {
+        setStatusFilter('TODO');
+      } else if (status === 'ALL') {
+        setStatusFilter('ALL');
+      }
     }
   }, [searchParams]);
 
