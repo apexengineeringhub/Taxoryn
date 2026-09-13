@@ -28,7 +28,7 @@ services:
       - key: SERVER_PORT
         value: 8088
       - key: JAVA_OPTS
-        value: "-Xms64m -Xmx192m -Xss384k -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=200m -XX:ReservedCodeCacheSize=48m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
+        value: "-Xms64m -Xmx192m -Xss384k -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=200m -XX:ReservedCodeCacheSize=48m -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8"
       - key: STORAGE_PROVIDER
         value: S3
       - key: STORAGE_REGION
