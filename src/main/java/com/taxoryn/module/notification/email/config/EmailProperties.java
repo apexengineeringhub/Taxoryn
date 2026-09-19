@@ -79,6 +79,11 @@ public class EmailProperties {
         return "Taxoryn";
     }
 
+    public static final String CANONICAL_PRODUCTION_FRONTEND_URL = "https://app.taxoryn.com";
+    public static final String CANONICAL_PRODUCTION_LOGIN_URL = "https://app.taxoryn.com/login";
+    public static final String CANONICAL_PRODUCTION_ACTIVATION_URL = "https://app.taxoryn.com/activate";
+    public static final String CANONICAL_PRODUCTION_RESET_PASSWORD_URL = "https://app.taxoryn.com/reset-password";
+
     /**
      * Centralized Frontend base URL.
      */
@@ -94,25 +99,65 @@ public class EmailProperties {
      */
     private String activationUrl;
 
+    /**
+     * Application password reset URL.
+     */
+    private String resetPasswordUrl;
+
     public String getFrontendUrl() {
         if (org.springframework.util.StringUtils.hasText(frontendUrl)) {
-            return frontendUrl.trim().replaceAll("/+$", "");
+            String trimmed = frontendUrl.trim().replaceAll("/+$", "");
+            if (isApexOrTenantDomain(trimmed)) {
+                return CANONICAL_PRODUCTION_FRONTEND_URL;
+            }
+            return trimmed;
         }
         return "http://localhost:5173";
     }
 
     public String getLoginUrl() {
         if (org.springframework.util.StringUtils.hasText(loginUrl)) {
-            return loginUrl.trim();
+            String trimmed = loginUrl.trim();
+            if (isApexOrTenantDomain(trimmed)) {
+                return CANONICAL_PRODUCTION_LOGIN_URL;
+            }
+            return trimmed;
         }
         return getFrontendUrl() + "/login";
     }
 
     public String getActivationUrl() {
         if (org.springframework.util.StringUtils.hasText(activationUrl)) {
-            return activationUrl.trim();
+            String trimmed = activationUrl.trim();
+            if (isApexOrTenantDomain(trimmed)) {
+                return CANONICAL_PRODUCTION_ACTIVATION_URL;
+            }
+            return trimmed;
         }
         return getFrontendUrl() + "/activate";
+    }
+
+    public String getResetPasswordUrl() {
+        if (org.springframework.util.StringUtils.hasText(resetPasswordUrl)) {
+            String trimmed = resetPasswordUrl.trim();
+            if (isApexOrTenantDomain(trimmed)) {
+                return CANONICAL_PRODUCTION_RESET_PASSWORD_URL;
+            }
+            return trimmed;
+        }
+        return getFrontendUrl() + "/reset-password";
+    }
+
+    private boolean isApexOrTenantDomain(String url) {
+        if (!org.springframework.util.StringUtils.hasText(url)) return false;
+        String lower = url.toLowerCase();
+        if (lower.startsWith("https://taxoryn.com") || lower.startsWith("http://taxoryn.com")) {
+            return true;
+        }
+        if (lower.contains(".taxoryn.com") && !lower.contains("app.taxoryn.com")) {
+            return true;
+        }
+        return false;
     }
 
     /**

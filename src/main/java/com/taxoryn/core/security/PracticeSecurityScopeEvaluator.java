@@ -83,11 +83,11 @@ public class PracticeSecurityScopeEvaluator {
                 || roles.contains("TAX_MANAGER") || roles.contains("ROLE_TAX_MANAGER")
         );
 
-        // Check if employee has direct reportees
-        boolean hasReportees = employeeId != null && !employeeRepository.findAllByOrganizationId(organizationId)
-                .stream().filter(e -> employeeId.equals(e.getManagerId())).toList().isEmpty();
-
-        if (hasManagerRole || hasReportees) {
+        // NOTE: Having reportees (an employee-hierarchy fact) must NEVER, on its own, promote a
+        // PRACTITIONER to department-manager scope. Business rule: "A practitioner role must
+        // remain practitioner-scoped unless the user explicitly has a MANAGER role/permission."
+        // Department/manager-level visibility is granted ONLY by an explicit MANAGER role.
+        if (hasManagerRole) {
             // Department Manager Scope
             Set<UUID> accessibleIds = new HashSet<>();
             accessibleIds.add(userId);

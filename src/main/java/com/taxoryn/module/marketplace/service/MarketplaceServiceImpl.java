@@ -1441,7 +1441,11 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
         if (status != null) lead.setLeadStatus(status);
         if (notes != null) lead.setPractitionerNotes(notes);
-        if (assignedEmployeeId != null) lead.setAssignedEmployeeId(assignedEmployeeId);
+        if (assignedEmployeeId != null) {
+            employeeRepository.findByIdAndOrganizationId(assignedEmployeeId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", assignedEmployeeId));
+            lead.setAssignedEmployeeId(assignedEmployeeId);
+        }
 
         MarketplaceLeadEntity saved = leadRepository.save(lead);
         return enrichLeadDto(saved);
@@ -1453,6 +1457,12 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         MarketplaceLeadEntity lead = leadRepository.findByIdAndOrganizationId(leadId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Lead", "id", leadId));
+
+        UUID assignedEmpId = request.getAssignedEmployeeId() != null ? request.getAssignedEmployeeId() : lead.getAssignedEmployeeId();
+        if (assignedEmpId != null) {
+            employeeRepository.findByIdAndOrganizationId(assignedEmpId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", assignedEmpId));
+        }
 
         // 1. Create or Find Client in CRM
         ClientEntity client;
@@ -1472,7 +1482,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                     .phone(lead.getClientPhone())
                     .city(lead.getCity())
                     .clientType(request.getClientType() != null ? request.getClientType() : ClientEntity.ClientType.INDIVIDUAL)
-                    .assignedEmployeeId(request.getAssignedEmployeeId() != null ? request.getAssignedEmployeeId() : lead.getAssignedEmployeeId())
+                    .assignedEmployeeId(assignedEmpId)
                     .status(ClientEntity.ClientStatus.ACTIVE)
                     .notes(request.getNotes() != null ? request.getNotes() : "Acquired via Taxoryn Marketplace. Requirement: " + lead.getRequirementDescription())
                     .build();

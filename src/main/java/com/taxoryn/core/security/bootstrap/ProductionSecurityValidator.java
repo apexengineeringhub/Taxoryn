@@ -163,6 +163,35 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
     @Value("${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:${APP_FRONTEND_URL:https://app.taxoryn.com}}}}}")
     private String frontendUrl;
 
+    /**
+     * Canonical production application login URL. Bound to the same resolution chain
+     * (including TAXORYN_LOGIN_URL) used by email/WhatsApp notification senders, so this
+     * validator sees exactly what will be sent to users. This closes the loophole where a
+     * stale/unsafe TAXORYN_LOGIN_URL environment variable on the production host could
+     * override the canonical https://app.taxoryn.com/login URL without detection.
+     */
+    @Value("${taxoryn.frontend.login-url:${TAXORYN_LOGIN_URL:${taxoryn.frontend-url}/login}}")
+    private String loginUrl;
+
+    /**
+     * Canonical production application activation URL (same rationale as {@link #loginUrl}).
+     */
+    @Value("${taxoryn.frontend.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url}/activate}}")
+    private String activationUrl;
+
+    /**
+     * Canonical production application password-reset URL (same rationale as {@link #loginUrl}).
+     */
+    @Value("${taxoryn.frontend.reset-password-url:${TAXORYN_RESET_PASSWORD_URL:${taxoryn.frontend-url}/reset-password}}")
+    private String resetPasswordUrl;
+
+    /**
+     * The one and only allowed production application origin. Marketing site (taxoryn.com),
+     * tenant subdomains (*.taxoryn.com), and any Vercel/localhost/other domain are prohibited
+     * for application login/activation/reset links in production.
+     */
+    private static final String CANONICAL_PRODUCTION_APP_ORIGIN = "https://app.taxoryn.com";
+
     @Value("${taxoryn.cors.allowed-origins:${CORS_ALLOWED_ORIGINS:https://app.taxoryn.com,https://taxoryn.com}}")
     private String corsAllowedOrigins;
 
@@ -478,6 +507,51 @@ public class ProductionSecurityValidator implements SmartInitializingSingleton {
 
         if (!trimmed.startsWith("https://")) {
             String error = "CRITICAL SECURITY VIOLATION: Production frontend URL must use HTTPS ('" + frontendUrl + "')";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        // Strip a single trailing slash for exact-match comparison.
+        String normalizedFrontendUrl = trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
+        if (!normalizedFrontendUrl.equals(CANONICAL_PRODUCTION_APP_ORIGIN)) {
+            String error = "CRITICAL SECURITY VIOLATION: Production frontend URL must be exactly '" + CANONICAL_PRODUCTION_APP_ORIGIN
+                    + "' ('" + frontendUrl + "' was configured). The marketing site (taxoryn.com) and any tenant subdomain "
+                    + "(e.g. firm.taxoryn.com) are prohibited as the application frontend URL";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        // Validate the actual login/activation/reset-password URLs that will be embedded in
+        // emails and WhatsApp messages. These are bound independently (and can be overridden
+        // independently via TAXORYN_LOGIN_URL / TAXORYN_ACTIVATION_URL / TAXORYN_RESET_PASSWORD_URL),
+        // so a correct frontendUrl alone does NOT guarantee a correct login URL.
+        validateCanonicalApplicationUrl(loginUrl, "/login", "TAXORYN_LOGIN_URL / taxoryn.frontend.login-url");
+        validateCanonicalApplicationUrl(activationUrl, "/activate", "TAXORYN_ACTIVATION_URL / taxoryn.frontend.activation-url");
+        validateCanonicalApplicationUrl(resetPasswordUrl, "/reset-password", "TAXORYN_RESET_PASSWORD_URL / taxoryn.frontend.reset-password-url");
+    }
+
+    /**
+     * Fail-fast validation that a resolved application URL (login/activation/reset-password)
+     * is EXACTLY the canonical production URL. This is the single choke point that prevents a
+     * stale or unsafe production environment variable from ever generating links to
+     * https://taxoryn.com, any *.taxoryn.com tenant subdomain, any *.vercel.app deployment,
+     * localhost, or any other untrusted domain.
+     */
+    private void validateCanonicalApplicationUrl(String resolvedUrl, String expectedPath, String sourceDescription) {
+        String expected = CANONICAL_PRODUCTION_APP_ORIGIN + expectedPath;
+
+        if (!StringUtils.hasText(resolvedUrl)) {
+            String error = "CRITICAL SECURITY VIOLATION: Production application URL (" + sourceDescription + ") is missing or empty. Expected '" + expected + "'";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        String trimmedUrl = resolvedUrl.trim();
+        if (!trimmedUrl.equals(expected)) {
+            String error = "CRITICAL SECURITY VIOLATION: Production application URL (" + sourceDescription + ") resolved to '" + trimmedUrl
+                    + "' but must be exactly '" + expected + "'. Production must never rely on a stale/unsafe environment "
+                    + "variable override; the marketing site, tenant subdomains, and preview/demo deployments are prohibited "
+                    + "for application login/activation/reset-password links";
             log.error(error);
             throw new IllegalStateException(error);
         }

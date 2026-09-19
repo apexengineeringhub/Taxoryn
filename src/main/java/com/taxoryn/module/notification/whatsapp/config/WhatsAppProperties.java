@@ -42,10 +42,24 @@ public class WhatsAppProperties {
      */
     private String accessToken;
 
+    public static final String CANONICAL_PRODUCTION_LOGIN_URL = "https://app.taxoryn.com/login";
+
     /**
      * Application login portal URL used in welcome messages.
      */
     private String loginUrl = "https://app.taxoryn.com/login";
+
+    public String getLoginUrl() {
+        if (org.springframework.util.StringUtils.hasText(loginUrl)) {
+            String trimmed = loginUrl.trim();
+            String lower = trimmed.toLowerCase();
+            if (lower.startsWith("https://taxoryn.com") || lower.startsWith("http://taxoryn.com") || (lower.contains(".taxoryn.com") && !lower.contains("app.taxoryn.com"))) {
+                return CANONICAL_PRODUCTION_LOGIN_URL;
+            }
+            return trimmed;
+        }
+        return CANONICAL_PRODUCTION_LOGIN_URL;
+    }
 
     /**
      * Template language code (e.g. en_US or en). Default is en_US.

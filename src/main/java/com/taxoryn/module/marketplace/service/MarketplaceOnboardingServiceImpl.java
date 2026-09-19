@@ -138,6 +138,11 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
 
         String onbToken = "onb_" + UUID.randomUUID().toString().replace("-", "");
 
+        if (request.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
+        }
+
         MarketplaceOnboardingEntity onboarding = MarketplaceOnboardingEntity.builder()
                 .organizationId(organizationId)
                 .marketplaceProfileId(profile.getId())
@@ -264,6 +269,11 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
                 ? request.getAssignedEmployeeId()
                 : onboarding.getAssignedEmployeeId();
 
+        if (assignedEmpId != null) {
+            employeeRepository.findByIdAndOrganizationId(assignedEmpId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", assignedEmpId));
+        }
+
         ClientEntity client = ClientEntity.builder()
                 .clientType(onboarding.getEntityType() != null ? onboarding.getEntityType() : ClientEntity.ClientType.INDIVIDUAL)
                 .displayName(onboarding.getClientName())
@@ -281,6 +291,7 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
                 .state(onboarding.getState())
                 .pincode(onboarding.getPincode())
                 .build();
+        client.setOrganizationId(organizationId);
 
         final ClientEntity savedClient = clientRepository.save(client);
 
@@ -304,6 +315,7 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
                     .status(TaskEntity.TaskStatus.TODO)
                     .dueDate(LocalDate.now().plusDays(3))
                     .build();
+            task.setOrganizationId(organizationId);
             taskRepository.save(task);
         }
 
@@ -316,7 +328,7 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
         onboardingRepository.save(onboarding);
 
         // Update Lead status to CONVERTED
-        leadRepository.findById(onboarding.getLeadId()).ifPresent(l -> {
+        leadRepository.findByIdAndOrganizationId(onboarding.getLeadId(), organizationId).ifPresent(l -> {
             l.setLeadStatus(LeadStatus.CONVERTED);
             l.setConvertedClientId(savedClient.getId());
             l.setPractitionerNotes("Successfully onboarded and promoted to Client Master.");
