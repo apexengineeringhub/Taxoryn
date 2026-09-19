@@ -79,7 +79,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                uri.startsWith("/api/marketplace/customer/register") ||
                uri.startsWith("/api/v1/marketplace/customer/register") ||
                uri.startsWith("/api/marketplace/onboarding") ||
-               uri.startsWith("/api/v1/marketplace/onboarding");
+               uri.startsWith("/api/v1/marketplace/onboarding") ||
+               uri.startsWith("/api/marketing/early-access") ||
+               uri.startsWith("/api/v1/marketing/early-access");
     }
 
     private boolean isExcludedPath(String uri) {

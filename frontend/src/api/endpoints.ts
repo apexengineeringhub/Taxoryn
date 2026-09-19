@@ -2432,6 +2432,34 @@ export const noticesApi = {
   },
 };
 
+export interface EarlyAccessPayload {
+  name: string;
+  email: string;
+  practiceName: string;
+  phone?: string;
+  city?: string;
+  practiceProfile?: string;
+  primaryArea?: string;
+  source?: string;
+  honeypot?: string;
+}
+
+export interface EarlyAccessResponseData {
+  id: string;
+  status: string;
+  email: string;
+  message: string;
+  createdAt: string;
+}
+
+export const marketingApi = {
+  submitEarlyAccess: async (payload: EarlyAccessPayload): Promise<EarlyAccessResponseData> => {
+    const res = await apiClient.post<ApiResponse<EarlyAccessResponseData>>('/v1/marketing/early-access', payload);
+    return res.data.data;
+  },
+};
+
+
 
 
 

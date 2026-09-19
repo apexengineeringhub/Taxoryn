@@ -37,6 +37,8 @@ public class EmailTemplateRenderer {
             case CLIENT_PORTAL_RESTORED -> renderClientPortalRestoredHtml(data);
             case CLIENT_PORTAL_DEACTIVATED -> renderClientPortalDeactivatedHtml(data);
             case CUSTOMER_EMAIL_VERIFICATION -> renderCustomerEmailVerificationHtml(data);
+            case EARLY_ACCESS_INTERNAL_NOTIFICATION -> renderEarlyAccessInternalNotificationHtml(data);
+            case EARLY_ACCESS_CONFIRMATION -> renderEarlyAccessConfirmationHtml(data);
         };
     }
 
@@ -1204,6 +1206,130 @@ public class EmailTemplateRenderer {
                 escape(expiryHours),
                 escape(activationUrl),
                 escape(activationUrl)
+        );
+    }
+
+    private String renderEarlyAccessInternalNotificationHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "N/A");
+        String email = getString(data, "email", "N/A");
+        String practiceName = getString(data, "practiceName", "N/A");
+        String phone = getString(data, "phone", "Not provided");
+        String city = getString(data, "city", "Not provided");
+        String practiceProfile = getString(data, "practiceProfile", "Not specified");
+        String primaryArea = getString(data, "primaryArea", "Not specified");
+        String timestamp = getString(data, "timestamp", "Just now");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>New Practice Access Request</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 28px 36px; }
+            .logo { font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 2px; }
+            .logo-accent { color: #00d1a3; }
+            .badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 10px; }
+            .content { padding: 32px 36px; }
+            h1 { font-size: 20px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 12px; }
+            p { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .lead-box { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 20px 0; }
+            .lead-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }
+            .lead-row:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+            .lead-label { color: #64748b; font-weight: 600; width: 40%%; }
+            .lead-value { color: #082e5b; font-weight: 700; width: 60%%; text-align: right; word-break: break-word; }
+            .footer { background: #f8fafc; padding: 20px 36px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">TAXO<span class="logo-accent">RYN</span><span class="badge">Inbound Lead</span></div>
+            </div>
+            <div class="content">
+              <h1>🚀 New Practice Access Request</h1>
+              <p>A new tax practitioner / firm has requested access to the Taxoryn Platform.</p>
+              <div class="lead-box">
+                <div class="lead-row"><span class="lead-label">Requester Name:</span><span class="lead-value">%s</span></div>
+                <div class="lead-row"><span class="lead-label">Email Address:</span><span class="lead-value">%s</span></div>
+                <div class="lead-row"><span class="lead-label">Firm / Practice:</span><span class="lead-value">%s</span></div>
+                <div class="lead-row"><span class="lead-label">Phone Number:</span><span class="lead-value">%s</span></div>
+                <div class="lead-row"><span class="lead-label">City / Location:</span><span class="lead-value">%s</span></div>
+                <div class="lead-row"><span class="lead-label">Practice Profile:</span><span class="lead-value">%s</span></div>
+                <div class="lead-row"><span class="lead-label">Primary Interest:</span><span class="lead-value">%s</span></div>
+                <div class="lead-row"><span class="lead-label">Received At:</span><span class="lead-value">%s</span></div>
+              </div>
+              <p>Please review and follow up with the practitioner within 1 business day.</p>
+            </div>
+            <div class="footer">Taxoryn Platform Operations • Inbound Practice Pipeline</div>
+          </div>
+        </body>
+        </html>
+        """.formatted(
+                escape(name),
+                escape(email),
+                escape(practiceName),
+                escape(phone),
+                escape(city),
+                escape(practiceProfile),
+                escape(primaryArea),
+                escape(timestamp)
+        );
+    }
+
+    private String renderEarlyAccessConfirmationHtml(Map<String, Object> data) {
+        String name = getString(data, "name", "Practitioner");
+        String practiceName = getString(data, "practiceName", "Your Practice");
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Practice Access Request Received</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }
+            .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
+            .header { background: linear-gradient(135deg, #082e5b 0%%, #07152b 100%%); padding: 32px 40px; }
+            .logo { font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 2px; }
+            .logo-accent { color: #00d1a3; }
+            .badge { background: #00d1a3; color: #07152b; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; margin-left: 10px; }
+            .content { padding: 36px 40px; }
+            h1 { font-size: 22px; font-weight: 800; color: #082e5b; margin-top: 0; margin-bottom: 16px; }
+            p { font-size: 15px; line-height: 1.6; color: #475569; margin: 0 0 16px; }
+            .card { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin: 20px 0; }
+            .highlight { color: #00b388; font-weight: 700; }
+            .footer { background: #f8fafc; padding: 24px 40px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">TAXO<span class="logo-accent">RYN</span><span class="badge">Practice Suite</span></div>
+            </div>
+            <div class="content">
+              <h1>We've Received Your Practice Access Request! 🎉</h1>
+              <p>Hello <strong>%s</strong>,</p>
+              <p>Thank you for your interest in the Taxoryn Practice Operating System for <strong>%s</strong>.</p>
+              <div class="card">
+                <p style="margin: 0; font-size: 14px; color: #334155;">
+                  ✓ Our onboarding team is reviewing your practice details.<br>
+                  ✓ A dedicated practice specialist will contact you shortly with platform access details and personalized setup assistance.
+                </p>
+              </div>
+              <p>In the meantime, feel free to explore statutory updates and tax practice guides on our knowledge hub.</p>
+            </div>
+            <div class="footer">Taxoryn Platform • Simplifying Indian Tax Practice Management</div>
+          </div>
+        </body>
+        </html>
+        """.formatted(
+                escape(name),
+                escape(practiceName)
         );
     }
 

@@ -26,4 +26,6 @@ public interface EmailNotificationService {
     void sendDocumentReminderEmail(String recipientEmail, String clientName, String purpose, String practiceName, java.time.LocalDate dueDate, java.util.List<String> pendingItemTitles);
     void sendDocumentRejectedEmail(String recipientEmail, String clientName, String purpose, String documentTitle, String reason, String practiceName);
     void sendCustomerEmailVerification(String recipientEmail, String recipientName, String activationUrl, long expiryHours);
+    void sendEarlyAccessInternalNotification(String requesterName, String requesterEmail, String practiceName, String phone, String city, String practiceProfile, String primaryArea, java.time.Instant timestamp);
+    void sendEarlyAccessConfirmation(String recipientEmail, String recipientName, String practiceName);
 }
