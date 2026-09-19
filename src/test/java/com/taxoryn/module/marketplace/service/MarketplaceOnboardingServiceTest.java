@@ -270,7 +270,7 @@ class MarketplaceOnboardingServiceTest {
             c.setId(UUID.randomUUID());
             return c;
         });
-        when(leadRepository.findById(leadId)).thenReturn(Optional.of(sampleLead));
+        when(leadRepository.findByIdAndOrganizationId(leadId, organizationId)).thenReturn(Optional.of(sampleLead));
         when(profileRepository.findById(profileId)).thenReturn(Optional.of(sampleProfile));
 
         MarketplaceOnboardingDto dto = MarketplaceOnboardingDto.builder()

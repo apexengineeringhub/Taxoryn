@@ -59,6 +59,9 @@ class ProductionConfigurationSecurityTest {
         ReflectionTestUtils.setField(validator, "mailDevMode", false);
         ReflectionTestUtils.setField(validator, "whatsappEnabled", false);
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://app.taxoryn.com");
+        ReflectionTestUtils.setField(validator, "loginUrl", "https://app.taxoryn.com/login");
+        ReflectionTestUtils.setField(validator, "activationUrl", "https://app.taxoryn.com/activate");
+        ReflectionTestUtils.setField(validator, "resetPasswordUrl", "https://app.taxoryn.com/reset-password");
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://taxoryn.com");
         ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");
         ReflectionTestUtils.setField(validator, "flywayValidateOnMigrate", true);
@@ -457,6 +460,93 @@ class ProductionConfigurationSecurityTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
         assertTrue(ex.getMessage().contains("Production frontend URL cannot use demo Vercel domain"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when frontend URL is the bare marketing domain (taxoryn.com)")
+    void testProductionFailsWhenFrontendUrlIsBareMarketingDomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("must be exactly 'https://app.taxoryn.com'"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when frontend URL is a tenant subdomain")
+    void testProductionFailsWhenFrontendUrlIsTenantSubdomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "frontendUrl", "https://firm.taxoryn.com");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("must be exactly 'https://app.taxoryn.com'"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when a stale TAXORYN_LOGIN_URL env var points at the marketing domain")
+    void testProductionFailsWhenLoginUrlIsStaleMarketingDomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "loginUrl", "https://taxoryn.com/login");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("TAXORYN_LOGIN_URL"));
+        assertTrue(ex.getMessage().contains("must be exactly 'https://app.taxoryn.com/login'"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when login URL resolves to a Vercel preview deployment")
+    void testProductionFailsWhenLoginUrlIsVercelDeployment() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "loginUrl", "https://taxoryn-7x7f.vercel.app/login");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("must be exactly 'https://app.taxoryn.com/login'"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when a stale TAXORYN_ACTIVATION_URL env var points at the marketing domain")
+    void testProductionFailsWhenActivationUrlIsStaleMarketingDomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "activationUrl", "https://taxoryn.com/activate");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("must be exactly 'https://app.taxoryn.com/activate'"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when a stale TAXORYN_RESET_PASSWORD_URL env var points at a tenant subdomain")
+    void testProductionFailsWhenResetPasswordUrlIsTenantSubdomain() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "resetPasswordUrl", "https://firm.taxoryn.com/reset-password");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("must be exactly 'https://app.taxoryn.com/reset-password'"));
+    }
+
+    @Test
+    @DisplayName("Fail-Fast: Production fails when login URL is missing or empty")
+    void testProductionFailsWhenLoginUrlMissing() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+        ReflectionTestUtils.setField(validator, "loginUrl", "");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, validator::validateEnvironmentSecurity);
+        assertTrue(ex.getMessage().contains("is missing or empty"));
+    }
+
+    @Test
+    @DisplayName("Pass: Production succeeds when frontend/login/activation/reset URLs are exactly canonical")
+    void testProductionPassesWithCanonicalUrls() {
+        ProductionSecurityValidator validator = createValidator();
+        configureValidProductionBasics(validator);
+
+        assertDoesNotThrow(validator::validateEnvironmentSecurity);
     }
 
     @Test

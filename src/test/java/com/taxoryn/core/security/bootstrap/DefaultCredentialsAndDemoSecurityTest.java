@@ -217,6 +217,9 @@ class DefaultCredentialsAndDemoSecurityTest {
         ReflectionTestUtils.setField(validator, "clamavHost", "clamav");
         ReflectionTestUtils.setField(validator, "clamavPort", 3310);
         ReflectionTestUtils.setField(validator, "frontendUrl", "https://app.taxoryn.com");
+        ReflectionTestUtils.setField(validator, "loginUrl", "https://app.taxoryn.com/login");
+        ReflectionTestUtils.setField(validator, "activationUrl", "https://app.taxoryn.com/activate");
+        ReflectionTestUtils.setField(validator, "resetPasswordUrl", "https://app.taxoryn.com/reset-password");
         ReflectionTestUtils.setField(validator, "corsAllowedOrigins", "https://app.taxoryn.com,https://taxoryn.com");
         ReflectionTestUtils.setField(validator, "hibernateDdlAuto", "validate");
         ReflectionTestUtils.setField(validator, "flywayValidateOnMigrate", true);

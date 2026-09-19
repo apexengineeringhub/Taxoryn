@@ -409,7 +409,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         }
 
         // 1. Notify client via In-App Notification
-        ClientEntity client = clientRepository.findById(request.getClientId()).orElse(null);
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId).orElse(null);
         String practiceName = organizationRepository.findById(organizationId)
                 .map(OrganizationEntity::getName)
                 .orElse("Taxoryn Practice");
@@ -467,7 +467,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
             throw new BadRequestException("Cannot send reminder for a completed or cancelled request");
         }
 
-        ClientEntity client = clientRepository.findById(request.getClientId()).orElse(null);
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId).orElse(null);
         if (client == null) return;
 
         List<DocumentRequestItemEntity> items = docRequestItemRepository.findAllByRequestIdOrderByCreatedAtAsc(request.getId());
@@ -602,7 +602,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
 
         // 5. Notify assigned practitioner
         try {
-            ClientEntity client = clientRepository.findById(request.getClientId()).orElse(null);
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId).orElse(null);
             String clientDisplayName = client != null ? client.getDisplayName() : "Client";
             UUID practitionerUserId = request.getRequestedByUserId();
             if (practitionerUserId == null && client != null && client.getAssignedEmployeeId() != null) {
@@ -638,7 +638,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     }
 
     private DocumentRequestDto toDto(DocumentRequestEntity entity) {
-        ClientEntity client = clientRepository.findById(entity.getClientId()).orElse(null);
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), entity.getOrganizationId()).orElse(null);
         String clientName = client != null ? client.getDisplayName() : "Unknown Client";
         String clientPan = client != null ? client.getPan() : null;
 
