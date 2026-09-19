@@ -51,6 +51,7 @@ const PlatformOverviewPage = React.lazy(() => import('./pages/PlatformOverviewPa
 const PlatformPracticesPage = React.lazy(() => import('./pages/PlatformPracticesPage').then(m => ({ default: m.PlatformPracticesPage })));
 const PlatformUsersPage = React.lazy(() => import('./pages/PlatformUsersPage').then(m => ({ default: m.PlatformUsersPage })));
 const PlatformSubscriptionsPage = React.lazy(() => import('./pages/PlatformSubscriptionsPage').then(m => ({ default: m.PlatformSubscriptionsPage })));
+const EarlyAccessPage = React.lazy(() => import('./pages/EarlyAccessPage').then(m => ({ default: m.EarlyAccessPage })));
 const LearnLandingPage = React.lazy(() => import('./pages/learn/LearnLandingPage').then(m => ({ default: m.LearnLandingPage })));
 const LearnContentBrowsePage = React.lazy(() => import('./pages/learn/LearnContentBrowsePage').then(m => ({ default: m.LearnContentBrowsePage })));
 const LearnContentDetailPage = React.lazy(() => import('./pages/learn/LearnContentDetailPage').then(m => ({ default: m.LearnContentDetailPage })));
@@ -116,6 +117,9 @@ export const App: React.FC = () => {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<RegisterOrgPage />} />
+            <Route path="/early-access" element={<EarlyAccessPage />} />
+            <Route path="/request-access" element={<EarlyAccessPage />} />
+            <Route path="/practice-access" element={<EarlyAccessPage />} />
             <Route path="/activate" element={<ActivateOrgPage />} />
             <Route path="/activate-organization" element={<ActivateOrgPage />} />
             <Route path="/marketplace/register" element={<RegisterCustomerPage />} />

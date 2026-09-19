@@ -57,3 +57,11 @@ services:
         sync: false
       - key: CLAMAV_PORT
         value: "3310"
+      - key: TAXORYN_FRONTEND_URL
+        value: "https://app.taxoryn.com"
+      - key: TAXORYN_LOGIN_URL
+        value: "https://app.taxoryn.com/login"
+      - key: TAXORYN_ACTIVATION_URL
+        value: "https://app.taxoryn.com/activate"
+      - key: TAXORYN_RESET_PASSWORD_URL
+        value: "https://app.taxoryn.com/reset-password"

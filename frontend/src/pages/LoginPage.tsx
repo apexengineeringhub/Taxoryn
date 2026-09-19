@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
+import { RequestPracticeAccessModal } from '../components/marketing/RequestPracticeAccessModal';
 
 export const LoginPage: React.FC = () => {
   const isDemoEnvironment = Boolean(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true');
@@ -29,6 +30,7 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const bookingIntent = getBookingIntent();
@@ -531,9 +533,27 @@ export const LoginPage: React.FC = () => {
                 </span>
               </Link>
             </div>
+            {/* 4. Early Access Practice Consultation Trigger */}
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => setIsAccessModalOpen(true)}
+                className="text-[11px] font-bold text-slate-500 hover:text-[#082E5B] transition-colors inline-flex items-center gap-1 cursor-pointer"
+              >
+                <span>Request Practice Access & Demo</span>
+                <ArrowRight className="w-3 h-3 text-[#00D1A3]" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Early Access Modal */}
+      <RequestPracticeAccessModal
+        isOpen={isAccessModalOpen}
+        onClose={() => setIsAccessModalOpen(false)}
+        source="LOGIN_PAGE"
+      />
     </div>
   );
 };

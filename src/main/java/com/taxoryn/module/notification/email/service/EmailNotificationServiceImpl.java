@@ -399,6 +399,61 @@ public class EmailNotificationServiceImpl implements EmailNotificationService {
                 maskEmail(recipientEmail), success, emailSender.getProviderName());
     }
 
+    @Override
+    public void sendEarlyAccessInternalNotification(String requesterName, String requesterEmail, String practiceName,
+                                                    String phone, String city, String practiceProfile,
+                                                    String primaryArea, java.time.Instant timestamp) {
+        String internalSupportEmail = "support@taxoryn.com";
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", StringUtils.hasText(requesterName) ? requesterName.trim() : "N/A");
+        data.put("email", StringUtils.hasText(requesterEmail) ? requesterEmail.trim() : "N/A");
+        data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "N/A");
+        data.put("phone", StringUtils.hasText(phone) ? phone.trim() : "Not provided");
+        data.put("city", StringUtils.hasText(city) ? city.trim() : "Not provided");
+        data.put("practiceProfile", StringUtils.hasText(practiceProfile) ? practiceProfile.trim() : "Not specified");
+        data.put("primaryArea", StringUtils.hasText(primaryArea) ? primaryArea.trim() : "Not specified");
+        data.put("timestamp", timestamp != null ? timestamp.toString() : java.time.Instant.now().toString());
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.EARLY_ACCESS_INTERNAL_NOTIFICATION, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.EARLY_ACCESS_INTERNAL_NOTIFICATION, data);
+
+        try {
+            boolean success = emailSender.sendEmail(internalSupportEmail, "Taxoryn Inbound Lead Desk", subject, htmlBody, data);
+            log.info("Early access internal notification dispatch for {} ({}): success={}, provider={}",
+                    data.get("practiceName"), maskEmail(requesterEmail), success, emailSender.getProviderName());
+        } catch (Exception ex) {
+            log.error("Failed to dispatch early access internal notification for {}: {}",
+                    maskEmail(requesterEmail), ex.getMessage());
+        }
+    }
+
+    @Override
+    public void sendEarlyAccessConfirmation(String recipientEmail, String recipientName, String practiceName) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send early access confirmation: recipient email is empty");
+            return;
+        }
+
+        String displayName = StringUtils.hasText(recipientName) ? recipientName.trim() : "Practitioner";
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", displayName);
+        data.put("practiceName", StringUtils.hasText(practiceName) ? practiceName.trim() : "Your Practice");
+        data.put("email", recipientEmail.trim());
+
+        String subject = templateRenderer.renderSubject(EmailTemplateType.EARLY_ACCESS_CONFIRMATION, data);
+        String htmlBody = templateRenderer.renderHtml(EmailTemplateType.EARLY_ACCESS_CONFIRMATION, data);
+
+        try {
+            boolean success = emailSender.sendEmail(recipientEmail.trim(), displayName, subject, htmlBody, data);
+            log.info("Early access confirmation dispatch for {}: success={}, provider={}",
+                    maskEmail(recipientEmail), success, emailSender.getProviderName());
+        } catch (Exception ex) {
+            log.error("Failed to dispatch early access confirmation for {}: {}",
+                    maskEmail(recipientEmail), ex.getMessage());
+        }
+    }
+
     private String buildFullName(String firstName, String lastName) {
         if (StringUtils.hasText(firstName) && StringUtils.hasText(lastName)) {
             return firstName.trim() + " " + lastName.trim();

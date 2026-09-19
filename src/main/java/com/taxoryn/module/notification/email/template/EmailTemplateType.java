@@ -22,7 +22,9 @@ public enum EmailTemplateType {
     CLIENT_PORTAL_SUSPENDED("Your Taxoryn Portal Access Has Been Suspended"),
     CLIENT_PORTAL_RESTORED("Your Taxoryn Portal Access Has Been Restored"),
     CLIENT_PORTAL_DEACTIVATED("Your Taxoryn Portal Access Is No Longer Active"),
-    CUSTOMER_EMAIL_VERIFICATION("Welcome to Taxoryn — Verify Your Email");
+    CUSTOMER_EMAIL_VERIFICATION("Welcome to Taxoryn — Verify Your Email"),
+    EARLY_ACCESS_INTERNAL_NOTIFICATION("New Taxoryn Practice Access Request: {{practiceName}}"),
+    EARLY_ACCESS_CONFIRMATION("Taxoryn Practice Access Request Received");
 
     private final String defaultSubject;
 }

@@ -53,8 +53,8 @@ public class FlywayMigrationValidationTest {
 
         // Verify all versions from 1 to latest are present without unexpected duplicates
         int maxVersion = versionNumbers.stream().max(Integer::compareTo).orElse(0);
-        assertThat(maxVersion).isEqualTo(66);
-        assertThat(versionNumbers).hasSize(66);
+        assertThat(maxVersion).isEqualTo(67);
+        assertThat(versionNumbers).hasSize(67);
     }
 
     @Test
@@ -81,7 +81,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(66);
+        assertThat(allMigrations.length).isEqualTo(67);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -125,6 +125,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v66 = infoService.all()[65];
         assertThat(v66.getVersion().getVersion()).isEqualTo("66");
         assertThat(v66.getDescription()).isEqualTo("cleanup legacy demo data");
+
+        MigrationInfo v67 = infoService.all()[66];
+        assertThat(v67.getVersion().getVersion()).isEqualTo("67");
+        assertThat(v67.getDescription()).isEqualTo("create early access requests");
     }
 
     @Test
@@ -260,7 +264,7 @@ public class FlywayMigrationValidationTest {
     }
 
     @Test
-    @DisplayName("Verify all Flyway migrations V1 to V65 resolve with valid descriptions and checksums")
+    @DisplayName("Verify all Flyway migrations V1 to V67 resolve with valid descriptions and checksums")
     void testAllFlywayMigrationsResolveSuccessfully() {
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:h2:mem:flyway_metadata_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL", "sa", "")
@@ -268,7 +272,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(66);
+        assertThat(all).hasSize(67);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];

@@ -126,6 +126,9 @@ export const LearnHeader: React.FC<LearnHeaderProps> = ({ initialSearch = '', on
                 <span>Find Professional</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               </Link>
+              <Link to="/early-access" className="hover:text-brand-600 transition-colors text-emerald-700">
+                Practice Access
+              </Link>
             </nav>
 
             <div className="h-5 w-px bg-slate-200" />
