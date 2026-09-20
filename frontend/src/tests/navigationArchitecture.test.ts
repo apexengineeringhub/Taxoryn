@@ -473,3 +473,92 @@ describe('Taxoryn Sidebar Information Architecture & RBAC Visibility Standard', 
     assert.strictEqual(visiblePaths.includes('/notices'), true, 'Notice Center must be visible with only NOTICE_VIEW without requiring TASK_VIEW or CLIENT_VIEW');
   });
 });
+
+describe('Taxoryn Persona Detection & New Action Menu Persona Separation', () => {
+  const superAdmin = {
+    id: 'sa-1',
+    email: 'superadmin@taxoryn.com',
+    roles: ['TAXORYN_SUPERADMIN', 'SUPER_ADMIN'],
+    permissions: [],
+  };
+
+  const opsAdmin = {
+    id: 'ops-1',
+    email: 'ops@taxoryn.com',
+    roles: ['TAXORYN_OPERATIONS_ADMIN'],
+    permissions: ['PRACTICE_VIEW', 'USER_VIEW'],
+  };
+
+  const practiceOwner = {
+    id: 'owner-1',
+    email: 'ca.sharma@sharmassociates.in',
+    roles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN'],
+    permissions: ['CLIENT_CREATE', 'TASK_CREATE', 'GST_CREATE', 'ITR_CREATE', 'BILLING_CREATE'],
+  };
+
+  const clientUser = {
+    id: 'client-1',
+    email: 'customer@acme.com',
+    roles: ['CLIENT_USER', 'MARKETPLACE_CUSTOMER'],
+    permissions: [],
+  };
+
+  it('Persona Classification: Correctly distinguishes Platform Admin, Practice User, and Client', async () => {
+    const { isPlatformUser, isClientUser, isPracticeUser } = await import('../utils/permissionUtils.ts');
+
+    assert.strictEqual(isPlatformUser(superAdmin as any), true);
+    assert.strictEqual(isPracticeUser(superAdmin as any), false);
+    assert.strictEqual(isClientUser(superAdmin as any), false);
+
+    assert.strictEqual(isPlatformUser(opsAdmin as any), true);
+    assert.strictEqual(isPracticeUser(opsAdmin as any), false);
+    assert.strictEqual(isClientUser(opsAdmin as any), false);
+
+    assert.strictEqual(isPlatformUser(practiceOwner as any), false);
+    assert.strictEqual(isPracticeUser(practiceOwner as any), true);
+    assert.strictEqual(isClientUser(practiceOwner as any), false);
+
+    assert.strictEqual(isPlatformUser(clientUser as any), false);
+    assert.strictEqual(isPracticeUser(clientUser as any), false);
+    assert.strictEqual(isClientUser(clientUser as any), true);
+  });
+
+  it('Action Menu Definitions: SuperAdmin sees Platform actions, not practice actions', async () => {
+    const { PLATFORM_ACTION_DEFINITIONS, PRACTICE_ACTION_DEFINITIONS } = await import('../config/actionMenuConfig.ts');
+
+    const platformActionIds = PLATFORM_ACTION_DEFINITIONS.map((a) => a.id);
+    const practiceActionIds = PRACTICE_ACTION_DEFINITIONS.map((a) => a.id);
+
+    // Platform actions must contain governance items
+    assert.ok(platformActionIds.includes('platform-onboard-practice'));
+    assert.ok(platformActionIds.includes('platform-create-user'));
+    assert.ok(platformActionIds.includes('platform-add-marketplace-service'));
+    assert.ok(platformActionIds.includes('platform-publish-content'));
+    assert.ok(platformActionIds.includes('platform-broadcast-announcement'));
+    assert.ok(platformActionIds.includes('platform-triage-feedback'));
+
+    // Practice actions must contain client & compliance items
+    assert.ok(practiceActionIds.includes('new-client'));
+    assert.ok(practiceActionIds.includes('new-task'));
+    assert.ok(practiceActionIds.includes('start-compliance'));
+    assert.ok(practiceActionIds.includes('request-documents'));
+    assert.ok(practiceActionIds.includes('send-client-message'));
+    assert.ok(practiceActionIds.includes('add-employee'));
+    assert.ok(practiceActionIds.includes('create-invoice'));
+
+    // Verify there is zero cross-contamination
+    for (const pId of platformActionIds) {
+      assert.strictEqual(practiceActionIds.includes(pId), false, `Practice actions should not contain platform action ${pId}`);
+    }
+  });
+
+  it('Action Menu Definitions: Client actions are tailored for external taxpayers', async () => {
+    const { CLIENT_ACTION_DEFINITIONS } = await import('../config/actionMenuConfig.ts');
+
+    const clientActionIds = CLIENT_ACTION_DEFINITIONS.map((a) => a.id);
+    assert.ok(clientActionIds.includes('client-upload-doc'));
+    assert.ok(clientActionIds.includes('client-message-ca'));
+    assert.ok(clientActionIds.includes('client-post-requirement'));
+    assert.ok(clientActionIds.includes('client-feedback'));
+  });
+});

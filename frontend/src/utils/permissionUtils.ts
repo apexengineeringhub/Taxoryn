@@ -18,6 +18,61 @@ export const SUPERADMIN_ROLES = [
 ];
 
 /**
+ * All internal Taxoryn Platform roles across governance, operations, support, and billing.
+ */
+export const PLATFORM_ROLES = [
+  'TAXORYN_SUPERADMIN',
+  'SUPER_ADMIN',
+  'TAXORYN_OPERATIONS_ADMIN',
+  'TAXORYN_SUPPORT_ADMIN',
+  'TAXORYN_FINANCE_ADMIN',
+  'TAXORYN_MARKETPLACE_ADMIN',
+  'TAXORYN_CONTENT_ADMIN',
+  'TAXORYN_SECURITY_ADMIN',
+  'TAXORYN_ENGINEERING_ADMIN',
+];
+
+/**
+ * Client Portal and external taxpayer customer roles.
+ */
+export const CLIENT_ROLES = [
+  'CLIENT_USER',
+  'PRACTICE_CLIENT',
+  'CLIENT_ADMIN',
+  'MARKETPLACE_CUSTOMER',
+];
+
+/**
+ * Checks if the user is an internal Taxoryn Platform administrator / team member.
+ */
+export const isPlatformUser = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  const userRoleCodes = (user.roles || []).map((r: any) =>
+    typeof r === 'string' ? r : r.code || ''
+  );
+  return userRoleCodes.some((rc) => PLATFORM_ROLES.includes(rc) || rc.startsWith('TAXORYN_'));
+};
+
+/**
+ * Checks if the user is a client portal or marketplace taxpayer user.
+ */
+export const isClientUser = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  const userRoleCodes = (user.roles || []).map((r: any) =>
+    typeof r === 'string' ? r : r.code || ''
+  );
+  return userRoleCodes.some((rc) => CLIENT_ROLES.includes(rc));
+};
+
+/**
+ * Checks if the user belongs to a chartered accountant firm / tax practice.
+ */
+export const isPracticeUser = (user: User | null | undefined): boolean => {
+  if (!user) return false;
+  return !isPlatformUser(user) && !isClientUser(user);
+};
+
+/**
  * Standard Notification permissions supported by Taxoryn backend.
  */
 export const NOTIFICATION_PERMISSIONS = [
