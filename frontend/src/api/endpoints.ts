@@ -32,6 +32,9 @@ import {
   DocumentRequestItem,
   CreateDocumentRequest,
   CreateDocumentRequestItem,
+  CreateClientAcknowledgementRequest,
+  SendDocumentToClientRequest,
+  DeclineDocumentRequest,
   DocumentRequestSummary,
   ClientPortalUser,
   RegisterClientPortalUserRequest,
@@ -1369,6 +1372,14 @@ export const portalApi = {
     const res = await apiClient.post<ApiResponse<ClientDocumentRequest>>('/v1/portal/document-requests', payload);
     return res.data.data;
   },
+  downloadDocument: async (id: string) => {
+    const res = await apiClient.get(`/v1/portal/documents/${id}/download`, { responseType: 'blob' });
+    return res.data as Blob;
+  },
+  previewDocument: async (id: string) => {
+    const res = await apiClient.get(`/v1/portal/documents/${id}/preview`, { responseType: 'blob' });
+    return res.data as Blob;
+  },
 };
 
 // --- 13. Multi-Item Document Requests V1 ---
@@ -1420,10 +1431,44 @@ export const documentRequestApi = {
     return res.data.data;
   },
 
+  sendDocument: async (payload: SendDocumentToClientRequest, file?: File) => {
+    const formData = new FormData();
+    formData.append('metadata', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    if (file) {
+      formData.append('file', file);
+    }
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>('/v1/document-requests/send-document', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
+  decline: async (id: string, declineReason: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>(`/v1/document-requests/${id}/decline`, {
+      declineReason,
+    });
+    return res.data.data;
+  },
+
   // Client Portal Endpoints
   getPortalRequests: async () => {
     const res = await apiClient.get<ApiResponse<DocumentRequest[]>>('/v1/portal/document-requests/v1');
     return res.data.data;
+  },
+  getDeliveredDocuments: async () => {
+    const res = await apiClient.get<ApiResponse<DocumentRequest[]>>('/v1/portal/document-requests/v1/delivered');
+    return res.data.data;
+  },
+  requestAcknowledgement: async (payload: CreateClientAcknowledgementRequest) => {
+    const res = await apiClient.post<ApiResponse<DocumentRequest>>('/v1/portal/document-requests/v1/request-acknowledgement', payload);
+    return res.data.data;
+  },
+  recordViewed: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/portal/document-requests/v1/${id}/viewed`);
+    return res.data;
+  },
+  recordDownloaded: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/portal/document-requests/v1/${id}/downloaded`);
+    return res.data;
   },
   getPortalRequestById: async (id: string) => {
     const res = await apiClient.get<ApiResponse<DocumentRequest>>(`/v1/portal/document-requests/v1/${id}`);

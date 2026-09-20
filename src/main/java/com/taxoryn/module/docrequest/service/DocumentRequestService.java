@@ -33,10 +33,23 @@ public interface DocumentRequestService {
 
     DocumentRequestDto uploadItemDocument(UUID itemId, MultipartFile file);
 
+    // Bidirectional Document Exchange & Delivery
+    DocumentRequestDto createClientAcknowledgementRequest(com.taxoryn.module.docrequest.dto.CreateClientAcknowledgementRequest request);
+
+    DocumentRequestDto sendDocumentToClient(com.taxoryn.module.docrequest.dto.SendDocumentToClientRequest request, MultipartFile file);
+
+    DocumentRequestDto declineClientRequest(UUID requestId, com.taxoryn.module.docrequest.dto.DeclineDocumentRequest request);
+
     // Client Portal Access
     List<DocumentRequestDto> getClientPortalRequests();
+
+    List<DocumentRequestDto> getClientPortalDeliveredDocuments();
 
     DocumentRequestDto getClientPortalRequestById(UUID requestId);
 
     DocumentRequestDto uploadClientPortalItemDocument(UUID itemId, MultipartFile file);
+
+    void recordClientDocumentViewed(UUID requestId);
+
+    void recordClientDocumentDownloaded(UUID requestId);
 }

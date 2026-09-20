@@ -16,6 +16,14 @@ import com.taxoryn.module.docrequest.dto.DocumentRequestItemDto;
 import com.taxoryn.module.docrequest.dto.DocumentRequestSummaryDto;
 import com.taxoryn.module.docrequest.dto.RejectDocumentItemRequest;
 import com.taxoryn.module.docrequest.entity.DocumentRequestEntity;
+import com.taxoryn.core.security.PracticeSecurityScope;
+import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
+import com.taxoryn.module.docrequest.dto.CreateClientAcknowledgementRequest;
+import com.taxoryn.module.docrequest.dto.DeclineDocumentRequest;
+import com.taxoryn.module.docrequest.dto.SendDocumentToClientRequest;
+import com.taxoryn.module.docrequest.entity.DocumentRequestEntity.DocumentCategory;
+import com.taxoryn.module.docrequest.entity.DocumentRequestEntity.ExchangeType;
+import com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestDirection;
 import com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus;
 import com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity;
 import com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus;
@@ -24,6 +32,9 @@ import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
 import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.dto.UploadDocumentRequest;
 import com.taxoryn.module.document.entity.DocumentEntity;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentScanStatus;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentStatus;
+import com.taxoryn.module.document.entity.DocumentEntity.DocumentType;
 import com.taxoryn.module.document.repository.DocumentRepository;
 import com.taxoryn.module.document.service.DocumentService;
 import com.taxoryn.module.notification.email.service.EmailNotificationService;
@@ -72,6 +83,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     private final NotificationService notificationService;
     private final EmailNotificationService emailNotificationService;
     private final AuditService auditService;
+    private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final com.taxoryn.module.task.repository.TaskRepository taskRepository;
     private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
 
@@ -195,6 +207,9 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional(readOnly = true)
     public PagedResponse<DocumentRequestDto> getRequests(DocumentRequestFilterRequest filter) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+
         int page = filter.getPage() != null && filter.getPage() >= 0 ? filter.getPage() : 0;
         int size = filter.getSize() != null && filter.getSize() > 0 ? filter.getSize() : 20;
 
@@ -204,11 +219,25 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
             var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
 
+            if (accessibleClientIds != null) {
+                if (accessibleClientIds.isEmpty()) {
+                    predicates.add(cb.disjunction());
+                } else {
+                    predicates.add(root.get("clientId").in(accessibleClientIds));
+                }
+            }
+
             if (filter.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filter.getClientId()));
             }
             if (filter.getStatus() != null) {
                 predicates.add(cb.equal(root.get("status"), filter.getStatus()));
+            }
+            if (filter.getDirection() != null) {
+                predicates.add(cb.equal(root.get("direction"), filter.getDirection()));
+            }
+            if (filter.getExchangeType() != null) {
+                predicates.add(cb.equal(root.get("exchangeType"), filter.getExchangeType()));
             }
             if (StringUtils.hasText(filter.getSearch())) {
                 String term = "%" + filter.getSearch().trim().toLowerCase() + "%";
@@ -536,6 +565,284 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     }
 
     // =========================================================================
+    // Bidirectional Document Exchange & Delivery
+    // =========================================================================
+
+    @Override
+    @Transactional
+    public DocumentRequestDto createClientAcknowledgementRequest(CreateClientAcknowledgementRequest request) {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        ClientEntity client = clientRepository.findById(clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        UUID organizationId = client.getOrganizationId();
+        String requestNumber = generateRequestNumber();
+
+        DocumentRequestEntity entity = DocumentRequestEntity.builder()
+                .clientId(clientId)
+                .requestNumber(requestNumber)
+                .purpose(request.getPurpose().trim())
+                .exchangeType(ExchangeType.ACKNOWLEDGEMENT_REQUEST)
+                .direction(RequestDirection.CLIENT_TO_PRACTITIONER)
+                .category(request.getCategory())
+                .financialYear(request.getFinancialYear())
+                .assessmentYear(request.getAssessmentYear())
+                .taxPeriod(request.getTaxPeriod())
+                .message(request.getMessage() != null ? request.getMessage().trim() : null)
+                .status(RequestStatus.REQUESTED)
+                .complianceId(request.getComplianceId())
+                .taskId(request.getTaskId())
+                .sentAt(Instant.now())
+                .build();
+        entity.setOrganizationId(organizationId);
+
+        DocumentRequestEntity saved = docRequestRepository.save(entity);
+
+        // Notify practitioner
+        try {
+            UUID practitionerUserId = null;
+            if (client.getAssignedEmployeeId() != null) {
+                practitionerUserId = employeeRepository.findByIdAndOrganizationId(client.getAssignedEmployeeId(), organizationId)
+                        .map(com.taxoryn.module.employee.entity.EmployeeEntity::getUserId)
+                        .orElse(null);
+            }
+            if (practitionerUserId == null) {
+                practitionerUserId = userRepository.findAllByOrganizationId(organizationId).stream()
+                        .filter(u -> u.getStatus() == com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                        .findFirst()
+                        .map(com.taxoryn.module.user.entity.UserEntity::getId)
+                        .orElse(null);
+            }
+
+            if (practitionerUserId != null) {
+                String categoryName = request.getCategory() != null ? request.getCategory().name() : "Document";
+                notificationService.notify(
+                        organizationId,
+                        practitionerUserId,
+                        null,
+                        NotificationType.DOCUMENT_REQUIRED,
+                        "Client Document Request: " + saved.getPurpose(),
+                        client.getDisplayName() + " requested " + categoryName + " (" + saved.getPurpose() + ").",
+                        Set.of(NotificationChannel.IN_APP),
+                        "/documents",
+                        "{\"requestId\":\"" + saved.getId() + "\",\"requestNumber\":\"" + saved.getRequestNumber() + "\"}"
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to notify practitioner for client acknowledgement request: {}", e.getMessage());
+        }
+
+        auditService.logEvent(
+                "ACKNOWLEDGEMENT_REQUESTED",
+                "DOCUMENT_REQUEST",
+                saved.getId().toString(),
+                organizationId,
+                "Client " + client.getDisplayName() + " requested " + (request.getCategory() != null ? request.getCategory().name() : "document") + ": " + saved.getPurpose()
+        );
+
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public DocumentRequestDto sendDocumentToClient(SendDocumentToClientRequest request, MultipartFile file) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
+        DocumentRequestEntity targetRequest = null;
+        UUID targetClientId;
+
+        if (request.getRequestId() != null) {
+            targetRequest = docRequestRepository.findByIdAndOrganizationId(request.getRequestId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", request.getRequestId()));
+
+            if (targetRequest.getStatus() == RequestStatus.COMPLETED || targetRequest.getStatus() == RequestStatus.CANCELLED || targetRequest.getStatus() == RequestStatus.DECLINED) {
+                throw new BadRequestException("Cannot fulfill a request that is already " + targetRequest.getStatus());
+            }
+            targetClientId = targetRequest.getClientId();
+        } else {
+            if (request.getClientId() == null) {
+                throw new BadRequestException("Client ID is required when sending a document without an existing request");
+            }
+            targetClientId = request.getClientId();
+        }
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(targetClientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", targetClientId));
+
+        // Resolve document
+        DocumentEntity docEntity;
+        if (file != null && !file.isEmpty()) {
+            DocumentType docType = request.getDocumentType() != null ? request.getDocumentType() : DocumentType.OTHER;
+            UploadDocumentRequest uploadReq = UploadDocumentRequest.builder()
+                    .clientId(targetClientId)
+                    .documentType(docType)
+                    .financialYear(request.getFinancialYear())
+                    .assessmentYear(request.getAssessmentYear())
+                    .notes(request.getMessage() != null ? request.getMessage().trim() : "Delivered document to client")
+                    .build();
+
+            DocumentDto uploadedDoc = documentService.uploadDocument(file, uploadReq);
+            docEntity = documentRepository.findById(uploadedDoc.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Document", "id", uploadedDoc.getId()));
+        } else if (request.getExistingDocumentId() != null) {
+            docEntity = documentRepository.findByIdAndOrganizationId(request.getExistingDocumentId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Document", "id", request.getExistingDocumentId()));
+
+            // Ensure document belongs strictly to this client (prevent cross-client leakage)
+            if (!Objects.equals(docEntity.getClientId(), targetClientId)) {
+                throw new BadRequestException("Selected document does not belong to this client");
+            }
+            if (docEntity.getStatus() != DocumentStatus.ACTIVE) {
+                throw new BadRequestException("Selected document is not active");
+            }
+            if (docEntity.getScanStatus() != DocumentScanStatus.CLEAN) {
+                throw new BadRequestException("Cannot deliver a document that has not passed malware scanning or is infected (status: " + docEntity.getScanStatus() + ")");
+            }
+        } else {
+            throw new BadRequestException("Either a file to upload or an existing clean document ID must be provided");
+        }
+
+        Instant now = Instant.now();
+        if (targetRequest != null) {
+            // Fulfill existing request
+            targetRequest.setDeliveredDocumentId(docEntity.getId());
+            targetRequest.setDeliveredAt(now);
+            targetRequest.setStatus(RequestStatus.SENT);
+            targetRequest.setCompletedAt(now);
+            if (request.getCategory() != null) targetRequest.setCategory(request.getCategory());
+            if (request.getFinancialYear() != null) targetRequest.setFinancialYear(request.getFinancialYear());
+            if (request.getAssessmentYear() != null) targetRequest.setAssessmentYear(request.getAssessmentYear());
+            if (request.getTaxPeriod() != null) targetRequest.setTaxPeriod(request.getTaxPeriod());
+            if (request.getMessage() != null) targetRequest.setMessage(request.getMessage().trim());
+        } else {
+            // Proactive delivery
+            String requestNumber = generateRequestNumber();
+            String purpose = StringUtils.hasText(request.getTitle()) ? request.getTitle().trim() : docEntity.getFileName();
+            DocumentCategory category = request.getCategory() != null ? request.getCategory() : DocumentCategory.ACKNOWLEDGEMENT;
+
+            targetRequest = DocumentRequestEntity.builder()
+                    .clientId(targetClientId)
+                    .requestNumber(requestNumber)
+                    .purpose(purpose)
+                    .exchangeType(ExchangeType.DOCUMENT_DELIVERY)
+                    .direction(RequestDirection.PRACTITIONER_TO_CLIENT)
+                    .category(category)
+                    .financialYear(request.getFinancialYear())
+                    .assessmentYear(request.getAssessmentYear())
+                    .taxPeriod(request.getTaxPeriod())
+                    .message(request.getMessage() != null ? request.getMessage().trim() : null)
+                    .status(RequestStatus.SENT)
+                    .requestedByUserId(currentUserId)
+                    .deliveredDocumentId(docEntity.getId())
+                    .deliveredAt(now)
+                    .completedAt(now)
+                    .complianceId(request.getComplianceId())
+                    .taskId(request.getTaskId())
+                    .gstFilingId(request.getGstFilingId())
+                    .itrReturnId(request.getItrReturnId())
+                    .tdsReturnId(request.getTdsReturnId())
+                    .sentAt(now)
+                    .build();
+            targetRequest.setOrganizationId(organizationId);
+        }
+
+        DocumentRequestEntity saved = docRequestRepository.save(targetRequest);
+
+        String practiceName = organizationRepository.findById(organizationId)
+                .map(OrganizationEntity::getName)
+                .orElse("Taxoryn Practice");
+
+        // 1. In-App Notification to Client
+        try {
+            notificationService.notify(
+                    organizationId,
+                    null,
+                    client.getId(),
+                    NotificationType.DOCUMENT_REQUIRED,
+                    "Document Ready: " + saved.getPurpose(),
+                    "Your tax practitioner at " + practiceName + " has delivered document: " + docEntity.getFileName(),
+                    Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                    "/portal?tab=documents",
+                    "{\"requestId\":\"" + saved.getId() + "\",\"documentId\":\"" + docEntity.getId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to notify client on document delivery: {}", e.getMessage());
+        }
+
+        // 2. Audit logs
+        if (saved.getCategory() == DocumentCategory.ACKNOWLEDGEMENT || saved.getExchangeType() == ExchangeType.ACKNOWLEDGEMENT_REQUEST) {
+            auditService.logEvent(
+                    "ACKNOWLEDGEMENT_SENT",
+                    "DOCUMENT_REQUEST",
+                    saved.getId().toString(),
+                    organizationId,
+                    "Delivered acknowledgement '" + docEntity.getFileName() + "' for request " + saved.getRequestNumber() + " to client " + client.getDisplayName()
+            );
+        }
+        auditService.logEvent(
+                "DOCUMENT_SENT_TO_CLIENT",
+                "DOCUMENT_REQUEST",
+                saved.getId().toString(),
+                organizationId,
+                "Delivered document '" + docEntity.getFileName() + "' (" + saved.getPurpose() + ") to client " + client.getDisplayName()
+        );
+
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public DocumentRequestDto declineClientRequest(UUID requestId, DeclineDocumentRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentRequestEntity entity = docRequestRepository.findByIdAndOrganizationId(requestId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
+
+        if (entity.getDirection() != RequestDirection.CLIENT_TO_PRACTITIONER) {
+            throw new BadRequestException("Only client-initiated requests can be declined");
+        }
+        if (entity.getStatus() == RequestStatus.COMPLETED || entity.getStatus() == RequestStatus.CANCELLED || entity.getStatus() == RequestStatus.DECLINED) {
+            throw new BadRequestException("Request cannot be declined in its current state (" + entity.getStatus() + ")");
+        }
+
+        entity.setStatus(RequestStatus.DECLINED);
+        entity.setDeclinedAt(Instant.now());
+        entity.setDeclineReason(request.getDeclineReason().trim());
+        DocumentRequestEntity saved = docRequestRepository.save(entity);
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), organizationId).orElse(null);
+
+        // Notify client
+        if (client != null) {
+            try {
+                notificationService.notify(
+                        organizationId,
+                        null,
+                        client.getId(),
+                        NotificationType.DOCUMENT_REJECTED,
+                        "Document Request Declined: " + saved.getPurpose(),
+                        "Your request for \"" + saved.getPurpose() + "\" was declined: " + saved.getDeclineReason(),
+                        Set.of(NotificationChannel.IN_APP, NotificationChannel.EMAIL),
+                        "/portal?tab=documents",
+                        "{\"requestId\":\"" + saved.getId() + "\"}"
+                );
+            } catch (Exception e) {
+                log.warn("Failed to notify client of declined request: {}", e.getMessage());
+            }
+        }
+
+        auditService.logEvent(
+                "REQUEST_DECLINED",
+                "DOCUMENT_REQUEST",
+                saved.getId().toString(),
+                organizationId,
+                "Declined client request " + saved.getRequestNumber() + " (" + saved.getPurpose() + "). Reason: " + saved.getDeclineReason()
+        );
+
+        return toDto(saved);
+    }
+
+    // =========================================================================
     // Client Portal Methods
     // =========================================================================
 
@@ -544,6 +851,14 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     public List<DocumentRequestDto> getClientPortalRequests() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
         return docRequestRepository.findAllByClientIdOrderByCreatedAtDesc(clientId)
+                .stream().map(this::toDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentRequestDto> getClientPortalDeliveredDocuments() {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        return docRequestRepository.findDeliveredDocumentsForClient(clientId)
                 .stream().map(this::toDto).toList();
     }
 
@@ -564,6 +879,48 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequestItem", "id", itemId));
 
         return processItemUpload(item, file, item.getOrganizationId());
+    }
+
+    @Override
+    @Transactional
+    public void recordClientDocumentViewed(UUID requestId) {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        DocumentRequestEntity request = docRequestRepository.findByIdAndClientId(requestId, clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
+
+        if (request.getStatus() == RequestStatus.SENT) {
+            request.setStatus(RequestStatus.VIEWED);
+            docRequestRepository.save(request);
+        }
+
+        auditService.logEvent(
+                "DOCUMENT_VIEWED",
+                "DOCUMENT_REQUEST",
+                request.getId().toString(),
+                request.getOrganizationId(),
+                "Client viewed delivered document for request " + request.getRequestNumber()
+        );
+    }
+
+    @Override
+    @Transactional
+    public void recordClientDocumentDownloaded(UUID requestId) {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        DocumentRequestEntity request = docRequestRepository.findByIdAndClientId(requestId, clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
+
+        if (request.getStatus() == RequestStatus.SENT || request.getStatus() == RequestStatus.VIEWED) {
+            request.setStatus(RequestStatus.DOWNLOADED);
+            docRequestRepository.save(request);
+        }
+
+        auditService.logEvent(
+                "DOCUMENT_DOWNLOADED",
+                "DOCUMENT_REQUEST",
+                request.getId().toString(),
+                request.getOrganizationId(),
+                "Client downloaded delivered document for request " + request.getRequestNumber()
+        );
     }
 
     private DocumentRequestDto processItemUpload(DocumentRequestItemEntity item, MultipartFile file, UUID organizationId) {
@@ -633,8 +990,13 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
 
     private String generateRequestNumber() {
         int year = Year.now().getValue();
-        long count = docRequestRepository.count();
-        return String.format("REQ-%d-%06d", year, count + 1001);
+        for (int i = 0; i < 10; i++) {
+            String candidate = String.format("REQ-%d-%s", year, UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            if (!docRequestRepository.existsByRequestNumber(candidate)) {
+                return candidate;
+            }
+        }
+        return "REQ-" + year + "-" + System.currentTimeMillis();
     }
 
     private DocumentRequestDto toDto(DocumentRequestEntity entity) {
@@ -704,6 +1066,22 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                     .build());
         }
 
+        String deliveredDocName = null;
+        Long deliveredDocSize = null;
+        String deliveredDocContentType = null;
+
+        if (entity.getDeliveredDocumentId() != null) {
+            DocumentEntity delDoc = docCache.computeIfAbsent(
+                    entity.getDeliveredDocumentId(),
+                    id -> documentRepository.findById(id).orElse(null)
+            );
+            if (delDoc != null) {
+                deliveredDocName = delDoc.getFileName();
+                deliveredDocSize = delDoc.getFileSize();
+                deliveredDocContentType = delDoc.getContentType();
+            }
+        }
+
         boolean isOverdue = entity.getDueDate() != null &&
                 LocalDate.now().isAfter(entity.getDueDate()) &&
                 entity.getStatus() != RequestStatus.COMPLETED &&
@@ -726,6 +1104,21 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 .requestedByName(requestedByName)
                 .taskId(entity.getTaskId())
                 .complianceId(entity.getComplianceId())
+                .exchangeType(entity.getExchangeType())
+                .direction(entity.getDirection())
+                .category(entity.getCategory())
+                .taxPeriod(entity.getTaxPeriod())
+                .deliveredDocumentId(entity.getDeliveredDocumentId())
+                .deliveredDocumentName(deliveredDocName)
+                .deliveredDocumentSize(deliveredDocSize)
+                .deliveredDocumentContentType(deliveredDocContentType)
+                .deliveredAt(entity.getDeliveredAt())
+                .declinedAt(entity.getDeclinedAt())
+                .declineReason(entity.getDeclineReason())
+                .gstFilingId(entity.getGstFilingId())
+                .itrReturnId(entity.getItrReturnId())
+                .tdsReturnId(entity.getTdsReturnId())
+                .noticeId(entity.getNoticeId())
                 .sentAt(entity.getSentAt())
                 .completedAt(entity.getCompletedAt())
                 .createdAt(entity.getCreatedAt())

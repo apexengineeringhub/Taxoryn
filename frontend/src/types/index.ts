@@ -430,14 +430,17 @@ export interface DocumentItem {
   clientName?: string;
   noticeId?: string;
   filename: string;
+  fileName?: string;
   title?: string;
   fileType?: string;
+  documentType?: string;
   originalFilename: string;
   category: string;
   fileSize: number;
   contentType: string;
   storageKey: string;
   uploadedByName?: string;
+  scanStatus?: 'PENDING_SCAN' | 'CLEAN' | 'INFECTED' | 'SCAN_FAILED' | 'LEGACY_UNSCANNED';
   createdAt: string;
   tags?: string[];
 }
@@ -687,7 +690,23 @@ export interface ClientDocumentRequest {
   uploadedDocumentName?: string;
 }
 
-// Multi-Item Document Requests V1
+// Multi-Item Document Requests & Document Exchange
+export type ExchangeType = 'DOCUMENT_REQUEST' | 'ACKNOWLEDGEMENT_REQUEST' | 'DOCUMENT_DELIVERY';
+export type RequestDirection = 'PRACTITIONER_TO_CLIENT' | 'CLIENT_TO_PRACTITIONER';
+export type DocumentCategory = 'ACKNOWLEDGEMENT' | 'RETURN_COPY' | 'TAX_DOCUMENT' | 'CERTIFICATE' | 'OTHER';
+export type DocumentRequestStatus =
+  | 'DRAFT'
+  | 'REQUESTED'
+  | 'IN_REVIEW'
+  | 'SENT'
+  | 'PARTIALLY_COMPLETED'
+  | 'COMPLETED'
+  | 'VIEWED'
+  | 'DOWNLOADED'
+  | 'CANCELLED'
+  | 'DECLINED'
+  | 'OVERDUE';
+
 export interface DocumentRequestItem {
   id: string;
   requestId: string;
@@ -718,11 +737,26 @@ export interface DocumentRequest {
   purpose: string;
   dueDate?: string;
   message?: string;
-  status: 'DRAFT' | 'SENT' | 'PARTIALLY_COMPLETED' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE';
+  status: DocumentRequestStatus;
   financialYear?: string;
   assessmentYear?: string;
   requestedByUserId?: string;
   requestedByName?: string;
+  exchangeType?: ExchangeType;
+  direction?: RequestDirection;
+  category?: DocumentCategory;
+  taxPeriod?: string;
+  deliveredDocumentId?: string;
+  deliveredDocumentName?: string;
+  deliveredDocumentSize?: number;
+  deliveredDocumentContentType?: string;
+  deliveredAt?: string;
+  declinedAt?: string;
+  declineReason?: string;
+  gstFilingId?: string;
+  itrReturnId?: string;
+  tdsReturnId?: string;
+  noticeId?: string;
   sentAt?: string;
   completedAt?: string;
   createdAt: string;
@@ -750,6 +784,40 @@ export interface CreateDocumentRequest {
   financialYear?: string;
   assessmentYear?: string;
   items: CreateDocumentRequestItem[];
+}
+
+export interface CreateClientAcknowledgementRequest {
+  category: DocumentCategory;
+  documentType?: string;
+  purpose: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  taxPeriod?: string;
+  message?: string;
+  complianceId?: string;
+  taskId?: string;
+}
+
+export interface SendDocumentToClientRequest {
+  clientId?: string;
+  requestId?: string;
+  existingDocumentId?: string;
+  category?: DocumentCategory;
+  documentType?: string;
+  title?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  taxPeriod?: string;
+  message?: string;
+  taskId?: string;
+  complianceId?: string;
+  gstFilingId?: string;
+  itrReturnId?: string;
+  tdsReturnId?: string;
+}
+
+export interface DeclineDocumentRequest {
+  declineReason: string;
 }
 
 export interface DocumentRequestSummary {

@@ -32,6 +32,11 @@ public interface DocumentRequestRepository extends JpaRepository<DocumentRequest
 
     List<DocumentRequestEntity> findAllByClientIdOrderByCreatedAtDesc(UUID clientId);
 
+    List<DocumentRequestEntity> findAllByClientIdAndDeliveredDocumentIdIsNotNullOrderByDeliveredAtDesc(UUID clientId);
+
+    @Query("SELECT d FROM DocumentRequestEntity d WHERE d.clientId = :clientId AND (d.deliveredDocumentId IS NOT NULL OR d.exchangeType = 'DOCUMENT_DELIVERY') ORDER BY COALESCE(d.deliveredAt, d.createdAt) DESC")
+    List<DocumentRequestEntity> findDeliveredDocumentsForClient(@Param("clientId") UUID clientId);
+
     Page<DocumentRequestEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
 
     long countByOrganizationId(UUID organizationId);
@@ -54,4 +59,6 @@ public interface DocumentRequestRepository extends JpaRepository<DocumentRequest
     List<DocumentRequestEntity> findAllByOrganizationIdAndClientIdAndStatusIn(UUID organizationId, UUID clientId, java.util.Collection<RequestStatus> statuses);
 
     List<DocumentRequestEntity> findAllByOrganizationIdAndClientIdIn(UUID organizationId, java.util.Collection<UUID> clientIds);
+
+    boolean existsByRequestNumber(String requestNumber);
 }

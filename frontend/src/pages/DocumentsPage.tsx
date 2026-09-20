@@ -16,6 +16,10 @@ import {
   Send,
   Sparkles,
   Filter,
+  FileCheck,
+  XCircle,
+  Inbox,
+  Share2,
 } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Button } from '../components/common/Button';
@@ -24,11 +28,13 @@ import { documentApi, documentRequestApi, clientApi } from '../api/endpoints';
 import { DocumentItem, DocumentRequest, DocumentRequestSummary, Client } from '../types';
 import { DocumentRequestReviewModal } from '../components/docrequest/DocumentRequestReviewModal';
 import { RequestDocumentsModal } from '../components/docrequest/RequestDocumentsModal';
+import { SendDocumentModal } from '../components/docrequest/SendDocumentModal';
+import { DeclineRequestModal } from '../components/docrequest/DeclineRequestModal';
 import clsx from 'clsx';
 
 export const DocumentsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const [activeMainTab, setActiveMainTab] = useState<'requests' | 'vault'>('requests');
+  const [activeMainTab, setActiveMainTab] = useState<'requests' | 'incoming_requests' | 'deliveries' | 'vault'>('requests');
 
   // Vault state
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -56,6 +62,13 @@ export const DocumentsPage: React.FC = () => {
     () => searchParams.get('clientId') || ''
   );
 
+  // Send Document to Client Modal state
+  const [isSendDocModalOpen, setIsSendDocModalOpen] = useState<boolean>(false);
+  const [fulfillingRequest, setFulfillingRequest] = useState<DocumentRequest | null>(null);
+
+  // Decline Client Request Modal state
+  const [declineTargetRequest, setDeclineTargetRequest] = useState<DocumentRequest | null>(null);
+
   const selectedClientObj = clients.find((c) => c.id === selectedClientIdForCreate);
 
   useEffect(() => {
@@ -81,6 +94,12 @@ export const DocumentsPage: React.FC = () => {
       } else {
         setIsCreateModalOpen(true);
       }
+    } else if (searchParams.get('action') === 'send') {
+      const targetId = searchParams.get('clientId');
+      if (targetId) {
+        setSelectedClientIdForCreate(targetId);
+      }
+      setIsSendDocModalOpen(true);
     }
   }, [searchParams]);
 
@@ -122,7 +141,7 @@ export const DocumentsPage: React.FC = () => {
   const loadRequests = async () => {
     try {
       setIsLoadingRequests(true);
-      const params: any = { size: 50 };
+      const params: any = { size: 100 };
       if (statusFilter !== 'ALL') params.status = statusFilter;
       const res = await documentRequestApi.getAll(params);
       setRequests(res.content || []);
@@ -175,6 +194,14 @@ export const DocumentsPage: React.FC = () => {
         return <span className="px-2.5 py-0.5 text-xs font-bold bg-blue-100 text-blue-800 rounded-full">Partially Uploaded</span>;
       case 'SENT':
         return <span className="px-2.5 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full">Pending Upload</span>;
+      case 'REQUESTED':
+        return <span className="px-2.5 py-0.5 text-xs font-bold bg-purple-100 text-purple-800 rounded-full">Client Requested</span>;
+      case 'VIEWED':
+        return <span className="px-2.5 py-0.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-full">Viewed by Client</span>;
+      case 'DOWNLOADED':
+        return <span className="px-2.5 py-0.5 text-xs font-bold bg-emerald-50 text-emerald-700 rounded-full">Downloaded</span>;
+      case 'DECLINED':
+        return <span className="px-2.5 py-0.5 text-xs font-bold bg-rose-100 text-rose-800 rounded-full">Declined</span>;
       case 'CANCELLED':
         return <span className="px-2.5 py-0.5 text-xs font-bold bg-slate-100 text-slate-700 rounded-full">Cancelled</span>;
       default:
@@ -231,6 +258,20 @@ export const DocumentsPage: React.FC = () => {
     );
   };
 
+  // Filter requests into categories
+  const outgoingChecklists = requests.filter(
+    r => (r.direction === 'PRACTITIONER_TO_CLIENT' || !r.direction) && r.exchangeType !== 'DOCUMENT_DELIVERY' && r.items && r.items.length > 0
+  );
+
+  const incomingClientRequests = requests.filter(
+    r => r.direction === 'CLIENT_TO_PRACTITIONER' || r.exchangeType === 'ACKNOWLEDGEMENT_REQUEST'
+  );
+
+  const deliveredDocuments = requests.filter(
+    r => r.deliveredDocumentId || r.exchangeType === 'DOCUMENT_DELIVERY'
+  );
+
+  // Columns for Outgoing Checklists
   const requestColumns: Column<DocumentRequest>[] = [
     {
       header: 'Request Reference',
@@ -321,6 +362,180 @@ export const DocumentsPage: React.FC = () => {
     },
   ];
 
+  // Columns for Incoming Client Requests
+  const incomingColumns: Column<DocumentRequest>[] = [
+    {
+      header: 'Reference',
+      accessor: (row) => (
+        <div>
+          <span className="font-mono font-bold text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200 block w-fit">
+            {row.requestNumber}
+          </span>
+          <span className="text-[11px] text-slate-400 mt-0.5 block">
+            {new Date(row.createdAt).toLocaleDateString()}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Client & Requested Subject',
+      accessor: (row) => (
+        <div>
+          <span className="font-bold text-slate-900 block">{row.clientName}</span>
+          <span className="text-xs text-slate-700 font-semibold">{row.purpose}</span>
+          {row.message && (
+            <p className="text-[11px] text-slate-500 italic mt-0.5">"{row.message}"</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Category & Period',
+      accessor: (row) => (
+        <div className="space-y-0.5">
+          <span className="font-bold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+            {row.category || 'ACKNOWLEDGEMENT'}
+          </span>
+          {(row.financialYear || row.assessmentYear || row.taxPeriod) && (
+            <div className="text-[10px] text-slate-400 font-mono">
+              {row.financialYear && `FY ${row.financialYear} `}
+              {row.assessmentYear && `AY ${row.assessmentYear} `}
+              {row.taxPeriod && `(${row.taxPeriod})`}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Status',
+      accessor: (row) => (
+        <div>
+          {getStatusBadge(row.status)}
+          {row.status === 'DECLINED' && row.declineReason && (
+            <span className="text-[10px] text-rose-600 block mt-1 truncate max-w-xs" title={row.declineReason}>
+              Reason: {row.declineReason}
+            </span>
+          )}
+        </div>
+      ),
+      align: 'center',
+    },
+    {
+      header: 'Actions',
+      align: 'right',
+      cell: (row) => (
+        <div className="flex items-center justify-end gap-2">
+          {row.status !== 'COMPLETED' && row.status !== 'DECLINED' && row.status !== 'CANCELLED' && !row.deliveredDocumentId && (
+            <>
+              <button
+                onClick={() => {
+                  setFulfillingRequest(row);
+                  setIsSendDocModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Fulfill & Deliver</span>
+              </button>
+              <button
+                onClick={() => setDeclineTargetRequest(row)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                <span>Decline</span>
+              </button>
+            </>
+          )}
+          {row.deliveredDocumentId && (
+            <button
+              onClick={() => handleDownloadVaultDoc(row.deliveredDocumentId!, row.deliveredDocumentName)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download Deliverable</span>
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  // Columns for Delivered Documents
+  const deliveredColumns: Column<DocumentRequest>[] = [
+    {
+      header: 'Deliverable',
+      accessor: (row) => (
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+            <FileCheck className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <span className="font-bold text-slate-900 block truncate">{row.purpose}</span>
+            <span className="text-[10px] text-slate-500 block truncate">
+              {row.deliveredDocumentName || 'Attached Document'}
+              {row.deliveredDocumentSize ? ` • ${formatFileSize(row.deliveredDocumentSize)}` : ''}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Recipient Client',
+      accessor: (row) => (
+        <div>
+          <span className="font-bold text-slate-900 block">{row.clientName}</span>
+          <span className="text-xs text-slate-400 font-mono">{row.clientPan || 'No PAN'}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Category & Period',
+      accessor: (row) => (
+        <div className="space-y-0.5">
+          <span className="font-bold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+            {row.category || 'ACKNOWLEDGEMENT'}
+          </span>
+          {(row.financialYear || row.assessmentYear || row.taxPeriod) && (
+            <div className="text-[10px] text-slate-400 font-mono">
+              {row.financialYear && `FY ${row.financialYear} `}
+              {row.assessmentYear && `AY ${row.assessmentYear}`}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Delivered On & Client Status',
+      accessor: (row) => (
+        <div className="space-y-1 text-center">
+          {getStatusBadge(row.status)}
+          <span className="text-[10px] text-slate-400 block">
+            {row.deliveredAt ? new Date(row.deliveredAt).toLocaleDateString() : new Date(row.createdAt).toLocaleDateString()}
+          </span>
+        </div>
+      ),
+      align: 'center',
+    },
+    {
+      header: 'Actions',
+      align: 'right',
+      cell: (row) => (
+        <div className="flex items-center justify-end gap-2">
+          {row.deliveredDocumentId && (
+            <button
+              onClick={() => handleDownloadVaultDoc(row.deliveredDocumentId!, row.deliveredDocumentName)}
+              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md inline-flex items-center gap-1 text-xs font-semibold"
+              title="Download Delivered File"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download</span>
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   const handleDownloadVaultDoc = async (id: string, fileName?: string) => {
     try {
       const blob = await documentApi.download(id);
@@ -391,32 +606,33 @@ export const DocumentsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2.5">
-            <span>Documents & Client Requests</span>
+            <span>Documents & Client Exchange</span>
             <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300">
               V1 Suite
             </span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Request, track, verify, and store statutory tax documents with end-to-end client workflow.
+            Exchange statutory returns, acknowledgements, tax computations, and checklist requests with clients.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
-          {activeMainTab === 'requests' ? (
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              leftIcon={<Plus className="w-4 h-4" />}
-            >
-              Request Documents
-            </Button>
-          ) : (
-            <Button
-              onClick={() => setIsUploadModalOpen(true)}
-              leftIcon={<Upload className="w-4 h-4" />}
-            >
-              Upload Document
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={() => {
+              setFulfillingRequest(null);
+              setIsSendDocModalOpen(true);
+            }}
+            leftIcon={<Send className="w-4 h-4 text-blue-600" />}
+          >
+            Deliver Document to Client
+          </Button>
+          <Button
+            onClick={() => setIsCreateModalOpen(true)}
+            leftIcon={<Plus className="w-4 h-4" />}
+          >
+            Request Documents
+          </Button>
         </div>
       </div>
 
@@ -432,12 +648,42 @@ export const DocumentsPage: React.FC = () => {
           )}
         >
           <FileText className="w-4 h-4 text-emerald-600" />
-          <span>Client Document Requests (Workflow)</span>
-          {stats && (
-            <span className="bg-emerald-100 text-emerald-800 text-[11px] font-extrabold px-2 py-0.2 rounded-full">
-              {stats.totalRequests}
-            </span>
+          <span>Outgoing Checklists (Request from Client)</span>
+          <span className="bg-emerald-100 text-emerald-800 text-[11px] font-extrabold px-2 py-0.2 rounded-full">
+            {outgoingChecklists.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveMainTab('incoming_requests')}
+          className={clsx(
+            'px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap',
+            activeMainTab === 'incoming_requests'
+              ? 'border-purple-600 text-purple-800 bg-purple-50/50 rounded-t-xl'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
           )}
+        >
+          <Inbox className="w-4 h-4 text-purple-600" />
+          <span>Client Acknowledgement Requests</span>
+          <span className="bg-purple-100 text-purple-800 text-[11px] font-extrabold px-2 py-0.2 rounded-full">
+            {incomingClientRequests.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveMainTab('deliveries')}
+          className={clsx(
+            'px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap',
+            activeMainTab === 'deliveries'
+              ? 'border-blue-600 text-blue-800 bg-blue-50/50 rounded-t-xl'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          )}
+        >
+          <Send className="w-4 h-4 text-blue-600" />
+          <span>Delivered Documents</span>
+          <span className="bg-blue-100 text-blue-800 text-[11px] font-extrabold px-2 py-0.2 rounded-full">
+            {deliveredDocuments.length}
+          </span>
         </button>
 
         <button
@@ -450,14 +696,13 @@ export const DocumentsPage: React.FC = () => {
           )}
         >
           <FolderLock className="w-4 h-4 text-slate-500" />
-          <span>Document Vault (Stored Files)</span>
+          <span>Document Vault</span>
         </button>
       </div>
 
-      {/* VIEW 1: Document Requests Workflow */}
+      {/* VIEW 1: Outgoing Document Checklists */}
       {activeMainTab === 'requests' && (
         <div className="space-y-6">
-          {/* Summary Metric Cards */}
           {stats && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
@@ -492,7 +737,6 @@ export const DocumentsPage: React.FC = () => {
             </div>
           )}
 
-          {/* Status Filter Chips */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
             <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0">
               <Filter className="w-3.5 h-3.5" /> Filter:
@@ -513,35 +757,95 @@ export const DocumentsPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Requests Table */}
           <DataTable
             columns={requestColumns}
-            data={requests}
+            data={outgoingChecklists}
             isLoading={isLoadingRequests}
             searchPlaceholder="Search requests by purpose, client, or reference..."
           />
         </div>
       )}
 
-      {/* VIEW 2: Document Vault */}
+      {/* VIEW 2: Incoming Client Requests */}
+      {activeMainTab === 'incoming_requests' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-purple-50/50 border border-purple-200 rounded-2xl flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-purple-900">Incoming Requests from Clients</h3>
+              <p className="text-xs text-purple-700">
+                Clients can request filed ITR-V acknowledgements, TDS certificates, and tax return copies. Fulfill them with a clean document or decline with an explanation.
+              </p>
+            </div>
+          </div>
+
+          <DataTable
+            columns={incomingColumns}
+            data={incomingClientRequests}
+            isLoading={isLoadingRequests}
+            searchPlaceholder="Search client requests by subject or client name..."
+          />
+        </div>
+      )}
+
+      {/* VIEW 3: Delivered Documents */}
+      {activeMainTab === 'deliveries' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-blue-50/50 border border-blue-200 rounded-2xl flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-blue-900">Documents Delivered to Clients</h3>
+              <p className="text-xs text-blue-700">
+                Track delivery and access state (Sent, Viewed, Downloaded) for all acknowledgements and tax files sent to client portals.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                setFulfillingRequest(null);
+                setIsSendDocModalOpen(true);
+              }}
+              leftIcon={<Send className="w-3.5 h-3.5" />}
+            >
+              Deliver Document
+            </Button>
+          </div>
+
+          <DataTable
+            columns={deliveredColumns}
+            data={deliveredDocuments}
+            isLoading={isLoadingRequests}
+            searchPlaceholder="Search delivered documents..."
+          />
+        </div>
+      )}
+
+      {/* VIEW 4: Document Vault */}
       {activeMainTab === 'vault' && (
         <div className="space-y-6">
-          {/* Category Filter */}
-          <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-            {['ALL', 'GST', 'ITR', 'FINANCIAL_STATEMENTS', 'KYC'].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={clsx(
-                  'px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 whitespace-nowrap',
-                  category === cat
-                    ? 'border-brand-600 text-brand-600 bg-brand-50/50 rounded-t-lg'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                )}
-              >
-                {cat.replace('_', ' ')}
-              </button>
-            ))}
+          <div className="border-b border-slate-200 flex items-center justify-between overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center gap-2">
+              {['ALL', 'GST', 'ITR', 'FINANCIAL_STATEMENTS', 'KYC'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={clsx(
+                    'px-4 py-2.5 text-xs font-bold border-b-2 transition-all shrink-0 whitespace-nowrap',
+                    category === cat
+                      ? 'border-brand-600 text-brand-600 bg-brand-50/50 rounded-t-lg'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  {cat.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => setIsUploadModalOpen(true)}
+              leftIcon={<Upload className="w-3.5 h-3.5" />}
+            >
+              Upload to Vault
+            </Button>
           </div>
 
           <DataTable
@@ -639,6 +943,37 @@ export const DocumentsPage: React.FC = () => {
           onClose={() => setSelectedReviewRequest(null)}
           request={selectedReviewRequest}
           onUpdate={() => {
+            loadRequests();
+            loadStats();
+          }}
+        />
+      )}
+
+      {/* Send Document Modal */}
+      {isSendDocModalOpen && (
+        <SendDocumentModal
+          isOpen={isSendDocModalOpen}
+          onClose={() => {
+            setIsSendDocModalOpen(false);
+            setFulfillingRequest(null);
+          }}
+          fulfillingRequest={fulfillingRequest}
+          preselectedClientId={selectedClientIdForCreate || undefined}
+          preselectedClientName={selectedClientObj?.displayName || undefined}
+          onSuccess={() => {
+            loadRequests();
+            loadStats();
+          }}
+        />
+      )}
+
+      {/* Decline Request Modal */}
+      {declineTargetRequest && (
+        <DeclineRequestModal
+          isOpen={!!declineTargetRequest}
+          onClose={() => setDeclineTargetRequest(null)}
+          request={declineTargetRequest}
+          onSuccess={() => {
             loadRequests();
             loadStats();
           }}

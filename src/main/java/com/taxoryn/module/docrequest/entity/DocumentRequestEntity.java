@@ -78,6 +78,35 @@ public class DocumentRequestEntity extends TenantAuditableEntity {
     @Column(name = "notice_id")
     private UUID noticeId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "exchange_type", nullable = false, length = 50)
+    @Builder.Default
+    private ExchangeType exchangeType = ExchangeType.DOCUMENT_REQUEST;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "direction", nullable = false, length = 50)
+    @Builder.Default
+    private RequestDirection direction = RequestDirection.PRACTITIONER_TO_CLIENT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 50)
+    private DocumentCategory category;
+
+    @Column(name = "tax_period", length = 50)
+    private String taxPeriod;
+
+    @Column(name = "delivered_document_id")
+    private UUID deliveredDocumentId;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    @Column(name = "declined_at")
+    private Instant declinedAt;
+
+    @Column(name = "decline_reason", columnDefinition = "TEXT")
+    private String declineReason;
+
     @Column(name = "sent_at")
     @Builder.Default
     private Instant sentAt = Instant.now();
@@ -90,12 +119,36 @@ public class DocumentRequestEntity extends TenantAuditableEntity {
     @Builder.Default
     private List<DocumentRequestItemEntity> items = new ArrayList<>();
 
+    public enum ExchangeType {
+        DOCUMENT_REQUEST,
+        ACKNOWLEDGEMENT_REQUEST,
+        DOCUMENT_DELIVERY
+    }
+
+    public enum RequestDirection {
+        PRACTITIONER_TO_CLIENT,
+        CLIENT_TO_PRACTITIONER
+    }
+
+    public enum DocumentCategory {
+        ACKNOWLEDGEMENT,
+        RETURN_COPY,
+        TAX_DOCUMENT,
+        CERTIFICATE,
+        OTHER
+    }
+
     public enum RequestStatus {
         DRAFT,
+        REQUESTED,
+        IN_REVIEW,
         SENT,
         PARTIALLY_COMPLETED,
         COMPLETED,
+        VIEWED,
+        DOWNLOADED,
         CANCELLED,
+        DECLINED,
         OVERDUE
     }
 }

@@ -63,7 +63,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/download")
-    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Download document content", description = "Streams the binary content of the requested document with attachment disposition and strict cache-control.")
     public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> downloadDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = documentService.downloadDocument(id);
@@ -81,7 +81,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/preview")
-    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Preview document inline", description = "Streams the binary content of the requested document with inline disposition and strict cache-control.")
     public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> previewDocument(@PathVariable UUID id) {
         DocumentDownloadDto download = documentService.previewDocument(id);
@@ -99,7 +99,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/download-url")
-    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Get document download URL", description = "Generates a secure short-lived presigned download URL for S3/R2 storage or an authenticated streaming URL for local storage.")
     public ResponseEntity<ApiResponse<PresignedUrlResponse>> getDocumentDownloadUrl(@PathVariable UUID id) {
         PresignedUrlResponse response = documentService.getDocumentDownloadUrl(id);
@@ -116,7 +116,7 @@ public class DocumentController {
     // =========================================================================
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Get document metadata by ID", description = "Retrieves document properties, file size, checksum, and associations.")
     public ResponseEntity<ApiResponse<DocumentDto>> getDocumentById(@PathVariable UUID id) {
         DocumentDto document = documentService.getDocumentById(id);

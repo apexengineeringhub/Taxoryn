@@ -344,6 +344,40 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("Document uploaded successfully", result));
     }
 
+    @PostMapping("/document-requests/v1/request-acknowledgement")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_UPLOAD') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Client requests acknowledgement or document from practitioner", description = "Authenticated client requests an ITR/GST acknowledgement, computation, certificate, or tax document from their practitioner.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> requestAcknowledgement(
+            @Valid @RequestBody com.taxoryn.module.docrequest.dto.CreateClientAcknowledgementRequest request) {
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto result = documentRequestService.createClientAcknowledgementRequest(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Acknowledgement request submitted successfully", result));
+    }
+
+    @GetMapping("/document-requests/v1/delivered")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "List documents delivered to client", description = "Retrieves all acknowledgements and tax documents delivered by the practitioner.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.docrequest.dto.DocumentRequestDto>>> getDeliveredDocuments() {
+        List<com.taxoryn.module.docrequest.dto.DocumentRequestDto> list = documentRequestService.getClientPortalDeliveredDocuments();
+        return ResponseEntity.ok(ApiResponse.success("Delivered documents retrieved successfully", list));
+    }
+
+    @PostMapping("/document-requests/v1/{id}/viewed")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Record delivered document viewed", description = "Transitions status to VIEWED and records audit trail.")
+    public ResponseEntity<ApiResponse<Void>> recordDocumentViewed(@PathVariable UUID id) {
+        documentRequestService.recordClientDocumentViewed(id);
+        return ResponseEntity.ok(ApiResponse.success("Document view recorded", null));
+    }
+
+    @PostMapping("/document-requests/v1/{id}/downloaded")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Record delivered document downloaded", description = "Transitions status to DOWNLOADED and records audit trail.")
+    public ResponseEntity<ApiResponse<Void>> recordDocumentDownloaded(@PathVariable UUID id) {
+        documentRequestService.recordClientDocumentDownloaded(id);
+        return ResponseEntity.ok(ApiResponse.success("Document download recorded", null));
+    }
+
     // =========================================================================
     // 9. Client Portal Tax Notices & Scrutiny Cases (Sanitized View)
     // =========================================================================
