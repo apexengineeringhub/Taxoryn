@@ -2,169 +2,37 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Plus,
-  UserPlus,
-  CheckSquare,
-  FileText,
   ChevronRight,
   ChevronLeft,
-  Building2,
-  FileSpreadsheet,
-  Percent,
-  UserCheck,
-  Receipt,
-  ShieldCheck,
-  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
-import { hasPermission } from '../../utils/permissionUtils';
+import {
+  hasPermission,
+  isPlatformUser,
+  isClientUser,
+  isPracticeUser,
+} from '../../utils/permissionUtils';
+import {
+  ActionCategory,
+  ActionDefinition,
+  ComplianceSubmenuAction,
+  COMPLIANCE_SUBMENU_ACTIONS,
+  PLATFORM_ACTION_DEFINITIONS,
+  PRACTICE_ACTION_DEFINITIONS,
+  CLIENT_ACTION_DEFINITIONS,
+  ACTION_DEFINITIONS,
+} from '../../config/actionMenuConfig';
 import clsx from 'clsx';
 
-export interface ActionDefinition {
-  id: string;
-  category: 'CLIENT' | 'WORK' | 'DOCUMENTS' | 'COMPLIANCE' | 'COMMUNICATION' | 'TEAM' | 'BILLING';
-  categoryLabel: string;
-  label: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  requiredPermissions: string[];
-  allowedRoles: string[];
-  targetPath: string;
-  supportsClientContext?: boolean;
-}
-
-export interface ComplianceSubmenuAction {
-  id: string;
-  label: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  requiredPermissions: string[];
-  allowedRoles: string[];
-  targetPath: string;
-  supportsClientContext?: boolean;
-}
-
-// Compliance submenu definitions
-export const COMPLIANCE_SUBMENU_ACTIONS: ComplianceSubmenuAction[] = [
-  {
-    id: 'gst-return',
-    label: 'GST Return',
-    description: 'Start GST compliance & return filing',
-    icon: Building2,
-    requiredPermissions: ['GST_CREATE', 'GST_WRITE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
-    targetPath: '/gst?action=new',
-    supportsClientContext: true,
-  },
-  {
-    id: 'itr-return',
-    label: 'ITR Return',
-    description: 'Start income-tax return computation & filing',
-    icon: FileSpreadsheet,
-    requiredPermissions: ['ITR_CREATE', 'ITR_WRITE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
-    targetPath: '/itr?action=new',
-    supportsClientContext: true,
-  },
-  {
-    id: 'tds-work',
-    label: 'TDS Work',
-    description: 'Start quarterly TDS return & challan work',
-    icon: Percent,
-    requiredPermissions: ['TDS_CREATE', 'TDS_WRITE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
-    targetPath: '/tds?action=new',
-    supportsClientContext: true,
-  },
-];
-
-// Top-level action definitions
-export const ACTION_DEFINITIONS: ActionDefinition[] = [
-  {
-    id: 'new-client',
-    category: 'CLIENT',
-    categoryLabel: 'CLIENT',
-    label: 'New Client',
-    description: 'Create a new client and start onboarding',
-    icon: UserPlus,
-    requiredPermissions: ['CLIENT_CREATE', 'CLIENT_WRITE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER'],
-    targetPath: '/clients?action=new',
-    supportsClientContext: false,
-  },
-  {
-    id: 'new-task',
-    category: 'WORK',
-    categoryLabel: 'WORK',
-    label: 'New Task',
-    description: 'Create and assign a task',
-    icon: CheckSquare,
-    requiredPermissions: ['TASK_CREATE', 'TASK_WRITE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
-    targetPath: '/tasks?action=new',
-    supportsClientContext: true,
-  },
-  {
-    id: 'request-documents',
-    category: 'DOCUMENTS',
-    categoryLabel: 'DOCUMENTS',
-    label: 'Request Documents',
-    description: 'Request documents from a client',
-    icon: FileText,
-    requiredPermissions: ['DOC_REQUEST_CREATE', 'DOCUMENT_WRITE', 'CLIENT_UPDATE', 'CLIENT_CREATE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'STAFF', 'PRACTITIONER'],
-    targetPath: '/documents?action=request',
-    supportsClientContext: true,
-  },
-  {
-    id: 'start-compliance',
-    category: 'COMPLIANCE',
-    categoryLabel: 'COMPLIANCE',
-    label: 'Start Compliance Work',
-    description: 'GST, Income Tax (ITR), and TDS return workflows',
-    icon: ShieldCheck,
-    requiredPermissions: [], // Managed dynamically via child compliance actions
-    allowedRoles: [],
-    targetPath: '', // Triggers submenu
-    supportsClientContext: true,
-  },
-  {
-    id: 'send-client-message',
-    category: 'COMMUNICATION',
-    categoryLabel: 'COMMUNICATION',
-    label: 'Send Client Message',
-    description: 'Message a client through the portal',
-    icon: MessageSquare,
-    requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF'],
-    targetPath: '/portal?tab=messages',
-    supportsClientContext: true,
-  },
-  {
-    id: 'add-employee',
-    category: 'TEAM',
-    categoryLabel: 'TEAM',
-    label: 'Add Employee',
-    description: 'Invite a team member or practitioner to your practice',
-    icon: UserCheck,
-    requiredPermissions: ['EMPLOYEE_CREATE', 'EMPLOYEE_WRITE', 'USER_CREATE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'],
-    targetPath: '/team?action=add',
-    supportsClientContext: false,
-  },
-  {
-    id: 'create-invoice',
-    category: 'BILLING',
-    categoryLabel: 'BILLING',
-    label: 'Create Invoice',
-    description: 'Issue a tax invoice or retainer bill for a client',
-    icon: Receipt,
-    requiredPermissions: ['BILLING_CREATE', 'BILLING_WRITE'],
-    allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER'],
-    targetPath: '/billing?action=new',
-    supportsClientContext: true,
-  },
-];
+export type { ActionCategory, ActionDefinition, ComplianceSubmenuAction };
+export {
+  COMPLIANCE_SUBMENU_ACTIONS,
+  PLATFORM_ACTION_DEFINITIONS,
+  PRACTICE_ACTION_DEFINITIONS,
+  CLIENT_ACTION_DEFINITIONS,
+  ACTION_DEFINITIONS,
+};
 
 type MenuView = 'MAIN' | 'COMPLIANCE';
 
@@ -180,29 +48,47 @@ export const NewActionMenu: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  const isPlatform = useMemo(() => isPlatformUser(user), [user]);
+  const isClient = useMemo(() => isClientUser(user), [user]);
+  const isPractice = useMemo(() => isPracticeUser(user), [user]);
+
   // Extract current client context if present in current URL
   const currentClientId = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get('clientId') || '';
   }, [location.search]);
 
-  // Authorized compliance children
+  // Select persona-appropriate action definitions
+  const candidateActionDefinitions = useMemo(() => {
+    if (isPlatform) {
+      return PLATFORM_ACTION_DEFINITIONS;
+    }
+    if (isClient) {
+      return CLIENT_ACTION_DEFINITIONS;
+    }
+    return PRACTICE_ACTION_DEFINITIONS;
+  }, [isPlatform, isClient]);
+
+  // Authorized compliance children (only applicable to practice users)
   const authorizedComplianceActions = useMemo(() => {
+    if (!isPractice) {
+      return [];
+    }
     return COMPLIANCE_SUBMENU_ACTIONS.filter((subAction) =>
       hasPermission(user, subAction.requiredPermissions, subAction.allowedRoles)
     );
-  }, [user]);
+  }, [user, isPractice]);
 
   // Authorized top-level actions
   const authorizedMainActions = useMemo(() => {
-    return ACTION_DEFINITIONS.filter((action) => {
+    return candidateActionDefinitions.filter((action) => {
       if (action.id === 'start-compliance') {
         // Parent appears if and only if at least 1 child is authorized
         return authorizedComplianceActions.length > 0;
       }
       return hasPermission(user, action.requiredPermissions, action.allowedRoles);
     });
-  }, [user, authorizedComplianceActions]);
+  }, [candidateActionDefinitions, user, authorizedComplianceActions]);
 
   // Current items based on active view
   const currentItems = useMemo(() => {
@@ -339,6 +225,12 @@ export const NewActionMenu: React.FC = () => {
     return null;
   }
 
+  const getHeaderTitle = () => {
+    if (isPlatform) return 'PLATFORM GOVERNANCE & OPERATIONS';
+    if (isClient) return 'QUICK CLIENT ACTIONS';
+    return 'WHAT WOULD YOU LIKE TO DO?';
+  };
+
   return (
     <div className="relative inline-block text-left" onKeyDown={handleKeyDown}>
       {/* Global New Action Button */}
@@ -350,8 +242,10 @@ export const NewActionMenu: React.FC = () => {
         }}
         aria-haspopup="true"
         aria-expanded={isOpen}
-        aria-label="New Action Launcher"
-        style={{ backgroundColor: currentTheme.primaryColor }}
+        aria-label={isPlatform ? 'Platform Action Launcher' : 'New Action Launcher'}
+        style={{
+          backgroundColor: isPlatform ? '#7C3AED' : currentTheme.primaryColor,
+        }}
         className="hidden sm:inline-flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm hover:opacity-90 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 cursor-pointer"
       >
         <Plus className="w-4 h-4 shrink-0" />
@@ -384,11 +278,11 @@ export const NewActionMenu: React.FC = () => {
               </button>
             ) : (
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                What would you like to do?
+                {getHeaderTitle()}
               </span>
             )}
 
-            {currentClientId && (
+            {currentClientId && isPractice && (
               <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-200/60 truncate max-w-[140px]">
                 Client Context Active
               </span>
@@ -397,7 +291,7 @@ export const NewActionMenu: React.FC = () => {
 
           {/* MAIN VIEW */}
           {activeView === 'MAIN' && (
-            <div className="divide-y divide-slate-100/80">
+            <div className="divide-y divide-slate-100/80 max-h-[420px] overflow-y-auto">
               {authorizedMainActions.map((action, index) => {
                 const Icon = action.icon;
                 const isHighlighted = highlightedIndex === index;
@@ -427,14 +321,21 @@ export const NewActionMenu: React.FC = () => {
                           className={clsx(
                             'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors',
                             isHighlighted
-                              ? 'bg-brand-600 text-white shadow-xs'
+                              ? isPlatform
+                                ? 'bg-purple-600 text-white shadow-xs'
+                                : 'bg-brand-600 text-white shadow-xs'
+                              : isPlatform
+                              ? 'bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white'
                               : 'bg-slate-100 text-slate-600 group-hover:bg-brand-50 group-hover:text-brand-600'
                           )}
                         >
                           <Icon className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <span className="text-xs font-bold text-slate-900 block group-hover:text-brand-700 transition-colors">
+                          <span className={clsx(
+                            'text-xs font-bold text-slate-900 block transition-colors',
+                            isPlatform ? 'group-hover:text-purple-700' : 'group-hover:text-brand-700'
+                          )}>
                             {action.label}
                           </span>
                           <span className="text-[11px] text-slate-500 block truncate">
@@ -448,6 +349,8 @@ export const NewActionMenu: React.FC = () => {
                           'w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5',
                           isSubmenuTrigger
                             ? 'text-brand-600 font-bold'
+                            : isPlatform
+                            ? 'text-slate-300 group-hover:text-purple-600'
                             : 'text-slate-300 group-hover:text-brand-600'
                         )}
                       />
