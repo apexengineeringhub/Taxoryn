@@ -38,6 +38,8 @@ import {
   DocumentRequestSummary,
   ClientPortalUser,
   RegisterClientPortalUserRequest,
+  ClientPortalMessage,
+  SendClientPortalMessageRequest,
   TdsProfile,
   TdsReturn,
   TdsChallan,
@@ -1379,6 +1381,40 @@ export const portalApi = {
   previewDocument: async (id: string) => {
     const res = await apiClient.get(`/v1/portal/documents/${id}/preview`, { responseType: 'blob' });
     return res.data as Blob;
+  },
+
+  // Consultation Messages & Chat
+  getClientMessages: async () => {
+    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>('/v1/portal/messages');
+    return res.data.data;
+  },
+  sendClientMessage: async (payload: SendClientPortalMessageRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientPortalMessage>>('/v1/portal/messages', payload);
+    return res.data.data;
+  },
+  markClientMessagesRead: async () => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/portal/messages/read');
+    return res.data;
+  },
+  getClientMessagesUnreadCount: async () => {
+    const res = await apiClient.get<ApiResponse<number>>('/v1/portal/messages/unread-count');
+    return res.data.data;
+  },
+  getPracticeClientMessages: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>(`/v1/portal/clients/${clientId}/messages`);
+    return res.data.data;
+  },
+  sendPracticeClientMessage: async (clientId: string, payload: SendClientPortalMessageRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientPortalMessage>>(`/v1/portal/clients/${clientId}/messages`, payload);
+    return res.data.data;
+  },
+  markPracticeClientMessagesRead: async (clientId: string) => {
+    const res = await apiClient.post<ApiResponse<void>>(`/v1/portal/clients/${clientId}/messages/read`);
+    return res.data;
+  },
+  getPracticeClientMessagesUnreadCount: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<number>>(`/v1/portal/clients/${clientId}/messages/unread-count`);
+    return res.data.data;
   },
 };
 

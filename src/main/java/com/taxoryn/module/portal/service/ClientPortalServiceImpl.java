@@ -103,6 +103,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final com.taxoryn.module.docrequest.repository.DocumentRequestRepository multiItemDocRequestRepository;
     private final com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository multiItemDocRequestItemRepository;
     private final com.taxoryn.module.user.service.ProfileImageService profileImageService;
+    private final com.taxoryn.module.portal.repository.ClientPortalMessageRepository clientPortalMessageRepository;
+    private final com.taxoryn.module.portal.websocket.PortalChatEventPublisher portalChatEventPublisher;
+    private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
@@ -899,5 +902,232 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .priority(entity.getPriority().name())
                 .dueDate(entity.getDueDate())
                 .build();
+    }
+
+    // =========================================================================
+    // 10. Client Portal Consultation Messaging & Real-Time Chat
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getClientMessages() {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        return clientPortalMessageRepository.findAllByClientIdOrderByCreatedAtAsc(clientId).stream()
+                .map(this::mapMessageToDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.portal.dto.ClientPortalMessageDto sendClientMessage(com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request) {
+        if (!StringUtils.hasText(request.getMessageBody())) {
+            throw new BadRequestException("Message body cannot be blank");
+        }
+
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        ClientEntity client = clientRepository.findById(clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        UUID organizationId = client.getOrganizationId();
+
+        UUID senderUserId = SecurityUtils.getCurrentUserId();
+        UserEntity senderUser = userRepository.findById(senderUserId).orElse(null);
+        String senderName = senderUser != null
+                ? (StringUtils.hasText(senderUser.getFirstName()) ? (senderUser.getFirstName() + (StringUtils.hasText(senderUser.getLastName()) ? " " + senderUser.getLastName() : "")).trim() : senderUser.getEmail())
+                : client.getDisplayName();
+        String senderEmail = senderUser != null ? senderUser.getEmail() : client.getEmail();
+
+        com.taxoryn.module.portal.entity.ClientPortalMessageEntity entity = com.taxoryn.module.portal.entity.ClientPortalMessageEntity.builder()
+                .clientId(clientId)
+                .senderType(com.taxoryn.module.portal.entity.PortalMessageSenderType.CLIENT)
+                .senderUserId(senderUserId)
+                .senderName(senderName)
+                .senderEmail(senderEmail)
+                .messageBody(request.getMessageBody().trim())
+                .attachmentsJson(request.getAttachmentsJson())
+                .readByClient(true)
+                .readByPractice(false)
+                .build();
+        entity.setOrganizationId(organizationId);
+
+        com.taxoryn.module.portal.entity.ClientPortalMessageEntity saved = clientPortalMessageRepository.save(entity);
+        com.taxoryn.module.portal.dto.ClientPortalMessageDto dto = mapMessageToDto(saved);
+
+        // Broadcast over WebSocket in real time
+        portalChatEventPublisher.publishNewMessage(organizationId, clientId, dto);
+
+        // In-app Notification to assigned practitioner / firm staff
+        try {
+            notificationService.notify(
+                    organizationId,
+                    null,
+                    clientId,
+                    com.taxoryn.module.notification.entity.NotificationEntity.NotificationType.CLIENT_MESSAGE_RECEIVED,
+                    "New Client Message from " + client.getDisplayName(),
+                    senderName + ": " + (request.getMessageBody().length() > 100 ? request.getMessageBody().substring(0, 97) + "..." : request.getMessageBody()),
+                    Set.of(com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel.IN_APP),
+                    "/portal?tab=messages&clientId=" + clientId,
+                    "{\"clientId\":\"" + clientId + "\",\"messageId\":\"" + saved.getId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to dispatch notification for client message: {}", e.getMessage());
+        }
+
+        auditService.logEvent(
+                "CLIENT_PORTAL_MESSAGE_SENT",
+                "CLIENT_PORTAL_MESSAGE",
+                saved.getId().toString(),
+                organizationId,
+                "Client " + client.getDisplayName() + " sent consultation message"
+        );
+
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public void markMessagesReadByClient() {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        ClientEntity client = clientRepository.findById(clientId).orElse(null);
+        UUID organizationId = client != null ? client.getOrganizationId() : SecurityUtils.getCurrentOrganizationId();
+
+        clientPortalMessageRepository.markAllReadByClient(clientId, Instant.now());
+        portalChatEventPublisher.publishMessagesRead(organizationId, clientId, "CLIENT");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getUnreadCountForClient() {
+        UUID clientId = SecurityUtils.requireCurrentClientId();
+        return clientPortalMessageRepository.countByClientIdAndReadByClientFalse(clientId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getMessagesForClient(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validatePracticeClientAccess(client.getId());
+
+        return clientPortalMessageRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtAsc(organizationId, clientId).stream()
+                .map(this::mapMessageToDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.portal.dto.ClientPortalMessageDto sendPracticeMessageToClient(UUID clientId, com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request) {
+        if (!StringUtils.hasText(request.getMessageBody())) {
+            throw new BadRequestException("Message body cannot be blank");
+        }
+
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validatePracticeClientAccess(client.getId());
+
+        UUID senderUserId = SecurityUtils.getCurrentUserId();
+        UserEntity senderUser = userRepository.findById(senderUserId).orElse(null);
+        String senderName = senderUser != null
+                ? (StringUtils.hasText(senderUser.getFirstName()) ? (senderUser.getFirstName() + (StringUtils.hasText(senderUser.getLastName()) ? " " + senderUser.getLastName() : "")).trim() : senderUser.getEmail())
+                : "Tax Consultant";
+        String senderEmail = senderUser != null ? senderUser.getEmail() : SecurityUtils.getCurrentUserEmail();
+
+        com.taxoryn.module.portal.entity.ClientPortalMessageEntity entity = com.taxoryn.module.portal.entity.ClientPortalMessageEntity.builder()
+                .clientId(clientId)
+                .senderType(com.taxoryn.module.portal.entity.PortalMessageSenderType.PRACTICE)
+                .senderUserId(senderUserId)
+                .senderName(senderName)
+                .senderEmail(senderEmail)
+                .messageBody(request.getMessageBody().trim())
+                .attachmentsJson(request.getAttachmentsJson())
+                .readByClient(false)
+                .readByPractice(true)
+                .build();
+        entity.setOrganizationId(organizationId);
+
+        com.taxoryn.module.portal.entity.ClientPortalMessageEntity saved = clientPortalMessageRepository.save(entity);
+        com.taxoryn.module.portal.dto.ClientPortalMessageDto dto = mapMessageToDto(saved);
+
+        // Broadcast over WebSocket in real time
+        portalChatEventPublisher.publishNewMessage(organizationId, clientId, dto);
+
+        // In-App Notification to Client
+        try {
+            notificationService.notify(
+                    organizationId,
+                    null,
+                    clientId,
+                    com.taxoryn.module.notification.entity.NotificationEntity.NotificationType.PRACTICE_MESSAGE_REPLY,
+                    "New Message from your Tax Consultant",
+                    senderName + ": " + (request.getMessageBody().length() > 100 ? request.getMessageBody().substring(0, 97) + "..." : request.getMessageBody()),
+                    Set.of(com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel.IN_APP),
+                    "/portal?tab=messages",
+                    "{\"clientId\":\"" + clientId + "\",\"messageId\":\"" + saved.getId() + "\"}"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to dispatch notification for practice message: {}", e.getMessage());
+        }
+
+        auditService.logEvent(
+                "PRACTICE_PORTAL_MESSAGE_SENT",
+                "CLIENT_PORTAL_MESSAGE",
+                saved.getId().toString(),
+                organizationId,
+                "Consultant " + senderName + " sent message to client " + client.getDisplayName()
+        );
+
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public void markMessagesReadByPractice(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        clientPortalMessageRepository.markAllReadByPractice(organizationId, clientId, Instant.now());
+        portalChatEventPublisher.publishMessagesRead(organizationId, clientId, "PRACTICE");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getUnreadCountForPractice(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        return clientPortalMessageRepository.countByOrganizationIdAndClientIdAndReadByPracticeFalse(organizationId, clientId);
+    }
+
+    private com.taxoryn.module.portal.dto.ClientPortalMessageDto mapMessageToDto(com.taxoryn.module.portal.entity.ClientPortalMessageEntity entity) {
+        if (entity == null) return null;
+        return com.taxoryn.module.portal.dto.ClientPortalMessageDto.builder()
+                .id(entity.getId())
+                .organizationId(entity.getOrganizationId())
+                .clientId(entity.getClientId())
+                .senderType(entity.getSenderType())
+                .senderUserId(entity.getSenderUserId())
+                .senderName(entity.getSenderName())
+                .senderEmail(entity.getSenderEmail())
+                .messageBody(entity.getMessageBody())
+                .attachmentsJson(entity.getAttachmentsJson())
+                .isReadByClient(entity.isReadByClient())
+                .isReadByPractice(entity.isReadByPractice())
+                .readAt(entity.getReadAt())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
+    }
+
+    private void validatePracticeClientAccess(UUID clientId) {
+        if (clientId == null) return;
+        if (securityScopeEvaluator != null) {
+            com.taxoryn.core.security.PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You do not have permission to access messages for this client.");
+                }
+            }
+        }
     }
 }

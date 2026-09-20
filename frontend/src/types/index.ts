@@ -166,6 +166,30 @@ export interface ClientContact {
   isPrimary: boolean;
 }
 
+export interface ClientPortalMessage {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  senderType: 'CLIENT' | 'PRACTICE' | 'SYSTEM';
+  senderUserId?: string;
+  senderName: string;
+  senderEmail?: string;
+  messageBody: string;
+  attachmentsJson?: string;
+  isReadByClient: boolean;
+  readByClient?: boolean;
+  isReadByPractice: boolean;
+  readByPractice?: boolean;
+  readAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SendClientPortalMessageRequest {
+  messageBody: string;
+  attachmentsJson?: string;
+}
+
 export interface BulkImportResult {
   totalProcessed: number;
   totalSuccess: number;

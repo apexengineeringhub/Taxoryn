@@ -32,6 +32,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/ws': {
+        target: 'http://localhost:8088',
+        ws: true,
+        changeOrigin: true,
+      },
       '/actuator': {
         target: 'http://localhost:8088',
         changeOrigin: true,
