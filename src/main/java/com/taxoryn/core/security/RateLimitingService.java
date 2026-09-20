@@ -38,10 +38,10 @@ public class RateLimitingService {
     @Value("${taxoryn.rate-limit.enabled:true}")
     private boolean enabled;
 
-    @Value("${taxoryn.rate-limit.auth-limit:15}")
+    @Value("${taxoryn.rate-limit.auth-limit:60}")
     private int authLimitPerMinute;
 
-    @Value("${taxoryn.rate-limit.api-limit:300}")
+    @Value("${taxoryn.rate-limit.api-limit:1000}")
     private int apiLimitPerMinute;
 
     private final ConcurrentHashMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();

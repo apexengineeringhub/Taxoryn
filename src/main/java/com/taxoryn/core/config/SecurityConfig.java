@@ -130,6 +130,7 @@ public class SecurityConfig {
                             "/api/marketing/early-access",
                             "/api/v1/marketing/early-access",
                             "/api/v1/public/seo/**",
+                            "/ws/**",
                             "/robots.txt",
                             "/sitemap.xml"
                     ).permitAll();

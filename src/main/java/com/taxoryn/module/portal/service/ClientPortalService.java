@@ -68,4 +68,24 @@ public interface ClientPortalService {
     com.taxoryn.module.billing.dto.InvoiceDto getClientInvoiceById(UUID invoiceId);
 
     List<ClientPortalUserDto> getClientPortalUsers(UUID clientId);
+
+    // =========================================================================
+    // Client Portal Consultation Messaging & Real-Time Chat
+    // =========================================================================
+
+    List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getClientMessages();
+
+    com.taxoryn.module.portal.dto.ClientPortalMessageDto sendClientMessage(com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request);
+
+    void markMessagesReadByClient();
+
+    long getUnreadCountForClient();
+
+    List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getMessagesForClient(UUID clientId);
+
+    com.taxoryn.module.portal.dto.ClientPortalMessageDto sendPracticeMessageToClient(UUID clientId, com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request);
+
+    void markMessagesReadByPractice(UUID clientId);
+
+    long getUnreadCountForPractice(UUID clientId);
 }

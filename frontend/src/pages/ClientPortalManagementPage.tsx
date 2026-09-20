@@ -23,12 +23,19 @@ import {
   Send,
   MessageCircle,
   RefreshCw,
+  Check,
+  CheckCheck,
+  Wifi,
+  WifiOff,
+  Sparkles,
+  UserCheck,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
 import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi } from '../api/endpoints';
+import { usePortalChat } from '../hooks/usePortalChat';
 import {
   Client,
   ClientPortalDashboard,
@@ -41,6 +48,7 @@ import {
   RegisterClientPortalUserRequest,
   TdsReturn,
   DocumentRequest,
+  ClientPortalMessage,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import { ClientContextBar } from '../components/common/ClientContextBar';
@@ -159,50 +167,88 @@ export const ClientPortalManagementPage: React.FC = () => {
     dueDate: '',
   });
 
-  // Messages / Direct Consultation State
-  const [messagesList, setMessagesList] = useState<Array<{
-    id: string;
-    sender: 'CLIENT' | 'CONSULTANT';
-    senderName: string;
-    text: string;
-    timestamp: string;
-  }>>([
-    {
-      id: 'm-1',
-      sender: 'CONSULTANT',
-      senderName: 'Tax Practitioner Team',
-      text: 'Hello! Welcome to your Taxoryn Client Portal. All your GST filings, ITR acknowledgements, and TDS statements are synchronized here. Feel free to reach out if you have any questions.',
-      timestamp: '2 hours ago',
-    },
-    {
-      id: 'm-2',
-      sender: 'CLIENT',
-      senderName: 'You',
-      text: 'Thank you! I have uploaded the requested documents under Document Vault.',
-      timestamp: '1 hour ago',
-    },
-    {
-      id: 'm-3',
-      sender: 'CONSULTANT',
-      senderName: 'Tax Practitioner Team',
-      text: 'Received, thank you. We are reviewing the files and will update your return filing status shortly.',
-      timestamp: 'Just now',
-    },
-  ]);
-  const [newMessageText, setNewMessageText] = useState('');
+  // Messages / Direct Consultation State (Live Real-Time WebSocket + REST Fallback)
+  const [messages, setMessages] = useState<ClientPortalMessage[]>([]);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
+  const [newMessageText, setNewMessageText] = useState<string>('');
+  const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  // WebSocket Live Consultation Hook
+  const { isConnected: isWsConnected, isTyping: isPeerTyping, sendTyping } = usePortalChat({
+    clientId: isPracticeUser ? selectedClientId : undefined,
+    isPracticeUser,
+    onMessageReceived: (incomingMsg) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === incomingMsg.id)) return prev;
+        return [...prev, incomingMsg];
+      });
+
+      if (activeTab === 'messages') {
+        if (isPracticeUser && selectedClientId) {
+          portalApi.markPracticeClientMessagesRead(selectedClientId).catch(() => {});
+        } else if (!isPracticeUser) {
+          portalApi.markClientMessagesRead().catch(() => {});
+        }
+      } else {
+        setUnreadMessagesCount((prev) => prev + 1);
+      }
+    },
+    onMessagesRead: () => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          isPracticeUser
+            ? { ...m, isReadByPractice: true, readByPractice: true }
+            : { ...m, isReadByClient: true, readByClient: true }
+        )
+      );
+    },
+  });
+
+  // Automatically mark messages as read when viewing Messages tab
+  useEffect(() => {
+    if (activeTab === 'messages') {
+      if (isPracticeUser && selectedClientId) {
+        portalApi.markPracticeClientMessagesRead(selectedClientId).catch(() => {});
+        setUnreadMessagesCount(0);
+      } else if (!isPracticeUser) {
+        portalApi.markClientMessagesRead().catch(() => {});
+        setUnreadMessagesCount(0);
+      }
+    }
+  }, [activeTab, isPracticeUser, selectedClientId]);
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (activeTab === 'messages') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, activeTab, isPeerTyping]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessageText.trim()) return;
-    const msg = {
-      id: `m-${Date.now()}`,
-      sender: 'CLIENT' as const,
-      senderName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'You',
-      text: newMessageText.trim(),
-      timestamp: 'Just now',
-    };
-    setMessagesList((prev) => [...prev, msg]);
-    setNewMessageText('');
+    const text = newMessageText.trim();
+    if (!text || isSendingMessage) return;
+    if (isPracticeUser && !selectedClientId) return;
+
+    setIsSendingMessage(true);
+    sendTyping(false);
+    try {
+      const sent = isPracticeUser
+        ? await portalApi.sendPracticeClientMessage(selectedClientId, { messageBody: text })
+        : await portalApi.sendClientMessage({ messageBody: text });
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === sent.id)) return prev;
+        return [...prev, sent];
+      });
+      setNewMessageText('');
+    } catch (err: any) {
+      console.error('Failed to send consultation message', err);
+      alert(`Failed to send message: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   // Load clients if practice user
@@ -285,7 +331,7 @@ export const ClientPortalManagementPage: React.FC = () => {
     try {
       if (isClientUser) {
         // Logged-in Customer View
-        const [dash, gst, itr, invs, docs, pending, docRequests] = await Promise.allSettled([
+        const [dash, gst, itr, invs, docs, pending, docRequests, msgsRes, unreadRes] = await Promise.allSettled([
           portalApi.getDashboard(),
           portalApi.getGstStatus(),
           portalApi.getItrStatus(),
@@ -293,6 +339,8 @@ export const ClientPortalManagementPage: React.FC = () => {
           portalApi.getClientDocuments(),
           portalApi.getPendingDocuments(),
           documentRequestApi.getPortalRequests(),
+          portalApi.getClientMessages(),
+          portalApi.getClientMessagesUnreadCount(),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -309,14 +357,22 @@ export const ClientPortalManagementPage: React.FC = () => {
             : (docRequests.value as any)?.content || [];
           setActiveDocRequests(reqs);
         }
+        if (msgsRes.status === 'fulfilled' && msgsRes.value) {
+          setMessages(msgsRes.value);
+        }
+        if (unreadRes.status === 'fulfilled' && typeof unreadRes.value === 'number') {
+          setUnreadMessagesCount(unreadRes.value);
+        }
       } else if (clientIdToLoad) {
         // Practice Preview View
-        const [dash, usersRes, docsRes, tdsRes, docRequests] = await Promise.allSettled([
+        const [dash, usersRes, docsRes, tdsRes, docRequests, msgsRes, unreadRes] = await Promise.allSettled([
           portalApi.getDashboardPreview(clientIdToLoad),
           portalApi.getClientPortalUsers(clientIdToLoad),
           documentApi.getByClientId ? documentApi.getByClientId(clientIdToLoad) : documentApi.getAll({ clientId: clientIdToLoad }),
           tdsApi.getClientReturnHistory(clientIdToLoad),
           documentRequestApi.getByClient(clientIdToLoad),
+          portalApi.getPracticeClientMessages(clientIdToLoad),
+          portalApi.getPracticeClientMessagesUnreadCount(clientIdToLoad),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -352,6 +408,13 @@ export const ClientPortalManagementPage: React.FC = () => {
             ? docRequests.value
             : (docRequests.value as any)?.content || [];
           setActiveDocRequests(reqs);
+        }
+
+        if (msgsRes.status === 'fulfilled' && msgsRes.value) {
+          setMessages(msgsRes.value);
+        }
+        if (unreadRes.status === 'fulfilled' && typeof unreadRes.value === 'number') {
+          setUnreadMessagesCount(unreadRes.value);
         }
       }
     } catch (err) {
@@ -581,7 +644,12 @@ export const ClientPortalManagementPage: React.FC = () => {
           { id: 'tds', label: `TDS (${tdsReturns.length})`, icon: Percent },
           { id: 'invoices', label: `Bills (${invoices.length})`, icon: Receipt },
           { id: 'documents', label: `Documents & Requests (${activeDocRequestsCount})`, icon: FolderLock },
-          { id: 'messages', label: 'Messages', icon: MessageSquare },
+          {
+            id: 'messages',
+            label: unreadMessagesCount > 0 ? `Messages (${unreadMessagesCount})` : 'Messages',
+            icon: MessageSquare,
+            badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
+          },
           ...(isPracticeUser ? [{ id: 'users', label: `Logins (${clientUsers.length})`, icon: KeyRound }] : []),
         ].map((tab) => {
           const Icon = tab.icon;
@@ -1118,20 +1186,10 @@ export const ClientPortalManagementPage: React.FC = () => {
       {/* TAB 5: Document Requests & Vault */}
       {activeTab === 'documents' && (
         <div className="space-y-6">
-          {/* Multi-Item Document Requests V1 */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-emerald-600" />
-                Requested Documents from Tax Consultant
-              </h2>
-              <span className="text-xs font-semibold text-slate-500">Document Request Checklist V1</span>
-            </div>
-            <PortalDocumentRequestsView
-              isPracticeUser={isPracticeUser}
-              clientId={isPracticeUser ? selectedClientId : undefined}
-            />
-          </div>
+          <PortalDocumentRequestsView
+            isPracticeUser={isPracticeUser}
+            clientId={isPracticeUser ? selectedClientId : undefined}
+          />
 
           <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <div>
@@ -1199,62 +1257,234 @@ export const ClientPortalManagementPage: React.FC = () => {
       {activeTab === 'messages' && (
         <div className="space-y-6">
           <Card
-            title="Direct Consultation & Messages"
-            subtitle={`Direct secure communication channel with ${dashboard?.assignedPractitionerName || 'your assigned Tax Consultant'}`}
+            title={isPracticeUser ? `Consultation Chat: ${activeClientName}` : 'Direct Consultation & Messages'}
+            subtitle={
+              isPracticeUser
+                ? `Direct real-time consultation channel with ${activeClientName} (${activeClientPan})`
+                : `Direct secure communication channel with ${dashboard?.assignedPractitionerName || 'your assigned Tax Consultant'}`
+            }
           >
             <div className="space-y-4">
-              {/* Consultant Header */}
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+              {/* Channel & Consultant / Client Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm">
-                    {(dashboard?.assignedPractitionerName || 'CA').charAt(0)}
+                  <div
+                    className={clsx(
+                      'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-xs',
+                      isPracticeUser ? 'bg-indigo-600 text-white' : 'bg-brand-600 text-white'
+                    )}
+                  >
+                    {isPracticeUser
+                      ? (activeClientName || 'C').charAt(0)
+                      : (dashboard?.assignedPractitionerName || 'CA').charAt(0)}
                   </div>
                   <div>
-                    <span className="font-bold text-slate-900 block text-sm">
-                      {dashboard?.assignedPractitionerName || 'Assigned Tax Consultant'}
-                    </span>
-                    <span className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Direct Practice Channel Active
-                    </span>
-                  </div>
-                </div>
-                {dashboard?.assignedPractitionerPhone && (
-                  <a
-                    href={`tel:${dashboard.assignedPractitionerPhone}`}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    Call Consultant
-                  </a>
-                )}
-              </div>
-
-              {/* Chat Thread */}
-              <div className="border border-slate-200 rounded-xl p-4 min-h-[280px] max-h-[420px] overflow-y-auto space-y-3 bg-slate-50/50">
-                {messagesList.map((msg) => {
-                  const isMe = msg.sender === 'CLIENT';
-                  return (
-                    <div
-                      key={msg.id}
-                      className={clsx('flex flex-col', isMe ? 'items-end' : 'items-start')}
-                    >
-                      <span className="text-[10px] text-slate-400 mb-1 px-1">
-                        {msg.senderName} • {msg.timestamp}
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 block text-sm">
+                        {isPracticeUser
+                          ? activeClientName
+                          : dashboard?.assignedPractitionerName || 'Assigned Tax Consultant'}
                       </span>
-                      <div
+                      <span
                         className={clsx(
-                          'max-w-md p-3.5 rounded-2xl text-xs shadow-2xs leading-relaxed',
-                          isMe
-                            ? 'bg-brand-600 text-white rounded-br-none'
-                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                          'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider',
+                          isPracticeUser
+                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                            : 'bg-brand-50 text-brand-700 border border-brand-200'
                         )}
                       >
-                        {msg.text}
-                      </div>
+                        {isPracticeUser ? 'Client' : 'Tax Practitioner'}
+                      </span>
                     </div>
-                  );
-                })}
+
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {isWsConnected ? (
+                        <span className="text-xs text-emerald-600 flex items-center gap-1.5 font-medium">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          <Wifi className="w-3 h-3 text-emerald-500" />
+                          Live Consultation Channel Active
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-600 flex items-center gap-1.5 font-medium">
+                          <WifiOff className="w-3 h-3 text-amber-500" />
+                          Reconnecting real-time socket (syncing)...
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                  {!isPracticeUser && dashboard?.assignedPractitionerPhone && (
+                    <a
+                      href={`tel:${dashboard.assignedPractitionerPhone}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      Call Consultant
+                    </a>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isPracticeUser && selectedClientId) {
+                        portalApi.getPracticeClientMessages(selectedClientId).then(setMessages).catch(() => {});
+                      } else if (!isPracticeUser) {
+                        portalApi.getClientMessages().then(setMessages).catch(() => {});
+                      }
+                    }}
+                    leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                  >
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              {/* Quick Query Templates (For Client View) */}
+              {!isPracticeUser && messages.length === 0 && (
+                <div className="p-3.5 bg-brand-50/50 border border-brand-100 rounded-xl space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-brand-900">
+                    <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                    <span>Quick Consultation Starters:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'When will my GST return be filed for this month?',
+                      'I have uploaded the requested bank statements and invoices.',
+                      'Please share the draft ITR computation sheet.',
+                      'Can we schedule a quick call regarding our quarterly TDS?',
+                    ].map((promptText, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setNewMessageText(promptText)}
+                        className="text-[11px] font-medium bg-white hover:bg-brand-50 text-slate-700 hover:text-brand-800 border border-slate-200 hover:border-brand-300 px-2.5 py-1.5 rounded-lg transition-all text-left shadow-2xs"
+                      >
+                        {promptText}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Chat Thread */}
+              <div className="border border-slate-200 rounded-xl p-4 min-h-[320px] max-h-[480px] overflow-y-auto space-y-3 bg-slate-50/40">
+                {messages.length === 0 ? (
+                  <div className="py-14 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                      <MessageCircle className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-slate-800">
+                        {isPracticeUser ? 'No consultation messages yet' : 'Start your consultation'}
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        {isPracticeUser
+                          ? `Send a message to ${activeClientName} to initiate consultation or provide status updates.`
+                          : 'Send a message to your assigned tax practitioner. Messages and status updates are synchronized in real time.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((msg) => {
+                    const isMe = isPracticeUser
+                      ? msg.senderType === 'PRACTICE'
+                      : msg.senderType === 'CLIENT';
+                    const isSystem = msg.senderType === 'SYSTEM';
+                    const isReadByPeer = isPracticeUser
+                      ? msg.isReadByClient || msg.readByClient
+                      : msg.isReadByPractice || msg.readByPractice;
+
+                    if (isSystem) {
+                      return (
+                        <div key={msg.id} className="flex justify-center my-2">
+                          <div className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1 rounded-full text-[11px] font-medium text-center max-w-md">
+                            📢 {msg.messageBody}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={msg.id}
+                        className={clsx('flex flex-col', isMe ? 'items-end' : 'items-start')}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1 px-1">
+                          <span className="text-[10px] font-semibold text-slate-500">
+                            {isMe ? 'You' : msg.senderName}
+                          </span>
+                          <span
+                            className={clsx(
+                              'text-[9px] px-1.5 py-0.2 rounded font-bold uppercase',
+                              msg.senderType === 'PRACTICE'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-emerald-50 text-emerald-700'
+                            )}
+                          >
+                            {msg.senderType === 'PRACTICE' ? 'Tax Consultant' : 'Client'}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {msg.createdAt
+                              ? new Date(msg.createdAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : 'Just now'}
+                          </span>
+                        </div>
+
+                        <div
+                          className={clsx(
+                            'max-w-md p-3.5 rounded-2xl text-xs leading-relaxed shadow-2xs break-words',
+                            isMe
+                              ? 'bg-brand-600 text-white rounded-br-none'
+                              : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                          )}
+                        >
+                          <p className="whitespace-pre-wrap">{msg.messageBody}</p>
+
+                          {isMe && (
+                            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-85">
+                              {isReadByPeer ? (
+                                <span className="flex items-center gap-0.5 text-cyan-200 font-medium">
+                                  <CheckCheck className="w-3.5 h-3.5" />
+                                  <span>Read</span>
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5 text-slate-200">
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Sent</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+
+                {/* Peer Typing Indicator */}
+                {isPeerTyping && (
+                  <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl w-fit animate-pulse">
+                    <span className="font-semibold">
+                      {isPracticeUser ? activeClientName : dashboard?.assignedPractitionerName || 'Tax Consultant'}{' '}
+                      is typing...
+                    </span>
+                    <span className="flex gap-0.5">
+                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></span>
+                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                    </span>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Message Composer */}
@@ -1262,14 +1492,25 @@ export const ClientPortalManagementPage: React.FC = () => {
                 <input
                   type="text"
                   value={newMessageText}
-                  onChange={(e) => setNewMessageText(e.target.value)}
-                  placeholder={`Type your query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`}
-                  className="flex-1 px-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  onChange={(e) => {
+                    setNewMessageText(e.target.value);
+                    sendTyping(e.target.value.length > 0);
+                  }}
+                  onBlur={() => sendTyping(false)}
+                  placeholder={
+                    isPracticeUser
+                      ? `Type a consultation reply or filing update to ${activeClientName}...`
+                      : `Type your tax query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`
+                  }
+                  disabled={isPracticeUser && !selectedClientId}
+                  className="flex-1 px-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-slate-100"
                 />
                 <Button
                   type="submit"
                   variant="primary"
                   size="sm"
+                  isLoading={isSendingMessage}
+                  disabled={!newMessageText.trim() || (isPracticeUser && !selectedClientId)}
                   leftIcon={<Send className="w-4 h-4" />}
                 >
                   Send

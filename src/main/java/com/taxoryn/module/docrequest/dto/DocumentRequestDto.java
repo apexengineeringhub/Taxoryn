@@ -1,5 +1,6 @@
 package com.taxoryn.module.docrequest.dto;
 
+import com.taxoryn.module.docrequest.entity.DocumentRequestEntity;
 import com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -36,6 +37,20 @@ public class DocumentRequestDto {
     private String requestedByName;
     private UUID taskId;
     private UUID complianceId;
+    private DocumentRequestEntity.ExchangeType exchangeType;
+    private DocumentRequestEntity.RequestDirection direction;
+    private DocumentRequestEntity.DocumentCategory category;
+    private String taxPeriod;
+    private UUID deliveredDocumentId;
+    private String deliveredDocumentName;
+    private Long deliveredDocumentSize;
+    private String deliveredDocumentContentType;
+    private Instant deliveredAt;
+    private Instant declinedAt;
+    private String declineReason;
+    private UUID gstFilingId;
+    private UUID itrReturnId;
+    private UUID tdsReturnId;
     private UUID noticeId;
     private Instant sentAt;
     private Instant completedAt;

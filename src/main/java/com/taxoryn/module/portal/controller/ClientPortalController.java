@@ -344,6 +344,40 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("Document uploaded successfully", result));
     }
 
+    @PostMapping("/document-requests/v1/request-acknowledgement")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_UPLOAD') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Client requests acknowledgement or document from practitioner", description = "Authenticated client requests an ITR/GST acknowledgement, computation, certificate, or tax document from their practitioner.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> requestAcknowledgement(
+            @Valid @RequestBody com.taxoryn.module.docrequest.dto.CreateClientAcknowledgementRequest request) {
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto result = documentRequestService.createClientAcknowledgementRequest(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Acknowledgement request submitted successfully", result));
+    }
+
+    @GetMapping("/document-requests/v1/delivered")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "List documents delivered to client", description = "Retrieves all acknowledgements and tax documents delivered by the practitioner.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.docrequest.dto.DocumentRequestDto>>> getDeliveredDocuments() {
+        List<com.taxoryn.module.docrequest.dto.DocumentRequestDto> list = documentRequestService.getClientPortalDeliveredDocuments();
+        return ResponseEntity.ok(ApiResponse.success("Delivered documents retrieved successfully", list));
+    }
+
+    @PostMapping("/document-requests/v1/{id}/viewed")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Record delivered document viewed", description = "Transitions status to VIEWED and records audit trail.")
+    public ResponseEntity<ApiResponse<Void>> recordDocumentViewed(@PathVariable UUID id) {
+        documentRequestService.recordClientDocumentViewed(id);
+        return ResponseEntity.ok(ApiResponse.success("Document view recorded", null));
+    }
+
+    @PostMapping("/document-requests/v1/{id}/downloaded")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Record delivered document downloaded", description = "Transitions status to DOWNLOADED and records audit trail.")
+    public ResponseEntity<ApiResponse<Void>> recordDocumentDownloaded(@PathVariable UUID id) {
+        documentRequestService.recordClientDocumentDownloaded(id);
+        return ResponseEntity.ok(ApiResponse.success("Document download recorded", null));
+    }
+
     // =========================================================================
     // 9. Client Portal Tax Notices & Scrutiny Cases (Sanitized View)
     // =========================================================================
@@ -356,5 +390,81 @@ public class ClientPortalController {
         UUID clientId = com.taxoryn.core.security.SecurityUtils.requireCurrentClientId();
         com.taxoryn.core.response.PagedResponse<com.taxoryn.module.notice.dto.ClientNoticeDto> notices = taxNoticeService.getClientPortalNotices(clientId, pageRequest);
         return ResponseEntity.ok(ApiResponse.success("Tax notices retrieved successfully", notices));
+    }
+
+    // =========================================================================
+    // 10. Client Portal Consultation Messaging & Chat
+    // =========================================================================
+
+    @GetMapping("/messages")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Client consultation messages", description = "Retrieves chronological message history between the authenticated client and their assigned tax practitioner.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getClientMessages() {
+        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getClientMessages();
+        return ResponseEntity.ok(ApiResponse.success("Messages retrieved successfully", list));
+    }
+
+    @PostMapping("/messages")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Client sends consultation message", description = "Sends a message to the practitioner and broadcasts via WebSocket.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.portal.dto.ClientPortalMessageDto>> sendClientMessage(
+            @Valid @RequestBody com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request) {
+        com.taxoryn.module.portal.dto.ClientPortalMessageDto message = clientPortalService.sendClientMessage(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Message sent successfully", message));
+    }
+
+    @PostMapping("/messages/read")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Mark messages read by client", description = "Updates read receipts for messages sent to client.")
+    public ResponseEntity<ApiResponse<Void>> markMessagesReadByClient() {
+        clientPortalService.markMessagesReadByClient();
+        return ResponseEntity.ok(ApiResponse.success("Messages marked as read", null));
+    }
+
+    @GetMapping("/messages/unread-count")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Get unread message count for client", description = "Returns count of unread messages from practitioner.")
+    public ResponseEntity<ApiResponse<Long>> getUnreadCountForClient() {
+        long count = clientPortalService.getUnreadCountForClient();
+        return ResponseEntity.ok(ApiResponse.success("Unread count retrieved", count));
+    }
+
+    @GetMapping("/clients/{clientId}/messages")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
+    @Operation(summary = "Practitioner gets client consultation messages", description = "Retrieves message history for a specific client under ABAC scope.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getMessagesForClient(
+            @PathVariable UUID clientId) {
+        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getMessagesForClient(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client messages retrieved successfully", list));
+    }
+
+    @PostMapping("/clients/{clientId}/messages")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
+    @Operation(summary = "Practitioner sends message to client", description = "Sends a message to client and broadcasts via WebSocket.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.portal.dto.ClientPortalMessageDto>> sendPracticeMessageToClient(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request) {
+        com.taxoryn.module.portal.dto.ClientPortalMessageDto message = clientPortalService.sendPracticeMessageToClient(clientId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Message sent successfully", message));
+    }
+
+    @PostMapping("/clients/{clientId}/messages/read")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
+    @Operation(summary = "Mark messages read by practitioner", description = "Updates read receipts for messages sent by client.")
+    public ResponseEntity<ApiResponse<Void>> markMessagesReadByPractice(
+            @PathVariable UUID clientId) {
+        clientPortalService.markMessagesReadByPractice(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Messages marked as read", null));
+    }
+
+    @GetMapping("/clients/{clientId}/messages/unread-count")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
+    @Operation(summary = "Get unread message count for practitioner", description = "Returns count of unread messages sent by client.")
+    public ResponseEntity<ApiResponse<Long>> getUnreadCountForPractice(
+            @PathVariable UUID clientId) {
+        long count = clientPortalService.getUnreadCountForPractice(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Unread count retrieved", count));
     }
 }

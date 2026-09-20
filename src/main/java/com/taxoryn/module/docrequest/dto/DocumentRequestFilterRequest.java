@@ -1,5 +1,6 @@
 package com.taxoryn.module.docrequest.dto;
 
+import com.taxoryn.module.docrequest.entity.DocumentRequestEntity;
 import com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -18,6 +19,8 @@ public class DocumentRequestFilterRequest {
 
     private UUID clientId;
     private RequestStatus status;
+    private DocumentRequestEntity.RequestDirection direction;
+    private DocumentRequestEntity.ExchangeType exchangeType;
     private String search;
     private Integer page;
     private Integer size;

@@ -149,6 +149,8 @@ public class NotificationEntity extends AuditableEntity {
         INVOICE_ISSUED,
         PASSWORD_CHANGED,
         PASSWORD_RESET_COMPLETED,
+        CLIENT_MESSAGE_RECEIVED,
+        PRACTICE_MESSAGE_REPLY,
         SYSTEM_NOTIFICATION,
         GENERAL
     }

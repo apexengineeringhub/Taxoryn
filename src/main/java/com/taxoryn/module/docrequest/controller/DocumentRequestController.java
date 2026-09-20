@@ -129,4 +129,25 @@ public class DocumentRequestController {
         DocumentRequestDto result = documentRequestService.cancelRequest(id);
         return ResponseEntity.ok(ApiResponse.success("Document request cancelled successfully", result));
     }
+
+    @PostMapping(value = "/send-document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('DOCUMENT_WRITE') or hasAuthority('CLIENT_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF')")
+    @Operation(summary = "Send document or acknowledgement to client", description = "Practitioner delivers an acknowledgement or tax document to a client, either fulfilling a request or proactively.")
+    public ResponseEntity<ApiResponse<DocumentRequestDto>> sendDocumentToClient(
+            @Valid @RequestPart("metadata") com.taxoryn.module.docrequest.dto.SendDocumentToClientRequest request,
+            @Parameter(description = "Optional binary file payload", required = false, content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(type = "string", format = "binary")))
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        DocumentRequestDto result = documentRequestService.sendDocumentToClient(request, file);
+        return ResponseEntity.ok(ApiResponse.success("Document delivered to client successfully", result));
+    }
+
+    @PostMapping("/{id}/decline")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('DOCUMENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF')")
+    @Operation(summary = "Decline client document request", description = "Practitioner declines a document/acknowledgement requested by a client with a reason.")
+    public ResponseEntity<ApiResponse<DocumentRequestDto>> declineClientRequest(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.taxoryn.module.docrequest.dto.DeclineDocumentRequest request) {
+        DocumentRequestDto result = documentRequestService.declineClientRequest(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Client request declined", result));
+    }
 }
