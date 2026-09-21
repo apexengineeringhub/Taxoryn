@@ -70,6 +70,9 @@ class TdsServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
     @InjectMocks
     private TdsServiceImpl tdsService;
 

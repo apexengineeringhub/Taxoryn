@@ -171,6 +171,10 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateResourceException("User", "email", adminEmail);
         }
 
+        if (request.getOrganizationType() == null || request.getOrganizationType() == com.taxoryn.module.organization.entity.OrganizationType.UNKNOWN) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED, "Organization type is required and must be one of: SOLO_PRACTITIONER, SMALL_TAX_FIRM, GROWING_PRACTICE, BUSINESS");
+        }
+
         // 1. Create Organization Entity in INACTIVE status awaiting email activation
         OrganizationEntity organization = OrganizationEntity.builder()
                 .name(request.getOrganizationName().trim())
@@ -179,6 +183,7 @@ public class AuthServiceImpl implements AuthService {
                 .pan(request.getPan())
                 .gstin(request.getGstin())
                 .status(OrganizationStatus.INACTIVE)
+                .organizationType(request.getOrganizationType())
                 .subscriptionPlan(SubscriptionPlan.STARTER)
                 .build();
 

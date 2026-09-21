@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, ArrowRight, AlertCircle, Sparkles, Mail, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react';
+import { Building2, ArrowRight, AlertCircle, Sparkles, Mail, CheckCircle2, Eye, EyeOff, Lock, User, Users, TrendingUp, Briefcase } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { authApi } from '../api/endpoints';
 import { evaluatePasswordStrength } from '../utils/passwordUtils';
+import { OrganizationType } from '../types';
 
 export const RegisterOrgPage: React.FC = () => {
   const isDemoEnvironment = Boolean(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true');
   const [formData, setFormData] = useState({
     organizationName: '',
     organizationEmail: '',
+    organizationType: '' as OrganizationType | '',
     pan: '',
     gstin: '',
     adminFirstName: '',
@@ -42,6 +44,7 @@ export const RegisterOrgPage: React.FC = () => {
     setFormData({
       organizationName: 'Apex Tax Advisors LLP',
       organizationEmail: 'contact@apextax.com',
+      organizationType: 'SOLO_PRACTITIONER',
       pan: 'AABFA1234K',
       gstin: '27AABFA1234K1Z5',
       adminFirstName: 'Rajesh',
@@ -64,6 +67,9 @@ export const RegisterOrgPage: React.FC = () => {
 
     // Client-side validation
     const errors: Record<string, string> = {};
+    if (!formData.organizationType) {
+      errors.organizationType = 'Please select how you will use Taxoryn';
+    }
     if (formData.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.pan.trim().toUpperCase())) {
       errors.pan = 'Invalid PAN format. Must be 5 letters, 4 digits, 1 letter (e.g. AABFA1234K)';
     }
@@ -91,6 +97,7 @@ export const RegisterOrgPage: React.FC = () => {
       const payload = {
         organizationName: formData.organizationName.trim(),
         organizationEmail: (formData.organizationEmail || formData.adminEmail).trim(),
+        organizationType: formData.organizationType,
         pan: formData.pan ? formData.pan.trim().toUpperCase() : undefined,
         gstin: formData.gstin ? formData.gstin.trim().toUpperCase() : undefined,
         adminFirstName: formData.adminFirstName.trim(),
@@ -195,6 +202,89 @@ export const RegisterOrgPage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {/* Organization Type / Use Case Selection */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1.5">
+              How will you use Taxoryn? *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {[
+                {
+                  type: 'SOLO_PRACTITIONER' as OrganizationType,
+                  title: 'Solo Practitioner',
+                  description: 'Independent CA or Tax Consultant',
+                  icon: User,
+                },
+                {
+                  type: 'SMALL_TAX_FIRM' as OrganizationType,
+                  title: 'Small Tax Firm',
+                  description: 'Boutique tax practice (2–10 members)',
+                  icon: Users,
+                },
+                {
+                  type: 'GROWING_PRACTICE' as OrganizationType,
+                  title: 'Growing Practice',
+                  description: 'Multi-partner firm with expanding clients',
+                  icon: TrendingUp,
+                },
+                {
+                  type: 'BUSINESS' as OrganizationType,
+                  title: 'Business',
+                  description: 'Corporate in-house tax & finance team',
+                  icon: Briefcase,
+                },
+              ].map((opt) => {
+                const isSelected = formData.organizationType === opt.type;
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, organizationType: opt.type });
+                      if (fieldErrors.organizationType) {
+                        const updatedErrors = { ...fieldErrors };
+                        delete updatedErrors.organizationType;
+                        setFieldErrors(updatedErrors);
+                      }
+                    }}
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all duration-200 ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-50/40 text-slate-900 ring-2 ring-brand-500/20 shadow-sm'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/60 text-slate-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                        isSelected
+                          ? 'bg-brand-500 text-white'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-xs text-slate-900 leading-tight">
+                          {opt.title}
+                        </span>
+                        {isSelected && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        {opt.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {fieldErrors.organizationType && (
+              <p className="text-rose-600 text-[11px] font-medium mt-1.5">{fieldErrors.organizationType}</p>
+            )}
+          </div>
+
           {/* Organization Name */}
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Firm / Practice Name *</label>

@@ -72,6 +72,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
 
+        validateClientAccess(client.getId());
+
         String invoiceNumber = request.getInvoiceNumber();
         if (StringUtils.hasText(invoiceNumber)) {
             invoiceNumber = invoiceNumber.trim().toUpperCase();
@@ -448,6 +450,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(invoiceId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", invoiceId));
 
+        validateInvoiceAccess(invoice);
+
         if (invoice.getStatus() == InvoiceStatus.DRAFT || invoice.getStatus() == InvoiceStatus.CANCELLED || invoice.getStatus() == InvoiceStatus.PAID) {
             throw new BadRequestException("Reminders can only be sent for pending, issued, or overdue invoices");
         }
@@ -484,8 +488,10 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional(readOnly = true)
     public List<InvoicePaymentDto> getInvoicePayments(UUID invoiceId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        invoiceRepository.findByIdAndOrganizationId(invoiceId, organizationId)
+        InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(invoiceId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", invoiceId));
+
+        validateInvoiceAccess(invoice);
 
         return invoiceMapper.toPaymentDtoList(
                 invoicePaymentRepository.findAllByOrganizationIdAndInvoiceIdOrderByPaymentDateDesc(organizationId, invoiceId));
@@ -497,6 +503,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(clientId);
 
         List<InvoiceEntity> invoices = invoiceRepository.findAllByOrganizationIdAndClientIdOrderByInvoiceDateDesc(organizationId, clientId);
         List<InvoicePaymentEntity> payments = invoicePaymentRepository.findAllByOrganizationIdAndClientIdOrderByPaymentDateDesc(organizationId, clientId);
@@ -543,7 +551,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional(readOnly = true)
     public BillingDashboardStatsDto getBillingDashboardStats() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        List<InvoiceEntity> invoices = invoiceRepository.findAllByOrganizationId(organizationId);
+        List<InvoiceEntity> invoices;
+
+        PracticeSecurityScope scope = securityScopeEvaluator != null ? securityScopeEvaluator.evaluateCurrentScope() : null;
+        if (scope != null && !scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                invoices = List.of();
+            } else {
+                invoices = invoiceRepository.findAllByOrganizationId(organizationId).stream()
+                        .filter(inv -> accessibleClientIds.contains(inv.getClientId()))
+                        .toList();
+            }
+        } else {
+            invoices = invoiceRepository.findAllByOrganizationId(organizationId);
+        }
 
         BigDecimal totalBilled = BigDecimal.ZERO;
         BigDecimal totalCollected = BigDecimal.ZERO;
@@ -618,14 +640,21 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .errors(new ArrayList<>())
                 .build();
 
+        PracticeSecurityScope scope = securityScopeEvaluator != null ? securityScopeEvaluator.evaluateCurrentScope() : null;
+        Set<UUID> accessibleClientIds = (scope != null && !scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope))
+                ? securityScopeEvaluator.getAccessibleClientIds(scope)
+                : null;
+
         List<ClientEntity> targetClients;
         if (request.getClientIds() != null && !request.getClientIds().isEmpty()) {
             targetClients = clientRepository.findAllById(request.getClientIds()).stream()
                     .filter(c -> c.getOrganizationId().equals(organizationId) && c.getStatus() == ClientEntity.ClientStatus.ACTIVE)
+                    .filter(c -> accessibleClientIds == null || accessibleClientIds.contains(c.getId()))
                     .toList();
         } else {
             targetClients = clientRepository.findAllByOrganizationId(organizationId).stream()
                     .filter(c -> c.getStatus() == ClientEntity.ClientStatus.ACTIVE)
+                    .filter(c -> accessibleClientIds == null || accessibleClientIds.contains(c.getId()))
                     .toList();
         }
 
@@ -814,11 +843,18 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (invoice == null || invoice.getClientId() == null) {
             return;
         }
+        validateClientAccess(invoice.getClientId());
+    }
+
+    private void validateClientAccess(UUID clientId) {
+        if (clientId == null) {
+            return;
+        }
 
         // 1. Strict match for Client Portal Users
         if (SecurityUtils.isClientPortalUser()) {
             UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
-            if (currentClientId == null || !currentClientId.equals(invoice.getClientId())) {
+            if (currentClientId == null || !currentClientId.equals(clientId)) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied: You cannot access invoices belonging to another client");
             }
             return;
@@ -829,7 +865,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
             if (scope != null && !scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
                 Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-                if (accessibleClientIds == null || !accessibleClientIds.contains(invoice.getClientId())) {
+                if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
                     throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view or manage invoices for this client.");
                 }
             }

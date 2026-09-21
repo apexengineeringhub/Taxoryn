@@ -22,6 +22,72 @@ export interface PagedResponse<T> {
 }
 
 // 1. Auth & User
+export type OrganizationType =
+  | 'UNKNOWN'
+  | 'SOLO_PRACTITIONER'
+  | 'SMALL_TAX_FIRM'
+  | 'GROWING_PRACTICE'
+  | 'BUSINESS';
+
+export type ProductCapability =
+  | 'CLIENT_MANAGEMENT'
+  | 'GST_COMPLIANCE'
+  | 'ITR_COMPLIANCE'
+  | 'TDS_COMPLIANCE'
+  | 'COMPLIANCE_CALENDAR'
+  | 'TASK_MANAGEMENT'
+  | 'DOCUMENT_MANAGEMENT'
+  | 'DOCUMENT_REQUESTS'
+  | 'TAX_NOTICE_MANAGEMENT'
+  | 'BILLING_INVOICING'
+  | 'CENTRAL_REPORTING'
+  | 'TEAM_MANAGEMENT'
+  | 'CLIENT_PORTAL'
+  | 'ADVANCED_ANALYTICS';
+
+export type ModuleRecommendationStatus =
+  | 'ACTIVE'
+  | 'RECOMMENDED'
+  | 'UPGRADE_REQUIRED'
+  | 'NOT_RECOMMENDED';
+
+export interface OnboardingStep {
+  stepKey: string;
+  title: string;
+  description: string;
+  targetRoute: string;
+  sortOrder: number;
+  mandatory: boolean;
+  targetCapability?: ProductCapability | null;
+}
+
+export interface DashboardProfile {
+  profileKey: string;
+  title: string;
+  description: string;
+  defaultRoute: string;
+  primaryMetrics: string[];
+  quickActions: string[];
+  recommendedWidgets: string[];
+}
+
+export interface OrganizationCapabilities {
+  organizationId: string;
+  organizationType: OrganizationType;
+  subscriptionPlan: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
+  enabledCapabilities: ProductCapability[];
+  moduleStatuses?: Record<ProductCapability, ModuleRecommendationStatus>;
+  recommendedModules: string[];
+  defaultDashboardView: string;
+  dashboardProfile?: DashboardProfile;
+  onboardingProfile: string;
+  onboardingChecklist?: OnboardingStep[];
+  multiUserPractice: boolean;
+  clientPortalSupported: boolean;
+  noticeCenterSupported: boolean;
+  customInvoicingSupported: boolean;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -33,9 +99,24 @@ export interface Organization {
   gstin?: string;
   city?: string;
   state?: string;
+  organizationType?: OrganizationType;
   subscriptionPlan?: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   createdAt?: string;
+}
+
+export interface RegisterOrganizationRequest {
+  organizationName: string;
+  organizationEmail: string;
+  organizationPhone?: string;
+  pan?: string;
+  gstin?: string;
+  organizationType: OrganizationType;
+  adminFirstName: string;
+  adminLastName?: string;
+  adminEmail: string;
+  adminPassword: string;
+  adminPhone?: string;
 }
 
 export interface User {

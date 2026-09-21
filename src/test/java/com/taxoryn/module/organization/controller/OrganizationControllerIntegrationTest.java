@@ -223,6 +223,42 @@ class OrganizationControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value("New Super Tenant"))
+                .andExpect(jsonPath("$.data.organizationType").value("UNKNOWN"))
                 .andExpect(jsonPath("$.data.city").value("Chennai"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/organizations with specific OrganizationType persists correctly")
+    void testCreateOrganizationWithSpecificType() throws Exception {
+        CreateOrganizationRequest createRequest = CreateOrganizationRequest.builder()
+                .name("Solo Tax Consultant")
+                .email("solo@taxconsultant.com")
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.SOLO_PRACTITIONER)
+                .build();
+
+        mockMvc.perform(post("/api/v1/organizations")
+                        .header("Authorization", superAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.organizationType").value("SOLO_PRACTITIONER"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/organizations/current updates OrganizationType")
+    void testUpdateOrganizationType() throws Exception {
+        UpdateOrganizationRequest request = UpdateOrganizationRequest.builder()
+                .name("Integration Practice LLP")
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.GROWING_PRACTICE)
+                .build();
+
+        mockMvc.perform(put("/api/v1/organizations/current")
+                        .header("Authorization", orgAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.organizationType").value("GROWING_PRACTICE"));
     }
 }

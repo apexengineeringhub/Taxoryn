@@ -121,6 +121,10 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
 
+        if (!SecurityUtils.isClientPortalUser()) {
+            validatePracticeClientAccess(client.getId());
+        }
+
         String normalizedEmail = request.getEmail().toLowerCase().trim();
         String roleCode = "CLIENT_ADMIN".equalsIgnoreCase(request.getRole()) ? "CLIENT_ADMIN" : "CLIENT_USER";
 
@@ -328,6 +332,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Transactional(readOnly = true)
     public ClientPortalDashboardDto getDashboardForClient(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (!SecurityUtils.isClientPortalUser()) {
+            validatePracticeClientAccess(clientId);
+        }
         return buildDashboardDto(clientId, organizationId);
     }
 
@@ -714,6 +721,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
 
+        validatePracticeClientAccess(client.getId());
+
         ClientDocumentRequestEntity entity = ClientDocumentRequestEntity.builder()
                 .clientId(client.getId())
                 .documentType(request.getDocumentType())
@@ -830,6 +839,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                         callerClientId, clientId);
                 throw new ForbiddenException("Access denied: You can only view users for your own account");
             }
+        } else {
+            validatePracticeClientAccess(clientId);
         }
 
         return userRepository.findAllByOrganizationIdAndClientId(organizationId, clientId).stream()
@@ -1086,6 +1097,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Transactional
     public void markMessagesReadByPractice(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        validatePracticeClientAccess(clientId);
         clientPortalMessageRepository.markAllReadByPractice(organizationId, clientId, Instant.now());
         portalChatEventPublisher.publishMessagesRead(organizationId, clientId, "PRACTICE");
     }
@@ -1094,6 +1106,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Transactional(readOnly = true)
     public long getUnreadCountForPractice(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        validatePracticeClientAccess(clientId);
         return clientPortalMessageRepository.countByOrganizationIdAndClientIdAndReadByPracticeFalse(organizationId, clientId);
     }
 

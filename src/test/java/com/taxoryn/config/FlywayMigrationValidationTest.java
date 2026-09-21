@@ -53,8 +53,8 @@ public class FlywayMigrationValidationTest {
 
         // Verify all versions from 1 to latest are present without unexpected duplicates
         int maxVersion = versionNumbers.stream().max(Integer::compareTo).orElse(0);
-        assertThat(maxVersion).isEqualTo(70);
-        assertThat(versionNumbers).hasSize(70);
+        assertThat(maxVersion).isEqualTo(72);
+        assertThat(versionNumbers).hasSize(72);
     }
 
     @Test
@@ -81,7 +81,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(70);
+        assertThat(allMigrations.length).isEqualTo(72);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -264,7 +264,7 @@ public class FlywayMigrationValidationTest {
     }
 
     @Test
-    @DisplayName("Verify all Flyway migrations V1 to V70 resolve with valid descriptions and checksums")
+    @DisplayName("Verify all Flyway migrations V1 to V72 resolve with valid descriptions and checksums")
     void testAllFlywayMigrationsResolveSuccessfully() {
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:h2:mem:flyway_metadata_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL", "sa", "")
@@ -272,7 +272,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(70);
+        assertThat(all).hasSize(72);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];

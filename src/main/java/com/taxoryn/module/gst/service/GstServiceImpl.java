@@ -136,6 +136,7 @@ public class GstServiceImpl implements GstService {
 
         ClientEntity client = resolveOrCreateClient(request.getClientId(), request.getPan(), formattedGstin,
                 request.getTradeName(), request.getLegalName(), stateCode, organizationId);
+        validateClientAccess(client.getId());
 
         GstProfileEntity entity = GstProfileEntity.builder()
                 .clientId(client.getId())
@@ -172,6 +173,7 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", id));
+        validateClientAccess(profile.getClientId());
 
         GstProfileDto oldSnapshot = enrichProfileDto(profile);
 
@@ -212,6 +214,7 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", id));
+        validateClientAccess(profile.getClientId());
 
         return enrichProfileDto(profile);
     }
@@ -278,6 +281,7 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", id));
+        validateClientAccess(profile.getClientId());
 
         GstProfileStatus oldStatus = profile.getStatus();
         profile.setStatus(request.getStatus());
@@ -299,6 +303,7 @@ public class GstServiceImpl implements GstService {
 
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(request.getGstProfileId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", request.getGstProfileId()));
+        validateClientAccess(profile.getClientId());
 
         if (gstReturnFilingRepository.existsByOrganizationIdAndGstProfileIdAndReturnTypeAndReturnPeriod(
                 organizationId, request.getGstProfileId(), request.getReturnType(), request.getReturnPeriod())) {
@@ -358,6 +363,7 @@ public class GstServiceImpl implements GstService {
 
         GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", id));
+        validateClientAccess(filing.getClientId());
 
         GstFilingStatus oldStatus = filing.getFilingStatus();
         filing.setFilingStatus(request.getFilingStatus());
@@ -476,6 +482,7 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", id));
+        validateClientAccess(filing.getClientId());
 
         return enrichFilingDto(filing, null);
     }
@@ -532,49 +539,34 @@ public class GstServiceImpl implements GstService {
     @Transactional
     public List<GstReturnFilingDto> batchGenerateFilings(BatchGenerateFilingsRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
         List<GstProfileEntity> activeProfiles = gstProfileRepository.findAllByOrganizationIdAndStatus(organizationId, GstProfileStatus.ACTIVE);
-
-        List<GstReturnFilingDto> createdFilings = new ArrayList<>();
-
-        List<GstReturnType> targetTypes = request.getReturnTypes();
-        if (targetTypes == null || targetTypes.isEmpty()) {
-            if (request.getReturnType() != null) {
-                targetTypes = List.of(request.getReturnType());
-            } else {
-                targetTypes = List.of(GstReturnType.GSTR1, GstReturnType.GSTR3B);
-            }
+        if (activeProfiles.isEmpty()) {
+            return List.of();
         }
 
+        List<GstReturnType> targetTypes = (request.getReturnTypes() != null && !request.getReturnTypes().isEmpty())
+                ? request.getReturnTypes()
+                : List.of(GstReturnType.GSTR1, GstReturnType.GSTR3B);
+
+        List<GstReturnFilingEntity> createdFilings = new ArrayList<>();
+
         for (GstProfileEntity profile : activeProfiles) {
-            for (GstReturnType returnType : targetTypes) {
-                // If profile is composition, skip GSTR-1/3B unless requested; if regular, skip CMP-08
-                if (profile.getGstType() == GstType.COMPOSITION && (returnType == GstReturnType.GSTR1 || returnType == GstReturnType.GSTR3B)) {
-                    continue;
-                }
-                if (profile.getGstType() == GstType.REGULAR && returnType == GstReturnType.CMP08) {
-                    continue;
+            for (GstReturnType type : targetTypes) {
+                // If profile is QUARTERLY, skip GSTR1/3B on non-quarterly months if necessary, or let user batch generate CMP08
+                if (profile.getFilingFrequency() == FilingFrequency.QUARTERLY && (type == GstReturnType.GSTR1 || type == GstReturnType.GSTR3B)) {
+                    // QRMP filers file IFF / GSTR1 quarterly, but for safety we allow batch generation or skip based on period
                 }
 
-                if (!gstReturnFilingRepository.existsByOrganizationIdAndGstProfileIdAndReturnTypeAndReturnPeriod(
-                        organizationId, profile.getId(), returnType, request.getReturnPeriod())) {
+                Optional<GstReturnFilingEntity> existing = gstReturnFilingRepository.findByOrganizationIdAndGstProfileIdAndReturnTypeAndReturnPeriod(
+                        organizationId, profile.getId(), type, request.getReturnPeriod());
 
-                    LocalDate dueDate = null;
-                    if (returnType == GstReturnType.GSTR1) {
-                        dueDate = request.getGstr1DueDate();
-                    } else if (returnType == GstReturnType.GSTR3B) {
-                        dueDate = request.getGstr3bDueDate();
-                    } else if (returnType == GstReturnType.CMP08) {
-                        dueDate = request.getCmp08DueDate();
-                    }
-
-                    if (dueDate == null) {
-                        dueDate = LocalDate.now().plusDays(20);
-                    }
-
+                if (existing.isEmpty()) {
+                    LocalDate dueDate = resolveBatchDueDate(type, request);
                     GstReturnFilingEntity filing = GstReturnFilingEntity.builder()
                             .gstProfileId(profile.getId())
                             .clientId(profile.getClientId())
-                            .returnType(returnType)
+                            .returnType(type)
                             .returnPeriod(request.getReturnPeriod())
                             .financialYear(request.getFinancialYear())
                             .dueDate(dueDate)
@@ -585,21 +577,24 @@ public class GstServiceImpl implements GstService {
 
                     GstReturnFilingEntity saved = gstReturnFilingRepository.save(filing);
 
-                    // Auto-link or generate Compliance Obligation
+                    // 1. Compliance Obligation linkage
                     ComplianceObligationEntity obligation = resolveOrCreateComplianceObligation(saved, profile, organizationId);
                     if (obligation != null) {
                         saved.setComplianceId(obligation.getId());
                         saved = gstReturnFilingRepository.save(saved);
                     }
 
-                    createdFilings.add(enrichFilingDto(saved, profile));
+                    // 2. Linked Task
+                    createTaskForFilingInternal(saved, profile, organizationId);
+
+                    createdFilings.add(saved);
                 }
             }
         }
 
         log.info("Batch generated {} GST return filings for period {} in tenant {}", createdFilings.size(), request.getReturnPeriod(), organizationId);
         auditService.logEvent("GST_FILING_BATCH_GENERATED", "GST_FILING", request.getReturnPeriod(), null, "Generated " + createdFilings.size() + " filings");
-        return createdFilings;
+        return createdFilings.stream().map(f -> enrichFilingDto(f, null)).toList();
     }
 
     // =========================================================================
@@ -613,6 +608,7 @@ public class GstServiceImpl implements GstService {
 
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(request.getGstProfileId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", request.getGstProfileId()));
+        validateClientAccess(profile.getClientId());
 
         Optional<GstMonthlySummaryEntity> existing = gstMonthlySummaryRepository.findByOrganizationIdAndGstProfileIdAndPeriod(
                 organizationId, request.getGstProfileId(), request.getPeriod());
@@ -677,6 +673,7 @@ public class GstServiceImpl implements GstService {
 
         GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(gstProfileId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", gstProfileId));
+        validateClientAccess(profile.getClientId());
 
         GstMonthlySummaryEntity entity = gstMonthlySummaryRepository.findByOrganizationIdAndGstProfileIdAndPeriod(
                 organizationId, gstProfileId, period)
@@ -695,6 +692,18 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
         List<GstProfileEntity> profiles = gstProfileRepository.findAllByOrganizationIdAndStatus(organizationId, GstProfileStatus.ACTIVE);
+
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope != null && !scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                profiles = List.of();
+            } else {
+                profiles = profiles.stream()
+                        .filter(p -> p.getClientId() != null && accessibleClientIds.contains(p.getClientId()))
+                        .toList();
+            }
+        }
 
         if (assignedEmployeeId != null) {
             profiles = profiles.stream()
@@ -758,22 +767,15 @@ public class GstServiceImpl implements GstService {
             totalLiability = totalLiability.add(liability);
 
             LocalDate dueDate = gstr3b.map(GstReturnFilingEntity::getDueDate)
-                    .orElseGet(() -> gstr1.map(GstReturnFilingEntity::getDueDate).orElse(null));
-
-            String overallStatus = "PENDING";
-            if (gstr1Status == GstFilingStatus.FILED && gstr3bStatus == GstFilingStatus.FILED) {
-                overallStatus = "FILED";
-            } else if (dueDate != null && dueDate.isBefore(LocalDate.now())) {
-                overallStatus = "OVERDUE";
-            }
+                    .orElse(gstr1.map(GstReturnFilingEntity::getDueDate).orElse(null));
 
             clientItems.add(GstClientWorkloadItem.builder()
+                    .gstProfileId(profile.getId())
                     .clientId(profile.getClientId())
                     .clientName(clientName)
-                    .gstProfileId(profile.getId())
                     .gstin(profile.getGstin())
                     .gstType(profile.getGstType())
-                    .period(formatPeriodLabel(period))
+                    .period(period)
                     .gstr1Status(gstr1Status)
                     .gstr3bStatus(gstr3bStatus)
                     .cmp08Status(cmp08Status)
@@ -782,7 +784,7 @@ public class GstServiceImpl implements GstService {
                     .dueDate(dueDate)
                     .assignedEmployeeId(profile.getAssignedEmployeeId())
                     .assignedTo(assignedTo)
-                    .overallStatus(overallStatus)
+                    .overallStatus(gstr1Status == GstFilingStatus.FILED && gstr3bStatus == GstFilingStatus.FILED ? "FILED" : (dueDate != null && dueDate.isBefore(LocalDate.now()) ? "OVERDUE" : "PENDING"))
                     .build());
         }
 
@@ -806,6 +808,7 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(clientId);
 
         List<GstReturnFilingEntity> filings = gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(organizationId, clientId);
         return filings.stream().map(f -> enrichFilingDto(f, null)).toList();
@@ -821,6 +824,7 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(filingId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", filingId));
+        validateClientAccess(filing.getClientId());
 
         if (filing.getTaskId() != null) {
             return enrichFilingDto(filing, null);
@@ -887,6 +891,7 @@ public class GstServiceImpl implements GstService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(filingId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", filingId));
+        validateClientAccess(filing.getClientId());
 
         request.setClientId(filing.getClientId());
         request.setTaskId(filing.getTaskId());
@@ -936,8 +941,9 @@ public class GstServiceImpl implements GstService {
     @Transactional(readOnly = true)
     public List<DocumentDto> getFilingDocuments(UUID filingId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        gstReturnFilingRepository.findByIdAndOrganizationId(filingId, organizationId)
+        GstReturnFilingEntity filing = gstReturnFilingRepository.findByIdAndOrganizationId(filingId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("GST Return Filing", "id", filingId));
+        validateClientAccess(filing.getClientId());
 
         return documentRepository.findAllByOrganizationIdAndGstFilingIdAndStatus(organizationId, filingId, DocumentStatus.ACTIVE)
                 .stream().map(documentMapper::toDto).toList();
@@ -1350,5 +1356,33 @@ public class GstServiceImpl implements GstService {
                 organizationId, result.getTotalCreated(), result.getTotalSkipped(), result.getTotalFailed());
 
         return result;
+    }
+
+    private LocalDate resolveBatchDueDate(GstReturnType type, BatchGenerateFilingsRequest request) {
+        if (type == GstReturnType.GSTR1 && request.getGstr1DueDate() != null) return request.getGstr1DueDate();
+        if (type == GstReturnType.GSTR3B && request.getGstr3bDueDate() != null) return request.getGstr3bDueDate();
+        if (type == GstReturnType.CMP08 && request.getCmp08DueDate() != null) return request.getCmp08DueDate();
+        try {
+            if (request.getReturnPeriod() != null && request.getReturnPeriod().matches("\\d{4}-\\d{2}")) {
+                java.time.YearMonth ym = java.time.YearMonth.parse(request.getReturnPeriod()).plusMonths(1);
+                int day = (type == GstReturnType.GSTR1) ? 11 : (type == GstReturnType.CMP08 ? 18 : 20);
+                return ym.atDay(Math.min(day, ym.lengthOfMonth()));
+            }
+        } catch (Exception ignored) {}
+        return LocalDate.now().plusDays(20);
+    }
+
+    private void validateClientAccess(UUID clientId) {
+        if (clientId == null || securityScopeEvaluator == null) {
+            return;
+        }
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope != null && !scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission to access records for this client.");
+            }
+        }
     }
 }

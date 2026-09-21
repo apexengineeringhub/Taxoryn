@@ -95,6 +95,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
 
         ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+        validateClientAccess(client.getId());
 
         String requestNumber = generateRequestNumber();
 
@@ -200,6 +201,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentRequestEntity entity = docRequestRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", id));
+        validateClientAccess(entity.getClientId());
         return toDto(entity);
     }
 
@@ -259,6 +261,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(clientId);
 
         return docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId)
                 .stream().map(this::toDto).toList();
@@ -268,7 +271,22 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional(readOnly = true)
     public DocumentRequestSummaryDto getSummaryStats() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        List<DocumentRequestEntity> all = docRequestRepository.findAll((root, query, cb) -> cb.equal(root.get("organizationId"), organizationId));
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+
+        List<DocumentRequestEntity> all;
+        if (!scope.isFirmAdmin()) {
+            if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                all = List.of();
+            } else {
+                all = docRequestRepository.findAll((root, query, cb) -> cb.and(
+                        cb.equal(root.get("organizationId"), organizationId),
+                        root.get("clientId").in(accessibleClientIds)
+                ));
+            }
+        } else {
+            all = docRequestRepository.findAll((root, query, cb) -> cb.equal(root.get("organizationId"), organizationId));
+        }
 
         long total = all.size();
         long pending = 0;
@@ -312,6 +330,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
 
         DocumentRequestItemEntity item = docRequestItemRepository.findByIdAndOrganizationId(itemId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequestItem", "id", itemId));
+        validateClientAccess(item.getClientId());
 
         if (item.getStatus() == ItemStatus.PENDING) {
             throw new BadRequestException("Cannot accept a document that has not been uploaded yet");
@@ -403,6 +422,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
 
         DocumentRequestItemEntity item = docRequestItemRepository.findByIdAndOrganizationId(itemId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequestItem", "id", itemId));
+        validateClientAccess(item.getClientId());
 
         item.setStatus(ItemStatus.REJECTED);
         item.setRejectionReason(rejectRequest.getRejectionReason().trim());
@@ -491,6 +511,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentRequestEntity request = docRequestRepository.findByIdAndOrganizationId(requestId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
+        validateClientAccess(request.getClientId());
 
         if (request.getStatus() == RequestStatus.COMPLETED || request.getStatus() == RequestStatus.CANCELLED) {
             throw new BadRequestException("Cannot send reminder for a completed or cancelled request");
@@ -539,6 +560,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentRequestEntity request = docRequestRepository.findByIdAndOrganizationId(requestId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
+        validateClientAccess(request.getClientId());
 
         request.setStatus(RequestStatus.CANCELLED);
         DocumentRequestEntity saved = docRequestRepository.save(request);
@@ -560,6 +582,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentRequestItemEntity item = docRequestItemRepository.findByIdAndOrganizationId(itemId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequestItem", "id", itemId));
+        validateClientAccess(item.getClientId());
 
         return processItemUpload(item, file, organizationId);
     }
@@ -666,6 +689,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
             }
             targetClientId = request.getClientId();
         }
+
+        validateClientAccess(targetClientId);
 
         ClientEntity client = clientRepository.findByIdAndOrganizationId(targetClientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", targetClientId));
@@ -797,6 +822,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         DocumentRequestEntity entity = docRequestRepository.findByIdAndOrganizationId(requestId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
+        validateClientAccess(entity.getClientId());
 
         if (entity.getDirection() != RequestDirection.CLIENT_TO_PRACTITIONER) {
             throw new BadRequestException("Only client-initiated requests can be declined");
@@ -1130,5 +1156,27 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 .isOverdue(isOverdue)
                 .items(itemDtos)
                 .build();
+    }
+
+    private void validateClientAccess(UUID clientId) {
+        if (clientId == null) {
+            return;
+        }
+        if (SecurityUtils.isClientPortalUser()) {
+            UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
+            if (currentClientId == null || !currentClientId.equals(clientId)) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You cannot access document requests belonging to another client");
+            }
+            return;
+        }
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope != null && !scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission to access records for this client.");
+            }
+        }
     }
 }
