@@ -63,6 +63,9 @@ public class OrganizationDto {
     @Schema(description = "Tenant operational status")
     private OrganizationStatus status;
 
+    @Schema(description = "Organization customer segment classification", example = "SOLO_PRACTITIONER")
+    private com.taxoryn.module.organization.entity.OrganizationType organizationType;
+
     @Schema(description = "Subscription tier plan")
     private SubscriptionPlan subscriptionPlan;
 

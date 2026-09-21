@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Palette,
   Image,
@@ -12,6 +12,13 @@ import {
   Moon,
   Globe,
   Link as LinkIcon,
+  Building2,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Users,
+  TrendingUp,
+  Briefcase,
 } from 'lucide-react';
 import { formatPracticeDisplayUrl, buildPracticePathUrl } from '../utils/tenantUrl';
 import { Card } from '../components/common/Card';
@@ -19,7 +26,18 @@ import { Button } from '../components/common/Button';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { useBranding, THEME_TEMPLATES } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
+import { organizationApi } from '../api/endpoints';
+import { OrganizationType } from '../types';
+import { hasPermission } from '../utils/permissionUtils';
 import clsx from 'clsx';
+
+export const ORGANIZATION_TYPE_LABELS: Record<OrganizationType, string> = {
+  UNKNOWN: 'Not Configured',
+  SOLO_PRACTITIONER: 'Solo Practitioner',
+  SMALL_TAX_FIRM: 'Small Tax Firm',
+  GROWING_PRACTICE: 'Growing Practice',
+  BUSINESS: 'Business',
+};
 
 export const PracticeBrandingPage: React.FC = () => {
   const {
@@ -33,11 +51,58 @@ export const PracticeBrandingPage: React.FC = () => {
     setActiveTabFilter,
   } = useBranding();
 
-  const { user, practiceName, practiceInitials } = useAuth();
+  const { user, organization, practiceName, practiceInitials, refreshOrganization } = useAuth();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const currentUserAvatar = getEmployeeAvatar(user?.email || user?.id);
+
+  // Organization Type Management State
+  const canManageOrg = hasPermission(
+    user,
+    ['ORGANIZATION_UPDATE', 'ORG_WRITE'],
+    ['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']
+  );
+
+  const [selectedOrgType, setSelectedOrgType] = useState<OrganizationType>(
+    organization?.organizationType || 'UNKNOWN'
+  );
+  const [isSavingOrgType, setIsSavingOrgType] = useState(false);
+  const [orgTypeSuccessMessage, setOrgTypeSuccessMessage] = useState<string | null>(null);
+  const [orgTypeError, setOrgTypeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (organization?.organizationType) {
+      setSelectedOrgType(organization.organizationType);
+    }
+  }, [organization?.organizationType]);
+
+  const handleSaveOrgType = async () => {
+    if (!canManageOrg) return;
+    setIsSavingOrgType(true);
+    setOrgTypeError(null);
+    setOrgTypeSuccessMessage(null);
+
+    try {
+      await organizationApi.updateCurrent({
+        name: organization?.name || practiceName,
+        organizationType: selectedOrgType,
+      });
+      await refreshOrganization();
+      setOrgTypeSuccessMessage(`Organization type successfully updated to ${ORGANIZATION_TYPE_LABELS[selectedOrgType]}.`);
+      setTimeout(() => setOrgTypeSuccessMessage(null), 4000);
+    } catch (err: any) {
+      const resp = err?.response?.data;
+      setOrgTypeError(resp?.message || 'Failed to update organization type. Please try again.');
+    } finally {
+      setIsSavingOrgType(false);
+    }
+  };
+
+  const handleCancelOrgType = () => {
+    setSelectedOrgType(organization?.organizationType || 'UNKNOWN');
+    setOrgTypeError(null);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -261,6 +326,91 @@ export const PracticeBrandingPage: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Organization Classification & Customer Segment Card */}
+      <Card
+        title="Practice Classification & Organization Type"
+        subtitle="Manage customer segment classification for tailored workflows and settings"
+      >
+        <div className="space-y-4 text-xs">
+          {orgTypeSuccessMessage && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{orgTypeSuccessMessage}</span>
+            </div>
+          )}
+
+          {orgTypeError && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{orgTypeError}</span>
+            </div>
+          )}
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div>
+              <span className="text-slate-500 font-medium block">Current Organization Classification:</span>
+              <div className="flex items-center gap-2 mt-1">
+                <Building2 className="w-4 h-4 text-slate-700" />
+                <span className="text-sm font-black text-slate-900">
+                  {ORGANIZATION_TYPE_LABELS[organization?.organizationType || 'UNKNOWN']}
+                </span>
+                {(organization?.organizationType === 'UNKNOWN' || !organization?.organizationType) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    Legacy / Unclassified
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {canManageOrg ? (
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <select
+                  value={selectedOrgType}
+                  onChange={(e) => setSelectedOrgType(e.target.value as OrganizationType)}
+                  aria-label="Select Organization Type"
+                  className="px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 text-xs shadow-2xs"
+                >
+                  <option value="SOLO_PRACTITIONER">Solo Practitioner</option>
+                  <option value="SMALL_TAX_FIRM">Small Tax Firm</option>
+                  <option value="GROWING_PRACTICE">Growing Practice</option>
+                  <option value="BUSINESS">Business</option>
+                  {selectedOrgType === 'UNKNOWN' && (
+                    <option value="UNKNOWN" disabled>Not Configured</option>
+                  )}
+                </select>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSaveOrgType}
+                    isLoading={isSavingOrgType}
+                    disabled={selectedOrgType === 'UNKNOWN' || selectedOrgType === organization?.organizationType}
+                    className="font-bold shadow-2xs"
+                  >
+                    Save Changes
+                  </Button>
+                  {selectedOrgType !== organization?.organizationType && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCancelOrgType}
+                      disabled={isSavingOrgType}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <span className="text-slate-400 italic text-[11px]">
+                Read-only (Admin privileges required to reclassify)
+              </span>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {/* Curated Color Themes & Template Palette */}
       <div className="space-y-4">

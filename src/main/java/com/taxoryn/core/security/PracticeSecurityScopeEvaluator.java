@@ -152,16 +152,10 @@ public class PracticeSecurityScopeEvaluator {
         UUID orgId = scope.getOrganizationId();
         Set<UUID> assigneeIds = scope.getAccessibleAssigneeIds();
         if (assigneeIds != null && !assigneeIds.isEmpty() && orgId != null) {
-            // 1. Clients directly assigned to these employees
+            // 1. Clients directly assigned to these employees (Client Portfolio Scope)
             List<UUID> assignedClientIds = clientRepository.findIdsByOrganizationIdAndAssignedEmployeeIdIn(orgId, assigneeIds);
             if (assignedClientIds != null) {
                 accessibleClientIds.addAll(assignedClientIds);
-            }
-
-            // 2. Clients where these employees have active tasks assigned
-            List<UUID> taskClientIds = taskRepository.findClientIdsByAssignedToIn(orgId, assigneeIds);
-            if (taskClientIds != null) {
-                accessibleClientIds.addAll(taskClientIds);
             }
         }
 

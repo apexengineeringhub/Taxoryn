@@ -288,6 +288,7 @@ class BrowserTokenSecurityIntegrationTest {
         RegisterOrganizationRequest request = RegisterOrganizationRequest.builder()
                 .organizationName("New Org Reg")
                 .organizationEmail("newreg" + UUID.randomUUID() + "@taxoryn.com")
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.SOLO_PRACTITIONER)
                 .organizationPhone("9123456780")
                 .adminEmail(adminEmail)
                 .adminPassword(adminPassword)

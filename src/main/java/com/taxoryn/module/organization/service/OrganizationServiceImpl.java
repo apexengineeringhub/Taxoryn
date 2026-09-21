@@ -33,6 +33,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationSettingsRepository settingsRepository;
     private final OrganizationMapper organizationMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional
@@ -56,6 +57,7 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .pan(request.getPan())
                 .gstin(request.getGstin())
                 .taxRegistrationNumber(request.getTaxRegistrationNumber())
+                .organizationType(request.getOrganizationType() != null ? request.getOrganizationType() : com.taxoryn.module.organization.entity.OrganizationType.UNKNOWN)
                 .subscriptionPlan(request.getSubscriptionPlan() != null ? request.getSubscriptionPlan() : OrganizationEntity.SubscriptionPlan.STARTER)
                 .status(OrganizationEntity.OrganizationStatus.ACTIVE)
                 .build();
@@ -100,6 +102,9 @@ public class OrganizationServiceImpl implements OrganizationService {
         validateTenantAccess(organizationId);
         OrganizationEntity entity = getOrganizationEntityById(organizationId);
 
+        com.taxoryn.module.organization.entity.OrganizationType oldType = entity.getOrganizationType();
+        boolean typeChanged = false;
+
         entity.setName(request.getName().trim());
         if (request.getLegalName() != null) entity.setLegalName(request.getLegalName().trim());
         if (request.getTradeName() != null) entity.setTradeName(request.getTradeName().trim());
@@ -112,9 +117,26 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (request.getPan() != null) entity.setPan(request.getPan());
         if (request.getGstin() != null) entity.setGstin(request.getGstin());
         if (request.getTaxRegistrationNumber() != null) entity.setTaxRegistrationNumber(request.getTaxRegistrationNumber());
+        if (request.getOrganizationType() != null && request.getOrganizationType() != oldType) {
+            entity.setOrganizationType(request.getOrganizationType());
+            typeChanged = true;
+        }
 
         OrganizationEntity saved = organizationRepository.save(entity);
         log.info("Updated organization: id={}", saved.getId());
+
+        if (typeChanged) {
+            auditService.logEvent(
+                    saved.getId(),
+                    SecurityUtils.getCurrentUserId(),
+                    "ORGANIZATION_TYPE_UPDATED",
+                    "ORGANIZATION",
+                    saved.getId().toString(),
+                    oldType != null ? oldType.name() : "UNKNOWN",
+                    saved.getOrganizationType().name()
+            );
+        }
+
         return organizationMapper.toDto(saved);
     }
 

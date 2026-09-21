@@ -108,6 +108,8 @@ public class TdsServiceImpl implements TdsService {
                 organizationId
         );
 
+        validateClientAccess(client.getId());
+
         if (StringUtils.hasText(client.getTan()) && !client.getTan().equalsIgnoreCase(formattedTan)) {
             client.setTan(formattedTan);
             clientRepository.save(client);
@@ -208,6 +210,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsProfileEntity entity = tdsProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", id));
+        validateClientAccess(entity.getClientId());
 
         if (request.getDeductorType() != null) entity.setDeductorType(request.getDeductorType());
         if (request.getBranchDivisionName() != null) entity.setBranchDivisionName(request.getBranchDivisionName());
@@ -334,6 +337,8 @@ public class TdsServiceImpl implements TdsService {
         UUID clientId = profile.getClientId();
         UUID profileId = profile.getId();
 
+        validateClientAccess(clientId);
+
         Optional<TdsReturnEntity> existing = tdsReturnRepository.findByOrganizationIdAndTdsProfileIdAndFormTypeAndQuarterAndFinancialYear(
                 organizationId,
                 profileId,
@@ -452,6 +457,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         if (request.getDueDate() != null) entity.setDueDate(request.getDueDate());
         if (request.getFilingStatus() != null) entity.setFilingStatus(request.getFilingStatus());
@@ -483,6 +489,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         TdsFilingStatus oldStatus = entity.getFilingStatus();
         entity.setFilingStatus(request.getFilingStatus());
@@ -513,6 +520,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         TdsFilingStatus oldStatus = entity.getFilingStatus();
         entity.setFilingStatus(TdsFilingStatus.FILED);
@@ -537,6 +545,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(request.getEmployeeId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.getEmployeeId()));
@@ -554,6 +563,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         if (entity.getTaskId() == null) {
             ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), organizationId)
@@ -572,6 +582,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         request.setClientId(entity.getClientId());
         request.setTaskId(entity.getTaskId());
@@ -624,8 +635,9 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public List<DocumentDto> getReturnDocuments(UUID id) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
+        TdsReturnEntity entity = tdsReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         return documentRepository.findAllByOrganizationIdAndTdsReturnIdAndStatus(organizationId, id, DocumentStatus.ACTIVE)
                 .stream().map(documentMapper::toDto).toList();
@@ -733,8 +745,12 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public List<TdsReturnDto> getUpcomingReturns(int daysAhead) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+
         LocalDate threshold = LocalDate.now().plusDays(daysAhead);
         return tdsReturnRepository.findUpcomingReturns(organizationId, threshold).stream()
+                .filter(r -> scope.isFirmAdmin() || (accessibleClientIds != null && accessibleClientIds.contains(r.getClientId())))
                 .map(this::enrichReturnEntity)
                 .collect(Collectors.toList());
     }
@@ -743,7 +759,11 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public List<TdsReturnDto> getOverdueReturns() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+
         return tdsReturnRepository.findOverdueReturns(organizationId, LocalDate.now()).stream()
+                .filter(r -> scope.isFirmAdmin() || (accessibleClientIds != null && accessibleClientIds.contains(r.getClientId())))
                 .map(this::enrichReturnEntity)
                 .collect(Collectors.toList());
     }
@@ -769,6 +789,7 @@ public class TdsServiceImpl implements TdsService {
 
         TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(request.getTdsProfileId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", request.getTdsProfileId()));
+        validateClientAccess(profile.getClientId());
 
         BigDecimal tds = request.getTdsAmount() != null ? request.getTdsAmount() : BigDecimal.ZERO;
         BigDecimal surcharge = request.getSurchargeAmount() != null ? request.getSurchargeAmount() : BigDecimal.ZERO;
@@ -820,6 +841,9 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public PagedResponse<TdsChallanDto> getChallans(TdsChallanFilterRequest filterRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+
         Page<TdsChallanEntity> page = tdsChallanRepository.searchChallans(
                 organizationId,
                 filterRequest.getTdsProfileId(),
@@ -831,6 +855,18 @@ public class TdsServiceImpl implements TdsService {
                 filterRequest.toPageable()
         );
 
+        if (!scope.isFirmAdmin()) {
+            List<TdsChallanDto> filtered = page.getContent().stream()
+                    .map(this::enrichChallanEntity)
+                    .filter(c -> {
+                        if (filterRequest.getTdsProfileId() != null) return true;
+                        TdsProfileEntity p = tdsProfileRepository.findByIdAndOrganizationId(c.getTdsProfileId(), organizationId).orElse(null);
+                        return p != null && accessibleClientIds != null && accessibleClientIds.contains(p.getClientId());
+                    })
+                    .toList();
+            return PagedResponse.of(new PageImpl<>(filtered, filterRequest.toPageable(), filtered.size()));
+        }
+
         return PagedResponse.of(page, this::enrichChallanEntity);
     }
 
@@ -840,7 +876,11 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsChallanEntity entity = tdsChallanRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Challan", "id", id));
-        return enrichChallanEntity(entity);
+        TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(entity.getTdsProfileId(), organizationId).orElse(null);
+        if (profile != null) {
+            validateClientAccess(profile.getClientId());
+        }
+        return enrichChallanEntity(entity, profile);
     }
 
     @Override
@@ -849,6 +889,10 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsChallanEntity entity = tdsChallanRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Challan", "id", id));
+        TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(entity.getTdsProfileId(), organizationId).orElse(null);
+        if (profile != null) {
+            validateClientAccess(profile.getClientId());
+        }
 
         if (request.getTdsReturnId() != null) entity.setTdsReturnId(request.getTdsReturnId());
         if (request.getBsrCode() != null) entity.setBsrCode(request.getBsrCode());
@@ -883,7 +927,7 @@ public class TdsServiceImpl implements TdsService {
         if (request.getNotes() != null) entity.setNotes(request.getNotes());
 
         TdsChallanEntity updated = tdsChallanRepository.save(entity);
-        return enrichChallanEntity(updated);
+        return enrichChallanEntity(updated, profile);
     }
 
     // =========================================================================
@@ -897,6 +941,7 @@ public class TdsServiceImpl implements TdsService {
 
         TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(request.getTdsProfileId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", request.getTdsProfileId()));
+        validateClientAccess(profile.getClientId());
 
         BigDecimal totalDeducted = request.getTdsAmount()
                 .add(request.getSurchargeAmount() != null ? request.getSurchargeAmount() : BigDecimal.ZERO)
@@ -951,6 +996,10 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public List<TdsDeducteeEntryDto> getDeducteesByProfile(UUID tdsProfileId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(tdsProfileId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", tdsProfileId));
+        validateClientAccess(profile.getClientId());
+
         return tdsDeducteeEntryRepository.findAllByOrganizationIdAndTdsProfileId(organizationId, tdsProfileId).stream()
                 .map(tdsMapper::toDeducteeDto)
                 .collect(Collectors.toList());
@@ -960,6 +1009,10 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public List<TdsDeducteeEntryDto> getDeducteesByReturn(UUID tdsReturnId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        TdsReturnEntity returnEntity = tdsReturnRepository.findByIdAndOrganizationId(tdsReturnId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", tdsReturnId));
+        validateClientAccess(returnEntity.getClientId());
+
         return tdsDeducteeEntryRepository.findAllByOrganizationIdAndTdsReturnId(organizationId, tdsReturnId).stream()
                 .map(tdsMapper::toDeducteeDto)
                 .collect(Collectors.toList());
@@ -976,6 +1029,7 @@ public class TdsServiceImpl implements TdsService {
 
         TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(request.getTdsProfileId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", request.getTdsProfileId()));
+        validateClientAccess(profile.getClientId());
 
         TdsCertificateEntity entity = TdsCertificateEntity.builder()
                 .tdsProfileId(request.getTdsProfileId())
@@ -1001,6 +1055,10 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public List<TdsCertificateDto> getCertificatesByProfile(UUID tdsProfileId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(tdsProfileId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", tdsProfileId));
+        validateClientAccess(profile.getClientId());
+
         return tdsCertificateRepository.findAllByOrganizationIdAndTdsProfileId(organizationId, tdsProfileId).stream()
                 .map(this::enrichCertificateEntity)
                 .collect(Collectors.toList());
@@ -1012,6 +1070,10 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsCertificateEntity entity = tdsCertificateRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Certificate", "id", id));
+        TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(entity.getTdsProfileId(), organizationId).orElse(null);
+        if (profile != null) {
+            validateClientAccess(profile.getClientId());
+        }
 
         entity.setDispatchStatus(request.getDispatchStatus());
         if (request.getCertificateNumber() != null) entity.setCertificateNumber(request.getCertificateNumber());
@@ -1021,7 +1083,7 @@ public class TdsServiceImpl implements TdsService {
         }
 
         TdsCertificateEntity updated = tdsCertificateRepository.save(entity);
-        return enrichCertificateEntity(updated);
+        return enrichCertificateEntity(updated, profile);
     }
 
     // =========================================================================
@@ -1040,13 +1102,28 @@ public class TdsServiceImpl implements TdsService {
             } catch (Exception ignored) {}
         }
 
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+
         List<TdsProfileEntity> profiles = tdsProfileRepository.findAllByOrganizationId(organizationId);
+        if (!scope.isFirmAdmin()) {
+            profiles = profiles.stream()
+                    .filter(p -> accessibleClientIds != null && accessibleClientIds.contains(p.getClientId()))
+                    .toList();
+        }
+
         int totalTans = profiles.size();
         int activeTans = (int) profiles.stream().filter(p -> p.getStatus() == TdsProfileEntity.TdsProfileStatus.ACTIVE).count();
 
         List<TdsReturnEntity> allReturns = tdsReturnRepository.findAllByOrganizationIdAndQuarterAndFinancialYear(
                 organizationId, quarter != null ? quarter : TdsQuarter.Q1, fy
         );
+
+        if (!scope.isFirmAdmin()) {
+            allReturns = allReturns.stream()
+                    .filter(r -> accessibleClientIds != null && accessibleClientIds.contains(r.getClientId()))
+                    .toList();
+        }
 
         if (assignedEmployeeId != null) {
             allReturns = allReturns.stream().filter(r -> assignedEmployeeId.equals(r.getAssignedEmployeeId())).collect(Collectors.toList());
@@ -1525,9 +1602,9 @@ public class TdsServiceImpl implements TdsService {
     }
 
     private void validateClientAccess(UUID clientId) {
-        if (clientId == null) return;
+        if (clientId == null || securityScopeEvaluator == null) return;
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-        if (!scope.isFirmAdmin()) {
+        if (scope != null && !scope.isFirmAdmin()) {
             Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
             if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to access TDS data for this client.");

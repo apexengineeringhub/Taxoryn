@@ -113,6 +113,7 @@ class OrganizationWorkflowIntegrationTest {
         RegisterOrganizationRequest request = RegisterOrganizationRequest.builder()
                 .organizationName("Vertex Financial Group " + unique)
                 .organizationEmail("contact." + unique + "@vertexgroup.in")
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.GROWING_PRACTICE)
                 .organizationPhone("+919876543210")
                 .pan("AAACT1234A")
                 .gstin("27AAACT1234A1Z5")
@@ -134,6 +135,7 @@ class OrganizationWorkflowIntegrationTest {
 
         OrganizationEntity savedOrg = organizationRepository.findByEmailIgnoreCase("contact." + unique + "@vertexgroup.in").orElseThrow();
         assertEquals(OrganizationStatus.INACTIVE, savedOrg.getStatus());
+        assertEquals(com.taxoryn.module.organization.entity.OrganizationType.GROWING_PRACTICE, savedOrg.getOrganizationType());
 
         UserEntity savedUser = userRepository.findByEmailIgnoreCase("rajesh." + unique + "@vertexgroup.in").orElseThrow();
         assertEquals(UserStatus.INACTIVE, savedUser.getStatus());
@@ -149,6 +151,7 @@ class OrganizationWorkflowIntegrationTest {
         RegisterOrganizationRequest request = RegisterOrganizationRequest.builder()
                 .organizationName("Token Test Org " + unique)
                 .organizationEmail("token." + unique + "@tokentest.in")
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.SMALL_TAX_FIRM)
                 .adminFirstName("Token")
                 .adminLastName("Admin")
                 .adminEmail("tokenadmin." + unique + "@tokentest.in")
@@ -322,6 +325,7 @@ class OrganizationWorkflowIntegrationTest {
         RegisterOrganizationRequest request = RegisterOrganizationRequest.builder()
                 .organizationName("Inactive Login Org " + unique)
                 .organizationEmail("org." + unique + "@taxoryn.com")
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.SOLO_PRACTITIONER)
                 .adminFirstName("Inactive")
                 .adminLastName("User")
                 .adminEmail(adminEmail)

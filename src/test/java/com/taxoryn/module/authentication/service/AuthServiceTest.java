@@ -295,6 +295,7 @@ class AuthServiceTest {
         RegisterOrganizationRequest request = RegisterOrganizationRequest.builder()
                 .organizationName("Sharma Tax Solutions")
                 .organizationEmail("contact@sharmatax.com")
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.SOLO_PRACTITIONER)
                 .adminFirstName("Rajesh")
                 .adminLastName("Sharma")
                 .adminEmail("rajesh@sharmatax.com")

@@ -180,6 +180,7 @@ class SensitiveFieldRedactionSecurityTest {
         RegisterOrganizationRequest request = RegisterOrganizationRequest.builder()
                 .organizationName("Acme Advisors")
                 .organizationEmail(invalidEmail)
+                .organizationType(com.taxoryn.module.organization.entity.OrganizationType.SOLO_PRACTITIONER)
                 .adminFirstName("Rajesh")
                 .adminLastName("Sharma")
                 .adminEmail(invalidEmail)

@@ -218,6 +218,39 @@ export const ClientPortalManagementPage: React.FC = () => {
     }
   }, [activeTab, isPracticeUser, selectedClientId]);
 
+  // Real-time message auto-sync polling heartbeat (every 3 seconds on messages tab)
+  useEffect(() => {
+    if (activeTab !== 'messages') return;
+    if (isPracticeUser && !selectedClientId) return;
+
+    let isSubscribed = true;
+
+    const syncMessages = async () => {
+      try {
+        const msgs = isPracticeUser && selectedClientId
+          ? await portalApi.getPracticeClientMessages(selectedClientId)
+          : await portalApi.getClientMessages();
+
+        if (!isSubscribed) return;
+
+        setMessages((prev) => {
+          if (prev.length === msgs.length && prev.length > 0 && prev[prev.length - 1]?.id === msgs[msgs.length - 1]?.id) {
+            return prev;
+          }
+          return msgs;
+        });
+      } catch {
+        // silent catch on background sync
+      }
+    };
+
+    const interval = setInterval(syncMessages, 3000);
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [activeTab, isPracticeUser, selectedClientId]);
+
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     if (activeTab === 'messages') {

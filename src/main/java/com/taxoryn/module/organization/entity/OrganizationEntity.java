@@ -70,6 +70,11 @@ public class OrganizationEntity extends AuditableEntity {
     private OrganizationStatus status = OrganizationStatus.ACTIVE;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "organization_type", nullable = false, length = 50)
+    @Builder.Default
+    private OrganizationType organizationType = OrganizationType.UNKNOWN;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "subscription_plan", nullable = false, length = 50)
     @Builder.Default
     private SubscriptionPlan subscriptionPlan = SubscriptionPlan.STARTER;

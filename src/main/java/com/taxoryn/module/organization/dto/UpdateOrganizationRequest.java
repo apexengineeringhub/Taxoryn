@@ -64,4 +64,7 @@ public class UpdateOrganizationRequest {
     @Size(max = 50, message = "Tax registration number cannot exceed 50 characters")
     @Schema(description = "Tax registration number", example = "LLPIN-AAO-1234")
     private String taxRegistrationNumber;
+
+    @Schema(description = "Organization customer segment classification", example = "GROWING_PRACTICE")
+    private com.taxoryn.module.organization.entity.OrganizationType organizationType;
 }

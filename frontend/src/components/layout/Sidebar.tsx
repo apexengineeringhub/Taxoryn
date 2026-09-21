@@ -132,6 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'WORK',
       items: [
         { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+        { label: 'Team Chat', path: '/chat', icon: MessageSquare },
         { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'] },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'] },
       ],

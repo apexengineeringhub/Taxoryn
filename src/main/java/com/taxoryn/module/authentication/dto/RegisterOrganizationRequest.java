@@ -40,6 +40,11 @@ public class RegisterOrganizationRequest {
     @Schema(description = "Entity GSTIN", example = "27ABCDE1234F1Z5")
     private String gstin;
 
+    @jakarta.validation.constraints.NotNull(message = "Organization type is required")
+    @com.taxoryn.module.organization.validation.ValidRegistrationOrganizationType
+    @Schema(description = "Customer segment / how you will use Taxoryn", example = "SOLO_PRACTITIONER", allowableValues = {"SOLO_PRACTITIONER", "SMALL_TAX_FIRM", "GROWING_PRACTICE", "BUSINESS"})
+    private com.taxoryn.module.organization.entity.OrganizationType organizationType;
+
     // Administrator Details
     @NotBlank(message = "Admin first name is required")
     @Size(min = 2, max = 100, message = "First name must be between 2 and 100 characters")

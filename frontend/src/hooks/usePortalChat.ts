@@ -9,6 +9,26 @@ interface UsePortalChatOptions {
   onMessagesRead?: () => void;
 }
 
+const resolveWebSocketBaseUrl = (): string => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  if (apiBaseUrl && (apiBaseUrl.startsWith('http://') || apiBaseUrl.startsWith('https://'))) {
+    const wsProto = apiBaseUrl.startsWith('https://') ? 'wss:' : 'ws:';
+    const parsed = new URL(apiBaseUrl);
+    return `${wsProto}//${parsed.host}`;
+  }
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${protocol}//${window.location.host}`;
+    }
+  }
+  // Production Cloud Deployment (direct connection to backend on Render)
+  return 'wss://taxoryn.onrender.com';
+};
+
 export const usePortalChat = ({
   clientId,
   isPracticeUser,
@@ -42,10 +62,9 @@ export const usePortalChat = ({
     }
 
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
+      const wsBase = resolveWebSocketBaseUrl();
       const targetClientId = clientId || '';
-      const wsUrl = `${protocol}//${host}/ws/portal-chat?token=${encodeURIComponent(token)}${
+      const wsUrl = `${wsBase}/ws/portal-chat?token=${encodeURIComponent(token)}${
         targetClientId ? `&clientId=${encodeURIComponent(targetClientId)}` : ''
       }`;
 

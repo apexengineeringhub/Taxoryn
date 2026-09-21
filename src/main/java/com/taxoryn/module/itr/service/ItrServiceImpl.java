@@ -109,6 +109,7 @@ public class ItrServiceImpl implements ItrService {
         }
 
         ClientEntity client = resolveOrCreateClient(request.getClientId(), formattedPan, request.getDisplayName(), request.getLegalName(), request.getTaxpayerType(), organizationId);
+        validateClientAccess(client.getId());
 
         if (itrProfileRepository.existsByOrganizationIdAndClientId(organizationId, client.getId())) {
             throw new DuplicateResourceException("ITR Profile", "clientId", client.getId().toString());
@@ -224,6 +225,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrProfileEntity profile = itrProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Profile", "id", id));
+        validateClientAccess(profile.getClientId());
 
         ItrProfileDto oldSnapshot = enrichProfileDto(profile);
 
@@ -262,6 +264,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrProfileEntity profile = itrProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Profile", "id", id));
+        validateClientAccess(profile.getClientId());
 
         return enrichProfileDto(profile);
     }
@@ -270,6 +273,7 @@ public class ItrServiceImpl implements ItrService {
     @Transactional(readOnly = true)
     public ItrProfileDto getProfileByClientId(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        validateClientAccess(clientId);
         ItrProfileEntity profile = itrProfileRepository.findByOrganizationIdAndClientId(organizationId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Profile for Client", "clientId", clientId));
 
@@ -296,6 +300,7 @@ public class ItrServiceImpl implements ItrService {
         if (client == null) {
             throw new ResourceNotFoundException("Client", "clientId/pan", request.getClientId() != null ? request.getClientId() : request.getPan());
         }
+        validateClientAccess(client.getId());
 
         String formattedAy = request.getAssessmentYear().trim();
         if (itrReturnRepository.existsByOrganizationIdAndClientIdAndAssessmentYear(organizationId, client.getId(), formattedAy)) {
@@ -578,6 +583,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         ItrReturnDto oldSnapshot = enrichReturnDto(entity);
 
@@ -608,6 +614,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         return enrichReturnDto(entity);
     }
@@ -663,6 +670,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         ItrStatus oldStatus = entity.getStatus();
         entity.setStatus(request.getStatus());
@@ -712,6 +720,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         ItrReturnDto oldSnapshot = enrichReturnDto(entity);
         ItrStatus oldStatus = entity.getStatus();
@@ -745,6 +754,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         employeeRepository.findByIdAndOrganizationId(request.getEmployeeId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.getEmployeeId()));
@@ -761,6 +771,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         if (entity.getTaskId() == null) {
             ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), organizationId)
@@ -779,6 +790,7 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         request.setClientId(entity.getClientId());
         request.setTaskId(entity.getTaskId());
@@ -835,8 +847,9 @@ public class ItrServiceImpl implements ItrService {
     @Transactional(readOnly = true)
     public List<DocumentDto> getReturnDocuments(UUID id) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
+        ItrReturnEntity entity = itrReturnRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Return", "id", id));
+        validateClientAccess(entity.getClientId());
 
         return documentRepository.findAllByOrganizationIdAndItrReturnIdAndStatus(organizationId, id, DocumentStatus.ACTIVE)
                 .stream().map(documentMapper::toDto).toList();
@@ -857,6 +870,16 @@ public class ItrServiceImpl implements ItrService {
         List<ItrReturnEntity> list = itrReturnRepository.findAllByOrganizationIdAndDueDateBetweenAndStatusNotIn(
                 organizationId, today, cutoff, excluded);
 
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope != null && !scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                list = List.of();
+            } else {
+                list = list.stream().filter(r -> r.getClientId() != null && accessibleClientIds.contains(r.getClientId())).toList();
+            }
+        }
+
         return list.stream().map(this::enrichReturnDto).toList();
     }
 
@@ -870,6 +893,16 @@ public class ItrServiceImpl implements ItrService {
         List<ItrReturnEntity> list = itrReturnRepository.findAllByOrganizationIdAndDueDateBetweenAndStatusNotIn(
                 organizationId, LocalDate.of(2000, 1, 1), today.minusDays(1), excluded);
 
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope != null && !scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                list = List.of();
+            } else {
+                list = list.stream().filter(r -> r.getClientId() != null && accessibleClientIds.contains(r.getClientId())).toList();
+            }
+        }
+
         return list.stream().map(this::enrichReturnDto).toList();
     }
 
@@ -877,6 +910,7 @@ public class ItrServiceImpl implements ItrService {
     @Transactional(readOnly = true)
     public List<ItrReturnDto> getClientItrHistory(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        validateClientAccess(clientId);
         List<ItrReturnEntity> list = itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(organizationId, clientId);
         return list.stream().map(this::enrichReturnDto).toList();
     }
@@ -888,6 +922,17 @@ public class ItrServiceImpl implements ItrService {
         String targetAy = StringUtils.hasText(assessmentYear) ? assessmentYear.trim() : deriveCurrentAssessmentYear();
 
         List<ItrReturnEntity> returns = itrReturnRepository.findAllByOrganizationIdAndAssessmentYear(organizationId, targetAy);
+
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope != null && !scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                returns = List.of();
+            } else {
+                returns = returns.stream().filter(r -> r.getClientId() != null && accessibleClientIds.contains(r.getClientId())).toList();
+            }
+        }
+
         if (assignedEmployeeId != null) {
             returns = returns.stream().filter(r -> assignedEmployeeId.equals(r.getAssignedEmployeeId())).toList();
         }
@@ -1330,5 +1375,19 @@ public class ItrServiceImpl implements ItrService {
             }
         }
         return results;
+    }
+
+    private void validateClientAccess(UUID clientId) {
+        if (clientId == null) {
+            return;
+        }
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope != null && !scope.isFirmAdmin()) {
+            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission to access records for this client.");
+            }
+        }
     }
 }

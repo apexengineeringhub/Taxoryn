@@ -74,6 +74,10 @@ public class CreateOrganizationRequest {
     private String taxRegistrationNumber;
 
     @Builder.Default
+    @Schema(description = "Organization customer segment classification", example = "SOLO_PRACTITIONER")
+    private com.taxoryn.module.organization.entity.OrganizationType organizationType = com.taxoryn.module.organization.entity.OrganizationType.UNKNOWN;
+
+    @Builder.Default
     @Schema(description = "Subscription tier plan")
     private SubscriptionPlan subscriptionPlan = SubscriptionPlan.STARTER;
 }

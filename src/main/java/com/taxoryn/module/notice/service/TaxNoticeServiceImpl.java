@@ -175,6 +175,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client not found with id: " + request.getClientId()));
 
+        validateClientAccess(client.getId());
+
         // 2. Uniqueness check
         if (noticeRepository.existsByOrganizationIdAndNoticeNumber(organizationId, request.getNoticeNumber())) {
             throw new BusinessValidationException("A tax notice with number '" + request.getNoticeNumber() + "' already exists in this organization");
@@ -253,6 +255,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity entity = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
+        validateClientAccess(entity.getClientId());
+
         if (StringUtils.hasText(request.getNoticeNumber()) && !request.getNoticeNumber().equals(entity.getNoticeNumber())) {
             if (noticeRepository.existsByOrganizationIdAndNoticeNumberAndIdNot(organizationId, request.getNoticeNumber(), noticeId)) {
                 throw new BusinessValidationException("A tax notice with number '" + request.getNoticeNumber() + "' already exists");
@@ -263,6 +267,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         if (request.getClientId() != null && !request.getClientId().equals(entity.getClientId())) {
             clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Client not found with id: " + request.getClientId()));
+            validateClientAccess(request.getClientId());
             entity.setClientId(request.getClientId());
         }
 
@@ -325,6 +330,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity entity = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
+        validateClientAccess(entity.getClientId());
+
         auditService.logEvent("NOTICE_DELETED", "TAX_NOTICE", noticeId.toString(), entity, null);
         noticeRepository.delete(entity);
     }
@@ -333,56 +340,82 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     @Transactional(readOnly = true)
     public NoticeDashboardStatsDto getDashboardStats() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+
         LocalDate today = LocalDate.now();
         LocalDate weekEnd = today.plusDays(7);
-        LocalDate monthStart = today.withDayOfMonth(1);
 
-        long totalActive = noticeRepository.countByOrganizationIdAndStatusIn(organizationId,
-                EnumSetExcept(CLOSED_STATUSES));
+        List<TaxNoticeEntity> notices;
+        if (!scope.isFirmAdmin()) {
+            if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                notices = List.of();
+            } else {
+                notices = noticeRepository.findAll(buildSpecification(organizationId, null, accessibleClientIds));
+            }
+        } else {
+            notices = noticeRepository.findAll(buildSpecification(organizationId, null, null));
+        }
 
-        long overdue = noticeRepository.countByOrganizationIdAndStatusInAndResponseDueDateBefore(organizationId,
-                EnumSetExcept(CLOSED_STATUSES), today);
+        long totalActive = 0;
+        long overdue = 0;
+        long dueToday = 0;
+        long dueThisWeek = 0;
+        long pendingReview = 0;
+        long pendingPartner = 0;
+        long upcomingHearings = 0;
+        long critical = 0;
+        long resolvedThisMonth = 0;
+        BigDecimal totalDemand = BigDecimal.ZERO;
 
-        long dueToday = noticeRepository.countByOrganizationIdAndStatusInAndResponseDueDate(organizationId,
-                EnumSetExcept(CLOSED_STATUSES), today);
-
-        long dueThisWeek = noticeRepository.countByOrganizationIdAndStatusInAndResponseDueDateBetween(organizationId,
-                EnumSetExcept(CLOSED_STATUSES), today, weekEnd);
-
-        long pendingReview = noticeRepository.countByOrganizationIdAndStatus(organizationId, NoticeStatus.INTERNAL_REVIEW);
-        long pendingPartner = noticeRepository.countByOrganizationIdAndStatus(organizationId, NoticeStatus.PARTNER_APPROVED);
-
-        long upcomingHearings = noticeRepository.countByOrganizationIdAndHearingDateGreaterThanEqualAndStatusNotIn(
-                organizationId, today, CLOSED_STATUSES);
-
-        long critical = noticeRepository.countByOrganizationIdAndStatusInAndPriority(organizationId,
-                EnumSetExcept(CLOSED_STATUSES), NoticePriority.CRITICAL);
-
-        long resolvedThisMonth = noticeRepository.countByOrganizationIdAndStatus(organizationId, NoticeStatus.RESOLVED);
-
-        BigDecimal totalDemand = noticeRepository.sumActiveDemandAmount(organizationId, CLOSED_STATUSES);
-
-        // Group by department
         Map<NoticeDepartment, Long> byDepartment = new EnumMap<>(NoticeDepartment.class);
         for (NoticeDepartment dept : NoticeDepartment.values()) {
             byDepartment.put(dept, 0L);
         }
-        for (Object[] row : noticeRepository.countActiveByDepartment(organizationId, CLOSED_STATUSES)) {
-            if (row[0] != null && row[1] != null) {
-                NoticeDepartment dept = (NoticeDepartment) row[0];
-                byDepartment.put(dept, (Long) row[1]);
-            }
-        }
 
-        // Group by status
         Map<NoticeStatus, Long> byStatus = new EnumMap<>(NoticeStatus.class);
         for (NoticeStatus st : NoticeStatus.values()) {
             byStatus.put(st, 0L);
         }
-        for (Object[] row : noticeRepository.countByStatusGrouped(organizationId)) {
-            if (row[0] != null && row[1] != null) {
-                NoticeStatus st = (NoticeStatus) row[0];
-                byStatus.put(st, (Long) row[1]);
+
+        for (TaxNoticeEntity n : notices) {
+            if (n.getStatus() != null) {
+                byStatus.put(n.getStatus(), byStatus.getOrDefault(n.getStatus(), 0L) + 1);
+            }
+            if (n.getDepartment() != null && !CLOSED_STATUSES.contains(n.getStatus())) {
+                byDepartment.put(n.getDepartment(), byDepartment.getOrDefault(n.getDepartment(), 0L) + 1);
+            }
+
+            if (!CLOSED_STATUSES.contains(n.getStatus())) {
+                totalActive++;
+                if (n.getDemandAmount() != null) {
+                    totalDemand = totalDemand.add(n.getDemandAmount());
+                }
+                if (n.getResponseDueDate() != null) {
+                    if (n.getResponseDueDate().isBefore(today)) {
+                        overdue++;
+                    }
+                    if (n.getResponseDueDate().isEqual(today)) {
+                        dueToday++;
+                    }
+                    if (!n.getResponseDueDate().isBefore(today) && !n.getResponseDueDate().isAfter(weekEnd)) {
+                        dueThisWeek++;
+                    }
+                }
+                if (n.getPriority() == NoticePriority.CRITICAL) {
+                    critical++;
+                }
+                if (n.getHearingDate() != null && !n.getHearingDate().isBefore(today)) {
+                    upcomingHearings++;
+                }
+            }
+
+            if (n.getStatus() == NoticeStatus.INTERNAL_REVIEW) {
+                pendingReview++;
+            } else if (n.getStatus() == NoticeStatus.PARTNER_APPROVED) {
+                pendingPartner++;
+            } else if (n.getStatus() == NoticeStatus.RESOLVED) {
+                resolvedThisMonth++;
             }
         }
 
@@ -396,7 +429,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 .upcomingHearingsCount(upcomingHearings)
                 .criticalPriorityCount(critical)
                 .resolvedThisMonthCount(resolvedThisMonth)
-                .totalDemandUnderDispute(totalDemand != null ? totalDemand : BigDecimal.ZERO)
+                .totalDemandUnderDispute(totalDemand)
                 .byDepartment(byDepartment)
                 .byStatus(byStatus)
                 .build();
@@ -406,6 +439,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     @Transactional(readOnly = true)
     public List<TaxNoticeDto> getNoticesByClient(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        validateClientAccess(clientId);
         return noticeRepository.findAllByOrganizationIdAndClientId(organizationId, clientId).stream()
                 .map(this::enrichNoticeDto)
                 .collect(Collectors.toList());
@@ -415,6 +449,15 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     @Transactional(readOnly = true)
     public PagedResponse<ClientNoticeDto> getClientPortalNotices(UUID clientId, PageRequestDto pageRequest) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (SecurityUtils.isClientPortalUser()) {
+            UUID callerClientId = SecurityUtils.getCurrentClientId().orElse(null);
+            if (!Objects.equals(callerClientId, clientId)) {
+                throw new ForbiddenException("Access denied: You can only view notices for your own account");
+            }
+        } else {
+            validateClientAccess(clientId);
+        }
+
         Pageable pageable = pageRequest != null ? pageRequest.toPageable() : PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "receivedDate"));
         Page<TaxNoticeEntity> page = noticeRepository.findAllByOrganizationIdAndClientId(organizationId, clientId, pageable);
 
@@ -442,8 +485,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     public List<NoticeResponseDto> getResponses(UUID noticeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         // 1. Verify Notice exists in the current organization
-        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+        TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         List<NoticeResponseEntity> responses = responseRepository.findAllByOrganizationIdAndNoticeIdOrderByResponseVersionDesc(organizationId, noticeId);
         return responses.stream().map(this::enrichResponseDto).collect(Collectors.toList());
@@ -454,8 +499,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     public NoticeResponseDto getResponseById(UUID noticeId, UUID responseId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         // 1. Verify Notice exists in the current organization
-        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+        TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         // 2. Verify Response exists, belongs to current organization, and belongs to supplied noticeId
         NoticeResponseEntity entity = responseRepository.findByIdAndNoticeIdAndOrganizationId(responseId, noticeId, organizationId)
@@ -472,6 +519,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         // 1. Verify Notice exists in the current organization
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         Integer currentMaxVersion = responseRepository.findMaxVersionByNoticeId(organizationId, noticeId);
         int nextVersion = currentMaxVersion != null ? currentMaxVersion + 1 : 1;
@@ -523,6 +572,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
+        validateClientAccess(notice.getClientId());
+
         // 2. Verify Response exists, belongs to current organization, and belongs to supplied noticeId
         NoticeResponseEntity response = responseRepository.findByIdAndNoticeIdAndOrganizationId(responseId, noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notice response not found with id: " + responseId));
@@ -534,8 +585,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 response.setReviewStatus(ReviewStatus.PENDING_REVIEW);
                 notice.setStatus(NoticeStatus.INTERNAL_REVIEW);
                 recordActivity(noticeId, NoticeActivityType.RESPONSE_SUBMITTED_FOR_REVIEW, currentUserId,
-                        "Response draft v" + response.getResponseVersion() + " submitted for internal review",
-                        null, ReviewStatus.PENDING_REVIEW.name(), request.getComments());
+                    "Response draft v" + response.getResponseVersion() + " submitted for internal review",
+                    null, ReviewStatus.PENDING_REVIEW.name(), request.getComments());
             }
             case "APPROVE_REVIEW", "APPROVE" -> {
                 // Maker-Checker validation: Reviewer must not be the one who prepared the response
@@ -595,8 +646,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     public List<NoticeHearingDto> getHearings(UUID noticeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         // 1. Verify Notice exists in the current organization
-        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+        TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         List<NoticeHearingEntity> hearings = hearingRepository.findAllByOrganizationIdAndNoticeIdOrderByHearingDateDesc(organizationId, noticeId);
         return hearings.stream().map(this::enrichHearingDto).collect(Collectors.toList());
@@ -610,6 +663,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
 
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         NoticeHearingEntity hearing = NoticeHearingEntity.builder()
                 .noticeId(noticeId)
@@ -653,6 +708,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
+        validateClientAccess(notice.getClientId());
+
         // 2. Verify Hearing exists, belongs to current organization, and belongs to supplied noticeId
         NoticeHearingEntity hearing = hearingRepository.findByIdAndNoticeIdAndOrganizationId(hearingId, noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hearing not found with id: " + hearingId));
@@ -690,6 +747,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
 
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         NoticeStatus oldStatus = notice.getStatus();
         notice.setStatus(NoticeStatus.SUBMITTED);
@@ -747,6 +806,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
+        validateClientAccess(notice.getClientId());
+
         NoticeStatus oldStatus = notice.getStatus();
         notice.setStatus(request.getClosureStatus());
         notice.setClosureDate(request.getClosureDate() != null ? request.getClosureDate() : LocalDate.now());
@@ -780,8 +841,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     public List<NoticeActivityDto> getActivities(UUID noticeId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         // 1. Verify Notice exists in current organization
-        noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+        TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         List<NoticeActivityEntity> activities = activityRepository.findAllByOrganizationIdAndNoticeIdOrderByCreatedAtDesc(organizationId, noticeId);
         return noticeMapper.toActivityDtoList(activities);
@@ -795,6 +858,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
 
         TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
 
         if (!StringUtils.hasText(note)) {
             throw new BusinessValidationException("Internal note cannot be empty");
