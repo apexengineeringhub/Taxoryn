@@ -177,6 +177,20 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
 
         validateClientAccess(client.getId());
 
+        // 1b. Verify Employees if provided
+        if (request.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assigned employee not found with id: " + request.getAssignedEmployeeId()));
+        }
+        if (request.getReviewerEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getReviewerEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Reviewer employee not found with id: " + request.getReviewerEmployeeId()));
+        }
+        if (request.getPartnerEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getPartnerEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Partner employee not found with id: " + request.getPartnerEmployeeId()));
+        }
+
         // 2. Uniqueness check
         if (noticeRepository.existsByOrganizationIdAndNoticeNumber(organizationId, request.getNoticeNumber())) {
             throw new BusinessValidationException("A tax notice with number '" + request.getNoticeNumber() + "' already exists in this organization");
@@ -303,14 +317,24 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
 
         UUID oldAssignee = entity.getAssignedEmployeeId();
         if (request.getAssignedEmployeeId() != null && !request.getAssignedEmployeeId().equals(oldAssignee)) {
+            employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assigned employee not found with id: " + request.getAssignedEmployeeId()));
             entity.setAssignedEmployeeId(request.getAssignedEmployeeId());
             recordActivity(entity.getId(), NoticeActivityType.ASSIGNMENT_CHANGED, currentUserId,
                     "Assigned employee updated", oldAssignee != null ? oldAssignee.toString() : "None",
                     request.getAssignedEmployeeId().toString(), null);
         }
 
-        if (request.getReviewerEmployeeId() != null) entity.setReviewerEmployeeId(request.getReviewerEmployeeId());
-        if (request.getPartnerEmployeeId() != null) entity.setPartnerEmployeeId(request.getPartnerEmployeeId());
+        if (request.getReviewerEmployeeId() != null && !request.getReviewerEmployeeId().equals(entity.getReviewerEmployeeId())) {
+            employeeRepository.findByIdAndOrganizationId(request.getReviewerEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Reviewer employee not found with id: " + request.getReviewerEmployeeId()));
+            entity.setReviewerEmployeeId(request.getReviewerEmployeeId());
+        }
+        if (request.getPartnerEmployeeId() != null && !request.getPartnerEmployeeId().equals(entity.getPartnerEmployeeId())) {
+            employeeRepository.findByIdAndOrganizationId(request.getPartnerEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Partner employee not found with id: " + request.getPartnerEmployeeId()));
+            entity.setPartnerEmployeeId(request.getPartnerEmployeeId());
+        }
         if (request.getIssuingAuthority() != null) entity.setIssuingAuthority(request.getIssuingAuthority());
         if (request.getIssuingOfficerName() != null) entity.setIssuingOfficerName(request.getIssuingOfficerName());
         if (request.getHearingDate() != null) entity.setHearingDate(request.getHearingDate());
@@ -665,6 +689,15 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
         validateClientAccess(notice.getClientId());
+
+        if (request.getDesignatedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getDesignatedEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Designated employee not found with id: " + request.getDesignatedEmployeeId()));
+        }
+        if (request.getDesignatedPartnerId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getDesignatedPartnerId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Designated partner not found with id: " + request.getDesignatedPartnerId()));
+        }
 
         NoticeHearingEntity hearing = NoticeHearingEntity.builder()
                 .noticeId(noticeId)
