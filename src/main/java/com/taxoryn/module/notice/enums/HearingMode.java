@@ -1,7 +1,10 @@
 package com.taxoryn.module.notice.enums;
 
 public enum HearingMode {
-    VIRTUAL_VC,
     PHYSICAL,
+    VIDEO,
+    TELEPHONIC,
+    OTHER,
+    VIRTUAL_VC,
     WRITTEN_SUBMISSION_ONLY
 }

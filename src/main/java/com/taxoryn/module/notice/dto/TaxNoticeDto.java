@@ -1,7 +1,10 @@
 package com.taxoryn.module.notice.dto;
 
+import com.taxoryn.module.notice.enums.HearingMode;
+import com.taxoryn.module.notice.enums.HearingStatus;
 import com.taxoryn.module.notice.enums.NoticeDepartment;
 import com.taxoryn.module.notice.enums.NoticePriority;
+import com.taxoryn.module.notice.enums.NoticeResponseStatus;
 import com.taxoryn.module.notice.enums.NoticeStatus;
 import com.taxoryn.module.notice.enums.SubmissionMode;
 import lombok.AllArgsConstructor;
@@ -44,8 +47,29 @@ public class TaxNoticeDto {
     private LocalDate responseDueDate;
     private Long daysRemaining;
     private Boolean isOverdue;
+
+    // Response Management
+    private Boolean responseRequired;
+    private NoticeResponseStatus responseStatus;
+    private String responseDraft;
+    private Instant responseSubmittedAt;
+    private UUID responseSubmittedBy;
+    private String responseSubmittedByName;
+    private String submissionReference;
+    private String submissionNotes;
+
+    // Hearing Management
+    private Boolean hearingRequired;
     private LocalDate hearingDate;
     private String hearingTime;
+    private HearingMode hearingMode;
+    private String hearingLocation;
+    private String hearingReference;
+    private String hearingNotes;
+    private String hearingOutcome;
+    private HearingStatus hearingStatus;
+
+    // Case Status & Priority
     private NoticeStatus status;
     private NoticePriority priority;
 

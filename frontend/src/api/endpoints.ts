@@ -31,6 +31,8 @@ import {
   OrganizationModule,
   ProductModule,
   ProductModuleCode,
+  TaxNoticeConfig,
+  UpdateTaxNoticeConfigRequest,
   DocumentRequest,
   DocumentRequestItem,
   CreateDocumentRequest,
@@ -163,6 +165,9 @@ import {
   NoticeDashboardStats,
   CreateTaxNoticeRequest,
   UpdateTaxNoticeRequest,
+  UpdateNoticeResponseRequest,
+  UpdateNoticeHearingRequest,
+  AdjournHearingRequest,
   TaxNoticeFilterRequest,
   CreateNoticeResponseRequest,
   ReviewNoticeResponseRequest,
@@ -2509,6 +2514,35 @@ export const noticesApi = {
     const res = await apiClient.post<ApiResponse<void>>(`/v1/notices/${noticeId}/notes`, { note });
     return res.data;
   },
+  // Phase 8.2 Direct Notice Response & Hearing Management
+  updateNoticeResponse: async (id: string, payload: UpdateNoticeResponseRequest) => {
+    const res = await apiClient.put<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/response`, payload);
+    return res.data.data;
+  },
+  draftNoticeResponse: async (id: string, payload: { responseDraft: string; responseStatus?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/response/draft`, payload);
+    return res.data.data;
+  },
+  submitNoticeResponse: async (id: string, payload: { submissionReference?: string; submissionNotes?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/response/submit`, payload);
+    return res.data.data;
+  },
+  updateNoticeHearing: async (id: string, payload: UpdateNoticeHearingRequest) => {
+    const res = await apiClient.put<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing`, payload);
+    return res.data.data;
+  },
+  completeHearing: async (id: string, payload: { hearingOutcome: string; hearingNotes?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing/complete`, payload);
+    return res.data.data;
+  },
+  adjournHearing: async (id: string, payload: AdjournHearingRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing/adjourn`, payload);
+    return res.data.data;
+  },
+  cancelHearing: async (id: string, payload: { cancellationReason?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing/cancel`, payload);
+    return res.data.data;
+  },
   // Client Portal Notices
   getClientPortalNotices: async (params?: { page?: number; size?: number }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ClientNotice>>>('/v1/portal/notices', { params });
@@ -2558,6 +2592,21 @@ export const moduleConfigApi = {
   },
   getProductModuleCatalog: async (): Promise<ProductModule[]> => {
     const res = await apiClient.get<ApiResponse<ProductModule[]>>('/v1/organizations/modules/catalog');
+    return res.data.data;
+  },
+};
+
+export const taxNoticeConfigApi = {
+  getConfig: async (): Promise<TaxNoticeConfig> => {
+    const res = await apiClient.get<ApiResponse<TaxNoticeConfig>>('/v1/tax-notices/config');
+    return res.data.data;
+  },
+  updateConfig: async (payload: UpdateTaxNoticeConfigRequest): Promise<TaxNoticeConfig> => {
+    const res = await apiClient.put<ApiResponse<TaxNoticeConfig>>('/v1/tax-notices/config', payload);
+    return res.data.data;
+  },
+  resetToPersonaDefaults: async (): Promise<TaxNoticeConfig> => {
+    const res = await apiClient.post<ApiResponse<TaxNoticeConfig>>('/v1/tax-notices/config/reset');
     return res.data.data;
   },
 };

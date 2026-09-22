@@ -174,6 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       items: [
         { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Modules & Features', path: '/settings/modules', icon: Layers, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Notice Operations', path: '/settings/tax-notices', icon: Scale, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
         { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
         { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
@@ -191,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   ];
 
   // Check if current route is inside administration to auto-expand
-  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules'];
+  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules', '/settings/tax-notices'];
   const isAdminRouteActive = adminRoutes.some((p) => location.pathname.startsWith(p));
 
   const [isAdminExpanded, setIsAdminExpanded] = useState<boolean>(() => {

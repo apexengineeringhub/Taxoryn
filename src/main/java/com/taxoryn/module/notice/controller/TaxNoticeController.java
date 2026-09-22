@@ -3,6 +3,7 @@ package com.taxoryn.module.notice.controller;
 import com.taxoryn.core.dto.PageRequestDto;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.module.notice.dto.AdjournHearingRequest;
 import com.taxoryn.module.notice.dto.CloseNoticeRequest;
 import com.taxoryn.module.notice.dto.CreateNoticeResponseRequest;
 import com.taxoryn.module.notice.dto.CreateTaxNoticeRequest;
@@ -16,7 +17,10 @@ import com.taxoryn.module.notice.dto.ScheduleHearingRequest;
 import com.taxoryn.module.notice.dto.SubmitNoticeRequest;
 import com.taxoryn.module.notice.dto.TaxNoticeDto;
 import com.taxoryn.module.notice.dto.TaxNoticeFilterRequest;
+import com.taxoryn.module.notice.dto.UpdateNoticeHearingRequest;
+import com.taxoryn.module.notice.dto.UpdateNoticeResponseRequest;
 import com.taxoryn.module.notice.dto.UpdateTaxNoticeRequest;
+import com.taxoryn.module.notice.enums.HearingStatus;
 import com.taxoryn.module.notice.service.TaxNoticeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -112,8 +116,39 @@ public class TaxNoticeController {
     }
 
     // ==========================================
-    // Response Drafting & Review
+    // Response Management & Workflow
     // ==========================================
+
+    @PutMapping("/{id}/response")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasAuthority('NOTICE_RESPONSE_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Update response information on notice")
+    public ResponseEntity<ApiResponse<TaxNoticeDto>> updateNoticeResponse(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateNoticeResponseRequest request) {
+        TaxNoticeDto notice = noticeService.updateNoticeResponse(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Notice response updated successfully", notice));
+    }
+
+    @PostMapping("/{id}/response/draft")
+    @PreAuthorize("hasAuthority('NOTICE_RESPONSE_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
+    @Operation(summary = "Draft a new response version for notice")
+    public ResponseEntity<ApiResponse<NoticeResponseDto>> draftNoticeResponse(
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateNoticeResponseRequest request) {
+        NoticeResponseDto response = noticeService.draftNoticeResponse(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Response draft created successfully", response));
+    }
+
+    @PostMapping("/{id}/response/submit")
+    @PreAuthorize("hasAuthority('NOTICE_SUBMIT') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Record response filing and portal acknowledgement")
+    public ResponseEntity<ApiResponse<TaxNoticeDto>> submitNoticeResponse(
+            @PathVariable UUID id,
+            @Valid @RequestBody SubmitNoticeRequest request) {
+        TaxNoticeDto notice = noticeService.submitNoticeResponse(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Notice response submitted successfully", notice));
+    }
 
     @GetMapping("/{id}/responses")
     @PreAuthorize("hasAuthority('NOTICE_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
@@ -156,8 +191,53 @@ public class TaxNoticeController {
     }
 
     // ==========================================
-    // Hearings & Proceedings
+    // Hearing Management & Workflow
     // ==========================================
+
+    @PutMapping("/{id}/hearing")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Update hearing information on notice")
+    public ResponseEntity<ApiResponse<TaxNoticeDto>> updateNoticeHearing(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateNoticeHearingRequest request) {
+        TaxNoticeDto notice = noticeService.updateNoticeHearing(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Notice hearing updated successfully", notice));
+    }
+
+    @PostMapping("/{id}/hearing/complete")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Mark notice hearing as completed")
+    public ResponseEntity<ApiResponse<NoticeHearingDto>> completeHearing(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID hearingId,
+            @RequestBody(required = false) RecordHearingOutcomeRequest request) {
+        RecordHearingOutcomeRequest req = request != null ? request : RecordHearingOutcomeRequest.builder().status(HearingStatus.COMPLETED).build();
+        NoticeHearingDto hearing = noticeService.completeHearing(id, hearingId, req);
+        return ResponseEntity.ok(ApiResponse.success("Hearing marked completed successfully", hearing));
+    }
+
+    @PostMapping("/{id}/hearing/adjourn")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Adjourn notice hearing to next date")
+    public ResponseEntity<ApiResponse<NoticeHearingDto>> adjournHearing(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID hearingId,
+            @Valid @RequestBody AdjournHearingRequest request) {
+        NoticeHearingDto hearing = noticeService.adjournHearing(id, hearingId, request);
+        return ResponseEntity.ok(ApiResponse.success("Hearing adjourned successfully", hearing));
+    }
+
+    @PostMapping("/{id}/hearing/cancel")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Cancel notice hearing")
+    public ResponseEntity<ApiResponse<NoticeHearingDto>> cancelHearing(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID hearingId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : "Hearing cancelled";
+        NoticeHearingDto hearing = noticeService.cancelHearing(id, hearingId, reason);
+        return ResponseEntity.ok(ApiResponse.success("Hearing cancelled successfully", hearing));
+    }
 
     @GetMapping("/{id}/hearings")
     @PreAuthorize("hasAuthority('NOTICE_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")

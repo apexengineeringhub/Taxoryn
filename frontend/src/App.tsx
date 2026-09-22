@@ -63,6 +63,7 @@ const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ 
 const NoticeCenterPage = React.lazy(() => import('./pages/NoticeCenterPage').then(m => ({ default: m.NoticeCenterPage })));
 const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').then(m => ({ default: m.NoticeDetailPage })));
 const ProductModulesPage = React.lazy(() => import('./pages/ProductModulesPage').then(m => ({ default: m.ProductModulesPage })));
+const TaxNoticeSettingsPage = React.lazy(() => import('./pages/TaxNoticeSettingsPage').then(m => ({ default: m.TaxNoticeSettingsPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import {
@@ -487,6 +488,14 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
                     <ProductModulesPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/tax-notices"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                    <TaxNoticeSettingsPage />
                   </RoleRouteGuard>
                 }
               />

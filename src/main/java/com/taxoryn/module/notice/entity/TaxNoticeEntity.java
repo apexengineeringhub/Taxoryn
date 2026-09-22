@@ -1,8 +1,11 @@
 package com.taxoryn.module.notice.entity;
 
 import com.taxoryn.core.domain.TenantAuditableEntity;
+import com.taxoryn.module.notice.enums.HearingMode;
+import com.taxoryn.module.notice.enums.HearingStatus;
 import com.taxoryn.module.notice.enums.NoticeDepartment;
 import com.taxoryn.module.notice.enums.NoticePriority;
+import com.taxoryn.module.notice.enums.NoticeResponseStatus;
 import com.taxoryn.module.notice.enums.NoticeStatus;
 import com.taxoryn.module.notice.enums.SubmissionMode;
 import jakarta.persistence.Column;
@@ -76,12 +79,63 @@ public class TaxNoticeEntity extends TenantAuditableEntity {
     @Column(name = "response_due_date", nullable = false)
     private LocalDate responseDueDate;
 
+    // --- Response Management ---
+    @Column(name = "response_required")
+    @Builder.Default
+    private Boolean responseRequired = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "response_status", length = 50)
+    @Builder.Default
+    private NoticeResponseStatus responseStatus = NoticeResponseStatus.REQUIRED;
+
+    @Column(name = "response_draft", columnDefinition = "TEXT")
+    private String responseDraft;
+
+    @Column(name = "response_submitted_at")
+    private Instant responseSubmittedAt;
+
+    @Column(name = "response_submitted_by")
+    private UUID responseSubmittedBy;
+
+    @Column(name = "submission_reference", length = 100)
+    private String submissionReference;
+
+    @Column(name = "submission_notes", columnDefinition = "TEXT")
+    private String submissionNotes;
+
+    // --- Hearing Management ---
+    @Column(name = "hearing_required")
+    @Builder.Default
+    private Boolean hearingRequired = false;
+
     @Column(name = "hearing_date")
     private LocalDate hearingDate;
 
     @Column(name = "hearing_time", length = 20)
     private String hearingTime;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "hearing_mode", length = 50)
+    private HearingMode hearingMode;
+
+    @Column(name = "hearing_location", length = 255)
+    private String hearingLocation;
+
+    @Column(name = "hearing_reference", length = 100)
+    private String hearingReference;
+
+    @Column(name = "hearing_notes", columnDefinition = "TEXT")
+    private String hearingNotes;
+
+    @Column(name = "hearing_outcome", columnDefinition = "TEXT")
+    private String hearingOutcome;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "hearing_status", length = 50)
+    private HearingStatus hearingStatus;
+
+    // --- Case Status & Assignment ---
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     @Builder.Default

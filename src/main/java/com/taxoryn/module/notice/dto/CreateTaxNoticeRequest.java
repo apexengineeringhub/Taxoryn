@@ -1,7 +1,10 @@
 package com.taxoryn.module.notice.dto;
 
+import com.taxoryn.module.notice.enums.HearingMode;
+import com.taxoryn.module.notice.enums.HearingStatus;
 import com.taxoryn.module.notice.enums.NoticeDepartment;
 import com.taxoryn.module.notice.enums.NoticePriority;
+import com.taxoryn.module.notice.enums.NoticeResponseStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -65,10 +68,24 @@ public class CreateTaxNoticeRequest {
     @NotNull(message = "Response due date is required")
     private LocalDate responseDueDate;
 
+    // Response Fields
+    @Builder.Default
+    private Boolean responseRequired = true;
+    private NoticeResponseStatus responseStatus;
+    private String responseDraft;
+
+    // Hearing Fields
+    @Builder.Default
+    private Boolean hearingRequired = false;
     private LocalDate hearingDate;
 
     @Size(max = 20, message = "Hearing time cannot exceed 20 characters")
     private String hearingTime;
+    private HearingMode hearingMode;
+    private String hearingLocation;
+    private String hearingReference;
+    private String hearingNotes;
+    private HearingStatus hearingStatus;
 
     private NoticePriority priority;
 

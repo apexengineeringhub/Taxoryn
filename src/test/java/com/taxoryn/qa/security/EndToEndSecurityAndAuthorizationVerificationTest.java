@@ -242,6 +242,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
     @Mock private NoticeHearingRepository noticeHearingRepository;
     @Mock private NoticeActivityRepository noticeActivityRepository;
     @Mock private TaxNoticeMapper noticeMapper;
+    @Mock private com.taxoryn.module.notice.service.TaxNoticeConfigurationService noticeConfigurationService;
 
     // Client Portal Mocks
     @Mock private ClientPortalMessageRepository clientPortalMessageRepository;
@@ -422,7 +423,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
                 noticeActivityRepository, clientRepository, employeeRepository,
                 userRepository, taskRepository, documentRepository,
                 documentRequestRepository, noticeMapper, auditService,
-                notificationService, securityScopeEvaluator
+                notificationService, securityScopeEvaluator, noticeConfigurationService
         );
 
         clientPortalService = new ClientPortalServiceImpl(

@@ -211,6 +211,7 @@ public class EndpointSecurityCoverageIntegrationTest {
     @Mock private NoticeHearingRepository noticeHearingRepository;
     @Mock private NoticeActivityRepository noticeActivityRepository;
     @Mock private TaxNoticeMapper noticeMapper;
+    @Mock private com.taxoryn.module.notice.service.TaxNoticeConfigurationService noticeConfigurationService;
 
     @Mock private ClientPortalMessageRepository clientPortalMessageRepository;
     @Mock private PortalChatEventPublisher portalChatEventPublisher;
@@ -373,7 +374,7 @@ public class EndpointSecurityCoverageIntegrationTest {
                 noticeActivityRepository, clientRepository, employeeRepository,
                 userRepository, taskRepository, documentRepository,
                 documentRequestRepository, noticeMapper, auditService,
-                notificationService, securityScopeEvaluator
+                notificationService, securityScopeEvaluator, noticeConfigurationService
         );
 
         clientPortalService = new ClientPortalServiceImpl(

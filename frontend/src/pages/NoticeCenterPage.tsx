@@ -21,6 +21,7 @@ import {
   Gavel,
   CheckCheck,
   Send,
+  Settings,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -290,6 +291,14 @@ export const NoticeCenterPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/settings/tax-notices')}
+            className="flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            <Settings className="w-4 h-4" />
+            Operations Settings
+          </Button>
           <Button
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"

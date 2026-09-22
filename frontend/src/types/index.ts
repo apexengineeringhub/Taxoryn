@@ -3277,9 +3277,31 @@ export type ReviewStatus =
   | 'APPROVED_BY_PARTNER'
   | 'SUBMITTED';
 
-export type HearingMode = 'VIRTUAL_VC' | 'PHYSICAL' | 'WRITTEN_SUBMISSION_ONLY';
+export type NoticeResponseStatus =
+  | 'REQUIRED'
+  | 'DRAFT'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'SUBMITTED'
+  | 'NOT_REQUIRED';
 
-export type HearingStatus = 'SCHEDULED' | 'ADJOURNED' | 'COMPLETED' | 'CANCELLED';
+export type HearingMode =
+  | 'PHYSICAL'
+  | 'VIDEO'
+  | 'TELEPHONIC'
+  | 'OTHER'
+  | 'VIRTUAL_VC'
+  | 'WRITTEN_SUBMISSION_ONLY';
+
+export type HearingStatus =
+  | 'SCHEDULED'
+  | 'HEARING_SCHEDULED'
+  | 'ADJOURNED'
+  | 'HEARING_ADJOURNED'
+  | 'COMPLETED'
+  | 'HEARING_COMPLETED'
+  | 'CANCELLED'
+  | 'HEARING_CANCELLED';
 
 export type NoticeActivityType =
   | 'NOTICE_CREATED'
@@ -3325,8 +3347,22 @@ export interface TaxNotice {
   responseDueDate: string;
   daysRemaining?: number;
   isOverdue?: boolean;
+  responseRequired?: boolean;
+  responseStatus?: NoticeResponseStatus;
+  responseDraft?: string;
+  responseSubmittedAt?: string;
+  responseSubmittedBy?: string;
+  submissionReference?: string;
+  submissionNotes?: string;
+  hearingRequired?: boolean;
   hearingDate?: string;
   hearingTime?: string;
+  hearingMode?: HearingMode;
+  hearingLocation?: string;
+  hearingReference?: string;
+  hearingNotes?: string;
+  hearingOutcome?: string;
+  hearingStatus?: HearingStatus;
   status: NoticeStatus;
   priority: NoticePriority;
   assignedEmployeeId?: string;
@@ -3501,6 +3537,33 @@ export interface TaxNoticeFilterRequest {
   upcomingHearing?: boolean;
 }
 
+export interface UpdateNoticeResponseRequest {
+  responseRequired?: boolean;
+  responseStatus?: NoticeResponseStatus;
+  responseDraft?: string;
+  submissionReference?: string;
+  submissionNotes?: string;
+}
+
+export interface UpdateNoticeHearingRequest {
+  hearingRequired?: boolean;
+  hearingDate?: string;
+  hearingTime?: string;
+  hearingMode?: HearingMode;
+  hearingLocation?: string;
+  hearingReference?: string;
+  hearingNotes?: string;
+  hearingOutcome?: string;
+  hearingStatus?: HearingStatus;
+}
+
+export interface AdjournHearingRequest {
+  adjournmentReason: string;
+  nextHearingDate?: string;
+  nextHearingTime?: string;
+  notes?: string;
+}
+
 export interface CreateNoticeResponseRequest {
   responseTitle: string;
   responseSummary?: string;
@@ -3579,8 +3642,56 @@ export interface ClientNotice {
   updatedAt: string;
 }
 
+export interface TaxNoticeConfig {
+  id?: string;
+  organizationId?: string;
+  organizationType?: string;
+  isCustomized?: boolean;
+  responseReviewRequired: boolean;
+  partnerApprovalRequired: boolean;
+  hearingTrackingEnabled: boolean;
+  responseSubmissionTrackingEnabled: boolean;
+  defaultResponseDueDays: number;
+  reminderDaysBeforeDue: number;
+  escalationDaysAfterDue: number;
+  autoCreateResponseTask: boolean;
+  defaultPriority: NoticePriority;
+  assignmentRequired: boolean;
+  notifyOnAssignment: boolean;
+  notifyOnDueSoon: boolean;
+  notifyOnOverdue: boolean;
+  notifyOnSubmission: boolean;
+  notifyOnHearing: boolean;
+  showDueSoon: boolean;
+  showOverdue: boolean;
+  showAwaitingResponse: boolean;
+  showAwaitingHearing: boolean;
+  showAwaitingOrder: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
 
-
-
-
-
+export interface UpdateTaxNoticeConfigRequest {
+  responseReviewRequired?: boolean;
+  partnerApprovalRequired?: boolean;
+  hearingTrackingEnabled?: boolean;
+  responseSubmissionTrackingEnabled?: boolean;
+  defaultResponseDueDays?: number;
+  reminderDaysBeforeDue?: number;
+  escalationDaysAfterDue?: number;
+  autoCreateResponseTask?: boolean;
+  defaultPriority?: NoticePriority;
+  assignmentRequired?: boolean;
+  notifyOnAssignment?: boolean;
+  notifyOnDueSoon?: boolean;
+  notifyOnOverdue?: boolean;
+  notifyOnSubmission?: boolean;
+  notifyOnHearing?: boolean;
+  showDueSoon?: boolean;
+  showOverdue?: boolean;
+  showAwaitingResponse?: boolean;
+  showAwaitingHearing?: boolean;
+  showAwaitingOrder?: boolean;
+}
