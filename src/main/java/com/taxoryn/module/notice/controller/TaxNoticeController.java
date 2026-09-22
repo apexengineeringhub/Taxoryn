@@ -42,7 +42,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/notices")
+@RequestMapping({"/api/v1/notices", "/api/v1/tax-notices"})
 @RequiredArgsConstructor
 @Tag(name = "Tax Notice Management", description = "Endpoints for managing tax notices, maker-checker responses, hearings, and resolutions")
 @SecurityRequirement(name = "BearerAuth")

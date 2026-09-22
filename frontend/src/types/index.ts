@@ -88,6 +88,55 @@ export interface OrganizationCapabilities {
   customInvoicingSupported: boolean;
 }
 
+// 1.1 Product Module Catalog & Organization Module Configuration
+export type ProductModuleCode =
+  | 'CLIENTS'
+  | 'TASKS'
+  | 'DOCUMENTS'
+  | 'DOCUMENT_REQUESTS'
+  | 'CLIENT_PORTAL'
+  | 'NOTIFICATIONS'
+  | 'AUDIT'
+  | 'GST'
+  | 'ITR'
+  | 'TDS'
+  | 'TAX_NOTICES'
+  | 'BILLING'
+  | 'REPORTS'
+  | 'MARKETPLACE';
+
+export type ProductModuleCategory =
+  | 'CORE'
+  | 'TAX'
+  | 'PRACTICE_OPERATIONS'
+  | 'NETWORK_GROWTH';
+
+export interface ProductModule {
+  id: string;
+  code: ProductModuleCode;
+  name: string;
+  description?: string;
+  category: ProductModuleCategory;
+  status: string;
+  enabledByDefault: boolean;
+  displayOrder: number;
+}
+
+export interface OrganizationModule {
+  organizationId: string;
+  moduleCode: ProductModuleCode;
+  moduleName: string;
+  moduleDescription?: string;
+  category: ProductModuleCategory;
+  enabled: boolean;
+  explicitlyConfigured: boolean;
+  updatedAt?: string;
+}
+
+export interface UpdateOrganizationModulePayload {
+  enabled: boolean;
+}
+
 export interface Organization {
   id: string;
   name: string;

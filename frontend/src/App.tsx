@@ -62,6 +62,7 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').t
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const NoticeCenterPage = React.lazy(() => import('./pages/NoticeCenterPage').then(m => ({ default: m.NoticeCenterPage })));
 const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').then(m => ({ default: m.NoticeDetailPage })));
+const ProductModulesPage = React.lazy(() => import('./pages/ProductModulesPage').then(m => ({ default: m.ProductModulesPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import {
@@ -255,6 +256,8 @@ export const App: React.FC = () => {
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
               <Route path="/notices" element={<NoticeCenterPage />} />
               <Route path="/notices/:id" element={<NoticeDetailPage />} />
+              <Route path="/tax-notices" element={<NoticeCenterPage />} />
+              <Route path="/tax-notices/:id" element={<NoticeDetailPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route
                 path="/billing"
@@ -476,6 +479,14 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE']}>
                     <SubscriptionsPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/modules"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                    <ProductModulesPage />
                   </RoleRouteGuard>
                 }
               />

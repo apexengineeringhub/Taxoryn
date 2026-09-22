@@ -31,6 +31,7 @@ import {
   Scale,
   ChevronDown,
   ChevronRight,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -144,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'] },
         { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'] },
         { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
-        { label: 'Notice Center', path: '/notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW'] },
+        { label: 'Notice Center', path: '/tax-notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TAX_NOTICE_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT', 'ACCOUNTANT'] },
         { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
       ],
     },
@@ -172,6 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       isCollapsible: true,
       items: [
         { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Modules & Features', path: '/settings/modules', icon: Layers, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
         { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
         { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
@@ -189,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   ];
 
   // Check if current route is inside administration to auto-expand
-  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/branding', '/settings/subscription', '/settings/whatsapp'];
+  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules'];
   const isAdminRouteActive = adminRoutes.some((p) => location.pathname.startsWith(p));
 
   const [isAdminExpanded, setIsAdminExpanded] = useState<boolean>(() => {
@@ -226,6 +228,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   const isItemActive = (path: string) => {
     if (path === '/dashboard' || path === '/') {
       return location.pathname === '/dashboard' || location.pathname === '/';
+    }
+    if (path === '/tax-notices' || path === '/notices') {
+      return location.pathname.startsWith('/tax-notices') || location.pathname.startsWith('/notices');
     }
     if (path.includes('?')) {
       const [base, query] = path.split('?');

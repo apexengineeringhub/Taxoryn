@@ -128,6 +128,7 @@ export function resolveFallbackCapabilities(
     'TASK_MANAGEMENT',
     'DOCUMENT_MANAGEMENT',
     'DOCUMENT_REQUESTS',
+    'TAX_NOTICE_MANAGEMENT',
     'BILLING_INVOICING',
     'CLIENT_PORTAL',
   ];
@@ -140,12 +141,13 @@ export function resolveFallbackCapabilities(
       'COMPLIANCE_CALENDAR',
       'TASK_MANAGEMENT',
       'DOCUMENT_MANAGEMENT',
+      'TAX_NOTICE_MANAGEMENT',
       'TEAM_MANAGEMENT',
     ];
   } else if (!isSolo) {
     capabilities.push('TEAM_MANAGEMENT', 'CENTRAL_REPORTING');
     if (isGrowing) {
-      capabilities.push('TAX_NOTICE_MANAGEMENT', 'ADVANCED_ANALYTICS');
+      capabilities.push('ADVANCED_ANALYTICS');
     }
   }
 
@@ -306,19 +308,19 @@ export function resolveFallbackCapabilities(
     enabledCapabilities: capabilities,
     moduleStatuses,
     recommendedModules: isBusiness
-      ? ['GST', 'ITR', 'TDS', 'COMPLIANCE_CALENDAR', 'DOCUMENTS', 'TASKS', 'TEAM']
+      ? ['GST', 'ITR', 'TDS', 'NOTICES', 'COMPLIANCE_CALENDAR', 'DOCUMENTS', 'TASKS', 'TEAM']
       : isSolo
-      ? ['CLIENTS', 'GST', 'ITR', 'TDS', 'TASKS', 'BILLING']
+      ? ['CLIENTS', 'GST', 'ITR', 'TDS', 'NOTICES', 'TASKS', 'BILLING']
       : isGrowing
       ? ['CLIENTS', 'GST', 'ITR', 'TDS', 'NOTICES', 'TASKS', 'TEAM', 'BILLING', 'PORTAL', 'REPORTS']
-      : ['CLIENTS', 'GST', 'ITR', 'TDS', 'TASKS', 'TEAM', 'BILLING', 'PORTAL', 'REPORTS'],
+      : ['CLIENTS', 'GST', 'ITR', 'TDS', 'NOTICES', 'TASKS', 'TEAM', 'BILLING', 'PORTAL', 'REPORTS'],
     defaultDashboardView,
     dashboardProfile,
     onboardingProfile: `${orgType}_PROFILE`,
     onboardingChecklist,
     multiUserPractice: !isSolo,
     clientPortalSupported: !isBusiness,
-    noticeCenterSupported: isGrowing || orgType === 'UNKNOWN',
+    noticeCenterSupported: true,
     customInvoicingSupported: !isBusiness,
   };
 }

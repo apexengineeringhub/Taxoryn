@@ -28,6 +28,9 @@ import {
   ClientGstStatus,
   ClientItrStatus,
   ClientDocumentRequest,
+  OrganizationModule,
+  ProductModule,
+  ProductModuleCode,
   DocumentRequest,
   DocumentRequestItem,
   CreateDocumentRequest,
@@ -2539,6 +2542,26 @@ export const marketingApi = {
     return res.data.data;
   },
 };
+
+export const moduleConfigApi = {
+  getOrganizationModules: async (): Promise<OrganizationModule[]> => {
+    const res = await apiClient.get<ApiResponse<OrganizationModule[]>>('/v1/organizations/modules');
+    return res.data.data;
+  },
+  getOrganizationModule: async (moduleCode: ProductModuleCode): Promise<OrganizationModule> => {
+    const res = await apiClient.get<ApiResponse<OrganizationModule>>(`/v1/organizations/modules/${moduleCode}`);
+    return res.data.data;
+  },
+  updateModuleStatus: async (moduleCode: ProductModuleCode, enabled: boolean): Promise<OrganizationModule> => {
+    const res = await apiClient.put<ApiResponse<OrganizationModule>>(`/v1/organizations/modules/${moduleCode}`, { enabled });
+    return res.data.data;
+  },
+  getProductModuleCatalog: async (): Promise<ProductModule[]> => {
+    const res = await apiClient.get<ApiResponse<ProductModule[]>>('/v1/organizations/modules/catalog');
+    return res.data.data;
+  },
+};
+
 
 
 

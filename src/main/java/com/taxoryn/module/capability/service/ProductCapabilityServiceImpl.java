@@ -120,6 +120,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.TASK_MANAGEMENT);
                 set.add(ProductCapability.DOCUMENT_MANAGEMENT);
                 set.add(ProductCapability.DOCUMENT_REQUESTS);
+                set.add(ProductCapability.TAX_NOTICE_MANAGEMENT);
                 set.add(ProductCapability.BILLING_INVOICING);
                 set.add(ProductCapability.CLIENT_PORTAL);
             }
@@ -132,6 +133,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.TASK_MANAGEMENT);
                 set.add(ProductCapability.DOCUMENT_MANAGEMENT);
                 set.add(ProductCapability.DOCUMENT_REQUESTS);
+                set.add(ProductCapability.TAX_NOTICE_MANAGEMENT);
                 set.add(ProductCapability.BILLING_INVOICING);
                 set.add(ProductCapability.CENTRAL_REPORTING);
                 set.add(ProductCapability.TEAM_MANAGEMENT);
@@ -162,6 +164,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.COMPLIANCE_CALENDAR);
                 set.add(ProductCapability.TASK_MANAGEMENT);
                 set.add(ProductCapability.DOCUMENT_MANAGEMENT);
+                set.add(ProductCapability.TAX_NOTICE_MANAGEMENT);
                 set.add(ProductCapability.TEAM_MANAGEMENT);
             }
             case UNKNOWN -> {
@@ -639,11 +642,11 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
 
     private List<String> resolveRecommendedModules(OrganizationType orgType) {
         return switch (orgType) {
-            case SOLO_PRACTITIONER -> List.of("CLIENTS", "GST", "ITR", "TDS", "TASKS", "BILLING");
-            case SMALL_TAX_FIRM -> List.of("CLIENTS", "GST", "ITR", "TDS", "TASKS", "TEAM", "BILLING", "PORTAL", "REPORTS");
+            case SOLO_PRACTITIONER -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "BILLING");
+            case SMALL_TAX_FIRM -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "TEAM", "BILLING", "PORTAL", "REPORTS");
             case GROWING_PRACTICE -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "TEAM", "BILLING", "PORTAL", "REPORTS");
-            case BUSINESS -> List.of("GST", "ITR", "TDS", "COMPLIANCE_CALENDAR", "DOCUMENTS", "TASKS", "TEAM");
-            case UNKNOWN -> List.of("CLIENTS", "GST", "ITR", "TDS", "TASKS", "DOCUMENTS", "BILLING", "REPORTS");
+            case BUSINESS -> List.of("GST", "ITR", "TDS", "NOTICES", "COMPLIANCE_CALENDAR", "DOCUMENTS", "TASKS", "TEAM");
+            case UNKNOWN -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "DOCUMENTS", "BILLING", "REPORTS");
         };
     }
 
