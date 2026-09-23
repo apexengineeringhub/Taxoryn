@@ -301,6 +301,276 @@ export interface Client {
   createdAt?: string;
 }
 
+export type ClientServiceType =
+  | 'GST_COMPLIANCE'
+  | 'INCOME_TAX_FILING'
+  | 'TDS_COMPLIANCE'
+  | 'TAX_NOTICE_MANAGEMENT'
+  | 'COMPLIANCE_CALENDAR'
+  | 'DOCUMENT_MANAGEMENT'
+  | 'CLIENT_BILLING'
+  | 'ACCOUNTING_BOOKKEEPING'
+  | 'STATUTORY_AUDIT'
+  | 'TAX_AUDIT'
+  | 'COMPANY_SECRETARIAL'
+  | 'PAYROLL_PROCESSING'
+  | 'ADVISORY_CONSULTING'
+  | 'OTHER';
+
+export type ClientServiceStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'COMPLETED';
+
+export interface ServiceCatalogItem {
+  serviceType: ClientServiceType;
+  displayName: string;
+  category: string;
+  defaultBillingCycle: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  moduleCode?: ProductModuleCode;
+  requiredCapability?: string;
+  description: string;
+}
+
+export interface ClientServiceDto {
+  id: string;
+  clientId: string;
+  serviceType: ClientServiceType;
+  serviceName: string;
+  status: ClientServiceStatus;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedFee?: number;
+  currency?: string;
+  startDate?: string;
+  endDate?: string;
+  engagementNotes?: string;
+  moduleCode?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateClientServiceRequest {
+  serviceType: ClientServiceType;
+  serviceName?: string;
+  assignedEmployeeId?: string;
+  billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedFee?: number;
+  currency?: string;
+  startDate?: string;
+  endDate?: string;
+  engagementNotes?: string;
+}
+
+export interface UpdateClientServiceRequest {
+  serviceName?: string;
+  status?: ClientServiceStatus;
+  assignedEmployeeId?: string;
+  billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedFee?: number;
+  currency?: string;
+  startDate?: string;
+  endDate?: string;
+  engagementNotes?: string;
+}
+
+export interface ClientServiceItem {
+  id?: string;
+  serviceType?: string;
+  serviceCode: string;
+  serviceName: string;
+  status: string;
+  identifier?: string;
+  summary?: string;
+  routePath?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  billingCycle?: string;
+  agreedFee?: number;
+  startDate?: string;
+  engagementNotes?: string;
+}
+
+export interface ClientTaskSummary {
+  totalTasks: number;
+  pendingTasks: number;
+  inProgressTasks: number;
+  underReviewTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  recentTasks: Task[];
+}
+
+export interface GstComplianceDetails {
+  registered: boolean;
+  gstin?: string;
+  filingFrequency?: string;
+  totalFilings: number;
+  pendingFilings: number;
+  filedFilings: number;
+  overdueFilings: number;
+  nextDueDate?: string;
+  nextReturnType?: string;
+  nextReturnPeriod?: string;
+}
+
+export interface ItrComplianceDetails {
+  registered: boolean;
+  pan?: string;
+  taxpayerType?: string;
+  defaultItrType?: string;
+  totalReturns: number;
+  pendingReturns: number;
+  filedReturns: number;
+  overdueReturns: number;
+  nextDueDate?: string;
+  currentAssessmentYear?: string;
+  currentStatus?: string;
+}
+
+export interface TdsComplianceDetails {
+  registered: boolean;
+  tan?: string;
+  deductorType?: string;
+  totalReturns: number;
+  pendingReturns: number;
+  filedReturns: number;
+  overdueReturns: number;
+  nextDueDate?: string;
+  currentQuarter?: string;
+  currentFinancialYear?: string;
+}
+
+export interface ClientComplianceSummary {
+  gstStatus: string;
+  itrStatus: string;
+  tdsStatus: string;
+  accountingStatus: string;
+  gstDetails?: GstComplianceDetails;
+  itrDetails?: ItrComplianceDetails;
+  tdsDetails?: TdsComplianceDetails;
+}
+
+export interface ClientDocumentItem {
+  id: string;
+  fileName: string;
+  documentCategory: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
+  fileUrl?: string;
+}
+
+export interface ClientDocumentSummary {
+  totalDocuments: number;
+  documentCategories: string[];
+  recentDocuments?: ClientDocumentItem[];
+}
+
+export interface ClientDocRequestItem {
+  id: string;
+  requestNumber: string;
+  title: string;
+  status: string;
+  priority: string;
+  dueDate?: string;
+  totalItems: number;
+  receivedItems: number;
+  createdAt: string;
+}
+
+export interface ClientDocRequestSummary {
+  totalRequests: number;
+  pendingRequests: number;
+  receivedRequests: number;
+  overdueRequests: number;
+  recentRequests?: ClientDocRequestItem[];
+}
+
+export interface ClientInvoiceItem {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  total: number;
+  paidAmount: number;
+  balanceDue: number;
+  status: string;
+}
+
+export interface ClientBillingSummary {
+  totalInvoiced: number;
+  totalPaid: number;
+  outstandingBalance: number;
+  currency: string;
+  totalInvoicesCount: number;
+  overdueInvoicesCount: number;
+  recentInvoices?: ClientInvoiceItem[];
+}
+
+export interface ClientNoticeItem {
+  id: string;
+  noticeNumber: string;
+  issuingAuthority?: string;
+  section?: string;
+  taxPeriod?: string;
+  status: string;
+  demandAmount?: number;
+  responseDueDate?: string;
+  hearingDate?: string;
+}
+
+export interface ClientNoticeSummary {
+  totalNotices: number;
+  activeNotices: number;
+  overdueNotices: number;
+  hearingsScheduled: number;
+  totalDemandAmount: number;
+  recentNotices?: ClientNoticeItem[];
+}
+
+export interface ClientNote {
+  id: string;
+  clientId: string;
+  authorId: string;
+  authorName?: string;
+  noteType: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ClientActivityItem {
+  id: string;
+  eventType: string;
+  title: string;
+  description: string;
+  performedBy?: string;
+  timestamp: string;
+  category: string;
+}
+
+export interface Client360Overview {
+  client: Client;
+  statutory: {
+    pan?: string;
+    gstin?: string;
+    tan?: string;
+    cin?: string;
+    dateOfIncorporation?: string;
+    isPanValid: boolean;
+    isGstActive: boolean;
+  };
+  services: ClientServiceItem[];
+  taskSummary: ClientTaskSummary;
+  complianceSummary: ClientComplianceSummary;
+  documentsSummary: ClientDocumentSummary;
+  docRequestsSummary?: ClientDocRequestSummary;
+  billingSummary?: ClientBillingSummary;
+  noticeSummary: ClientNoticeSummary;
+  recentNotes: ClientNote[];
+  activityTimeline: ClientActivityItem[];
+}
+
 export interface ClientContact {
   id?: string;
   name: string;

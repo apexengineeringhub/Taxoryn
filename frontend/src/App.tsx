@@ -13,6 +13,7 @@ const ActivateOrgPage = React.lazy(() => import('./pages/ActivateOrgPage').then(
 const AccountSecurityPage = React.lazy(() => import('./pages/AccountSecurityPage').then(m => ({ default: m.AccountSecurityPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
+const Client360Page = React.lazy(() => import('./pages/Client360Page').then(m => ({ default: m.Client360Page })));
 const ClientMigrationHubPage = React.lazy(() => import('./pages/ClientMigrationHubPage').then(m => ({ default: m.ClientMigrationHubPage })));
 const TasksPage = React.lazy(() => import('./pages/TasksPage').then(m => ({ default: m.TasksPage })));
 const BulkTasksGeneratorPage = React.lazy(() => import('./pages/BulkTasksGeneratorPage').then(m => ({ default: m.BulkTasksGeneratorPage })));
@@ -217,6 +218,14 @@ export const App: React.FC = () => {
                 element={
                   <ModuleRouteGuard moduleCode="CLIENTS">
                     <ClientsPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/clients/:clientId"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <Client360Page />
                   </ModuleRouteGuard>
                 }
               />

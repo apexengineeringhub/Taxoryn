@@ -55,6 +55,9 @@ class ModuleConfigurationServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
     @InjectMocks
     private ModuleConfigurationServiceImpl moduleConfigurationService;
 

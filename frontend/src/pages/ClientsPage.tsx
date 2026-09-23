@@ -218,17 +218,17 @@ export const ClientsPage: React.FC = () => {
     {
       header: 'Client / Business Name',
       accessor: (row) => (
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 text-brand-600 flex items-center justify-center font-bold text-xs shrink-0">
+        <Link to={`/clients/${row.id}`} className="flex items-center gap-3 group">
+          <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 text-brand-600 flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-brand-100 transition-colors">
             {row.clientType === 'INDIVIDUAL' ? <User className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
           </div>
           <div>
-            <span className="font-bold text-slate-900 block">{row.displayName}</span>
+            <span className="font-bold text-slate-900 group-hover:text-brand-600 transition-colors block">{row.displayName}</span>
             <span className="text-[10px] text-slate-400 font-medium">
               {row.clientType.replace('_', ' ')} {row.legalName ? `• ${row.legalName}` : ''}
             </span>
           </div>
-        </div>
+        </Link>
       ),
     },
     {

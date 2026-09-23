@@ -160,16 +160,16 @@ public class ClientController {
         return ResponseEntity.ok(ApiResponse.success("Client archived successfully", null));
     }
 
-    @GetMapping("/{clientId}/overview")
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Client 360-Degree Overview", description = "Aggregates all modules related to a client into a single dashboard: Profile, Statutory, Active Tasks, Compliance, Documents, and Communication History.")
+    @GetMapping({ "/{clientId}/overview", "/{clientId}/360" })
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Client 360-Degree Overview", description = "Aggregates all modules related to a client into a single dashboard: Profile, Statutory, Active Services, Tasks, Compliance (GST/ITR/TDS), Documents, Document Requests, Billing, Notices, and Activity Timeline.")
     public ResponseEntity<ApiResponse<ClientOverviewDto>> getClientOverview(@PathVariable UUID clientId) {
         ClientOverviewDto overview = clientService.getClientOverview(clientId);
         return ResponseEntity.ok(ApiResponse.success("Client 360 overview retrieved successfully", overview));
     }
 
     @PostMapping("/{clientId}/notes")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasAuthority('TASK_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "Add communication note", description = "Records a client call, meeting, email interaction, or follow-up note in the client communication log.")
     public ResponseEntity<ApiResponse<ClientNoteDto>> addClientNote(@PathVariable UUID clientId, @Valid @RequestBody CreateClientNoteRequest request) {
         ClientNoteDto note = clientService.addClientNote(clientId, request);
@@ -178,7 +178,7 @@ public class ClientController {
     }
 
     @GetMapping("/{clientId}/notes")
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "List communication notes", description = "Retrieves all interaction notes and communication history for the client.")
     public ResponseEntity<ApiResponse<List<ClientNoteDto>>> getClientNotes(@PathVariable UUID clientId) {
         List<ClientNoteDto> notes = clientService.getClientNotes(clientId);

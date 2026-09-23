@@ -4,6 +4,12 @@ import {
   PagedResponse,
   OrganizationDashboard,
   Client,
+  Client360Overview,
+  ClientNote,
+  ServiceCatalogItem,
+  ClientServiceDto,
+  CreateClientServiceRequest,
+  UpdateClientServiceRequest,
   Task,
   GstProfile,
   GstReturnFiling,
@@ -313,6 +319,58 @@ export const clientApi = {
   },
   bulkImport: async (clients: Partial<Client>[]) => {
     const res = await apiClient.post<ApiResponse<any>>('/v1/clients/bulk', clients);
+    return res.data.data;
+  },
+  getOverview: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Client360Overview>>(`/v1/clients/${id}/360`);
+    return res.data.data;
+  },
+  getClient360: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Client360Overview>>(`/v1/clients/${id}/360`);
+    return res.data.data;
+  },
+  addNote: async (id: string, payload: { title: string; content: string; noteType: string }) => {
+    const res = await apiClient.post<ApiResponse<ClientNote>>(`/v1/clients/${id}/notes`, payload);
+    return res.data.data;
+  },
+  getNotes: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ClientNote[]>>(`/v1/clients/${id}/notes`);
+    return res.data.data;
+  },
+};
+
+// --- 3b. Client Services / Engagements ---
+export const clientServicesApi = {
+  getCatalog: async () => {
+    const res = await apiClient.get<ApiResponse<ServiceCatalogItem[]>>('/v1/client-services/catalog');
+    return res.data.data;
+  },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientServiceDto[]>>(`/v1/clients/${clientId}/services`);
+    return res.data.data;
+  },
+  getById: async (clientId: string, serviceId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`);
+    return res.data.data;
+  },
+  create: async (clientId: string, payload: CreateClientServiceRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services`, payload);
+    return res.data.data;
+  },
+  update: async (clientId: string, serviceId: string, payload: UpdateClientServiceRequest) => {
+    const res = await apiClient.put<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (clientId: string, serviceId: string, status: string) => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/status`, { status });
+    return res.data.data;
+  },
+  assignPractitioner: async (clientId: string, serviceId: string, assignedEmployeeId?: string) => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/assignee`, { assignedEmployeeId });
+    return res.data.data;
+  },
+  deactivate: async (clientId: string, serviceId: string) => {
+    const res = await apiClient.delete<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`);
     return res.data.data;
   },
 };
