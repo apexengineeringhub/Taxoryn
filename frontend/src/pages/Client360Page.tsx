@@ -37,7 +37,7 @@ import {
   PauseCircle,
   CheckCircle,
 } from 'lucide-react';
-import { clientApi, clientServicesApi, employeeApi } from '../api/endpoints';
+import { clientApi, clientServicesApi, complianceWorkApi, employeeApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
 import {
@@ -47,6 +47,7 @@ import {
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
+  ComplianceWorkItem,
   Employee,
 } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -77,6 +78,10 @@ export const Client360Page: React.FC = () => {
   const [isSubmittingService, setIsSubmittingService] = useState(false);
   const [serviceStatusFilter, setServiceStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED' | 'COMPLETED' | 'INACTIVE'>('ALL');
 
+  // Compliance Work Items State
+  const [complianceWorkItems, setComplianceWorkItems] = useState<ComplianceWorkItem[]>([]);
+  const [isLoadingComplianceWork, setIsLoadingComplianceWork] = useState(false);
+
   // New Service Form State
   const [newServiceType, setNewServiceType] = useState<ClientServiceType>('GST_COMPLIANCE');
   const [newServiceName, setNewServiceName] = useState('');
@@ -98,8 +103,22 @@ export const Client360Page: React.FC = () => {
     if (clientId) {
       loadClientOverview();
       loadServices();
+      loadComplianceWork();
     }
   }, [clientId]);
+
+  const loadComplianceWork = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingComplianceWork(true);
+      const data = await complianceWorkApi.getByClientId(clientId);
+      setComplianceWorkItems(data || []);
+    } catch (err: any) {
+      console.warn('Failed to load compliance work items for client', err);
+    } finally {
+      setIsLoadingComplianceWork(false);
+    }
+  };
 
   const loadClientOverview = async () => {
     if (!clientId) return;
@@ -1025,6 +1044,85 @@ export const Client360Page: React.FC = () => {
                   <span className="text-lg font-black text-emerald-600">{complianceSummary.tdsDetails?.filedReturns || 0}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Compliance Work Items Deliverables Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-brand-600" />
+                    <span>Compliance Deliverables & Filing Work Items</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Period-specific operational filings and compliance lifecycle items for {client.displayName}.
+                  </p>
+                </div>
+                <Link to="/compliance-work">
+                  <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3.5 h-3.5" />}>
+                    Manage All Work Items
+                  </Button>
+                </Link>
+              </div>
+
+              {isLoadingComplianceWork ? (
+                <div className="py-6 flex justify-center">
+                  <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : complianceWorkItems.length === 0 ? (
+                <div className="p-6 text-center border border-dashed border-slate-200 rounded-xl">
+                  <p className="text-xs text-slate-400 mb-2">No active compliance work items tracked for this client.</p>
+                  <Link to="/compliance-work">
+                    <Button size="sm" variant="ghost" className="text-xs text-brand-600">
+                      Create Deliverable in Worklist
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {complianceWorkItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-brand-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900">{item.title}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700">
+                            {item.workType}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.2 rounded-full border bg-brand-50 text-brand-700 border-brand-200">
+                            {item.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-2">
+                          <span>Period: {item.compliancePeriod || item.financialYear || 'Current'}</span>
+                          {item.assignedEmployeeName && (
+                            <>
+                              <span>•</span>
+                              <span>Assignee: {item.assignedEmployeeName}</span>
+                            </>
+                          )}
+                          {item.statutoryDueDate && (
+                            <>
+                              <span>•</span>
+                              <span className={clsx("font-semibold", item.overdue ? "text-rose-600" : "text-slate-700")}>
+                                Due: {new Date(item.statutoryDueDate).toLocaleDateString()}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <Link to="/compliance-work">
+                        <Button variant="ghost" size="sm" className="text-xs shrink-0">
+                          View in Worklist
+                        </Button>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

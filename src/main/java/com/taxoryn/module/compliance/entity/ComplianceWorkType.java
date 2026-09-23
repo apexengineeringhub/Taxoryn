@@ -15,37 +15,37 @@ public enum ComplianceWorkType {
     GST_RETURN(
             "GST Return Filing",
             ProductModuleCode.GST,
-            ProductCapability.GST_RETURN_FILING,
+            ProductCapability.GST_COMPLIANCE,
             "Periodic GST Return Preparation, ITC Validation & Filing (GSTR-1, GSTR-3B, GSTR-9)"
     ),
     ITR_RETURN(
             "Income Tax Return",
             ProductModuleCode.ITR,
-            ProductCapability.ITR_FILING,
+            ProductCapability.ITR_COMPLIANCE,
             "Income Tax Return Computation, Schedule Verification & e-Filing (ITR-1 through ITR-7)"
     ),
     TDS_RETURN(
             "TDS / TCS Return",
             ProductModuleCode.TDS,
-            ProductCapability.TDS_RETURNS,
+            ProductCapability.TDS_COMPLIANCE,
             "Quarterly TDS/TCS Statement Preparation & Form 24Q/26Q/27Q/27EQ"
     ),
     TAX_NOTICE(
             "Tax Notice Response / Hearing",
-            ProductModuleCode.NOTICES,
+            ProductModuleCode.TAX_NOTICES,
             ProductCapability.TAX_NOTICE_MANAGEMENT,
             "Notice Assessment, Ground Preparation, Written Submissions & Hearing Representation"
     ),
     COMPLIANCE_TASK(
             "General Statutory Compliance",
-            ProductModuleCode.CALENDAR,
+            ProductModuleCode.TASKS,
             ProductCapability.COMPLIANCE_CALENDAR,
             "Periodic Statutory Obligation, Advance Tax Computation, or Statutory Audit item"
     ),
     DOCUMENT_COLLECTION(
             "Document & Data Collection",
             ProductModuleCode.DOCUMENTS,
-            ProductCapability.DOCUMENT_VAULT,
+            ProductCapability.DOCUMENT_MANAGEMENT,
             "Client Working Papers, Bank Statements, Books of Accounts & Information Requests"
     ),
     OTHER(

@@ -16,6 +16,7 @@ const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then(m => ({ 
 const Client360Page = React.lazy(() => import('./pages/Client360Page').then(m => ({ default: m.Client360Page })));
 const ClientMigrationHubPage = React.lazy(() => import('./pages/ClientMigrationHubPage').then(m => ({ default: m.ClientMigrationHubPage })));
 const TasksPage = React.lazy(() => import('./pages/TasksPage').then(m => ({ default: m.TasksPage })));
+const ComplianceWorkPage = React.lazy(() => import('./pages/ComplianceWorkPage').then(m => ({ default: m.ComplianceWorkPage })));
 const BulkTasksGeneratorPage = React.lazy(() => import('./pages/BulkTasksGeneratorPage').then(m => ({ default: m.BulkTasksGeneratorPage })));
 const GstCompliancePage = React.lazy(() => import('./pages/GstCompliancePage').then(m => ({ default: m.GstCompliancePage })));
 const GstDataMigrationHubPage = React.lazy(() => import('./pages/GstDataMigrationHubPage').then(m => ({ default: m.GstDataMigrationHubPage })));
@@ -245,6 +246,14 @@ export const App: React.FC = () => {
                 element={
                   <ModuleRouteGuard moduleCode="TASKS">
                     <TasksPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/compliance-work"
+                element={
+                  <ModuleRouteGuard moduleCode="TASKS">
+                    <ComplianceWorkPage />
                   </ModuleRouteGuard>
                 }
               />

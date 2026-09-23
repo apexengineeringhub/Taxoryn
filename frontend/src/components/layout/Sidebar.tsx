@@ -32,6 +32,7 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -138,6 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'Team Chat', path: '/chat', icon: MessageSquare },
         { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
+        { label: isStaff ? 'My Compliance Work' : 'Compliance Worklist', path: '/compliance-work', icon: Briefcase, requiredPermissions: ['TASK_VIEW', 'CLIENT_VIEW'], moduleCode: 'TASKS' },
       ],
     },
     {

@@ -101,6 +101,36 @@ class ClientServiceTest {
     @Mock
     private com.taxoryn.module.notice.repository.TaxNoticeRepository noticeRepository;
 
+    @Mock
+    private com.taxoryn.module.gst.repository.GstProfileRepository gstProfileRepository;
+
+    @Mock
+    private com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository;
+
+    @Mock
+    private com.taxoryn.module.itr.repository.ItrProfileRepository itrProfileRepository;
+
+    @Mock
+    private com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
+
+    @Mock
+    private com.taxoryn.module.tds.repository.TdsProfileRepository tdsProfileRepository;
+
+    @Mock
+    private com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository;
+
+    @Mock
+    private com.taxoryn.module.document.repository.DocumentRepository documentRepository;
+
+    @Mock
+    private com.taxoryn.module.docrequest.repository.DocumentRequestRepository documentRequestRepository;
+
+    @Mock
+    private com.taxoryn.module.billing.repository.InvoiceRepository invoiceRepository;
+
+    @Mock
+    private com.taxoryn.module.audit.repository.AuditLogRepository auditLogRepository;
+
     @InjectMocks
     private ClientServiceImpl clientService;
 

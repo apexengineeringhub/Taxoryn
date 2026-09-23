@@ -10,6 +10,11 @@ import {
   ClientServiceDto,
   CreateClientServiceRequest,
   UpdateClientServiceRequest,
+  ComplianceWorkItem,
+  CreateComplianceWorkItemRequest,
+  UpdateComplianceWorkItemRequest,
+  UpdateComplianceWorkStatusRequest,
+  AssignComplianceWorkRequest,
   Task,
   GstProfile,
   GstReturnFiling,
@@ -372,6 +377,65 @@ export const clientServicesApi = {
   deactivate: async (clientId: string, serviceId: string) => {
     const res = await apiClient.delete<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`);
     return res.data.data;
+  },
+};
+
+// --- 3c. Compliance Work Items ---
+export const complianceWorkApi = {
+  create: async (payload: CreateComplianceWorkItemRequest) => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkItem>>('/v1/compliance-work', payload);
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}`);
+    return res.data.data;
+  },
+  getAll: async (params?: {
+    clientId?: string;
+    clientServiceId?: string;
+    workType?: string;
+    status?: string;
+    assignedEmployeeId?: string;
+    reviewerEmployeeId?: string;
+    financialYear?: string;
+    compliancePeriod?: string;
+    search?: string;
+    overdue?: boolean;
+    myWorkOnly?: boolean;
+    pendingReviewOnly?: boolean;
+    dueFrom?: string;
+    dueTo?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceWorkItem>>>('/v1/compliance-work', { params });
+    return res.data.data;
+  },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkItem[]>>(`/v1/clients/${clientId}/compliance-work`);
+    return res.data.data;
+  },
+  getByServiceId: async (serviceId: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkItem[]>>(`/v1/client-services/${serviceId}/compliance-work`);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateComplianceWorkItemRequest) => {
+    const res = await apiClient.put<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, payload: UpdateComplianceWorkStatusRequest) => {
+    const res = await apiClient.patch<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}/status`, payload);
+    return res.data.data;
+  },
+  assign: async (id: string, payload: AssignComplianceWorkRequest) => {
+    const res = await apiClient.patch<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}/assignment`, payload);
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/compliance-work/${id}`);
+    return res.data;
   },
 };
 

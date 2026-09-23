@@ -373,6 +373,97 @@ export interface UpdateClientServiceRequest {
   engagementNotes?: string;
 }
 
+export type ComplianceWorkType =
+  | 'GST_RETURN'
+  | 'ITR_RETURN'
+  | 'TDS_RETURN'
+  | 'TAX_NOTICE'
+  | 'COMPLIANCE_TASK'
+  | 'DOCUMENT_COLLECTION'
+  | 'OTHER';
+
+export type ComplianceWorkStatus =
+  | 'NOT_STARTED'
+  | 'DOCUMENTS_PENDING'
+  | 'IN_PREPARATION'
+  | 'IN_REVIEW'
+  | 'READY_TO_FILE'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'ON_HOLD'
+  | 'CANCELLED';
+
+export interface ComplianceWorkItem {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  clientServiceId: string;
+  serviceName?: string;
+  serviceType?: string;
+  workType: ComplianceWorkType;
+  title: string;
+  description?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  compliancePeriod?: string;
+  status: ComplianceWorkStatus;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  reviewerEmployeeId?: string;
+  reviewerEmployeeName?: string;
+  reviewerEmployeeEmail?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  version?: number;
+  overdue?: boolean;
+}
+
+export interface CreateComplianceWorkItemRequest {
+  clientId: string;
+  clientServiceId: string;
+  workType: ComplianceWorkType;
+  title: string;
+  description?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  compliancePeriod?: string;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+}
+
+export interface UpdateComplianceWorkItemRequest {
+  title?: string;
+  description?: string;
+  workType?: ComplianceWorkType;
+  status?: ComplianceWorkStatus;
+  financialYear?: string;
+  assessmentYear?: string;
+  compliancePeriod?: string;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+}
+
+export interface UpdateComplianceWorkStatusRequest {
+  status: ComplianceWorkStatus;
+  notes?: string;
+}
+
+export interface AssignComplianceWorkRequest {
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  notes?: string;
+}
+
 export interface ClientServiceItem {
   id?: string;
   serviceType?: string;
