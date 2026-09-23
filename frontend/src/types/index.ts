@@ -4312,3 +4312,175 @@ export type ClientServiceWorkflowStepDto = ClientServiceWorkflowStep;
 export type ServiceWorkflowTemplateDto = ServiceWorkflowTemplate;
 export type ServiceWorkflowStepTemplateDto = ServiceWorkflowStepTemplate;
 
+// =============================================================================
+// PHASE 14 — Compliance Calendar & Recurring Compliance Cycle Foundation
+// =============================================================================
+
+export type ComplianceObligationType =
+  | 'GST_RETURN'
+  | 'TDS_RETURN'
+  | 'ITR_FILING'
+  | 'TAX_AUDIT'
+  | 'ADVANCE_TAX'
+  | 'ROC_ANNUAL_FILING'
+  | 'TAX_NOTICE_RESPONSE'
+  | 'CUSTOM';
+
+export type ComplianceObligationStatus =
+  | 'UPCOMING'
+  | 'DUE_TODAY'
+  | 'OVERDUE'
+  | 'WAITING_FOR_CLIENT'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'WAIVED'
+  | 'CANCELLED';
+
+export type ComplianceRecurrenceType =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUALLY'
+  | 'EVENT_BASED';
+
+export type ComplianceReminderType =
+  | 'EMAIL'
+  | 'IN_APP'
+  | 'BOTH';
+
+export interface ComplianceObligationItem {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientDisplayName?: string;
+  clientPan?: string;
+  clientGstin?: string;
+  clientServiceId?: string;
+  servicePeriodId?: string;
+  workflowId?: string;
+  obligationType: ComplianceObligationType;
+  title: string;
+  description?: string;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  statutoryDueDate: string;
+  internalTargetDate?: string;
+  status: ComplianceObligationStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  taskId?: string;
+  filedDate?: string;
+  acknowledgementNumber?: string;
+  remarks?: string;
+  daysRemaining?: number;
+  isOverdue?: boolean;
+  isDueToday?: boolean;
+  waitingForClient?: boolean;
+  readyForFiling?: boolean;
+  workflowProgressPercentage?: number;
+  createdAt: string;
+  updatedAt: string;
+  version?: number;
+}
+
+export type ComplianceObligationDto = ComplianceObligationItem;
+
+export interface ComplianceCalendarSummary {
+  totalObligations: number;
+  dueToday: number;
+  upcoming: number;
+  overdue: number;
+  waitingForClient: number;
+  readyForFiling: number;
+  filed: number;
+  completed: number;
+  byType?: Record<string, number>;
+}
+
+export type ComplianceCalendarSummaryDto = ComplianceCalendarSummary;
+
+export interface ComplianceCycleTemplate {
+  id: string;
+  serviceType?: string;
+  obligationType: ComplianceObligationType;
+  recurrenceType: ComplianceRecurrenceType;
+  templateName: string;
+  defaultDueDay?: number;
+  defaultDueMonthOffset?: number;
+  fixedDueMonth?: number;
+  offsetDaysInternalTarget: number;
+  active: boolean;
+  description?: string;
+}
+
+export type ComplianceCycleTemplateDto = ComplianceCycleTemplate;
+
+export interface CreateComplianceObligationRequest {
+  clientId: string;
+  clientServiceId?: string;
+  servicePeriodId?: string;
+  workflowId?: string;
+  obligationType: ComplianceObligationType;
+  title: string;
+  description?: string;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  statutoryDueDate: string;
+  internalTargetDate?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  remarks?: string;
+}
+
+export interface UpdateComplianceObligationRequest {
+  title?: string;
+  description?: string;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  status?: ComplianceObligationStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  workflowId?: string;
+  remarks?: string;
+}
+
+export interface UpdateObligationStatusRequest {
+  status: ComplianceObligationStatus;
+  filedDate?: string;
+  acknowledgementNumber?: string;
+  remarks?: string;
+}
+
+export interface AssignObligationRequest {
+  assignedToId?: string;
+}
+
+export interface ComplianceCalendarFilterParams {
+  clientId?: string;
+  clientServiceId?: string;
+  obligationType?: ComplianceObligationType;
+  status?: ComplianceObligationStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  overdue?: boolean;
+  dueToday?: boolean;
+  dueThisWeek?: boolean;
+  waitingForClient?: boolean;
+  readyForFiling?: boolean;
+  myWorkOnly?: boolean;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
+}
+
+

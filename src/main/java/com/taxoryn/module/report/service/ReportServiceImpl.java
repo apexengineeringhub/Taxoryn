@@ -12,7 +12,7 @@ import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
-import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.ComplianceStatus;
+import com.taxoryn.module.compliance.model.ComplianceObligationStatus;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
 import com.taxoryn.module.docrequest.entity.DocumentRequestEntity;
 import com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus;
@@ -148,10 +148,10 @@ public class ReportServiceImpl implements ReportService {
         List<ComplianceObligationEntity> obligations = complianceObligationRepository.findAllByOrganizationIdAndDueDateBetween(
                 organizationId, today.minusYears(1), today.plusYears(1));
 
-        long complianceDueToday = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && today.equals(o.getDueDate())).count();
-        long complianceDueThisWeek = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && o.getDueDate() != null && !o.getDueDate().isBefore(today) && !o.getDueDate().isAfter(endOfWeek)).count();
-        long complianceOverdue = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && o.getDueDate() != null && o.getDueDate().isBefore(today)).count();
-        long complianceCompleted = obligations.stream().filter(o -> o.getStatus() == ComplianceStatus.COMPLETED).count();
+        long complianceDueToday = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && today.equals(o.getDueDate())).count();
+        long complianceDueThisWeek = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && o.getDueDate() != null && !o.getDueDate().isBefore(today) && !o.getDueDate().isAfter(endOfWeek)).count();
+        long complianceOverdue = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && o.getDueDate() != null && o.getDueDate().isBefore(today)).count();
+        long complianceCompleted = obligations.stream().filter(o -> o.getStatus() == ComplianceObligationStatus.COMPLETED).count();
 
         // 5. Document Requests
         long documentRequestsPending = documentRequestRepository.countByOrganizationIdAndStatusIn(
@@ -305,15 +305,15 @@ public class ReportServiceImpl implements ReportService {
         }
 
         long complianceTotal = obligations.size();
-        long complianceDueToday = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && today.equals(o.getDueDate())).count();
-        long complianceDueThisWeek = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && o.getDueDate() != null && !o.getDueDate().isBefore(today) && !o.getDueDate().isAfter(endOfWeek)).count();
-        long complianceUpcoming = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && o.getDueDate() != null && o.getDueDate().isAfter(endOfWeek)).count();
-        long complianceOverdue = obligations.stream().filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && o.getDueDate() != null && o.getDueDate().isBefore(today)).count();
-        long complianceCompleted = obligations.stream().filter(o -> o.getStatus() == ComplianceStatus.COMPLETED).count();
+        long complianceDueToday = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && today.equals(o.getDueDate())).count();
+        long complianceDueThisWeek = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && o.getDueDate() != null && !o.getDueDate().isBefore(today) && !o.getDueDate().isAfter(endOfWeek)).count();
+        long complianceUpcoming = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && o.getDueDate() != null && o.getDueDate().isAfter(endOfWeek)).count();
+        long complianceOverdue = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && o.getDueDate() != null && o.getDueDate().isBefore(today)).count();
+        long complianceCompleted = obligations.stream().filter(o -> o.getStatus() == ComplianceObligationStatus.COMPLETED).count();
 
         Map<String, Long> complianceByType = new LinkedHashMap<>();
         for (ComplianceObligationEntity ob : obligations) {
-            String typeStr = ob.getComplianceType() != null ? ob.getComplianceType().name() : "OTHER";
+            String typeStr = ob.getObligationType() != null ? ob.getObligationType().name() : (ob.getComplianceType() != null ? ob.getComplianceType().name() : "OTHER");
             complianceByType.put(typeStr, complianceByType.getOrDefault(typeStr, 0L) + 1);
         }
 
@@ -417,7 +417,7 @@ public class ReportServiceImpl implements ReportService {
         }
 
         Set<UUID> clientsWithOverdueCompliance = obligations.stream()
-                .filter(o -> o.getStatus() != ComplianceStatus.COMPLETED && o.getStatus() != ComplianceStatus.CANCELLED && o.getClientId() != null && o.getDueDate() != null && o.getDueDate().isBefore(today))
+                .filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED && o.getClientId() != null && o.getDueDate() != null && o.getDueDate().isBefore(today))
                 .map(ComplianceObligationEntity::getClientId)
                 .collect(Collectors.toSet());
 

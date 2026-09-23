@@ -1,7 +1,10 @@
 package com.taxoryn.module.compliance.service;
 
+import com.taxoryn.core.security.PracticeSecurityScope;
+import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.TenantContext;
+import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.compliance.dto.ComplianceDashboardStatsDto;
@@ -64,7 +67,16 @@ class ComplianceServiceTest {
     private TaskRepository taskRepository;
 
     @Mock
+    private AuditService auditService;
+
+    @Mock
     private ComplianceMapper complianceMapper;
+
+    @Mock
+    private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
+    @Spy
+    private DueDateCalculationService dueDateCalculationService = new DueDateCalculationServiceImpl();
 
     @Spy
     private ComplianceRuleServiceImpl ruleService = new ComplianceRuleServiceImpl(null, null);
@@ -97,6 +109,10 @@ class ComplianceServiceTest {
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
         TenantContext.setTenantId(tenantId);
+
+        PracticeSecurityScope scope = PracticeSecurityScope.firmAdmin(principal.getUserId());
+        org.mockito.Mockito.lenient().when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(scope);
+        org.mockito.Mockito.lenient().when(securityScopeEvaluator.getAccessibleClientIds(org.mockito.ArgumentMatchers.any())).thenReturn(null);
     }
 
     @AfterEach
@@ -180,19 +196,13 @@ class ComplianceServiceTest {
         saved.setOrganizationId(tenantId);
 
         when(obligationRepository.save(any(ComplianceObligationEntity.class))).thenReturn(saved);
-        when(complianceMapper.toObligationDto(saved)).thenReturn(ComplianceObligationDto.builder()
-                .id(obligationId)
-                .title("TDS Return Form 26Q Q2")
-                .complianceType(ComplianceType.TDS)
-                .status(ComplianceStatus.PENDING)
-                .dueDate(LocalDate.of(2026, 10, 31))
-                .build());
+        when(obligationRepository.findByIdAndOrganizationId(obligationId, tenantId)).thenReturn(Optional.of(saved));
 
         ComplianceObligationDto result = complianceService.createObligation(request);
 
         assertNotNull(result);
         assertEquals("TDS Return Form 26Q Q2", result.getTitle());
-        assertEquals(ComplianceStatus.PENDING, result.getStatus());
+        assertEquals(com.taxoryn.module.compliance.model.ComplianceObligationStatus.UPCOMING, result.getStatus());
     }
 
     @Test
@@ -223,17 +233,12 @@ class ComplianceServiceTest {
 
         when(taskRepository.save(any(TaskEntity.class))).thenReturn(savedTask);
         when(obligationRepository.save(obligation)).thenReturn(obligation);
-        when(complianceMapper.toObligationDto(obligation)).thenReturn(ComplianceObligationDto.builder()
-                .id(obligationId)
-                .taskId(taskId)
-                .status(ComplianceStatus.IN_PROGRESS)
-                .build());
 
         ComplianceObligationDto result = complianceService.createTaskForObligation(obligationId);
 
         assertNotNull(result);
         assertEquals(taskId, result.getTaskId());
-        assertEquals(ComplianceStatus.IN_PROGRESS, result.getStatus());
+        assertEquals(com.taxoryn.module.compliance.model.ComplianceObligationStatus.READY, result.getStatus());
     }
 
     @Test
@@ -267,9 +272,6 @@ class ComplianceServiceTest {
 
         when(obligationRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
                 .thenReturn(List.of(todayObligation, overdueObligation, completedObligation));
-
-        when(complianceMapper.toObligationDto(any(ComplianceObligationEntity.class)))
-                .thenReturn(ComplianceObligationDto.builder().build());
 
         ComplianceDashboardStatsDto stats = complianceService.getDashboardStats();
 

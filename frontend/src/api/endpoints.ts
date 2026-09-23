@@ -15,6 +15,14 @@ import {
   UpdateComplianceWorkItemRequest,
   UpdateComplianceWorkStatusRequest,
   AssignComplianceWorkRequest,
+  ComplianceObligationDto,
+  ComplianceCalendarSummaryDto,
+  ComplianceCycleTemplateDto,
+  CreateComplianceObligationRequest,
+  UpdateComplianceObligationRequest,
+  UpdateObligationStatusRequest,
+  AssignObligationRequest,
+  ComplianceCalendarFilterParams,
   Task,
   GstProfile,
   GstReturnFiling,
@@ -970,61 +978,6 @@ export const tdsApi = {
 export const calendarApi = {
   getEvents: async (params?: { fromDate?: string; toDate?: string; complianceType?: string }) => {
     const res = await apiClient.get<ApiResponse<CalendarEvent[]>>('/v1/compliance-calendar/events', { params });
-    return res.data.data;
-  },
-};
-
-export const complianceApi = {
-  getCalendar: async (params?: {
-    fromDate?: string;
-    toDate?: string;
-    period?: string;
-    complianceType?: string;
-    status?: string;
-    clientId?: string;
-    assignedEmployeeId?: string;
-    page?: number;
-    size?: number;
-    sortBy?: string;
-    sortDirection?: string;
-  }) => {
-    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligation>>>('/v1/compliance/calendar', { params: { size: 100, ...params } });
-    return res.data.data;
-  },
-  getUpcoming: async (daysAhead: number = 30) => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/upcoming', { params: { daysAhead } });
-    return res.data.data;
-  },
-  getOverdue: async () => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/overdue');
-    return res.data.data;
-  },
-  getDueToday: async () => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/today');
-    return res.data.data;
-  },
-  getDashboardStats: async () => {
-    const res = await apiClient.get<ApiResponse<ComplianceDashboardStats>>('/v1/compliance/dashboard/stats');
-    return res.data.data;
-  },
-  getObligationById: async (id: string) => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}`);
-    return res.data.data;
-  },
-  createObligation: async (payload: Partial<ComplianceObligation>) => {
-    const res = await apiClient.post<ApiResponse<ComplianceObligation>>('/v1/compliance/obligations', payload);
-    return res.data.data;
-  },
-  updateStatus: async (id: string, payload: { status: string; completionNotes?: string }) => {
-    const res = await apiClient.patch<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/status`, payload);
-    return res.data.data;
-  },
-  assignEmployee: async (id: string, payload: { employeeId: string; remarks?: string }) => {
-    const res = await apiClient.put<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/assigned-employee`, payload);
-    return res.data.data;
-  },
-  createTaskForObligation: async (id: string) => {
-    const res = await apiClient.post<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/create-task`);
     return res.data.data;
   },
 };
@@ -2799,6 +2752,101 @@ export const serviceWorkflowApi = {
     return res.data.data;
   },
 };
+
+// =============================================================================
+// PHASE 14 — Compliance Calendar API
+// =============================================================================
+
+export const complianceApi = {
+  getCalendarObligations: async (params?: ComplianceCalendarFilterParams): Promise<PagedResponse<ComplianceObligationDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params });
+    return res.data.data;
+  },
+
+  getCalendarSummary: async (params?: ComplianceCalendarFilterParams): Promise<ComplianceCalendarSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceCalendarSummaryDto>>('/compliance/calendar/summary', { params });
+    return res.data.data;
+  },
+
+  getObligationById: async (obligationId: string): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}`);
+    return res.data.data;
+  },
+
+  getObligationsByClient: async (clientId: string): Promise<ComplianceObligationDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto[]>>(`/compliance/calendar/clients/${clientId}`);
+    return res.data.data;
+  },
+
+  getObligationsByService: async (serviceId: string): Promise<ComplianceObligationDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto[]>>(`/compliance/calendar/services/${serviceId}`);
+    return res.data.data;
+  },
+
+  createObligation: async (payload: CreateComplianceObligationRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>('/compliance/calendar/obligations', payload);
+    return res.data.data;
+  },
+
+  generateObligationForServicePeriod: async (serviceId: string, periodId: string): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/services/${serviceId}/periods/${periodId}/generate`);
+    return res.data.data;
+  },
+
+  updateObligation: async (obligationId: string, payload: UpdateComplianceObligationRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.put<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}`, payload);
+    return res.data.data;
+  },
+
+  updateObligationStatus: async (obligationId: string, payload: UpdateObligationStatusRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.patch<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}/status`, payload);
+    return res.data.data;
+  },
+
+  assignObligation: async (obligationId: string, payload: AssignObligationRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.patch<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}/assign`, payload);
+    return res.data.data;
+  },
+
+  deleteObligation: async (obligationId: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/compliance/calendar/obligations/${obligationId}`);
+  },
+
+  getCycleTemplates: async (serviceType?: string): Promise<ComplianceCycleTemplateDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceCycleTemplateDto[]>>('/compliance/calendar/cycle-templates', { params: { serviceType } });
+    return res.data.data;
+  },
+
+  // Backward-compatibility aliases
+  getCalendar: async (params?: any) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params });
+    return res.data.data;
+  },
+  getUpcoming: async (daysAhead: number = 30) => {
+    const today = new Date().toISOString().split('T')[0];
+    const future = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params: { fromDate: today, toDate: future } });
+    return res.data.data?.content || [];
+  },
+  getOverdue: async () => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params: { status: 'OVERDUE' } });
+    return res.data.data?.content || [];
+  },
+  getDueToday: async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params: { fromDate: today, toDate: today } });
+    return res.data.data?.content || [];
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceCalendarSummaryDto>>('/compliance/calendar/summary');
+    return res.data.data;
+  },
+  createTaskForObligation: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/compliance/obligations/${id}/create-task`);
+    return res.data.data;
+  },
+};
+
 
 
 
