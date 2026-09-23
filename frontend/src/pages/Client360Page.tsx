@@ -920,18 +920,30 @@ export const Client360Page: React.FC = () => {
                             )}
                           </div>
 
-                          {moduleLink && (
-                            <Link to={moduleLink}>
+                          <div className="flex items-center gap-1.5">
+                            <Link to={`/clients/${clientId}/services/${srv.id}/workflow`}>
                               <Button
-                                variant="ghost"
+                                variant="primary"
                                 size="sm"
                                 className="text-xs"
-                                rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
+                                rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
                               >
-                                Module
+                                Operations & Workflow
                               </Button>
                             </Link>
-                          )}
+                            {moduleLink && (
+                              <Link to={moduleLink}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs"
+                                  rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
+                                >
+                                  Module
+                                </Button>
+                              </Link>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

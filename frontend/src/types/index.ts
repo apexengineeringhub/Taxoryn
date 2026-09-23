@@ -4070,3 +4070,245 @@ export interface UpdateTaxNoticeConfigRequest {
   showAwaitingHearing?: boolean;
   showAwaitingOrder?: boolean;
 }
+
+// =============================================================================
+// PHASE 13 — Client Engagement Operations & Compliance Workflow Foundation
+// =============================================================================
+
+export type ServiceWorkflowStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'WAITING_FOR_CLIENT'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type StepStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'WAITING_FOR_CLIENT'
+  | 'COMPLETED'
+  | 'SKIPPED';
+
+export type ServiceWorkType =
+  | 'DATA_COLLECTION'
+  | 'DOCUMENT_COLLECTION'
+  | 'PREPARATION'
+  | 'COMPUTATION'
+  | 'REVIEW'
+  | 'CLIENT_CONFIRMATION'
+  | 'FILING_PREPARATION'
+  | 'FILING'
+  | 'ACKNOWLEDGEMENT'
+  | 'HEARING_FOLLOW_UP'
+  | 'COMPLETION'
+  | 'OTHER';
+
+export type ServicePeriodType =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUAL'
+  | 'EVENT_BASED';
+
+export type ServicePeriodStatus =
+  | 'PLANNED'
+  | 'ACTIVE'
+  | 'COMPLETED'
+  | 'OVERDUE'
+  | 'CANCELLED';
+
+export interface ClientServicePeriod {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  clientServiceId: string;
+  serviceType: string;
+  serviceName: string;
+  periodType: ServicePeriodType;
+  periodLabel: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+  status: ServicePeriodStatus;
+  hasActiveWorkflow: boolean;
+  activeWorkflowId?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface ClientServiceWorkflowStep {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  sequence: number;
+  workType: ServiceWorkType;
+  name: string;
+  description?: string;
+  status: StepStatus;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  taskId?: string;
+  dueDate?: string;
+  mandatory: boolean;
+  requiresClientInput: boolean;
+  requiresReview: boolean;
+  completedAt?: string;
+  completedBy?: string;
+  completedByName?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientServiceWorkflow {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  clientPan?: string;
+  clientServiceId: string;
+  serviceType: string;
+  serviceName: string;
+  periodId: string;
+  periodLabel: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  templateId?: string;
+  templateName?: string;
+  title: string;
+  status: ServiceWorkflowStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  currentStepSequence: number;
+  currentStepName?: string;
+  totalSteps: number;
+  completedSteps: number;
+  progressPercentage: number;
+  dueDate?: string;
+  internalTargetDate?: string;
+  waitingForClient: boolean;
+  pendingClientActionSummary?: string;
+  isOverdue: boolean;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  steps: ClientServiceWorkflowStep[];
+}
+
+export interface CreateServicePeriodRequest {
+  clientServiceId: string;
+  periodType: ServicePeriodType;
+  periodLabel: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+}
+
+export interface GenerateWorkflowRequest {
+  clientServiceId: string;
+  periodId?: string;
+  periodType?: ServicePeriodType;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+  templateId?: string;
+  customTitle?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  assignedEmployeeId?: string;
+  internalTargetDate?: string;
+}
+
+export interface UpdateWorkflowStatusRequest {
+  status: ServiceWorkflowStatus;
+  notes?: string;
+  pendingClientActionSummary?: string;
+}
+
+export interface UpdateWorkflowStepStatusRequest {
+  status: StepStatus;
+  notes?: string;
+  clientActionSummary?: string;
+}
+
+export interface AssignWorkflowRequest {
+  assignedEmployeeId?: string;
+  notes?: string;
+}
+
+export interface UpdateWorkflowPriorityRequest {
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  notes?: string;
+}
+
+export interface WorkflowFilterRequest {
+  clientId?: string;
+  clientServiceId?: string;
+  serviceType?: string;
+  status?: ServiceWorkflowStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  assignedEmployeeId?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  periodLabel?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  overdue?: boolean;
+  dueToday?: boolean;
+  dueThisWeek?: boolean;
+  myWorkOnly?: boolean;
+  teamWorkOnly?: boolean;
+  waitingForClient?: boolean;
+  readyForFiling?: boolean;
+  search?: string;
+}
+
+export interface ServiceWorkflowStepTemplate {
+  id: string;
+  workflowTemplateId: string;
+  sequence: number;
+  workType: ServiceWorkType;
+  workTypeName: string;
+  name: string;
+  description?: string;
+  defaultDaysBeforeDueDate?: number;
+  mandatory: boolean;
+  requiresClientInput: boolean;
+  requiresReview: boolean;
+  active: boolean;
+}
+
+export interface ServiceWorkflowTemplate {
+  id: string;
+  organizationId?: string;
+  serviceType: string;
+  serviceTypeName: string;
+  name: string;
+  description?: string;
+  isSystemDefault: boolean;
+  active: boolean;
+  stepCount: number;
+  stepTemplates: ServiceWorkflowStepTemplate[];
+}
+
+// DTO Aliases for Phase 13 Workflow Engine
+export type ClientServicePeriodDto = ClientServicePeriod;
+export type ClientServiceWorkflowDto = ClientServiceWorkflow;
+export type ClientServiceWorkflowStepDto = ClientServiceWorkflowStep;
+export type ServiceWorkflowTemplateDto = ServiceWorkflowTemplate;
+export type ServiceWorkflowStepTemplateDto = ServiceWorkflowStepTemplate;
+

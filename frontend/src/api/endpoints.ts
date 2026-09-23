@@ -187,6 +187,18 @@ import {
   SubmitNoticeRequest,
   CloseNoticeRequest,
   ClientNotice,
+  ClientServicePeriod,
+  ClientServiceWorkflow,
+  ClientServiceWorkflowStep,
+  ServiceWorkflowTemplate,
+  ServiceWorkflowStepTemplate,
+  CreateServicePeriodRequest,
+  GenerateWorkflowRequest,
+  UpdateWorkflowStatusRequest,
+  UpdateWorkflowStepStatusRequest,
+  AssignWorkflowRequest,
+  UpdateWorkflowPriorityRequest,
+  WorkflowFilterRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -2732,6 +2744,62 @@ export const taxNoticeConfigApi = {
     return res.data.data;
   },
 };
+
+export const serviceWorkflowApi = {
+  createServicePeriod: async (serviceId: string, payload: CreateServicePeriodRequest): Promise<ClientServicePeriod> => {
+    const res = await apiClient.post<ApiResponse<ClientServicePeriod>>(`/v1/client-services/${serviceId}/periods`, payload);
+    return res.data.data;
+  },
+  getServicePeriods: async (serviceId: string): Promise<ClientServicePeriod[]> => {
+    const res = await apiClient.get<ApiResponse<ClientServicePeriod[]>>(`/v1/client-services/${serviceId}/periods`);
+    return res.data.data;
+  },
+  generateWorkflow: async (serviceId: string, payload: GenerateWorkflowRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.post<ApiResponse<ClientServiceWorkflow>>(`/v1/client-services/${serviceId}/workflows/generate`, payload);
+    return res.data.data;
+  },
+  getWorkflowsForService: async (serviceId: string): Promise<ClientServiceWorkflow[]> => {
+    const res = await apiClient.get<ApiResponse<ClientServiceWorkflow[]>>(`/v1/client-services/${serviceId}/workflows`);
+    return res.data.data;
+  },
+  getActiveWorkflowForService: async (serviceId: string): Promise<ClientServiceWorkflow | null> => {
+    const res = await apiClient.get<ApiResponse<ClientServiceWorkflow>>(`/v1/client-services/${serviceId}/workflows/active`);
+    return res.data.data;
+  },
+  getWorkflowById: async (workflowId: string): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.get<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}`);
+    return res.data.data;
+  },
+  getWorklist: async (params?: WorkflowFilterRequest & { page?: number; size?: number }): Promise<PagedResponse<ClientServiceWorkflow>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientServiceWorkflow>>>('/v1/service-workflows/worklist', { params });
+    return res.data.data;
+  },
+  updateWorkflowStatus: async (workflowId: string, payload: UpdateWorkflowStatusRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/status`, payload);
+    return res.data.data;
+  },
+  updateStepStatus: async (workflowId: string, stepId: string, payload: UpdateWorkflowStepStatusRequest): Promise<ClientServiceWorkflowStep> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflowStep>>(`/v1/service-workflows/${workflowId}/steps/${stepId}/status`, payload);
+    return res.data.data;
+  },
+  assignWorkflow: async (workflowId: string, payload: AssignWorkflowRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/assignment`, payload);
+    return res.data.data;
+  },
+  assignStep: async (workflowId: string, stepId: string, payload: AssignWorkflowRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/steps/${stepId}/assignment`, payload);
+    return res.data.data;
+  },
+  updateWorkflowPriority: async (workflowId: string, payload: UpdateWorkflowPriorityRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/priority`, payload);
+    return res.data.data;
+  },
+  getWorkflowTemplates: async (serviceType?: string): Promise<ServiceWorkflowTemplate[]> => {
+    const res = await apiClient.get<ApiResponse<ServiceWorkflowTemplate[]>>('/v1/service-workflows/templates', { params: { serviceType } });
+    return res.data.data;
+  },
+};
+
 
 
 

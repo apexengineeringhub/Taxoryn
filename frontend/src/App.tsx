@@ -66,6 +66,7 @@ const NoticeCenterPage = React.lazy(() => import('./pages/NoticeCenterPage').the
 const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').then(m => ({ default: m.NoticeDetailPage })));
 const ProductModulesPage = React.lazy(() => import('./pages/ProductModulesPage').then(m => ({ default: m.ProductModulesPage })));
 const TaxNoticeSettingsPage = React.lazy(() => import('./pages/TaxNoticeSettingsPage').then(m => ({ default: m.TaxNoticeSettingsPage })));
+const ServiceWorkflowDetailPage = React.lazy(() => import('./pages/ServiceWorkflowDetailPage').then(m => ({ default: m.ServiceWorkflowDetailPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import { ModuleRouteGuard } from './components/common/ModuleRouteGuard';
@@ -227,6 +228,22 @@ export const App: React.FC = () => {
                 element={
                   <ModuleRouteGuard moduleCode="CLIENTS">
                     <Client360Page />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/clients/:clientId/services/:serviceId/workflow"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <ServiceWorkflowDetailPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/service-workflows/:workflowId"
+                element={
+                  <ModuleRouteGuard moduleCode="TASKS">
+                    <ServiceWorkflowDetailPage />
                   </ModuleRouteGuard>
                 }
               />
