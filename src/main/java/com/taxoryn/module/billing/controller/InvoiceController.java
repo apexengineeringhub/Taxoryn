@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +36,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/invoices", "/api/invoices", "/api/v1/billing", "/api/billing"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.BILLING)
 @Tag(name = "Client Billing & Invoicing", description = "Professional invoicing, line item pricing, payment receipt recording, outstanding balances, and client billing history")
 @SecurityRequirement(name = "BearerAuth")
 public class InvoiceController {

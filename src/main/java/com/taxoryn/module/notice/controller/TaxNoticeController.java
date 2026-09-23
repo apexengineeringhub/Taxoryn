@@ -40,6 +40,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.Map;
@@ -48,6 +50,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/notices", "/api/v1/tax-notices"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.TAX_NOTICES)
 @Tag(name = "Tax Notice Management", description = "Endpoints for managing tax notices, maker-checker responses, hearings, and resolutions")
 @SecurityRequirement(name = "BearerAuth")
 public class TaxNoticeController {

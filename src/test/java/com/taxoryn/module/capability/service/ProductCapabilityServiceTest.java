@@ -46,6 +46,9 @@ class ProductCapabilityServiceTest {
     @Mock
     private SubscriptionRepository subscriptionRepository;
 
+    @Mock
+    private com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
+
     @InjectMocks
     private ProductCapabilityServiceImpl capabilityService;
 
@@ -54,6 +57,7 @@ class ProductCapabilityServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(moduleConfigurationService.isModuleEnabled(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         TenantContext.setTenantId(testOrgId);
         SecurityUser principal = SecurityUser.builder()
                 .userId(testUserId)

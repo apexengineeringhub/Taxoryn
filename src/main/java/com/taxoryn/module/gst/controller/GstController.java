@@ -34,6 +34,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,6 +43,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/gst", "/api/gst"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.GST)
 @Tag(name = "GST Management", description = "End-to-end Goods & Services Tax compliance: Registrations, GSTR-1/3B/9/CMP-08 Filings, ITC Tracking, and Workload Analytics")
 @SecurityRequirement(name = "BearerAuth")
 public class GstController {

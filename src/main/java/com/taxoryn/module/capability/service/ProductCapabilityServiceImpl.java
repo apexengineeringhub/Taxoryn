@@ -12,6 +12,8 @@ import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationType;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.subscription.entity.SubscriptionEntity;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
+import com.taxoryn.module.moduleconfig.service.ModuleConfigurationService;
 import com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan;
 import com.taxoryn.module.subscription.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
 
     private final OrganizationRepository organizationRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final ModuleConfigurationService moduleConfigurationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -58,6 +61,10 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
 
         Set<ProductCapability> capabilities = resolveCapabilities(orgType, plan);
         Map<ProductCapability, ModuleRecommendationStatus> moduleStatuses = resolveModuleStatuses(orgType, plan);
+
+        // Reconcile with runtime module configuration: Disabled modules must not be effective
+        reconcileWithModuleConfiguration(organizationId, capabilities, moduleStatuses);
+
         List<String> recommendedModules = resolveRecommendedModules(orgType);
         String defaultDashboardView = resolveDefaultDashboardView(orgType);
         DashboardProfileDto dashboardProfile = resolveDashboardProfile(orgType);
@@ -668,5 +675,36 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
             case BUSINESS -> "IN_HOUSE_TAX_TEAM";
             case UNKNOWN -> "GENERAL_PRACTICE";
         };
+    }
+
+    private void reconcileWithModuleConfiguration(
+            UUID organizationId,
+            Set<ProductCapability> capabilities,
+            Map<ProductCapability, ModuleRecommendationStatus> moduleStatuses) {
+
+        checkModuleGate(organizationId, ProductModuleCode.CLIENTS, ProductCapability.CLIENT_MANAGEMENT, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.GST, ProductCapability.GST_COMPLIANCE, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.ITR, ProductCapability.ITR_COMPLIANCE, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.TDS, ProductCapability.TDS_COMPLIANCE, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.TAX_NOTICES, ProductCapability.TAX_NOTICE_MANAGEMENT, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.BILLING, ProductCapability.BILLING_INVOICING, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.REPORTS, ProductCapability.CENTRAL_REPORTING, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.CLIENT_PORTAL, ProductCapability.CLIENT_PORTAL, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.DOCUMENT_REQUESTS, ProductCapability.DOCUMENT_REQUESTS, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.DOCUMENTS, ProductCapability.DOCUMENT_MANAGEMENT, capabilities, moduleStatuses);
+        checkModuleGate(organizationId, ProductModuleCode.TASKS, ProductCapability.TASK_MANAGEMENT, capabilities, moduleStatuses);
+    }
+
+    private void checkModuleGate(
+            UUID organizationId,
+            ProductModuleCode moduleCode,
+            ProductCapability capability,
+            Set<ProductCapability> capabilities,
+            Map<ProductCapability, ModuleRecommendationStatus> moduleStatuses) {
+
+        if (moduleConfigurationService != null && !moduleConfigurationService.isModuleEnabled(organizationId, moduleCode)) {
+            capabilities.remove(capability);
+            moduleStatuses.put(capability, ModuleRecommendationStatus.NOT_RECOMMENDED);
+        }
     }
 }

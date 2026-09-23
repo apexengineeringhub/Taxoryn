@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { useAuth } from '../context/AuthContext';
+import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
 import { moduleConfigApi } from '../api/endpoints';
 import {
   OrganizationModule,
@@ -63,6 +64,7 @@ const MODULE_ICONS: Record<ProductModuleCode, React.ReactNode> = {
 
 export const ProductModulesPage: React.FC = () => {
   const { user } = useAuth();
+  const { refreshEntitlements } = useModuleEntitlement();
   const [modules, setModules] = useState<OrganizationModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +108,9 @@ export const ProductModulesPage: React.FC = () => {
       setModules((prev) =>
         prev.map((m) => (m.moduleCode === moduleCode ? updated : m))
       );
+
+      // Refresh global entitlement context so sidebar, action menus, and route guards reflect the update immediately
+      refreshEntitlements().catch((e) => console.warn('Failed to refresh global entitlements:', e));
 
       setSuccessMessage(
         `${updated.moduleName} is now ${targetEnabled ? 'ENABLED' : 'DISABLED'}.`

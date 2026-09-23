@@ -1,4 +1,4 @@
-import type { User } from '../types/index.ts';
+import type { User, ProductModuleCode } from '../types/index.ts';
 
 export interface NavigationItem {
   label: string;
@@ -6,6 +6,7 @@ export interface NavigationItem {
   icon?: any;
   requiredPermissions?: string[];
   allowedRoles?: string[];
+  moduleCode?: ProductModuleCode;
   visible?: boolean;
 }
 

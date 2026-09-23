@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
+import { useModuleEntitlement } from '../../context/ModuleEntitlementContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import { TaxorynLogo } from '../common/TaxorynLogo';
 import {
@@ -60,6 +61,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const { user, logout, practiceName, practiceInitials, subscriptionPlan, isLoading } = useAuth();
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
+  const { isModuleAvailable } = useModuleEntitlement();
   const location = useLocation();
 
   const userAvatar = user?.avatarUrl || getEmployeeAvatar(user?.email || user?.id);
@@ -134,18 +136,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       items: [
         { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
         { label: 'Team Chat', path: '/chat', icon: MessageSquare },
-        { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'] },
-        { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'] },
+        { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
+        { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
       ],
     },
     {
       id: 'compliance',
       sectionTitle: 'COMPLIANCE',
       items: [
-        { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'] },
-        { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'] },
-        { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
-        { label: 'Notice Center', path: '/tax-notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TAX_NOTICE_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT', 'ACCOUNTANT'] },
+        { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'], moduleCode: 'GST' },
+        { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'], moduleCode: 'ITR' },
+        { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'], moduleCode: 'TDS' },
+        { label: 'Notice Center', path: '/tax-notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TAX_NOTICE_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT', 'ACCOUNTANT'], moduleCode: 'TAX_NOTICES' },
         { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
       ],
     },
@@ -153,18 +155,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'documents',
       sectionTitle: 'DOCUMENTS',
       items: [
-        { label: 'Document Vault', path: '/documents', icon: FolderLock, requiredPermissions: ['DOCUMENT_VIEW'] },
+        { label: 'Document Vault', path: '/documents', icon: FolderLock, requiredPermissions: ['DOCUMENT_VIEW'], moduleCode: 'DOCUMENTS' },
       ],
     },
     {
       id: 'practice',
       sectionTitle: 'PRACTICE',
       items: [
-        { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
-        { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Notification Center', path: '/notifications', icon: Bell, requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES },
+        { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'CLIENT_PORTAL' },
+        { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'], moduleCode: 'REPORTS' },
+        { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'MARKETPLACE' },
+        { label: 'Client Onboarding', path: '/marketplace/onboarding', icon: UserCheck, requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'MARKETPLACE' },
+        { label: 'Notification Center', path: '/notifications', icon: Bell, requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES, moduleCode: 'NOTIFICATIONS' },
       ],
     },
     {
@@ -174,9 +176,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       items: [
         { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Modules & Features', path: '/settings/modules', icon: Layers, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Notice Operations', path: '/settings/tax-notices', icon: Scale, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-        { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
-        { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
+        { label: 'Notice Operations', path: '/settings/tax-notices', icon: Scale, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'TAX_NOTICES' },
+        { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'], moduleCode: 'BILLING' },
+        { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'], moduleCode: 'AUDIT' },
         { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
@@ -186,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'growth',
       sectionTitle: 'GROWTH',
       items: [
-        { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Marketplace', path: '/settings/marketplace', icon: Sparkles, requiredPermissions: ['MARKETPLACE_MANAGE', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'MARKETPLACE' },
       ],
     },
   ];
@@ -217,8 +219,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     }
   }, [isAdminRouteActive]);
 
-  // Filter sections and items with permission rules
-  const visibleSections = filterNavigationSections(practiceNavSections, user);
+  // Filter sections and items with permission rules & module availability
+  const visibleSections = filterNavigationSections(practiceNavSections, user)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => isModuleAvailable(item.moduleCode)),
+    }))
+    .filter((section) => section.items.length > 0);
   const platformFilteredItems = filterRoleNavigationItems(platformNavItems, user);
   const visibleClientSections = filterNavigationSections(clientNavSections, user);
 

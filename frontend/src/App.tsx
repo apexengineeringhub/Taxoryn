@@ -66,6 +66,8 @@ const ProductModulesPage = React.lazy(() => import('./pages/ProductModulesPage')
 const TaxNoticeSettingsPage = React.lazy(() => import('./pages/TaxNoticeSettingsPage').then(m => ({ default: m.TaxNoticeSettingsPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
+import { ModuleRouteGuard } from './components/common/ModuleRouteGuard';
+import { ModuleEntitlementProvider } from './context/ModuleEntitlementContext';
 import {
   NOTIFICATION_PERMISSIONS,
   NOTIFICATION_ADMIN_ROLES,
@@ -110,9 +112,10 @@ export const App: React.FC = () => {
   return (
     <AuthProvider>
       <BrandingProvider>
-        <BrowserRouter>
-          <Suspense fallback={<PageLoadingFallback />}>
-            <Routes>
+        <ModuleEntitlementProvider>
+          <BrowserRouter>
+            <Suspense fallback={<PageLoadingFallback />}>
+              <Routes>
             {/* Central SaaS Root Route */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             {/* Public Auth & Discovery Routes */}
@@ -209,112 +212,209 @@ export const App: React.FC = () => {
             >
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/clients" element={<ClientsPage />} />
+              <Route
+                path="/clients"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <ClientsPage />
+                  </ModuleRouteGuard>
+                }
+              />
               <Route
                 path="/clients/migration"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <ModuleRouteGuard
+                    moduleCode="CLIENTS"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}
+                  >
                     <ClientMigrationHubPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
-              <Route path="/tasks" element={<TasksPage />} />
+              <Route
+                path="/tasks"
+                element={
+                  <ModuleRouteGuard moduleCode="TASKS">
+                    <TasksPage />
+                  </ModuleRouteGuard>
+                }
+              />
               <Route
                 path="/tasks/bulk"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <ModuleRouteGuard
+                    moduleCode="TASKS"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}
+                  >
                     <BulkTasksGeneratorPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
-              <Route path="/gst" element={<GstCompliancePage />} />
+              <Route
+                path="/gst"
+                element={
+                  <ModuleRouteGuard moduleCode="GST">
+                    <GstCompliancePage />
+                  </ModuleRouteGuard>
+                }
+              />
               <Route
                 path="/gst/migration"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <ModuleRouteGuard
+                    moduleCode="GST"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}
+                  >
                     <GstDataMigrationHubPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
-              <Route path="/itr" element={<ItrCompliancePage />} />
+              <Route
+                path="/itr"
+                element={
+                  <ModuleRouteGuard moduleCode="ITR">
+                    <ItrCompliancePage />
+                  </ModuleRouteGuard>
+                }
+              />
               <Route
                 path="/itr/migration"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <ModuleRouteGuard
+                    moduleCode="ITR"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}
+                  >
                     <ItrDataMigrationHubPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
-              <Route path="/tds" element={<TdsCompliancePage />} />
+              <Route
+                path="/tds"
+                element={
+                  <ModuleRouteGuard moduleCode="TDS">
+                    <TdsCompliancePage />
+                  </ModuleRouteGuard>
+                }
+              />
               <Route
                 path="/tds/migration"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <ModuleRouteGuard
+                    moduleCode="TDS"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}
+                  >
                     <TdsDataMigrationHubPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
-              <Route path="/notices" element={<NoticeCenterPage />} />
-              <Route path="/notices/:id" element={<NoticeDetailPage />} />
-              <Route path="/tax-notices" element={<NoticeCenterPage />} />
-              <Route path="/tax-notices/:id" element={<NoticeDetailPage />} />
-              <Route path="/documents" element={<DocumentsPage />} />
+              <Route
+                path="/notices"
+                element={
+                  <ModuleRouteGuard moduleCode="TAX_NOTICES">
+                    <NoticeCenterPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/notices/:id"
+                element={
+                  <ModuleRouteGuard moduleCode="TAX_NOTICES">
+                    <NoticeDetailPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/tax-notices"
+                element={
+                  <ModuleRouteGuard moduleCode="TAX_NOTICES">
+                    <NoticeCenterPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/tax-notices/:id"
+                element={
+                  <ModuleRouteGuard moduleCode="TAX_NOTICES">
+                    <NoticeDetailPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/documents"
+                element={
+                  <ModuleRouteGuard moduleCode="DOCUMENTS">
+                    <DocumentsPage />
+                  </ModuleRouteGuard>
+                }
+              />
               <Route
                 path="/billing"
                 element={
-                  <RoleRouteGuard
+                  <ModuleRouteGuard
+                    moduleCode="BILLING"
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT']}
                     requiredPermissions={['BILLING_VIEW', 'BILLING_READ']}
                   >
                     <BillingPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
                 path="/reports"
                 element={
-                  <RoleRouteGuard
+                  <ModuleRouteGuard
+                    moduleCode="REPORTS"
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER']}
                     requiredPermissions={['REPORT_VIEW', 'REPORTS_VIEW']}
                   >
                     <ReportsPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
                 path="/notifications"
                 element={
-                  <RoleRouteGuard
+                  <ModuleRouteGuard
+                    moduleCode="NOTIFICATIONS"
                     allowedRoles={NOTIFICATION_ADMIN_ROLES}
                     requiredPermissions={NOTIFICATION_PERMISSIONS}
                   >
                     <NotificationsPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
                 path="/marketplace/leads"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                  <ModuleRouteGuard
+                    moduleCode="MARKETPLACE"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                  >
                     <MarketplaceLeadsPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
                 path="/marketplace/onboarding"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                  <ModuleRouteGuard
+                    moduleCode="MARKETPLACE"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                  >
                     <MarketplaceOnboardingHubPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
                 path="/marketplace/practice-profile"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                  <ModuleRouteGuard
+                    moduleCode="MARKETPLACE"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                  >
                     <PracticeMarketplaceProfilePage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
@@ -392,9 +492,12 @@ export const App: React.FC = () => {
               <Route
                 path="/portal"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT', 'CLIENT_ADMIN', 'CLIENT_USER', 'PRACTICE_CLIENT', 'MARKETPLACE_CUSTOMER']}>
+                  <ModuleRouteGuard
+                    moduleCode="CLIENT_PORTAL"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT', 'CLIENT_ADMIN', 'CLIENT_USER', 'PRACTICE_CLIENT', 'MARKETPLACE_CUSTOMER']}
+                  >
                     <ClientPortalManagementPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
@@ -438,9 +541,13 @@ export const App: React.FC = () => {
               <Route
                 path="/audit-logs"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT']} requiredPermissions={['AUDIT_VIEW', 'AUDIT_READ']}>
+                  <ModuleRouteGuard
+                    moduleCode="AUDIT"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT']}
+                    requiredPermissions={['AUDIT_VIEW', 'AUDIT_READ']}
+                  >
                     <AuditLogsPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
@@ -454,9 +561,13 @@ export const App: React.FC = () => {
               <Route
                 path="/settings/marketplace"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                  <ModuleRouteGuard
+                    moduleCode="MARKETPLACE"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                    requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}
+                  >
                     <PracticeMarketplaceProfilePage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route
@@ -510,7 +621,8 @@ export const App: React.FC = () => {
           </Routes>
         </Suspense>
       </BrowserRouter>
-    </BrandingProvider>
-  </AuthProvider>
+        </ModuleEntitlementProvider>
+      </BrandingProvider>
+    </AuthProvider>
   );
 };

@@ -122,6 +122,15 @@ export interface ProductModule {
   displayOrder: number;
 }
 
+export type ModuleAccessStatus =
+  | 'AVAILABLE'
+  | 'MODULE_DISABLED'
+  | 'SUBSCRIPTION_REQUIRED'
+  | 'UPGRADE_REQUIRED'
+  | 'PERMISSION_DENIED'
+  | 'LOADING'
+  | 'UNKNOWN';
+
 export interface OrganizationModule {
   organizationId: string;
   moduleCode: ProductModuleCode;
@@ -130,6 +139,11 @@ export interface OrganizationModule {
   category: ProductModuleCategory;
   enabled: boolean;
   explicitlyConfigured: boolean;
+  entitled?: boolean;
+  subscriptionStatus?: string;
+  effectiveAccess?: boolean;
+  accessStatus?: ModuleAccessStatus;
+  reason?: string;
   updatedAt?: string;
 }
 

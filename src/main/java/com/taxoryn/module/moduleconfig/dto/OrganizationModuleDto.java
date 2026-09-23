@@ -23,5 +23,10 @@ public class OrganizationModuleDto {
     private ProductModuleCategory category;
     private boolean enabled;
     private boolean explicitlyConfigured;
+    private boolean entitled;
+    private String subscriptionStatus;
+    private boolean effectiveAccess;
+    private String accessStatus;
+    private String reason;
     private Instant updatedAt;
 }

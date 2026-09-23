@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
+import { useModuleEntitlement } from '../../context/ModuleEntitlementContext';
 import {
   hasPermission,
   isPlatformUser,
@@ -39,6 +40,7 @@ type MenuView = 'MAIN' | 'COMPLIANCE';
 export const NewActionMenu: React.FC = () => {
   const { user } = useAuth();
   const { currentTheme } = useBranding();
+  const { isModuleAvailable } = useModuleEntitlement();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -69,15 +71,16 @@ export const NewActionMenu: React.FC = () => {
     return PRACTICE_ACTION_DEFINITIONS;
   }, [isPlatform, isClient]);
 
-  // Authorized compliance children (only applicable to practice users)
+  // Authorized compliance children (only applicable to practice users and enabled modules)
   const authorizedComplianceActions = useMemo(() => {
     if (!isPractice) {
       return [];
     }
     return COMPLIANCE_SUBMENU_ACTIONS.filter((subAction) =>
-      hasPermission(user, subAction.requiredPermissions, subAction.allowedRoles)
+      hasPermission(user, subAction.requiredPermissions, subAction.allowedRoles) &&
+      isModuleAvailable(subAction.moduleCode)
     );
-  }, [user, isPractice]);
+  }, [user, isPractice, isModuleAvailable]);
 
   // Authorized top-level actions
   const authorizedMainActions = useMemo(() => {
@@ -86,9 +89,10 @@ export const NewActionMenu: React.FC = () => {
         // Parent appears if and only if at least 1 child is authorized
         return authorizedComplianceActions.length > 0;
       }
-      return hasPermission(user, action.requiredPermissions, action.allowedRoles);
+      return hasPermission(user, action.requiredPermissions, action.allowedRoles) &&
+        isModuleAvailable(action.moduleCode);
     });
-  }, [candidateActionDefinitions, user, authorizedComplianceActions]);
+  }, [candidateActionDefinitions, user, authorizedComplianceActions, isModuleAvailable]);
 
   // Current items based on active view
   const currentItems = useMemo(() => {

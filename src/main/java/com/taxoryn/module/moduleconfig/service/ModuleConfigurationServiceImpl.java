@@ -13,6 +13,9 @@ import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import com.taxoryn.module.moduleconfig.repository.OrganizationModuleRepository;
 import com.taxoryn.module.moduleconfig.repository.ProductModuleRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
+import com.taxoryn.module.subscription.entity.SubscriptionEntity;
+import com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus;
+import com.taxoryn.module.subscription.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
     private final ProductModuleRepository productModuleRepository;
     private final OrganizationModuleRepository organizationModuleRepository;
     private final OrganizationRepository organizationRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final AuditService auditService;
 
     @Override
@@ -96,12 +100,13 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         List<ProductModuleEntity> catalog = productModuleRepository.findAllByOrderByDisplayOrderAsc();
         List<OrganizationModuleEntity> orgConfigs = organizationModuleRepository.findByOrganizationId(organizationId);
+        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
 
         Map<ProductModuleCode, OrganizationModuleEntity> configMap = orgConfigs.stream()
                 .collect(Collectors.toMap(OrganizationModuleEntity::getModuleCode, c -> c));
 
         return catalog.stream()
-                .map(cat -> mapToOrganizationDto(organizationId, cat, configMap.get(cat.getCode())))
+                .map(cat -> mapToOrganizationDto(organizationId, cat, configMap.get(cat.getCode()), subscription))
                 .collect(Collectors.toList());
     }
 
@@ -120,7 +125,9 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         Optional<OrganizationModuleEntity> configOpt = organizationModuleRepository
                 .findByOrganizationIdAndModuleCode(organizationId, moduleCode);
 
-        return mapToOrganizationDto(organizationId, catalogModule, configOpt.orElse(null));
+        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
+
+        return mapToOrganizationDto(organizationId, catalogModule, configOpt.orElse(null), subscription);
     }
 
     @Override
@@ -158,7 +165,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         // Audit state transition if changed or newly saved
         if (existingOpt.isEmpty() || previousEnabled != enabled) {
-            UUID userId = SecurityUtils.getCurrentUserId();
+            UUID userId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
             auditService.logEvent(
                     organizationId,
                     userId,
@@ -172,7 +179,9 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                     organizationId, moduleCode, enabled, previousEnabled);
         }
 
-        return mapToOrganizationDto(organizationId, catalogModule, saved);
+        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
+
+        return mapToOrganizationDto(organizationId, catalogModule, saved, subscription);
     }
 
     @Override
@@ -200,10 +209,43 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
     private OrganizationModuleDto mapToOrganizationDto(
             UUID organizationId,
             ProductModuleEntity catalog,
-            OrganizationModuleEntity config) {
+            OrganizationModuleEntity config,
+            SubscriptionEntity subscription) {
 
         boolean isEnabled = config != null ? config.isEnabled() : catalog.isEnabledByDefault();
         boolean isExplicit = config != null;
+
+        String subStatusStr = subscription != null && subscription.getStatus() != null
+                ? subscription.getStatus().name()
+                : SubscriptionStatus.ACTIVE.name();
+
+        boolean isStatusValid = subscription == null
+                || subscription.getStatus() == SubscriptionStatus.ACTIVE
+                || subscription.getStatus() == SubscriptionStatus.TRIALING;
+
+        boolean isEntitled = true;
+        if (subscription != null && subscription.getPlan() == null) {
+            isEntitled = false;
+        }
+
+        boolean effectiveAccess = isEnabled && isStatusValid && isEntitled;
+
+        String accessStatus;
+        String reason;
+
+        if (!isEnabled) {
+            accessStatus = "MODULE_DISABLED";
+            reason = "Product module " + catalog.getCode().name() + " is administratively disabled for this organization.";
+        } else if (!isStatusValid) {
+            accessStatus = "SUBSCRIPTION_REQUIRED";
+            reason = "Active subscription required to access " + catalog.getCode().name() + ". Current status: " + subStatusStr + ".";
+        } else if (!isEntitled) {
+            accessStatus = "UPGRADE_REQUIRED";
+            reason = "Current subscription plan does not include " + catalog.getCode().name() + ". Please upgrade your subscription.";
+        } else {
+            accessStatus = "AVAILABLE";
+            reason = "Module is active and available.";
+        }
 
         return OrganizationModuleDto.builder()
                 .organizationId(organizationId)
@@ -213,6 +255,11 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                 .category(catalog.getCategory())
                 .enabled(isEnabled)
                 .explicitlyConfigured(isExplicit)
+                .entitled(isEntitled)
+                .subscriptionStatus(subStatusStr)
+                .effectiveAccess(effectiveAccess)
+                .accessStatus(accessStatus)
+                .reason(reason)
                 .updatedAt(config != null ? config.getUpdatedAt() : catalog.getUpdatedAt())
                 .build();
     }
