@@ -14,6 +14,8 @@ import com.taxoryn.module.notice.dto.NoticeResponseDto;
 import com.taxoryn.module.notice.dto.RecordHearingOutcomeRequest;
 import com.taxoryn.module.notice.dto.ReviewNoticeResponseRequest;
 import com.taxoryn.module.notice.dto.ScheduleHearingRequest;
+import com.taxoryn.module.notice.dto.SetFollowUpRequest;
+import com.taxoryn.module.notice.dto.SetWaitingForClientRequest;
 import com.taxoryn.module.notice.dto.SubmitNoticeRequest;
 import com.taxoryn.module.notice.dto.TaxNoticeDto;
 import com.taxoryn.module.notice.dto.TaxNoticeFilterRequest;
@@ -44,6 +46,13 @@ public interface TaxNoticeService {
 
     PagedResponse<ClientNoticeDto> getClientPortalNotices(UUID clientId, PageRequestDto pageRequest);
 
+    // Waiting for Client & Follow-up Workflow
+    TaxNoticeDto setWaitingForClient(UUID noticeId, SetWaitingForClientRequest request);
+
+    TaxNoticeDto resumeFromWaiting(UUID noticeId);
+
+    TaxNoticeDto setFollowUp(UUID noticeId, SetFollowUpRequest request);
+
     // Response Drafting & Review
     List<NoticeResponseDto> getResponses(UUID noticeId);
 
@@ -52,6 +61,10 @@ public interface TaxNoticeService {
     NoticeResponseDto createResponse(UUID noticeId, CreateNoticeResponseRequest request);
 
     NoticeResponseDto reviewResponse(UUID noticeId, UUID responseId, ReviewNoticeResponseRequest request);
+
+    NoticeResponseDto clientConfirmResponse(UUID noticeId, UUID responseId, String confirmationNotes);
+
+    NoticeResponseDto markResponseReadyForSubmission(UUID noticeId, UUID responseId);
 
     TaxNoticeDto updateNoticeResponse(UUID noticeId, UpdateNoticeResponseRequest request);
 

@@ -30,12 +30,15 @@ import com.taxoryn.module.notice.dto.NoticeResponseDto;
 import com.taxoryn.module.notice.dto.RecordHearingOutcomeRequest;
 import com.taxoryn.module.notice.dto.ReviewNoticeResponseRequest;
 import com.taxoryn.module.notice.dto.ScheduleHearingRequest;
+import com.taxoryn.module.notice.dto.SetFollowUpRequest;
+import com.taxoryn.module.notice.dto.SetWaitingForClientRequest;
 import com.taxoryn.module.notice.dto.SubmitNoticeRequest;
 import com.taxoryn.module.notice.dto.TaxNoticeDto;
 import com.taxoryn.module.notice.dto.TaxNoticeFilterRequest;
 import com.taxoryn.module.notice.dto.UpdateNoticeHearingRequest;
 import com.taxoryn.module.notice.dto.UpdateNoticeResponseRequest;
 import com.taxoryn.module.notice.dto.UpdateTaxNoticeRequest;
+import com.taxoryn.module.notice.enums.NoticeRisk;
 import com.taxoryn.module.notice.entity.NoticeActivityEntity;
 import com.taxoryn.module.notice.entity.NoticeHearingEntity;
 import com.taxoryn.module.notice.entity.NoticeResponseEntity;
@@ -222,6 +225,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         // 4. Build Notice Entity
         TaxNoticeEntity entity = TaxNoticeEntity.builder()
                 .clientId(request.getClientId())
+                .complianceObligationId(request.getComplianceObligationId())
+                .clientServiceId(request.getClientServiceId())
                 .noticeNumber(request.getNoticeNumber().trim())
                 .dinNumber(StringUtils.hasText(request.getDinNumber()) ? request.getDinNumber().trim() : null)
                 .department(request.getDepartment())
@@ -249,6 +254,9 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 .hearingStatus(request.getHearingStatus())
                 .status(NoticeStatus.RECEIVED)
                 .priority(calculatedPriority)
+                .riskLevel(request.getRiskLevel() != null ? request.getRiskLevel() : NoticeRisk.MEDIUM)
+                .followUpDate(request.getFollowUpDate())
+                .followUpNotes(request.getFollowUpNotes())
                 .assignedEmployeeId(request.getAssignedEmployeeId())
                 .reviewerEmployeeId(request.getReviewerEmployeeId())
                 .partnerEmployeeId(request.getPartnerEmployeeId())
@@ -357,6 +365,17 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         }
 
         if (request.getPriority() != null) entity.setPriority(request.getPriority());
+        if (request.getRiskLevel() != null) entity.setRiskLevel(request.getRiskLevel());
+
+        if (request.getWaitingForClient() != null) entity.setWaitingForClient(request.getWaitingForClient());
+        if (request.getWaitingReason() != null) entity.setWaitingReason(request.getWaitingReason());
+        if (request.getExpectedResponseDate() != null) entity.setExpectedResponseDate(request.getExpectedResponseDate());
+
+        if (request.getFollowUpDate() != null) entity.setFollowUpDate(request.getFollowUpDate());
+        if (request.getFollowUpNotes() != null) entity.setFollowUpNotes(request.getFollowUpNotes());
+
+        if (request.getComplianceObligationId() != null) entity.setComplianceObligationId(request.getComplianceObligationId());
+        if (request.getClientServiceId() != null) entity.setClientServiceId(request.getClientServiceId());
 
         NoticeStatus oldStatus = entity.getStatus();
         if (request.getStatus() != null && request.getStatus() != oldStatus) {
@@ -688,7 +707,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                         ReviewStatus.PENDING_REVIEW.name(), ReviewStatus.APPROVED_BY_REVIEWER.name(), request.getComments());
                 auditService.logEvent("RESPONSE_APPROVED", "TAX_NOTICE", response.getId().toString(), null, response);
             }
-            case "REQUEST_REVISION", "REJECT" -> {
+            case "REQUEST_REVISION", "CHANGES_REQUIRED", "REJECT" -> {
                 if (!StringUtils.hasText(request.getComments())) {
                     throw new BusinessValidationException("Review comments are mandatory when requesting revision");
                 }
@@ -718,6 +737,23 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                         null, NoticeStatus.PARTNER_APPROVED.name(), request.getComments());
                 auditService.logEvent("RESPONSE_APPROVED", "TAX_NOTICE", response.getId().toString(), null, response);
             }
+            case "CLIENT_CONFIRMATION", "CLIENT_CONFIRM" -> {
+                response.setReviewStatus(ReviewStatus.CLIENT_CONFIRMATION);
+                if (StringUtils.hasText(request.getComments())) {
+                    response.setReviewComments(response.getReviewComments() != null ? response.getReviewComments() + "\nClient Confirmation: " + request.getComments() : "Client Confirmation: " + request.getComments());
+                }
+                notice.setStatus(NoticeStatus.CLIENT_CONFIRMATION);
+                recordActivity(noticeId, NoticeActivityType.CLIENT_CONFIRMED, currentUserId,
+                        "Response draft v" + response.getResponseVersion() + " confirmed with client",
+                        null, NoticeStatus.CLIENT_CONFIRMATION.name(), request.getComments());
+            }
+            case "READY_FOR_SUBMISSION", "MARK_READY" -> {
+                response.setReviewStatus(ReviewStatus.READY_FOR_SUBMISSION);
+                notice.setStatus(NoticeStatus.READY_FOR_SUBMISSION);
+                recordActivity(noticeId, NoticeActivityType.RESPONSE_READY_FOR_SUBMISSION, currentUserId,
+                        "Response draft v" + response.getResponseVersion() + " marked ready for filing/submission",
+                        null, NoticeStatus.READY_FOR_SUBMISSION.name(), request.getComments());
+            }
             default -> throw new BusinessValidationException("Invalid review action: " + action);
         }
 
@@ -726,6 +762,139 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
 
         auditService.logEvent("NOTICE_RESPONSE_REVIEWED", "NOTICE_RESPONSE", updatedResponse.getId().toString(), null, updatedResponse);
         return enrichResponseDto(updatedResponse);
+    }
+
+    @Override
+    @Transactional
+    public TaxNoticeDto setWaitingForClient(UUID noticeId, SetWaitingForClientRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
+        TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
+
+        notice.setWaitingForClient(true);
+        notice.setWaitingReason(request.getWaitingReason());
+        notice.setWaitingRequestedAt(Instant.now());
+        notice.setWaitingRequestedBy(currentUserId);
+        notice.setExpectedResponseDate(request.getExpectedResponseDate());
+        notice.setStatus(NoticeStatus.WAITING_FOR_CLIENT);
+
+        // Optional document request generation
+        if (Boolean.TRUE.equals(request.getCreateDocumentRequest())) {
+            String reqNum = "DOC-REQ-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String purpose = StringUtils.hasText(request.getDocumentRequestTitle())
+                    ? request.getDocumentRequestTitle().trim()
+                    : "Information/Documents required for Tax Notice " + notice.getNoticeNumber();
+            String message = StringUtils.hasText(request.getDocumentRequestDescription())
+                    ? request.getDocumentRequestDescription().trim()
+                    : request.getWaitingReason();
+
+            com.taxoryn.module.docrequest.entity.DocumentRequestEntity docReq = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                    .clientId(notice.getClientId())
+                    .noticeId(notice.getId())
+                    .requestNumber(reqNum)
+                    .purpose(purpose)
+                    .message(message)
+                    .dueDate(request.getExpectedResponseDate())
+                    .requestedByUserId(currentUserId)
+                    .status(RequestStatus.SENT)
+                    .exchangeType(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.ExchangeType.DOCUMENT_REQUEST)
+                    .direction(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestDirection.PRACTITIONER_TO_CLIENT)
+                    .build();
+            documentRequestRepository.save(docReq);
+            recordActivity(noticeId, NoticeActivityType.DOCUMENT_REQUESTED, currentUserId,
+                    "Client document request created: " + reqNum, null, null, null);
+        }
+
+        recordActivity(noticeId, NoticeActivityType.WAITING_FOR_CLIENT, currentUserId,
+                "Notice placed on waiting for client: " + request.getWaitingReason(),
+                null, NoticeStatus.WAITING_FOR_CLIENT.name(), request.getWaitingReason());
+
+        TaxNoticeEntity saved = noticeRepository.save(notice);
+        auditService.logEvent("NOTICE_WAITING_FOR_CLIENT", "TAX_NOTICE", saved.getId().toString(), null, saved);
+        return enrichNoticeDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public TaxNoticeDto resumeFromWaiting(UUID noticeId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
+        TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
+
+        notice.setWaitingForClient(false);
+        notice.setWaitingReason(null);
+        notice.setWaitingRequestedAt(null);
+        notice.setWaitingRequestedBy(null);
+        notice.setExpectedResponseDate(null);
+
+        if (notice.getStatus() == NoticeStatus.WAITING_FOR_CLIENT || notice.getStatus() == NoticeStatus.INFO_REQUESTED) {
+            long responses = responseRepository.countByOrganizationIdAndNoticeId(organizationId, noticeId);
+            notice.setStatus(responses > 0 ? NoticeStatus.RESPONSE_DRAFTING : NoticeStatus.UNDER_REVIEW);
+        }
+
+        recordActivity(noticeId, NoticeActivityType.RESUMED_FROM_WAITING, currentUserId,
+                "Notice resumed from waiting for client", null, notice.getStatus().name(), null);
+
+        TaxNoticeEntity saved = noticeRepository.save(notice);
+        auditService.logEvent("NOTICE_RESUMED", "TAX_NOTICE", saved.getId().toString(), null, saved);
+        return enrichNoticeDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public TaxNoticeDto setFollowUp(UUID noticeId, SetFollowUpRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+
+        TaxNoticeEntity notice = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
+
+        validateClientAccess(notice.getClientId());
+
+        notice.setFollowUpDate(request.getFollowUpDate());
+        if (request.getFollowUpNotes() != null) {
+            notice.setFollowUpNotes(request.getFollowUpNotes());
+        }
+        if (request.getResponsibleEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getResponsibleEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Responsible employee not found with id: " + request.getResponsibleEmployeeId()));
+            notice.setAssignedEmployeeId(request.getResponsibleEmployeeId());
+        }
+
+        recordActivity(noticeId, NoticeActivityType.FOLLOW_UP_SCHEDULED, currentUserId,
+                "Follow-up scheduled for " + request.getFollowUpDate() + (request.getFollowUpNotes() != null ? " (" + request.getFollowUpNotes() + ")" : ""),
+                null, null, request.getFollowUpNotes());
+
+        TaxNoticeEntity saved = noticeRepository.save(notice);
+        auditService.logEvent("NOTICE_FOLLOW_UP_SET", "TAX_NOTICE", saved.getId().toString(), null, saved);
+        return enrichNoticeDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public NoticeResponseDto clientConfirmResponse(UUID noticeId, UUID responseId, String confirmationNotes) {
+        ReviewNoticeResponseRequest req = ReviewNoticeResponseRequest.builder()
+                .action("CLIENT_CONFIRMATION")
+                .comments(confirmationNotes)
+                .build();
+        return reviewResponse(noticeId, responseId, req);
+    }
+
+    @Override
+    @Transactional
+    public NoticeResponseDto markResponseReadyForSubmission(UUID noticeId, UUID responseId) {
+        ReviewNoticeResponseRequest req = ReviewNoticeResponseRequest.builder()
+                .action("READY_FOR_SUBMISSION")
+                .build();
+        return reviewResponse(noticeId, responseId, req);
     }
 
     @Override
@@ -1256,6 +1425,17 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 if (filter.getPriority() != null) {
                     predicates.add(cb.equal(root.get("priority"), filter.getPriority()));
                 }
+                if (filter.getRiskLevel() != null) {
+                    predicates.add(cb.equal(root.get("riskLevel"), filter.getRiskLevel()));
+                }
+                if (filter.getWaitingForClient() != null) {
+                    predicates.add(cb.equal(root.get("waitingForClient"), filter.getWaitingForClient()));
+                }
+                if (Boolean.TRUE.equals(filter.getFollowUpDue())) {
+                    predicates.add(cb.isNotNull(root.get("followUpDate")));
+                    predicates.add(cb.lessThanOrEqualTo(root.get("followUpDate"), LocalDate.now()));
+                    predicates.add(root.get("status").in(CLOSED_STATUSES).not());
+                }
                 if (filter.getAssignedEmployeeId() != null) {
                     predicates.add(cb.equal(root.get("assignedEmployeeId"), filter.getAssignedEmployeeId()));
                 }
@@ -1334,6 +1514,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         if (entity.getResponseSubmittedBy() != null) {
             userRepository.findById(entity.getResponseSubmittedBy()).ifPresent(u ->
                     dto.setResponseSubmittedByName(u.getFullName() != null ? u.getFullName() : u.getEmail()));
+        }
+        if (entity.getWaitingRequestedBy() != null) {
+            userRepository.findById(entity.getWaitingRequestedBy()).ifPresent(u ->
+                    dto.setWaitingRequestedByName(u.getFullName() != null ? u.getFullName() : u.getEmail()));
         }
 
         // 3. Deadline / Countdown

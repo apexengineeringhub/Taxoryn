@@ -80,6 +80,17 @@ public class UpdateTaxNoticeRequest {
 
     private NoticeStatus status;
     private NoticePriority priority;
+    private com.taxoryn.module.notice.enums.NoticeRisk riskLevel;
+
+    private Boolean waitingForClient;
+    private String waitingReason;
+    private LocalDate expectedResponseDate;
+
+    private LocalDate followUpDate;
+    private String followUpNotes;
+
+    private UUID complianceObligationId;
+    private UUID clientServiceId;
 
     private UUID assignedEmployeeId;
     private UUID reviewerEmployeeId;

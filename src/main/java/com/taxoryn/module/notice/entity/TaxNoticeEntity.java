@@ -6,6 +6,7 @@ import com.taxoryn.module.notice.enums.HearingStatus;
 import com.taxoryn.module.notice.enums.NoticeDepartment;
 import com.taxoryn.module.notice.enums.NoticePriority;
 import com.taxoryn.module.notice.enums.NoticeResponseStatus;
+import com.taxoryn.module.notice.enums.NoticeRisk;
 import com.taxoryn.module.notice.enums.NoticeStatus;
 import com.taxoryn.module.notice.enums.SubmissionMode;
 import jakarta.persistence.Column;
@@ -35,6 +36,12 @@ public class TaxNoticeEntity extends TenantAuditableEntity {
 
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
+
+    @Column(name = "compliance_obligation_id")
+    private UUID complianceObligationId;
+
+    @Column(name = "client_service_id")
+    private UUID clientServiceId;
 
     @Column(name = "notice_number", nullable = false, length = 100)
     private String noticeNumber;
@@ -135,6 +142,30 @@ public class TaxNoticeEntity extends TenantAuditableEntity {
     @Column(name = "hearing_status", length = 50)
     private HearingStatus hearingStatus;
 
+    // --- Waiting for Client Management ---
+    @Column(name = "waiting_for_client", nullable = false)
+    @Builder.Default
+    private Boolean waitingForClient = false;
+
+    @Column(name = "waiting_reason", columnDefinition = "TEXT")
+    private String waitingReason;
+
+    @Column(name = "waiting_requested_at")
+    private Instant waitingRequestedAt;
+
+    @Column(name = "waiting_requested_by")
+    private UUID waitingRequestedBy;
+
+    @Column(name = "expected_response_date")
+    private LocalDate expectedResponseDate;
+
+    // --- Follow-up Management ---
+    @Column(name = "follow_up_date")
+    private LocalDate followUpDate;
+
+    @Column(name = "follow_up_notes", columnDefinition = "TEXT")
+    private String followUpNotes;
+
     // --- Case Status & Assignment ---
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -145,6 +176,11 @@ public class TaxNoticeEntity extends TenantAuditableEntity {
     @Column(name = "priority", nullable = false, length = 50)
     @Builder.Default
     private NoticePriority priority = NoticePriority.MEDIUM;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "risk_level", nullable = false, length = 50)
+    @Builder.Default
+    private NoticeRisk riskLevel = NoticeRisk.MEDIUM;
 
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;

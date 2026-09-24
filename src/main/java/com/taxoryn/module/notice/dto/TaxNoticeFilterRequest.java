@@ -21,6 +21,9 @@ public class TaxNoticeFilterRequest {
     private NoticeDepartment department;
     private NoticeStatus status;
     private NoticePriority priority;
+    private com.taxoryn.module.notice.enums.NoticeRisk riskLevel;
+    private Boolean waitingForClient;
+    private Boolean followUpDue;
     private UUID assignedEmployeeId;
     private UUID reviewerEmployeeId;
     private UUID partnerEmployeeId;

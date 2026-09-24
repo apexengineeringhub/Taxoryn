@@ -69,9 +69,25 @@ public class TaxNoticeDto {
     private String hearingOutcome;
     private HearingStatus hearingStatus;
 
+    // Waiting for Client Management
+    private Boolean waitingForClient;
+    private String waitingReason;
+    private Instant waitingRequestedAt;
+    private UUID waitingRequestedBy;
+    private String waitingRequestedByName;
+    private LocalDate expectedResponseDate;
+
+    // Follow-up Management
+    private LocalDate followUpDate;
+    private String followUpNotes;
+
     // Case Status & Priority
     private NoticeStatus status;
     private NoticePriority priority;
+    private com.taxoryn.module.notice.enums.NoticeRisk riskLevel;
+
+    private UUID complianceObligationId;
+    private UUID clientServiceId;
 
     private UUID assignedEmployeeId;
     private String assignedEmployeeName;

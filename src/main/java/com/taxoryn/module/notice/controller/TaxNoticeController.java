@@ -119,6 +119,38 @@ public class TaxNoticeController {
     }
 
     // ==========================================
+    // Waiting for Client & Follow-up Workflow
+    // ==========================================
+
+    @PostMapping("/{id}/waiting-for-client")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Place notice in waiting-for-client status and optionally request documents")
+    public ResponseEntity<ApiResponse<TaxNoticeDto>> setWaitingForClient(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.taxoryn.module.notice.dto.SetWaitingForClientRequest request) {
+        TaxNoticeDto notice = noticeService.setWaitingForClient(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Notice set to waiting for client", notice));
+    }
+
+    @PostMapping("/{id}/resume")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Resume notice from waiting-for-client status")
+    public ResponseEntity<ApiResponse<TaxNoticeDto>> resumeFromWaiting(@PathVariable UUID id) {
+        TaxNoticeDto notice = noticeService.resumeFromWaiting(id);
+        return ResponseEntity.ok(ApiResponse.success("Notice resumed successfully", notice));
+    }
+
+    @PostMapping("/{id}/follow-up")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Set follow-up date and notes for notice case")
+    public ResponseEntity<ApiResponse<TaxNoticeDto>> setFollowUp(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.taxoryn.module.notice.dto.SetFollowUpRequest request) {
+        TaxNoticeDto notice = noticeService.setFollowUp(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Follow-up date set successfully", notice));
+    }
+
+    // ==========================================
     // Response Management & Workflow
     // ==========================================
 
@@ -191,6 +223,28 @@ public class TaxNoticeController {
             @Valid @RequestBody ReviewNoticeResponseRequest request) {
         NoticeResponseDto response = noticeService.reviewResponse(id, responseId, request);
         return ResponseEntity.ok(ApiResponse.success("Response review recorded successfully", response));
+    }
+
+    @PostMapping("/{id}/responses/{responseId}/client-confirm")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasAuthority('NOTICE_RESPONSE_REVIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Record client confirmation of response draft")
+    public ResponseEntity<ApiResponse<NoticeResponseDto>> clientConfirmResponse(
+            @PathVariable UUID id,
+            @PathVariable UUID responseId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String notes = body != null ? body.get("notes") : null;
+        NoticeResponseDto response = noticeService.clientConfirmResponse(id, responseId, notes);
+        return ResponseEntity.ok(ApiResponse.success("Client confirmation recorded successfully", response));
+    }
+
+    @PostMapping("/{id}/responses/{responseId}/ready-for-submission")
+    @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasAuthority('NOTICE_RESPONSE_REVIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Mark response draft ready for portal submission")
+    public ResponseEntity<ApiResponse<NoticeResponseDto>> markResponseReadyForSubmission(
+            @PathVariable UUID id,
+            @PathVariable UUID responseId) {
+        NoticeResponseDto response = noticeService.markResponseReadyForSubmission(id, responseId);
+        return ResponseEntity.ok(ApiResponse.success("Response marked ready for submission", response));
     }
 
     // ==========================================

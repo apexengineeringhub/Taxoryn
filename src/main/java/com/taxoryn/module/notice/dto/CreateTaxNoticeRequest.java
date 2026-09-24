@@ -86,8 +86,13 @@ public class CreateTaxNoticeRequest {
     private String hearingReference;
     private String hearingNotes;
     private HearingStatus hearingStatus;
-
     private NoticePriority priority;
+    private com.taxoryn.module.notice.enums.NoticeRisk riskLevel;
+
+    private UUID complianceObligationId;
+    private UUID clientServiceId;
+    private LocalDate followUpDate;
+    private String followUpNotes;
 
     private UUID assignedEmployeeId;
     private UUID reviewerEmployeeId;

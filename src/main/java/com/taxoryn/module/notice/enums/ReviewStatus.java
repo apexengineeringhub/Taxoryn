@@ -3,8 +3,12 @@ package com.taxoryn.module.notice.enums;
 public enum ReviewStatus {
     DRAFT,
     PENDING_REVIEW,
+    INTERNAL_REVIEW,
     REVISION_REQUESTED,
+    CHANGES_REQUIRED,
     APPROVED_BY_REVIEWER,
     APPROVED_BY_PARTNER,
+    CLIENT_CONFIRMATION,
+    READY_FOR_SUBMISSION,
     SUBMITTED
 }
