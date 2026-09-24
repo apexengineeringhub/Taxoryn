@@ -23,6 +23,19 @@ import {
   UpdateObligationStatusRequest,
   AssignObligationRequest,
   ComplianceCalendarFilterParams,
+  ComplianceWorkflowDto,
+  ComplianceWorkflowChecklistItemDto,
+  ComplianceWorkflowDetailDto,
+  ComplianceWorkbenchSummaryDto,
+  ComplianceWorkbenchFilterParams,
+  AssignComplianceWorkflowRequest,
+  WaitClientWorkflowRequest,
+  RequestWorkflowChangesRequest,
+  ApproveWorkflowRequest,
+  MarkWorkflowFiledRequest,
+  CompleteComplianceWorkflowRequest,
+  UpdateChecklistItemRequest,
+  CreateWorkflowTaskRequest,
   Task,
   GstProfile,
   GstReturnFiling,
@@ -2846,6 +2859,84 @@ export const complianceApi = {
     return res.data.data;
   },
 };
+
+export const complianceWorkflowApi = {
+  getWorkbenchWorkflows: async (params?: ComplianceWorkbenchFilterParams): Promise<PagedResponse<ComplianceWorkflowDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceWorkflowDto>>>('/compliance/workbench', { params });
+    return res.data.data;
+  },
+
+  getWorkbenchSummary: async (): Promise<ComplianceWorkbenchSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkbenchSummaryDto>>('/compliance/workbench/summary');
+    return res.data.data;
+  },
+
+  getWorkflowById: async (workflowId: string): Promise<ComplianceWorkflowDetailDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkflowDetailDto>>(`/compliance/workflows/${workflowId}`);
+    return res.data.data;
+  },
+
+  getOrCreateWorkflowForObligation: async (obligationId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/obligations/${obligationId}/workflow`);
+    return res.data.data;
+  },
+
+  assignWorkflow: async (workflowId: string, payload: AssignComplianceWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/assign`, payload);
+    return res.data.data;
+  },
+
+  startWorkflow: async (workflowId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/start`);
+    return res.data.data;
+  },
+
+  waitClient: async (workflowId: string, payload: WaitClientWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/wait-client`, payload);
+    return res.data.data;
+  },
+
+  resumeClient: async (workflowId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/resume-client`);
+    return res.data.data;
+  },
+
+  submitReview: async (workflowId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/submit-review`);
+    return res.data.data;
+  },
+
+  requestChanges: async (workflowId: string, payload: RequestWorkflowChangesRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/request-changes`, payload);
+    return res.data.data;
+  },
+
+  approveWorkflow: async (workflowId: string, payload: ApproveWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/approve`, payload);
+    return res.data.data;
+  },
+
+  markFiled: async (workflowId: string, payload: MarkWorkflowFiledRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/mark-filed`, payload);
+    return res.data.data;
+  },
+
+  completeWorkflow: async (workflowId: string, payload: CompleteComplianceWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/complete`, payload);
+    return res.data.data;
+  },
+
+  updateChecklistItem: async (workflowId: string, itemId: string, payload: UpdateChecklistItemRequest): Promise<ComplianceWorkflowChecklistItemDto> => {
+    const res = await apiClient.patch<ApiResponse<ComplianceWorkflowChecklistItemDto>>(`/compliance/workflows/${workflowId}/checklist/${itemId}`, payload);
+    return res.data.data;
+  },
+
+  createWorkflowTask: async (workflowId: string, payload: CreateWorkflowTaskRequest): Promise<Task> => {
+    const res = await apiClient.post<ApiResponse<Task>>(`/compliance/workflows/${workflowId}/tasks`, payload);
+    return res.data.data;
+  },
+};
+
 
 
 

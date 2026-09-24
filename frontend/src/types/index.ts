@@ -4328,6 +4328,8 @@ export type ComplianceObligationType =
 
 export type ComplianceObligationStatus =
   | 'UPCOMING'
+  | 'READY'
+  | 'IN_PROGRESS'
   | 'DUE_TODAY'
   | 'OVERDUE'
   | 'WAITING_FOR_CLIENT'
@@ -4482,5 +4484,170 @@ export interface ComplianceCalendarFilterParams {
   sortBy?: string;
   sortDirection?: 'ASC' | 'DESC';
 }
+
+// ==============================================================================
+// Phase 15: Compliance Execution Workflow & Practitioner Workbench Types
+// ==============================================================================
+
+export type ComplianceWorkflowStatus =
+  | 'CREATED'
+  | 'READY'
+  | 'IN_PROGRESS'
+  | 'WAITING_FOR_CLIENT'
+  | 'UNDER_REVIEW'
+  | 'CHANGES_REQUIRED'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'ACKNOWLEDGEMENT_PENDING'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface ComplianceWorkflowChecklistItemDto {
+  id: string;
+  workflowId: string;
+  itemKey: string;
+  title: string;
+  description?: string;
+  sequenceOrder: number;
+  isCompleted: boolean;
+  isRequired: boolean;
+  completedAt?: string;
+  completedByUserId?: string;
+  completedByName?: string;
+  notes?: string;
+}
+
+export interface ComplianceWorkflowDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  pan?: string;
+  gstin?: string;
+  clientServiceId?: string;
+  serviceName?: string;
+  complianceObligationId: string;
+  obligationTitle?: string;
+  obligationType?: ComplianceObligationType;
+  periodLabel?: string;
+  statutoryDueDate?: string;
+  targetDate?: string;
+  statutoryStatus?: ComplianceObligationStatus;
+  workflowStatus: ComplianceWorkflowStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  reviewerEmployeeId?: string;
+  reviewerEmployeeName?: string;
+  waitingForClient: boolean;
+  waitingReason?: string;
+  expectedResponseDate?: string;
+  totalChecklistSteps: number;
+  completedChecklistSteps: number;
+  progressPercentage: number;
+  daysRemaining: number;
+  targetDaysRemaining: number;
+  isOverdue: boolean;
+  filedDate?: string;
+  acknowledgementNumber?: string;
+  reviewNotes?: string;
+  changesRequestedReason?: string;
+  startedAt?: string;
+  submittedAt?: string;
+  approvedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceWorkflowDetailDto {
+  workflow: ComplianceWorkflowDto;
+  checklistItems: ComplianceWorkflowChecklistItemDto[];
+  linkedTasks: Task[];
+  reviewNotes?: string;
+  changesRequestedReason?: string;
+  approvedBy?: string;
+  waitingRequestedBy?: string;
+  filedBy?: string;
+  completedBy?: string;
+  notes?: string;
+}
+
+export interface ComplianceWorkbenchSummaryDto {
+  totalActive: number;
+  dueToday: number;
+  dueThisWeek: number;
+  overdue: number;
+  waitingForClient: number;
+  underReview: number;
+  readyForFiling: number;
+  completedThisMonth: number;
+  myAssigned: number;
+  myReviews: number;
+}
+
+export interface ComplianceWorkbenchFilterParams {
+  clientId?: string;
+  clientServiceId?: string;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  workflowStatus?: ComplianceWorkflowStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  waitingForClient?: boolean;
+  dueFrom?: string;
+  dueTo?: string;
+  targetFrom?: string;
+  targetTo?: string;
+  viewType?: 'ALL' | 'MY_ASSIGNED' | 'MY_REVIEWS' | 'WAITING_FOR_CLIENT' | 'READY_FOR_FILING' | 'DUE_TODAY' | 'OVERDUE' | 'COMPLETED';
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
+}
+
+export interface AssignComplianceWorkflowRequest {
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  targetDate?: string;
+}
+
+export interface WaitClientWorkflowRequest {
+  reason: string;
+  expectedResponseDate?: string;
+}
+
+export interface RequestWorkflowChangesRequest {
+  reason: string;
+}
+
+export interface ApproveWorkflowRequest {
+  notes?: string;
+}
+
+export interface MarkWorkflowFiledRequest {
+  filedDate?: string;
+  acknowledgementNumber?: string;
+}
+
+export interface CompleteComplianceWorkflowRequest {
+  acknowledgementNumber?: string;
+  notes?: string;
+}
+
+export interface UpdateChecklistItemRequest {
+  isCompleted: boolean;
+  notes?: string;
+}
+
+export interface CreateWorkflowTaskRequest {
+  title: string;
+  description?: string;
+  category?: 'GST' | 'ITR' | 'TDS' | 'AUDIT' | 'COMPLIANCE' | 'NOTICE' | 'BILLING' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  dueDate?: string;
+  assignedTo?: string;
+}
+
 
 

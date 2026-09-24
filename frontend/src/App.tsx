@@ -25,6 +25,8 @@ const ItrDataMigrationHubPage = React.lazy(() => import('./pages/ItrDataMigratio
 const TdsCompliancePage = React.lazy(() => import('./pages/TdsCompliancePage').then(m => ({ default: m.TdsCompliancePage })));
 const TdsDataMigrationHubPage = React.lazy(() => import('./pages/TdsDataMigrationHubPage').then(m => ({ default: m.TdsDataMigrationHubPage })));
 const ComplianceCalendarPage = React.lazy(() => import('./pages/ComplianceCalendarPage').then(m => ({ default: m.ComplianceCalendarPage })));
+const ComplianceWorkbenchPage = React.lazy(() => import('./pages/ComplianceWorkbenchPage').then(m => ({ default: m.ComplianceWorkbenchPage })));
+const ComplianceWorkflowDetailPage = React.lazy(() => import('./pages/ComplianceWorkflowDetailPage').then(m => ({ default: m.ComplianceWorkflowDetailPage })));
 const DocumentsPage = React.lazy(() => import('./pages/DocumentsPage').then(m => ({ default: m.DocumentsPage })));
 const BillingPage = React.lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
 const ClientPortalManagementPage = React.lazy(() => import('./pages/ClientPortalManagementPage').then(m => ({ default: m.ClientPortalManagementPage })));
@@ -343,6 +345,9 @@ export const App: React.FC = () => {
                 }
               />
               <Route path="/calendar" element={<ComplianceCalendarPage />} />
+              <Route path="/compliance/calendar" element={<ComplianceCalendarPage />} />
+              <Route path="/compliance/workbench" element={<ComplianceWorkbenchPage />} />
+              <Route path="/compliance/workflows/:id" element={<ComplianceWorkflowDetailPage />} />
               <Route
                 path="/notices"
                 element={

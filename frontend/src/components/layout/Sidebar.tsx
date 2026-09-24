@@ -146,6 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'compliance',
       sectionTitle: 'COMPLIANCE',
       items: [
+        { label: 'Compliance Workbench', path: '/compliance/workbench', icon: CheckSquare, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
         { label: 'GST Compliance', path: '/gst', icon: Building2, requiredPermissions: ['GST_VIEW'], moduleCode: 'GST' },
         { label: 'ITR Compliance', path: '/itr', icon: FileSpreadsheet, requiredPermissions: ['ITR_VIEW'], moduleCode: 'ITR' },
         { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'], moduleCode: 'TDS' },
