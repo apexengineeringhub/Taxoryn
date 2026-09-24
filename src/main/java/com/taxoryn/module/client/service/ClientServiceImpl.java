@@ -26,6 +26,8 @@ import com.taxoryn.module.client.dto.UpdateClientStatusRequest;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.entity.ClientNoteEntity;
+import com.taxoryn.module.client.entity.ClientServiceEntity;
+import com.taxoryn.module.client.entity.ClientServiceType;
 import com.taxoryn.module.client.mapper.ClientMapper;
 import com.taxoryn.module.client.repository.ClientNoteRepository;
 import com.taxoryn.module.client.repository.ClientRepository;
@@ -77,6 +79,16 @@ import java.time.temporal.ChronoUnit;
 import com.taxoryn.module.authentication.repository.RefreshTokenRepository;
 import com.taxoryn.module.client.dto.UpdateClientPortalStatusRequest;
 import jakarta.persistence.criteria.Root;
+import com.taxoryn.module.audit.repository.AuditLogRepository;
+import com.taxoryn.module.billing.repository.InvoiceRepository;
+import com.taxoryn.module.docrequest.repository.DocumentRequestRepository;
+import com.taxoryn.module.document.repository.DocumentRepository;
+import com.taxoryn.module.gst.repository.GstProfileRepository;
+import com.taxoryn.module.gst.repository.GstReturnFilingRepository;
+import com.taxoryn.module.itr.repository.ItrProfileRepository;
+import com.taxoryn.module.itr.repository.ItrReturnRepository;
+import com.taxoryn.module.tds.repository.TdsProfileRepository;
+import com.taxoryn.module.tds.repository.TdsReturnRepository;
 import jakarta.persistence.criteria.Subquery;
 
 @Slf4j
@@ -97,6 +109,17 @@ public class ClientServiceImpl implements ClientService {
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final TaxNoticeRepository noticeRepository;
+    private final GstProfileRepository gstProfileRepository;
+    private final GstReturnFilingRepository gstFilingRepository;
+    private final ItrProfileRepository itrProfileRepository;
+    private final ItrReturnRepository itrReturnRepository;
+    private final TdsProfileRepository tdsProfileRepository;
+    private final TdsReturnRepository tdsReturnRepository;
+    private final DocumentRepository documentRepository;
+    private final DocumentRequestRepository documentRequestRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final com.taxoryn.module.client.repository.ClientServiceRepository clientServiceRepository;
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
@@ -600,7 +623,100 @@ public class ClientServiceImpl implements ClientService {
                 .isGstActive(StringUtils.hasText(client.getGstin()) && client.getStatus() == ClientStatus.ACTIVE)
                 .build();
 
-        // 2. Task Summary (scoped to staff deliverables if staff)
+        // 2. Active Client Services
+        List<ClientOverviewDto.ClientServiceItem> services = new ArrayList<>();
+        List<ClientServiceEntity> configuredServices = clientServiceRepository != null ?
+                clientServiceRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId) : List.of();
+
+        Map<ClientServiceType, ClientServiceEntity> configuredMap = configuredServices.stream()
+                .collect(Collectors.toMap(ClientServiceEntity::getServiceType, s -> s, (a, b) -> a));
+
+        // GST Service
+        ClientServiceEntity gstService = configuredMap.get(ClientServiceType.GST_COMPLIANCE);
+        services.add(ClientOverviewDto.ClientServiceItem.builder()
+                .serviceCode("GST")
+                .serviceName("GST Compliance & Return Filing")
+                .status(gstService != null ? gstService.getStatus().name() : (StringUtils.hasText(client.getGstin()) ? "ACTIVE" : "CONFIGURED"))
+                .identifier(client.getGstin() != null ? client.getGstin() : "GSTIN Pending")
+                .summary(gstService != null && StringUtils.hasText(gstService.getNotes()) ? gstService.getNotes() : "GSTR-1, GSTR-3B monthly & quarterly return management")
+                .routePath("/gst")
+                .build());
+
+        // ITR Service
+        ClientServiceEntity itrService = configuredMap.get(ClientServiceType.ITR_COMPLIANCE);
+        services.add(ClientOverviewDto.ClientServiceItem.builder()
+                .serviceCode("ITR")
+                .serviceName("Income Tax Returns & Computations")
+                .status(itrService != null ? itrService.getStatus().name() : (StringUtils.hasText(client.getPan()) ? "ACTIVE" : "CONFIGURED"))
+                .identifier(client.getPan() != null ? client.getPan() : "PAN Pending")
+                .summary(itrService != null && StringUtils.hasText(itrService.getNotes()) ? itrService.getNotes() : "Income tax computations, advance tax, and e-filings")
+                .routePath("/itr")
+                .build());
+
+        // TDS Service
+        ClientServiceEntity tdsService = configuredMap.get(ClientServiceType.TDS_COMPLIANCE);
+        services.add(ClientOverviewDto.ClientServiceItem.builder()
+                .serviceCode("TDS")
+                .serviceName("TDS & TCS Quarterly Returns")
+                .status(tdsService != null ? tdsService.getStatus().name() : (StringUtils.hasText(client.getTan()) ? "ACTIVE" : "CONFIGURED"))
+                .identifier(client.getTan() != null ? client.getTan() : "TAN Pending")
+                .summary(tdsService != null && StringUtils.hasText(tdsService.getNotes()) ? tdsService.getNotes() : "Forms 24Q, 26Q, 27Q, 27EQ and ITNS 281 challans")
+                .routePath("/tds")
+                .build());
+
+        // Tax Notices Service
+        ClientServiceEntity noticeService = configuredMap.get(ClientServiceType.TAX_NOTICE_MANAGEMENT);
+        services.add(ClientOverviewDto.ClientServiceItem.builder()
+                .serviceCode("TAX_NOTICES")
+                .serviceName("Tax Notices & Litigation Management")
+                .status(noticeService != null ? noticeService.getStatus().name() : "ACTIVE")
+                .identifier(null)
+                .summary(noticeService != null && StringUtils.hasText(noticeService.getNotes()) ? noticeService.getNotes() : "Statutory notice tracking, hearing schedules, and response drafting")
+                .routePath("/notices")
+                .build());
+
+        // Documents Service
+        ClientServiceEntity docService = configuredMap.get(ClientServiceType.DOCUMENT_MANAGEMENT);
+        services.add(ClientOverviewDto.ClientServiceItem.builder()
+                .serviceCode("DOCUMENTS")
+                .serviceName("Client Document Vault & Requests")
+                .status(docService != null ? docService.getStatus().name() : "ACTIVE")
+                .identifier(null)
+                .summary(docService != null && StringUtils.hasText(docService.getNotes()) ? docService.getNotes() : "Secure permanent client archives and dynamic requests")
+                .routePath("/documents")
+                .build());
+
+        // Billing Service
+        ClientServiceEntity billService = configuredMap.get(ClientServiceType.BILLING_INVOICING);
+        services.add(ClientOverviewDto.ClientServiceItem.builder()
+                .serviceCode("BILLING")
+                .serviceName("Invoicing & Fee Collections")
+                .status(billService != null ? billService.getStatus().name() : "ACTIVE")
+                .identifier(null)
+                .summary(billService != null && StringUtils.hasText(billService.getNotes()) ? billService.getNotes() : "Practice fee billing, payment receipts, and balance tracking")
+                .routePath("/billing")
+                .build());
+
+        // Add any additional configured custom services (Accounting, Audit, Other, etc.)
+        for (ClientServiceEntity extra : configuredServices) {
+            if (extra.getServiceType() != ClientServiceType.GST_COMPLIANCE &&
+                extra.getServiceType() != ClientServiceType.ITR_COMPLIANCE &&
+                extra.getServiceType() != ClientServiceType.TDS_COMPLIANCE &&
+                extra.getServiceType() != ClientServiceType.TAX_NOTICE_MANAGEMENT &&
+                extra.getServiceType() != ClientServiceType.DOCUMENT_MANAGEMENT &&
+                extra.getServiceType() != ClientServiceType.BILLING_INVOICING) {
+                services.add(ClientOverviewDto.ClientServiceItem.builder()
+                        .serviceCode(extra.getServiceType().name())
+                        .serviceName(extra.getServiceType().getDisplayName())
+                        .status(extra.getStatus().name())
+                        .identifier(null)
+                        .summary(extra.getNotes() != null ? extra.getNotes() : extra.getServiceType().getDescription())
+                        .routePath(extra.getServiceType().getRoutePath())
+                        .build());
+            }
+        }
+
+        // 3. Task Summary (scoped to staff deliverables if staff)
         List<TaskEntity> taskList;
         if (scope.isStaff()) {
             Set<UUID> selfIds = scope.getAccessibleAssigneeIds() != null ? scope.getAccessibleAssigneeIds() : Set.of();
@@ -618,44 +734,204 @@ public class ClientServiceImpl implements ClientService {
 
         long totalTasks = taskList.size();
         long completedTasks = taskList.stream().filter(t -> t.getStatus() == TaskStatus.COMPLETED).count();
-        long pendingTasks = taskList.stream().filter(t -> t.getStatus() == TaskStatus.TODO || t.getStatus() == TaskStatus.IN_PROGRESS || t.getStatus() == TaskStatus.UNDER_REVIEW).count();
+        long pendingTasks = taskList.stream().filter(t -> t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED).count();
+        long inProgressTasks = taskList.stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).count();
+        long underReviewTasks = taskList.stream().filter(t -> t.getStatus() == TaskStatus.UNDER_REVIEW).count();
         long overdueTasks = taskList.stream().filter(t -> t.getDueDate() != null && t.getDueDate().isBefore(LocalDate.now()) && t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED).count();
-        List<TaskDto> recentTasks = taskMapper.toDtoList(taskList.stream().limit(5).toList());
+        List<TaskDto> recentTasks = taskMapper.toDtoList(taskList.stream().limit(10).toList());
 
         ClientTaskSummary taskSummary = ClientTaskSummary.builder()
                 .totalTasks(totalTasks)
                 .pendingTasks(pendingTasks)
+                .inProgressTasks(inProgressTasks)
+                .underReviewTasks(underReviewTasks)
                 .overdueTasks(overdueTasks)
                 .completedTasks(completedTasks)
                 .recentTasks(recentTasks)
                 .build();
 
-        // 3. Compliance Summary
+        // 4. Compliance Breakdown (GST, ITR, TDS)
+        // 4A. GST
+        Optional<com.taxoryn.module.gst.entity.GstProfileEntity> gstProfile = gstProfileRepository.findByOrganizationIdAndClientId(organizationId, clientId);
+        List<com.taxoryn.module.gst.entity.GstReturnFilingEntity> gstFilings = gstFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(organizationId, clientId);
+        long gstTotal = gstFilings.size();
+        long gstPending = gstFilings.stream().filter(f -> f.getFilingStatus() == com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.PENDING || f.getFilingStatus() == com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.PREPARED || f.getFilingStatus() == com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.UNDER_REVIEW).count();
+        long gstFiled = gstFilings.stream().filter(f -> f.getFilingStatus() == com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.FILED).count();
+        long gstOverdue = gstFilings.stream().filter(f -> f.getFilingStatus() == com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.OVERDUE || (f.getDueDate() != null && f.getDueDate().isBefore(LocalDate.now()) && f.getFilingStatus() != com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.FILED && f.getFilingStatus() != com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.CANCELLED)).count();
+        com.taxoryn.module.gst.entity.GstReturnFilingEntity nextGst = gstFilings.stream()
+                .filter(f -> f.getFilingStatus() != com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.FILED && f.getFilingStatus() != com.taxoryn.module.gst.entity.GstReturnFilingEntity.GstFilingStatus.CANCELLED)
+                .min(java.util.Comparator.comparing(f -> f.getDueDate() != null ? f.getDueDate() : LocalDate.MAX))
+                .orElse(null);
+
+        ClientOverviewDto.GstComplianceDetails gstDetails = ClientOverviewDto.GstComplianceDetails.builder()
+                .registered(gstProfile.isPresent() || StringUtils.hasText(client.getGstin()))
+                .gstin(client.getGstin())
+                .filingFrequency(gstProfile.map(p -> p.getFilingFrequency() != null ? p.getFilingFrequency().name() : "MONTHLY").orElse("MONTHLY"))
+                .totalFilings(gstTotal)
+                .pendingFilings(gstPending)
+                .filedFilings(gstFiled)
+                .overdueFilings(gstOverdue)
+                .nextDueDate(nextGst != null ? nextGst.getDueDate() : null)
+                .nextReturnType(nextGst != null && nextGst.getReturnType() != null ? nextGst.getReturnType().name() : null)
+                .nextReturnPeriod(nextGst != null ? nextGst.getReturnPeriod() : null)
+                .build();
+
+        // 4B. ITR
+        Optional<com.taxoryn.module.itr.entity.ItrProfileEntity> itrProfile = itrProfileRepository.findByOrganizationIdAndClientId(organizationId, clientId);
+        List<com.taxoryn.module.itr.entity.ItrReturnEntity> itrReturns = itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(organizationId, clientId);
+        long itrTotal = itrReturns.size();
+        long itrPending = itrReturns.stream().filter(r -> r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.FILED && r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.COMPLETED && r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.CANCELLED).count();
+        long itrFiled = itrReturns.stream().filter(r -> r.getStatus() == com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.FILED || r.getStatus() == com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.COMPLETED).count();
+        long itrOverdue = itrReturns.stream().filter(r -> r.getDueDate() != null && r.getDueDate().isBefore(LocalDate.now()) && r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.FILED && r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.COMPLETED && r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.CANCELLED).count();
+        com.taxoryn.module.itr.entity.ItrReturnEntity nextItr = itrReturns.stream()
+                .filter(r -> r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.FILED && r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.COMPLETED && r.getStatus() != com.taxoryn.module.itr.entity.ItrReturnEntity.ItrStatus.CANCELLED)
+                .min(java.util.Comparator.comparing(r -> r.getDueDate() != null ? r.getDueDate() : LocalDate.MAX))
+                .orElse(null);
+
+        ClientOverviewDto.ItrComplianceDetails itrDetails = ClientOverviewDto.ItrComplianceDetails.builder()
+                .registered(itrProfile.isPresent() || StringUtils.hasText(client.getPan()))
+                .pan(client.getPan())
+                .taxpayerType(itrProfile.map(p -> p.getTaxpayerType() != null ? p.getTaxpayerType().name() : null).orElse(null))
+                .defaultItrType(itrProfile.map(p -> p.getDefaultItrType() != null ? p.getDefaultItrType().name() : null).orElse(null))
+                .totalReturns(itrTotal)
+                .pendingReturns(itrPending)
+                .filedReturns(itrFiled)
+                .overdueReturns(itrOverdue)
+                .nextDueDate(nextItr != null ? nextItr.getDueDate() : null)
+                .currentAssessmentYear(nextItr != null ? nextItr.getAssessmentYear() : (itrReturns.isEmpty() ? null : itrReturns.get(0).getAssessmentYear()))
+                .currentStatus(nextItr != null && nextItr.getStatus() != null ? nextItr.getStatus().name() : (itrReturns.isEmpty() ? "NOT_INITIATED" : itrReturns.get(0).getStatus().name()))
+                .build();
+
+        // 4C. TDS
+        Optional<com.taxoryn.module.tds.entity.TdsProfileEntity> tdsProfile = tdsProfileRepository.findByOrganizationIdAndClientId(organizationId, clientId);
+        List<com.taxoryn.module.tds.entity.TdsReturnEntity> tdsReturns = tdsReturnRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
+        long tdsTotal = tdsReturns.size();
+        long tdsPending = tdsReturns.stream().filter(r -> r.getFilingStatus() != com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus.FILED && r.getFilingStatus() != com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus.CANCELLED).count();
+        long tdsFiled = tdsReturns.stream().filter(r -> r.getFilingStatus() == com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus.FILED).count();
+        long tdsOverdue = tdsReturns.stream().filter(r -> r.getDueDate() != null && r.getDueDate().isBefore(LocalDate.now()) && r.getFilingStatus() != com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus.FILED && r.getFilingStatus() != com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus.CANCELLED).count();
+        com.taxoryn.module.tds.entity.TdsReturnEntity nextTds = tdsReturns.stream()
+                .filter(r -> r.getFilingStatus() != com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus.FILED && r.getFilingStatus() != com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus.CANCELLED)
+                .min(java.util.Comparator.comparing(r -> r.getDueDate() != null ? r.getDueDate() : LocalDate.MAX))
+                .orElse(null);
+
+        ClientOverviewDto.TdsComplianceDetails tdsDetails = ClientOverviewDto.TdsComplianceDetails.builder()
+                .registered(tdsProfile.isPresent() || StringUtils.hasText(client.getTan()))
+                .tan(client.getTan())
+                .deductorType(tdsProfile.map(p -> p.getDeductorType() != null ? p.getDeductorType().name() : null).orElse(null))
+                .totalReturns(tdsTotal)
+                .pendingReturns(tdsPending)
+                .filedReturns(tdsFiled)
+                .overdueReturns(tdsOverdue)
+                .nextDueDate(nextTds != null ? nextTds.getDueDate() : null)
+                .currentQuarter(nextTds != null && nextTds.getQuarter() != null ? nextTds.getQuarter().name() : null)
+                .currentFinancialYear(nextTds != null ? nextTds.getFinancialYear() : null)
+                .build();
+
         ClientComplianceSummary complianceSummary = ClientComplianceSummary.builder()
-                .gstStatus(StringUtils.hasText(client.getGstin()) ? "GST Active (Filing on schedule)" : "Not Registered for GST")
-                .itrStatus(StringUtils.hasText(client.getPan()) ? "ITR Computation Ready" : "PAN Required for ITR")
-                .tdsStatus(StringUtils.hasText(client.getTan()) ? "TAN Registered" : "No TAN Record")
+                .gstStatus(StringUtils.hasText(client.getGstin()) ? (gstOverdue > 0 ? gstOverdue + " Overdue GST Return(s)" : (gstPending > 0 ? "Filing in Progress (" + gstPending + " Pending)" : "All Returns Filed on Schedule")) : "Not Registered for GST")
+                .itrStatus(StringUtils.hasText(client.getPan()) ? (itrOverdue > 0 ? "AY " + (nextItr != null ? nextItr.getAssessmentYear() : "") + " Overdue" : (itrPending > 0 ? "AY Computation in Progress" : "ITR Compliant")) : "PAN Required for ITR")
+                .tdsStatus(StringUtils.hasText(client.getTan()) ? (tdsOverdue > 0 ? tdsOverdue + " Overdue TDS Return(s)" : (tdsPending > 0 ? "TDS Quarter in Progress" : "TDS Returns Up-to-date")) : "No TAN Registered")
                 .accountingStatus("Active Financial Year 2024-25")
+                .gstDetails(gstDetails)
+                .itrDetails(itrDetails)
+                .tdsDetails(tdsDetails)
                 .build();
 
-        // 4. Documents Summary
+        // 5. Documents Vault Summary
+        List<com.taxoryn.module.document.entity.DocumentEntity> docs = documentRepository.findAllByOrganizationIdAndClientIdAndStatus(organizationId, clientId, com.taxoryn.module.document.entity.DocumentEntity.DocumentStatus.ACTIVE);
+        long totalDocuments = docs.size();
+        List<String> documentCategories = docs.stream()
+                .map(d -> d.getDocumentType() != null ? d.getDocumentType().name() : "OTHER")
+                .distinct()
+                .toList();
+        List<ClientOverviewDto.ClientDocumentItem> recentDocuments = docs.stream()
+                .sorted(java.util.Comparator.comparing(com.taxoryn.module.document.entity.DocumentEntity::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .limit(10)
+                .map(d -> ClientOverviewDto.ClientDocumentItem.builder()
+                        .id(d.getId())
+                        .fileName(d.getFileName())
+                        .documentCategory(d.getDocumentType() != null ? d.getDocumentType().name() : "OTHER")
+                        .fileSize(d.getFileSize())
+                        .fileType(d.getContentType())
+                        .uploadedAt(d.getCreatedAt())
+                        .fileUrl("/api/v1/documents/" + d.getId() + "/download")
+                        .build())
+                .toList();
+
         ClientDocumentSummary documentSummary = ClientDocumentSummary.builder()
-                .totalDocuments(0)
-                .documentCategories(List.of("GST Invoices", "ITR Computations", "Audit Reports", "Statutory Certificates"))
+                .totalDocuments(totalDocuments)
+                .documentCategories(documentCategories.isEmpty() ? List.of("GST_INVOICES", "ITR_COMPUTATIONS", "BANK_STATEMENTS", "KYC_DOCUMENTS") : documentCategories)
+                .recentDocuments(recentDocuments)
                 .build();
 
-        // 5. Billing Summary - ZERO TRUST: Null/Redacted for non-billing staff
+        // 6. Document Requests Summary
+        List<com.taxoryn.module.docrequest.entity.DocumentRequestEntity> docRequests = documentRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);
+        long totalDocRequests = docRequests.size();
+        long pendingDocRequests = docRequests.stream().filter(r -> r.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.REQUESTED || r.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT || r.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.PARTIALLY_COMPLETED).count();
+        long receivedDocRequests = docRequests.stream().filter(r -> r.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.COMPLETED || r.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.VIEWED || r.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.IN_REVIEW).count();
+        long overdueDocRequests = docRequests.stream().filter(r -> r.getDueDate() != null && r.getDueDate().isBefore(LocalDate.now()) && r.getStatus() != com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.COMPLETED && r.getStatus() != com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.CANCELLED).count();
+        List<ClientOverviewDto.ClientDocRequestItem> recentDocRequests = docRequests.stream().limit(10).map(r -> ClientOverviewDto.ClientDocRequestItem.builder()
+                .id(r.getId())
+                .requestNumber(r.getRequestNumber())
+                .title(r.getPurpose() != null ? r.getPurpose() : "Document Request #" + r.getRequestNumber())
+                .status(r.getStatus() != null ? r.getStatus().name() : "SENT")
+                .priority("MEDIUM")
+                .dueDate(r.getDueDate())
+                .totalItems(r.getItems() != null ? r.getItems().size() : 0)
+                .receivedItems(r.getItems() != null ? (int) r.getItems().stream().filter(i -> i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.UPLOADED || i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.ACCEPTED).count() : 0)
+                .createdAt(r.getCreatedAt())
+                .build()).toList();
+
+        ClientOverviewDto.ClientDocRequestSummary docRequestsSummary = ClientOverviewDto.ClientDocRequestSummary.builder()
+                .totalRequests(totalDocRequests)
+                .pendingRequests(pendingDocRequests)
+                .receivedRequests(receivedDocRequests)
+                .overdueRequests(overdueDocRequests)
+                .recentRequests(recentDocRequests)
+                .build();
+
+        // 7. Billing Summary - ZERO TRUST: Null/Redacted for non-billing staff
         ClientBillingSummary billingSummary = null;
         if (securityScopeEvaluator.hasBillingAccess(scope)) {
+            List<com.taxoryn.module.billing.entity.InvoiceEntity> invoices = invoiceRepository.findAllByOrganizationIdAndClientIdOrderByInvoiceDateDesc(organizationId, clientId);
+            double totalInvoiced = invoices.stream()
+                    .filter(i -> i.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.CANCELLED)
+                    .mapToDouble(i -> i.getTotal() != null ? i.getTotal().doubleValue() : 0.0)
+                    .sum();
+            double totalPaid = invoices.stream()
+                    .filter(i -> i.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.CANCELLED)
+                    .mapToDouble(i -> i.getPaidAmount() != null ? i.getPaidAmount().doubleValue() : 0.0)
+                    .sum();
+            double balanceDue = invoices.stream()
+                    .filter(i -> i.getStatus() != com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.CANCELLED)
+                    .mapToDouble(i -> i.getBalanceDue() != null ? i.getBalanceDue().doubleValue() : 0.0)
+                    .sum();
+            long overdueInvoices = invoices.stream()
+                    .filter(i -> i.getDueDate() != null && i.getDueDate().isBefore(LocalDate.now()) && (i.getStatus() == com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.ISSUED || i.getStatus() == com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.PARTIALLY_PAID || i.getStatus() == com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus.OVERDUE))
+                    .count();
+            List<ClientOverviewDto.ClientInvoiceItem> recentInvoices = invoices.stream().limit(10).map(i -> ClientOverviewDto.ClientInvoiceItem.builder()
+                    .id(i.getId())
+                    .invoiceNumber(i.getInvoiceNumber())
+                    .invoiceDate(i.getInvoiceDate())
+                    .dueDate(i.getDueDate())
+                    .total(i.getTotal())
+                    .paidAmount(i.getPaidAmount())
+                    .balanceDue(i.getBalanceDue())
+                    .status(i.getStatus() != null ? i.getStatus().name() : "DRAFT")
+                    .build()).toList();
+
             billingSummary = ClientBillingSummary.builder()
-                    .totalInvoiced(0.0)
-                    .totalPaid(0.0)
-                    .outstandingBalance(0.0)
+                    .totalInvoiced(totalInvoiced)
+                    .totalPaid(totalPaid)
+                    .outstandingBalance(balanceDue)
                     .currency("INR")
+                    .totalInvoicesCount(invoices.size())
+                    .overdueInvoicesCount(overdueInvoices)
+                    .recentInvoices(recentInvoices)
                     .build();
         }
 
-        // 6. Tax Notices Summary
+        // 8. Tax Notices Summary
         List<TaxNoticeEntity> clientNotices = noticeRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
         long totalNotices = clientNotices.size();
         Set<NoticeStatus> closed = Set.of(NoticeStatus.RESOLVED, NoticeStatus.DEMAND_DROPPED, NoticeStatus.APPEAL_FILED, NoticeStatus.CLOSED);
@@ -667,27 +943,94 @@ public class ClientServiceImpl implements ClientService {
                 .map(TaxNoticeEntity::getDemandAmount)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
+        List<ClientOverviewDto.ClientNoticeItem> recentNotices = clientNotices.stream().limit(10).map(n -> ClientOverviewDto.ClientNoticeItem.builder()
+                .id(n.getId())
+                .noticeNumber(n.getNoticeNumber())
+                .issuingAuthority(n.getDepartment() != null ? n.getDepartment().name() : null)
+                .section(n.getSection())
+                .taxPeriod(n.getTaxPeriod())
+                .status(n.getStatus() != null ? n.getStatus().name() : null)
+                .demandAmount(n.getDemandAmount())
+                .responseDueDate(n.getResponseDueDate())
+                .hearingDate(n.getHearingDate())
+                .build()).toList();
+
         ClientNoticeSummary noticeSummary = ClientNoticeSummary.builder()
                 .totalNotices(totalNotices)
                 .activeNotices(activeNotices)
                 .overdueNotices(overdueNotices)
                 .hearingsScheduled(hearingsScheduled)
                 .totalDemandAmount(totalDemand)
+                .recentNotices(recentNotices)
                 .build();
 
-        // 7. Recent Notes
+        // 9. Recent Communication Notes
         List<ClientNoteEntity> noteEntities = clientNoteRepository.findTop10ByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);
         List<ClientNoteDto> recentNotes = clientMapper.toNoteDtoList(noteEntities);
+
+        // 10. Unified Chronological Activity Timeline
+        List<ClientOverviewDto.ClientActivityItem> activityTimeline = new ArrayList<>();
+
+        // Add Notes to Activity Timeline
+        noteEntities.forEach(n -> activityTimeline.add(ClientOverviewDto.ClientActivityItem.builder()
+                .id("NOTE-" + n.getId())
+                .eventType("CLIENT_NOTE")
+                .title(n.getTitle())
+                .description(n.getContent())
+                .performedBy(n.getAuthorName() != null ? n.getAuthorName() : "Practitioner")
+                .timestamp(n.getCreatedAt())
+                .category("COMMUNICATION")
+                .build()));
+
+        // Add Recent Audit Logs
+        try {
+            Page<com.taxoryn.module.audit.entity.AuditLogEntity> audits = auditLogRepository.findAllByOrganizationIdAndEntityId(
+                    organizationId,
+                    clientId.toString(),
+                    PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"))
+            );
+            audits.getContent().forEach(a -> activityTimeline.add(ClientOverviewDto.ClientActivityItem.builder()
+                    .id("AUDIT-" + a.getId())
+                    .eventType(a.getAction() != null ? a.getAction() : "AUDIT_EVENT")
+                    .title(a.getAction() != null ? a.getAction().replace('_', ' ') : "Audit Action")
+                    .description(a.getNewValue() != null ? "Value: " + a.getNewValue() : (a.getOldValue() != null ? "Previous: " + a.getOldValue() : "Audit activity on client record"))
+                    .performedBy("System")
+                    .timestamp(a.getCreatedAt())
+                    .category("AUDIT")
+                    .build()));
+        } catch (Exception ignored) {
+            // Safe fallback if audit log table structure varies
+        }
+
+        // Add Recent Document Requests to Activity Timeline
+        docRequests.stream().limit(5).forEach(dr -> activityTimeline.add(ClientOverviewDto.ClientActivityItem.builder()
+                .id("DOCREQ-" + dr.getId())
+                .eventType("DOCUMENT_REQUEST")
+                .title("Document Request: " + dr.getRequestNumber())
+                .description(dr.getPurpose() + " (Status: " + dr.getStatus() + ")")
+                .performedBy("Practice Team")
+                .timestamp(dr.getCreatedAt())
+                .category("DOCUMENTS")
+                .build()));
+
+        // Sort Activity Timeline Descending by timestamp
+        activityTimeline.sort(java.util.Comparator.comparing(
+                ClientOverviewDto.ClientActivityItem::getTimestamp,
+                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())
+        ));
 
         return ClientOverviewDto.builder()
                 .client(clientDto)
                 .statutory(statutory)
+                .services(services)
                 .taskSummary(taskSummary)
                 .complianceSummary(complianceSummary)
                 .documentsSummary(documentSummary)
+                .docRequestsSummary(docRequestsSummary)
                 .billingSummary(billingSummary)
                 .noticeSummary(noticeSummary)
                 .recentNotes(recentNotes)
+                .activityTimeline(activityTimeline.stream().limit(25).toList())
                 .build();
     }
 

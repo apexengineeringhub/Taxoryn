@@ -4,6 +4,38 @@ import {
   PagedResponse,
   OrganizationDashboard,
   Client,
+  Client360Overview,
+  ClientNote,
+  ServiceCatalogItem,
+  ClientServiceDto,
+  CreateClientServiceRequest,
+  UpdateClientServiceRequest,
+  ComplianceWorkItem,
+  CreateComplianceWorkItemRequest,
+  UpdateComplianceWorkItemRequest,
+  UpdateComplianceWorkStatusRequest,
+  AssignComplianceWorkRequest,
+  ComplianceObligationDto,
+  ComplianceCalendarSummaryDto,
+  ComplianceCycleTemplateDto,
+  CreateComplianceObligationRequest,
+  UpdateComplianceObligationRequest,
+  UpdateObligationStatusRequest,
+  AssignObligationRequest,
+  ComplianceCalendarFilterParams,
+  ComplianceWorkflowDto,
+  ComplianceWorkflowChecklistItemDto,
+  ComplianceWorkflowDetailDto,
+  ComplianceWorkbenchSummaryDto,
+  ComplianceWorkbenchFilterParams,
+  AssignComplianceWorkflowRequest,
+  WaitClientWorkflowRequest,
+  RequestWorkflowChangesRequest,
+  ApproveWorkflowRequest,
+  MarkWorkflowFiledRequest,
+  CompleteComplianceWorkflowRequest,
+  UpdateChecklistItemRequest,
+  CreateWorkflowTaskRequest,
   Task,
   GstProfile,
   GstReturnFiling,
@@ -28,6 +60,11 @@ import {
   ClientGstStatus,
   ClientItrStatus,
   ClientDocumentRequest,
+  OrganizationModule,
+  ProductModule,
+  ProductModuleCode,
+  TaxNoticeConfig,
+  UpdateTaxNoticeConfigRequest,
   DocumentRequest,
   DocumentRequestItem,
   CreateDocumentRequest,
@@ -160,7 +197,12 @@ import {
   NoticeDashboardStats,
   CreateTaxNoticeRequest,
   UpdateTaxNoticeRequest,
+  UpdateNoticeResponseRequest,
+  UpdateNoticeHearingRequest,
+  AdjournHearingRequest,
   TaxNoticeFilterRequest,
+  SetWaitingForClientRequest,
+  SetFollowUpRequest,
   CreateNoticeResponseRequest,
   ReviewNoticeResponseRequest,
   ScheduleHearingRequest,
@@ -168,6 +210,18 @@ import {
   SubmitNoticeRequest,
   CloseNoticeRequest,
   ClientNotice,
+  ClientServicePeriod,
+  ClientServiceWorkflow,
+  ClientServiceWorkflowStep,
+  ServiceWorkflowTemplate,
+  ServiceWorkflowStepTemplate,
+  CreateServicePeriodRequest,
+  GenerateWorkflowRequest,
+  UpdateWorkflowStatusRequest,
+  UpdateWorkflowStepStatusRequest,
+  AssignWorkflowRequest,
+  UpdateWorkflowPriorityRequest,
+  WorkflowFilterRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -306,6 +360,117 @@ export const clientApi = {
   bulkImport: async (clients: Partial<Client>[]) => {
     const res = await apiClient.post<ApiResponse<any>>('/v1/clients/bulk', clients);
     return res.data.data;
+  },
+  getOverview: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Client360Overview>>(`/v1/clients/${id}/360`);
+    return res.data.data;
+  },
+  getClient360: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Client360Overview>>(`/v1/clients/${id}/360`);
+    return res.data.data;
+  },
+  addNote: async (id: string, payload: { title: string; content: string; noteType: string }) => {
+    const res = await apiClient.post<ApiResponse<ClientNote>>(`/v1/clients/${id}/notes`, payload);
+    return res.data.data;
+  },
+  getNotes: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ClientNote[]>>(`/v1/clients/${id}/notes`);
+    return res.data.data;
+  },
+};
+
+// --- 3b. Client Services / Engagements ---
+export const clientServicesApi = {
+  getCatalog: async () => {
+    const res = await apiClient.get<ApiResponse<ServiceCatalogItem[]>>('/v1/client-services/catalog');
+    return res.data.data;
+  },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientServiceDto[]>>(`/v1/clients/${clientId}/services`);
+    return res.data.data;
+  },
+  getById: async (clientId: string, serviceId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`);
+    return res.data.data;
+  },
+  create: async (clientId: string, payload: CreateClientServiceRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services`, payload);
+    return res.data.data;
+  },
+  update: async (clientId: string, serviceId: string, payload: UpdateClientServiceRequest) => {
+    const res = await apiClient.put<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (clientId: string, serviceId: string, status: string) => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/status`, { status });
+    return res.data.data;
+  },
+  assignPractitioner: async (clientId: string, serviceId: string, assignedEmployeeId?: string) => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/assignee`, { assignedEmployeeId });
+    return res.data.data;
+  },
+  deactivate: async (clientId: string, serviceId: string) => {
+    const res = await apiClient.delete<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`);
+    return res.data.data;
+  },
+};
+
+// --- 3c. Compliance Work Items ---
+export const complianceWorkApi = {
+  create: async (payload: CreateComplianceWorkItemRequest) => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkItem>>('/v1/compliance-work', payload);
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}`);
+    return res.data.data;
+  },
+  getAll: async (params?: {
+    clientId?: string;
+    clientServiceId?: string;
+    workType?: string;
+    status?: string;
+    assignedEmployeeId?: string;
+    reviewerEmployeeId?: string;
+    financialYear?: string;
+    compliancePeriod?: string;
+    search?: string;
+    overdue?: boolean;
+    myWorkOnly?: boolean;
+    pendingReviewOnly?: boolean;
+    dueFrom?: string;
+    dueTo?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceWorkItem>>>('/v1/compliance-work', { params });
+    return res.data.data;
+  },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkItem[]>>(`/v1/clients/${clientId}/compliance-work`);
+    return res.data.data;
+  },
+  getByServiceId: async (serviceId: string) => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkItem[]>>(`/v1/client-services/${serviceId}/compliance-work`);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateComplianceWorkItemRequest) => {
+    const res = await apiClient.put<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, payload: UpdateComplianceWorkStatusRequest) => {
+    const res = await apiClient.patch<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}/status`, payload);
+    return res.data.data;
+  },
+  assign: async (id: string, payload: AssignComplianceWorkRequest) => {
+    const res = await apiClient.patch<ApiResponse<ComplianceWorkItem>>(`/v1/compliance-work/${id}/assignment`, payload);
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/compliance-work/${id}`);
+    return res.data;
   },
 };
 
@@ -828,61 +993,6 @@ export const tdsApi = {
 export const calendarApi = {
   getEvents: async (params?: { fromDate?: string; toDate?: string; complianceType?: string }) => {
     const res = await apiClient.get<ApiResponse<CalendarEvent[]>>('/v1/compliance-calendar/events', { params });
-    return res.data.data;
-  },
-};
-
-export const complianceApi = {
-  getCalendar: async (params?: {
-    fromDate?: string;
-    toDate?: string;
-    period?: string;
-    complianceType?: string;
-    status?: string;
-    clientId?: string;
-    assignedEmployeeId?: string;
-    page?: number;
-    size?: number;
-    sortBy?: string;
-    sortDirection?: string;
-  }) => {
-    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligation>>>('/v1/compliance/calendar', { params: { size: 100, ...params } });
-    return res.data.data;
-  },
-  getUpcoming: async (daysAhead: number = 30) => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/upcoming', { params: { daysAhead } });
-    return res.data.data;
-  },
-  getOverdue: async () => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/overdue');
-    return res.data.data;
-  },
-  getDueToday: async () => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation[]>>('/v1/compliance/today');
-    return res.data.data;
-  },
-  getDashboardStats: async () => {
-    const res = await apiClient.get<ApiResponse<ComplianceDashboardStats>>('/v1/compliance/dashboard/stats');
-    return res.data.data;
-  },
-  getObligationById: async (id: string) => {
-    const res = await apiClient.get<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}`);
-    return res.data.data;
-  },
-  createObligation: async (payload: Partial<ComplianceObligation>) => {
-    const res = await apiClient.post<ApiResponse<ComplianceObligation>>('/v1/compliance/obligations', payload);
-    return res.data.data;
-  },
-  updateStatus: async (id: string, payload: { status: string; completionNotes?: string }) => {
-    const res = await apiClient.patch<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/status`, payload);
-    return res.data.data;
-  },
-  assignEmployee: async (id: string, payload: { employeeId: string; remarks?: string }) => {
-    const res = await apiClient.put<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/assigned-employee`, payload);
-    return res.data.data;
-  },
-  createTaskForObligation: async (id: string) => {
-    const res = await apiClient.post<ApiResponse<ComplianceObligation>>(`/v1/compliance/obligations/${id}/create-task`);
     return res.data.data;
   },
 };
@@ -2506,6 +2616,57 @@ export const noticesApi = {
     const res = await apiClient.post<ApiResponse<void>>(`/v1/notices/${noticeId}/notes`, { note });
     return res.data;
   },
+  // Phase 8.2 Direct Notice Response & Hearing Management
+  updateNoticeResponse: async (id: string, payload: UpdateNoticeResponseRequest) => {
+    const res = await apiClient.put<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/response`, payload);
+    return res.data.data;
+  },
+  draftNoticeResponse: async (id: string, payload: { responseDraft: string; responseStatus?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/response/draft`, payload);
+    return res.data.data;
+  },
+  submitNoticeResponse: async (id: string, payload: { submissionReference?: string; submissionNotes?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/response/submit`, payload);
+    return res.data.data;
+  },
+  updateNoticeHearing: async (id: string, payload: UpdateNoticeHearingRequest) => {
+    const res = await apiClient.put<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing`, payload);
+    return res.data.data;
+  },
+  completeHearing: async (id: string, payload: { hearingOutcome: string; hearingNotes?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing/complete`, payload);
+    return res.data.data;
+  },
+  adjournHearing: async (id: string, payload: AdjournHearingRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing/adjourn`, payload);
+    return res.data.data;
+  },
+  cancelHearing: async (id: string, payload: { cancellationReason?: string }) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing/cancel`, payload);
+    return res.data.data;
+  },
+  // Phase 16: Resolution Workflow & Waiting for Client
+  setWaitingForClient: async (id: string, payload: SetWaitingForClientRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${id}/waiting-for-client`, payload);
+    return res.data.data;
+  },
+  resumeFromWaiting: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${id}/resume`);
+    return res.data.data;
+  },
+  setFollowUp: async (id: string, payload: SetFollowUpRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${id}/follow-up`, payload);
+    return res.data.data;
+  },
+  clientConfirmResponse: async (noticeId: string, responseId: string, payload?: { clientConfirmed?: boolean; comments?: string; notes?: string } | string) => {
+    const notes = typeof payload === 'string' ? payload : (payload?.comments || payload?.notes);
+    const res = await apiClient.post<ApiResponse<NoticeResponse>>(`/v1/notices/${noticeId}/responses/${responseId}/client-confirm`, { notes });
+    return res.data.data;
+  },
+  markResponseReadyForSubmission: async (noticeId: string, responseId: string, comments?: string) => {
+    const res = await apiClient.post<ApiResponse<NoticeResponse>>(`/v1/notices/${noticeId}/responses/${responseId}/ready-for-submission`, { comments });
+    return res.data.data;
+  },
   // Client Portal Notices
   getClientPortalNotices: async (params?: { page?: number; size?: number }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ClientNotice>>>('/v1/portal/notices', { params });
@@ -2539,6 +2700,270 @@ export const marketingApi = {
     return res.data.data;
   },
 };
+
+export const moduleConfigApi = {
+  getOrganizationModules: async (): Promise<OrganizationModule[]> => {
+    const res = await apiClient.get<ApiResponse<OrganizationModule[]>>('/v1/organizations/modules');
+    return res.data.data;
+  },
+  getOrganizationModule: async (moduleCode: ProductModuleCode): Promise<OrganizationModule> => {
+    const res = await apiClient.get<ApiResponse<OrganizationModule>>(`/v1/organizations/modules/${moduleCode}`);
+    return res.data.data;
+  },
+  updateModuleStatus: async (moduleCode: ProductModuleCode, enabled: boolean): Promise<OrganizationModule> => {
+    const res = await apiClient.put<ApiResponse<OrganizationModule>>(`/v1/organizations/modules/${moduleCode}`, { enabled });
+    return res.data.data;
+  },
+  getProductModuleCatalog: async (): Promise<ProductModule[]> => {
+    const res = await apiClient.get<ApiResponse<ProductModule[]>>('/v1/organizations/modules/catalog');
+    return res.data.data;
+  },
+};
+
+export const taxNoticeConfigApi = {
+  getConfig: async (): Promise<TaxNoticeConfig> => {
+    const res = await apiClient.get<ApiResponse<TaxNoticeConfig>>('/v1/tax-notices/config');
+    return res.data.data;
+  },
+  updateConfig: async (payload: UpdateTaxNoticeConfigRequest): Promise<TaxNoticeConfig> => {
+    const res = await apiClient.put<ApiResponse<TaxNoticeConfig>>('/v1/tax-notices/config', payload);
+    return res.data.data;
+  },
+  resetToPersonaDefaults: async (): Promise<TaxNoticeConfig> => {
+    const res = await apiClient.post<ApiResponse<TaxNoticeConfig>>('/v1/tax-notices/config/reset');
+    return res.data.data;
+  },
+};
+
+export const serviceWorkflowApi = {
+  createServicePeriod: async (serviceId: string, payload: CreateServicePeriodRequest): Promise<ClientServicePeriod> => {
+    const res = await apiClient.post<ApiResponse<ClientServicePeriod>>(`/v1/client-services/${serviceId}/periods`, payload);
+    return res.data.data;
+  },
+  getServicePeriods: async (serviceId: string): Promise<ClientServicePeriod[]> => {
+    const res = await apiClient.get<ApiResponse<ClientServicePeriod[]>>(`/v1/client-services/${serviceId}/periods`);
+    return res.data.data;
+  },
+  generateWorkflow: async (serviceId: string, payload: GenerateWorkflowRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.post<ApiResponse<ClientServiceWorkflow>>(`/v1/client-services/${serviceId}/workflows/generate`, payload);
+    return res.data.data;
+  },
+  getWorkflowsForService: async (serviceId: string): Promise<ClientServiceWorkflow[]> => {
+    const res = await apiClient.get<ApiResponse<ClientServiceWorkflow[]>>(`/v1/client-services/${serviceId}/workflows`);
+    return res.data.data;
+  },
+  getActiveWorkflowForService: async (serviceId: string): Promise<ClientServiceWorkflow | null> => {
+    const res = await apiClient.get<ApiResponse<ClientServiceWorkflow>>(`/v1/client-services/${serviceId}/workflows/active`);
+    return res.data.data;
+  },
+  getWorkflowById: async (workflowId: string): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.get<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}`);
+    return res.data.data;
+  },
+  getWorklist: async (params?: WorkflowFilterRequest & { page?: number; size?: number }): Promise<PagedResponse<ClientServiceWorkflow>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientServiceWorkflow>>>('/v1/service-workflows/worklist', { params });
+    return res.data.data;
+  },
+  updateWorkflowStatus: async (workflowId: string, payload: UpdateWorkflowStatusRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/status`, payload);
+    return res.data.data;
+  },
+  updateStepStatus: async (workflowId: string, stepId: string, payload: UpdateWorkflowStepStatusRequest): Promise<ClientServiceWorkflowStep> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflowStep>>(`/v1/service-workflows/${workflowId}/steps/${stepId}/status`, payload);
+    return res.data.data;
+  },
+  assignWorkflow: async (workflowId: string, payload: AssignWorkflowRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/assignment`, payload);
+    return res.data.data;
+  },
+  assignStep: async (workflowId: string, stepId: string, payload: AssignWorkflowRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/steps/${stepId}/assignment`, payload);
+    return res.data.data;
+  },
+  updateWorkflowPriority: async (workflowId: string, payload: UpdateWorkflowPriorityRequest): Promise<ClientServiceWorkflow> => {
+    const res = await apiClient.patch<ApiResponse<ClientServiceWorkflow>>(`/v1/service-workflows/${workflowId}/priority`, payload);
+    return res.data.data;
+  },
+  getWorkflowTemplates: async (serviceType?: string): Promise<ServiceWorkflowTemplate[]> => {
+    const res = await apiClient.get<ApiResponse<ServiceWorkflowTemplate[]>>('/v1/service-workflows/templates', { params: { serviceType } });
+    return res.data.data;
+  },
+};
+
+// =============================================================================
+// PHASE 14 — Compliance Calendar API
+// =============================================================================
+
+export const complianceApi = {
+  getCalendarObligations: async (params?: ComplianceCalendarFilterParams): Promise<PagedResponse<ComplianceObligationDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params });
+    return res.data.data;
+  },
+
+  getCalendarSummary: async (params?: ComplianceCalendarFilterParams): Promise<ComplianceCalendarSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceCalendarSummaryDto>>('/compliance/calendar/summary', { params });
+    return res.data.data;
+  },
+
+  getObligationById: async (obligationId: string): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}`);
+    return res.data.data;
+  },
+
+  getObligationsByClient: async (clientId: string): Promise<ComplianceObligationDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto[]>>(`/compliance/calendar/clients/${clientId}`);
+    return res.data.data;
+  },
+
+  getObligationsByService: async (serviceId: string): Promise<ComplianceObligationDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto[]>>(`/compliance/calendar/services/${serviceId}`);
+    return res.data.data;
+  },
+
+  createObligation: async (payload: CreateComplianceObligationRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>('/compliance/calendar/obligations', payload);
+    return res.data.data;
+  },
+
+  generateObligationForServicePeriod: async (serviceId: string, periodId: string): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/services/${serviceId}/periods/${periodId}/generate`);
+    return res.data.data;
+  },
+
+  updateObligation: async (obligationId: string, payload: UpdateComplianceObligationRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.put<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}`, payload);
+    return res.data.data;
+  },
+
+  updateObligationStatus: async (obligationId: string, payload: UpdateObligationStatusRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.patch<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}/status`, payload);
+    return res.data.data;
+  },
+
+  assignObligation: async (obligationId: string, payload: AssignObligationRequest): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.patch<ApiResponse<ComplianceObligationDto>>(`/compliance/calendar/obligations/${obligationId}/assign`, payload);
+    return res.data.data;
+  },
+
+  deleteObligation: async (obligationId: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/compliance/calendar/obligations/${obligationId}`);
+  },
+
+  getCycleTemplates: async (serviceType?: string): Promise<ComplianceCycleTemplateDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceCycleTemplateDto[]>>('/compliance/calendar/cycle-templates', { params: { serviceType } });
+    return res.data.data;
+  },
+
+  // Backward-compatibility aliases
+  getCalendar: async (params?: any) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params });
+    return res.data.data;
+  },
+  getUpcoming: async (daysAhead: number = 30) => {
+    const today = new Date().toISOString().split('T')[0];
+    const future = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params: { fromDate: today, toDate: future } });
+    return res.data.data?.content || [];
+  },
+  getOverdue: async () => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params: { status: 'OVERDUE' } });
+    return res.data.data?.content || [];
+  },
+  getDueToday: async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceObligationDto>>>('/compliance/calendar', { params: { fromDate: today, toDate: today } });
+    return res.data.data?.content || [];
+  },
+  getDashboardStats: async () => {
+    const res = await apiClient.get<ApiResponse<ComplianceCalendarSummaryDto>>('/compliance/calendar/summary');
+    return res.data.data;
+  },
+  createTaskForObligation: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/compliance/obligations/${id}/create-task`);
+    return res.data.data;
+  },
+};
+
+export const complianceWorkflowApi = {
+  getWorkbenchWorkflows: async (params?: ComplianceWorkbenchFilterParams): Promise<PagedResponse<ComplianceWorkflowDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceWorkflowDto>>>('/compliance/workbench', { params });
+    return res.data.data;
+  },
+
+  getWorkbenchSummary: async (): Promise<ComplianceWorkbenchSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkbenchSummaryDto>>('/compliance/workbench/summary');
+    return res.data.data;
+  },
+
+  getWorkflowById: async (workflowId: string): Promise<ComplianceWorkflowDetailDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceWorkflowDetailDto>>(`/compliance/workflows/${workflowId}`);
+    return res.data.data;
+  },
+
+  getOrCreateWorkflowForObligation: async (obligationId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/obligations/${obligationId}/workflow`);
+    return res.data.data;
+  },
+
+  assignWorkflow: async (workflowId: string, payload: AssignComplianceWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/assign`, payload);
+    return res.data.data;
+  },
+
+  startWorkflow: async (workflowId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/start`);
+    return res.data.data;
+  },
+
+  waitClient: async (workflowId: string, payload: WaitClientWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/wait-client`, payload);
+    return res.data.data;
+  },
+
+  resumeClient: async (workflowId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/resume-client`);
+    return res.data.data;
+  },
+
+  submitReview: async (workflowId: string): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/submit-review`);
+    return res.data.data;
+  },
+
+  requestChanges: async (workflowId: string, payload: RequestWorkflowChangesRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/request-changes`, payload);
+    return res.data.data;
+  },
+
+  approveWorkflow: async (workflowId: string, payload: ApproveWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/approve`, payload);
+    return res.data.data;
+  },
+
+  markFiled: async (workflowId: string, payload: MarkWorkflowFiledRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/mark-filed`, payload);
+    return res.data.data;
+  },
+
+  completeWorkflow: async (workflowId: string, payload: CompleteComplianceWorkflowRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/complete`, payload);
+    return res.data.data;
+  },
+
+  updateChecklistItem: async (workflowId: string, itemId: string, payload: UpdateChecklistItemRequest): Promise<ComplianceWorkflowChecklistItemDto> => {
+    const res = await apiClient.patch<ApiResponse<ComplianceWorkflowChecklistItemDto>>(`/compliance/workflows/${workflowId}/checklist/${itemId}`, payload);
+    return res.data.data;
+  },
+
+  createWorkflowTask: async (workflowId: string, payload: CreateWorkflowTaskRequest): Promise<Task> => {
+    const res = await apiClient.post<ApiResponse<Task>>(`/compliance/workflows/${workflowId}/tasks`, payload);
+    return res.data.data;
+  },
+};
+
+
+
+
 
 
 

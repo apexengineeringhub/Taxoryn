@@ -82,6 +82,26 @@ export const NoticeDetailPage: React.FC = () => {
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
 
+  // Phase 16 Modals
+  const [isWaitingModalOpen, setIsWaitingModalOpen] = useState(false);
+  const [waitingForm, setWaitingForm] = useState({
+    waitingReason: '',
+    expectedResponseDate: '',
+    createDocumentRequest: true,
+    documentRequestTitle: '',
+    documentRequestDescription: '',
+  });
+
+  const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
+  const [followUpForm, setFollowUpForm] = useState({
+    followUpDate: '',
+    followUpNotes: '',
+  });
+
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [selectedResponseForConfirm, setSelectedResponseForConfirm] = useState<NoticeResponse | null>(null);
+  const [confirmComments, setConfirmComments] = useState('');
+
   // Draft Response Form
   const [draftForm, setDraftForm] = useState<CreateNoticeResponseRequest>({
     responseTitle: '',
@@ -310,6 +330,94 @@ export const NoticeDetailPage: React.FC = () => {
     }
   };
 
+  const handleSetWaitingForClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !waitingForm.waitingReason.trim()) return;
+    try {
+      setIsActionLoading(true);
+      setActionError(null);
+      await noticesApi.setWaitingForClient(id, waitingForm);
+      setIsWaitingModalOpen(false);
+      setWaitingForm({
+        waitingReason: '',
+        expectedResponseDate: '',
+        createDocumentRequest: true,
+        documentRequestTitle: '',
+        documentRequestDescription: '',
+      });
+      await loadNoticeData(id);
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to put notice on waiting');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleResumeFromWaiting = async () => {
+    if (!id) return;
+    try {
+      setIsActionLoading(true);
+      setActionError(null);
+      await noticesApi.resumeFromWaiting(id);
+      await loadNoticeData(id);
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to resume notice');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleSetFollowUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !followUpForm.followUpDate) return;
+    try {
+      setIsActionLoading(true);
+      setActionError(null);
+      await noticesApi.setFollowUp(id, followUpForm);
+      setIsFollowUpModalOpen(false);
+      await loadNoticeData(id);
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to set follow-up');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleClientConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !selectedResponseForConfirm) return;
+    try {
+      setIsActionLoading(true);
+      setActionError(null);
+      await noticesApi.clientConfirmResponse(id, selectedResponseForConfirm.id, {
+        clientConfirmed: true,
+        comments: confirmComments,
+      });
+      setIsConfirmModalOpen(false);
+      setSelectedResponseForConfirm(null);
+      setConfirmComments('');
+      await loadNoticeData(id);
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to confirm with client');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleReadyForSubmission = async (responseId: string) => {
+    if (!id) return;
+    try {
+      setIsActionLoading(true);
+      setActionError(null);
+      await noticesApi.markResponseReadyForSubmission(id, responseId, 'Response finalized and approved for filing');
+      await loadNoticeData(id);
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to mark ready for submission');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const formatCurrency = (amount?: number) => {
     if (!amount && amount !== 0) return '—';
     return new Intl.NumberFormat('en-IN', {
@@ -340,6 +448,41 @@ export const NoticeDetailPage: React.FC = () => {
         </button>
 
         <div className="flex flex-wrap items-center gap-2">
+          {notice.waitingForClient ? (
+            <Button
+              size="sm"
+              onClick={handleResumeFromWaiting}
+              disabled={isActionLoading}
+              className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Resume from Waiting
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsWaitingModalOpen(true)}
+              className="flex items-center gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+            >
+              <Clock className="w-4 h-4 text-amber-600" /> Put on Waiting
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setFollowUpForm({
+                followUpDate: notice.followUpDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                followUpNotes: notice.followUpNotes || '',
+              });
+              setIsFollowUpModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50"
+          >
+            <Calendar className="w-4 h-4 text-blue-600" /> Set Follow-up
+          </Button>
+
           <Button
             size="sm"
             onClick={() => {
@@ -386,6 +529,35 @@ export const NoticeDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Waiting for Client Urgent Banner */}
+      {notice.waitingForClient && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 shadow-sm">
+          <div className="flex items-start gap-3">
+            <Clock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0 animate-spin" style={{ animationDuration: '6s' }} />
+            <div>
+              <div className="font-bold text-sm">Notice Paused — Waiting on Client Response / Records</div>
+              <div className="text-xs text-amber-800 mt-0.5">
+                <span className="font-semibold">Reason:</span> {notice.waitingReason || 'Information pending from client'}
+                {notice.expectedResponseDate && (
+                  <span className="ml-2 font-semibold">| Expected By: {notice.expectedResponseDate}</span>
+                )}
+                {notice.waitingRequestedByName && (
+                  <span className="ml-2">| Requested by {notice.waitingRequestedByName}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleResumeFromWaiting}
+            disabled={isActionLoading}
+            className="bg-amber-600 hover:bg-amber-700 text-white text-xs whitespace-nowrap"
+          >
+            Resume Case Work
+          </Button>
+        </div>
+      )}
+
       {/* Case Header Card */}
       <Card className="p-6 bg-white border border-gray-200 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -414,6 +586,29 @@ export const NoticeDetailPage: React.FC = () => {
                   {notice.priority}
                 </span>
               )}
+
+              {/* Risk Level Badge */}
+              {notice.riskLevel && (
+                <span className={clsx('px-2.5 py-0.5 text-xs font-bold rounded', {
+                  'bg-rose-700 text-white': notice.riskLevel === 'CRITICAL',
+                  'bg-rose-100 text-rose-800 border border-rose-300': notice.riskLevel === 'HIGH',
+                  'bg-amber-100 text-amber-800 border border-amber-300': notice.riskLevel === 'MEDIUM',
+                  'bg-emerald-50 text-emerald-700 border border-emerald-200': notice.riskLevel === 'LOW',
+                })}>
+                  RISK: {notice.riskLevel}
+                </span>
+              )}
+
+              {/* Status Badge */}
+              <span className="px-2.5 py-0.5 text-xs font-bold rounded bg-gray-100 text-gray-800 border border-gray-200">
+                {notice.status}
+              </span>
+
+              {notice.followUpDate && (
+                <span className="px-2.5 py-0.5 text-xs font-medium rounded bg-blue-50 text-blue-800 border border-blue-200">
+                  Follow-up: {notice.followUpDate}
+                </span>
+              )}
             </div>
 
             <div className="text-sm font-medium text-gray-800">{notice.subject}</div>
@@ -421,6 +616,12 @@ export const NoticeDetailPage: React.FC = () => {
             {notice.dinNumber && (
               <div className="text-xs text-gray-500 font-mono">
                 DIN: <span className="font-semibold text-gray-700">{notice.dinNumber}</span>
+              </div>
+            )}
+
+            {notice.followUpNotes && (
+              <div className="text-xs text-blue-700 bg-blue-50/60 p-2 rounded border border-blue-100">
+                <span className="font-bold">Follow-up Note:</span> {notice.followUpNotes}
               </div>
             )}
           </div>
@@ -720,18 +921,19 @@ export const NoticeDetailPage: React.FC = () => {
                       <h4 className="font-bold text-gray-900 text-sm">{resp.responseTitle}</h4>
                       <span className={clsx('px-2 py-0.5 text-xs font-semibold rounded', {
                         'bg-gray-100 text-gray-800': resp.reviewStatus === 'DRAFT',
-                        'bg-orange-100 text-orange-800': resp.reviewStatus === 'PENDING_REVIEW',
-                        'bg-amber-100 text-amber-800': resp.reviewStatus === 'REVISION_REQUESTED',
+                        'bg-orange-100 text-orange-800': resp.reviewStatus === 'PENDING_REVIEW' || resp.reviewStatus === 'INTERNAL_REVIEW',
+                        'bg-amber-100 text-amber-800': resp.reviewStatus === 'REVISION_REQUESTED' || resp.reviewStatus === 'CHANGES_REQUIRED',
                         'bg-teal-100 text-teal-800': resp.reviewStatus === 'APPROVED_BY_REVIEWER',
+                        'bg-purple-100 text-purple-800': resp.reviewStatus === 'CLIENT_CONFIRMATION',
                         'bg-emerald-100 text-emerald-800': resp.reviewStatus === 'APPROVED_BY_PARTNER',
-                        'bg-blue-100 text-blue-800': resp.reviewStatus === 'SUBMITTED',
+                        'bg-blue-100 text-blue-800': resp.reviewStatus === 'READY_FOR_SUBMISSION' || resp.reviewStatus === 'SUBMITTED',
                       })}>
                         {resp.reviewStatus.replace(/_/g, ' ')}
                       </span>
                     </div>
 
                     {/* Maker-Checker Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {resp.reviewStatus === 'DRAFT' && (
                         <Button
                           size="sm"
@@ -747,7 +949,7 @@ export const NoticeDetailPage: React.FC = () => {
                         </Button>
                       )}
 
-                      {resp.reviewStatus === 'PENDING_REVIEW' && (
+                      {(resp.reviewStatus === 'PENDING_REVIEW' || resp.reviewStatus === 'INTERNAL_REVIEW') && (
                         <>
                           <Button
                             size="sm"
@@ -776,6 +978,34 @@ export const NoticeDetailPage: React.FC = () => {
                       )}
 
                       {resp.reviewStatus === 'APPROVED_BY_REVIEWER' && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedResponseForReview(resp);
+                              setReviewAction('APPROVE_PARTNER');
+                              setIsReviewModalOpen(true);
+                            }}
+                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            Partner Sign-Off
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedResponseForConfirm(resp);
+                              setConfirmComments('');
+                              setIsConfirmModalOpen(true);
+                            }}
+                            className="text-xs text-purple-700 border-purple-300 hover:bg-purple-50"
+                          >
+                            Client Confirmation
+                          </Button>
+                        </>
+                      )}
+
+                      {resp.reviewStatus === 'CLIENT_CONFIRMATION' && (
                         <Button
                           size="sm"
                           onClick={() => {
@@ -786,6 +1016,17 @@ export const NoticeDetailPage: React.FC = () => {
                           className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
                           Partner Sign-Off
+                        </Button>
+                      )}
+
+                      {resp.reviewStatus === 'APPROVED_BY_PARTNER' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleReadyForSubmission(resp.id)}
+                          disabled={isActionLoading}
+                          className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          Mark Ready for Filing
                         </Button>
                       )}
                     </div>
@@ -1385,6 +1626,176 @@ export const NoticeDetailPage: React.FC = () => {
               <div className="pt-3 border-t flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsNoteModalOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={isActionLoading} className="bg-indigo-600 text-white">Save Note</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Put on Waiting for Client Modal */}
+      {isWaitingModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-600" />
+                <h3 className="font-bold text-gray-900 text-base">Put Notice on Waiting for Client</h3>
+              </div>
+              <button onClick={() => setIsWaitingModalOpen(false)} className="text-gray-400 text-lg">&times;</button>
+            </div>
+            <form onSubmit={handleSetWaitingForClient} className="p-6 space-y-4 text-xs">
+              {actionError && <div className="p-2 bg-red-50 text-red-700 rounded">{actionError}</div>}
+              <div>
+                <label className="block font-medium text-gray-700 mb-1">
+                  Waiting Reason / Information Needed <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={waitingForm.waitingReason}
+                  onChange={(e) => setWaitingForm({ ...waitingForm, waitingReason: e.target.value })}
+                  required
+                  placeholder="e.g. Bank statement for FY 23-24, Ledger accounts confirmation, or invoices needed from client"
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-gray-700 mb-1">Expected Response Date (Optional)</label>
+                <input
+                  type="date"
+                  value={waitingForm.expectedResponseDate}
+                  onChange={(e) => setWaitingForm({ ...waitingForm, expectedResponseDate: e.target.value })}
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+
+              <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg space-y-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={waitingForm.createDocumentRequest}
+                    onChange={(e) => setWaitingForm({ ...waitingForm, createDocumentRequest: e.target.checked })}
+                    className="rounded text-amber-600 focus:ring-amber-500"
+                  />
+                  <span className="font-semibold text-amber-900">
+                    Auto-generate Document Request on Client Portal
+                  </span>
+                </label>
+
+                {waitingForm.createDocumentRequest && (
+                  <div className="space-y-2 pt-1 border-t border-amber-200/60">
+                    <div>
+                      <label className="block text-[11px] font-medium text-amber-900 mb-1">Document Request Title (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder={`Documents requested for Notice ${notice.noticeNumber}`}
+                        value={waitingForm.documentRequestTitle}
+                        onChange={(e) => setWaitingForm({ ...waitingForm, documentRequestTitle: e.target.value })}
+                        className="w-full p-2 bg-white border border-amber-300 rounded text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-amber-900 mb-1">Description / Instructions for Client (Optional)</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Please upload bank statements in PDF/Excel format before the expected date..."
+                        value={waitingForm.documentRequestDescription}
+                        onChange={(e) => setWaitingForm({ ...waitingForm, documentRequestDescription: e.target.value })}
+                        className="w-full p-2 bg-white border border-amber-300 rounded text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 border-t flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsWaitingModalOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={isActionLoading} className="bg-amber-600 hover:bg-amber-700 text-white">
+                  {isActionLoading ? 'Saving...' : 'Put on Waiting'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Set Follow-up Date Modal */}
+      {isFollowUpModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-gray-900 text-base">Schedule Case Follow-up</h3>
+              </div>
+              <button onClick={() => setIsFollowUpModalOpen(false)} className="text-gray-400 text-lg">&times;</button>
+            </div>
+            <form onSubmit={handleSetFollowUp} className="p-6 space-y-3 text-xs">
+              {actionError && <div className="p-2 bg-red-50 text-red-700 rounded">{actionError}</div>}
+              <div>
+                <label className="block font-medium text-gray-700 mb-1">Follow-up Date *</label>
+                <input
+                  type="date"
+                  value={followUpForm.followUpDate}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, followUpDate: e.target.value })}
+                  required
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-gray-700 mb-1">Follow-up Notes / Checklist</label>
+                <textarea
+                  rows={3}
+                  value={followUpForm.followUpNotes}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, followUpNotes: e.target.value })}
+                  placeholder="e.g. Call client CFO regarding pending voucher details..."
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+
+              <div className="pt-3 border-t flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsFollowUpModalOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={isActionLoading} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Save Follow-up
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Client Confirmation Modal */}
+      {isConfirmModalOpen && selectedResponseForConfirm && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCheck className="w-5 h-5 text-purple-600" />
+                <h3 className="font-bold text-gray-900 text-base">Record Client Draft Confirmation</h3>
+              </div>
+              <button onClick={() => setIsConfirmModalOpen(false)} className="text-gray-400 text-lg">&times;</button>
+            </div>
+            <form onSubmit={handleClientConfirm} className="p-6 space-y-3 text-xs">
+              {actionError && <div className="p-2 bg-red-50 text-red-700 rounded">{actionError}</div>}
+              <p className="text-gray-600">
+                Confirm that the client has reviewed and approved the response draft <span className="font-bold text-gray-800">(v{selectedResponseForConfirm.version})</span> prior to final signing and portal filing.
+              </p>
+              <div>
+                <label className="block font-medium text-gray-700 mb-1">Client Approval Remarks / Email Reference</label>
+                <textarea
+                  rows={3}
+                  value={confirmComments}
+                  onChange={(e) => setConfirmComments(e.target.value)}
+                  placeholder="e.g. Approved via email by Director on 24 Sep..."
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+              <div className="pt-3 border-t flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsConfirmModalOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={isActionLoading} className="bg-purple-600 hover:bg-purple-700 text-white">
+                  Confirm Client Sign-off
+                </Button>
               </div>
             </form>
           </div>

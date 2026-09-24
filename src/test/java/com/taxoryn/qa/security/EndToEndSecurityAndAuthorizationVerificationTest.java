@@ -242,6 +242,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
     @Mock private NoticeHearingRepository noticeHearingRepository;
     @Mock private NoticeActivityRepository noticeActivityRepository;
     @Mock private TaxNoticeMapper noticeMapper;
+    @Mock private com.taxoryn.module.notice.service.TaxNoticeConfigurationService noticeConfigurationService;
 
     // Client Portal Mocks
     @Mock private ClientPortalMessageRepository clientPortalMessageRepository;
@@ -357,7 +358,19 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
                 taskRepository, userRepository, null,
                 organizationRepository, null, null,
                 emailNotificationService, subscriptionService, securityScopeEvaluator,
-                noticeRepository, clientMapper, taskMapper, auditService
+                noticeRepository,
+                mock(com.taxoryn.module.gst.repository.GstProfileRepository.class),
+                mock(com.taxoryn.module.gst.repository.GstReturnFilingRepository.class),
+                mock(com.taxoryn.module.itr.repository.ItrProfileRepository.class),
+                mock(com.taxoryn.module.itr.repository.ItrReturnRepository.class),
+                mock(com.taxoryn.module.tds.repository.TdsProfileRepository.class),
+                mock(com.taxoryn.module.tds.repository.TdsReturnRepository.class),
+                mock(com.taxoryn.module.document.repository.DocumentRepository.class),
+                mock(com.taxoryn.module.docrequest.repository.DocumentRequestRepository.class),
+                mock(com.taxoryn.module.billing.repository.InvoiceRepository.class),
+                mock(com.taxoryn.module.audit.repository.AuditLogRepository.class),
+                mock(com.taxoryn.module.client.repository.ClientServiceRepository.class),
+                clientMapper, taskMapper, auditService
         );
 
         taskService = new TaskServiceImpl(
@@ -422,7 +435,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
                 noticeActivityRepository, clientRepository, employeeRepository,
                 userRepository, taskRepository, documentRepository,
                 documentRequestRepository, noticeMapper, auditService,
-                notificationService, securityScopeEvaluator
+                notificationService, securityScopeEvaluator, noticeConfigurationService
         );
 
         clientPortalService = new ClientPortalServiceImpl(

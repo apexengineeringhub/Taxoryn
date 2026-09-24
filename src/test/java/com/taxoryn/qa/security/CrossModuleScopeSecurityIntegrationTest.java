@@ -184,6 +184,7 @@ class CrossModuleScopeSecurityIntegrationTest {
     @Mock private NoticeHearingRepository noticeHearingRepository;
     @Mock private NoticeActivityRepository noticeActivityRepository;
     @Mock private TaxNoticeMapper noticeMapper;
+    @Mock private com.taxoryn.module.notice.service.TaxNoticeConfigurationService noticeConfigurationService;
     private TaxNoticeServiceImpl taxNoticeService;
 
     // Client Portal Mocks & Service
@@ -307,7 +308,7 @@ class CrossModuleScopeSecurityIntegrationTest {
                 noticeActivityRepository, clientRepository, employeeRepository,
                 userRepository, taskRepository, documentRepository,
                 documentRequestRepository, noticeMapper, auditService,
-                notificationService, securityScopeEvaluator
+                notificationService, securityScopeEvaluator, noticeConfigurationService
         );
 
         clientPortalService = new ClientPortalServiceImpl(

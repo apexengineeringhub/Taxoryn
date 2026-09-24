@@ -34,6 +34,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,6 +43,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/itr", "/api/itr"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.ITR)
 @Tag(name = "ITR Management", description = "Income Tax Returns compliance lifecycle: Client ITR Profiles, ITR-1 to ITR-7 Filings, Status Workflow Progression, Overdue Monitoring, and Workload Analytics")
 @SecurityRequirement(name = "BearerAuth")
 public class ItrController {

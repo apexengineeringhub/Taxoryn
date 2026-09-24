@@ -19,6 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +28,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/marketplace/practice-profile", "/api/v1/practice/marketplace", "/api/practice/marketplace"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.MARKETPLACE)
 @Tag(name = "Practice Marketplace Management", description = "Tax practitioner tools to manage marketplace directory listing, service packages, inbound leads, and client conversion")
 @SecurityRequirement(name = "BearerAuth")
 public class MarketplacePracticeController {

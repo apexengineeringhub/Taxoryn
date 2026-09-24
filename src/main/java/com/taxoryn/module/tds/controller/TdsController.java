@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/tds", "/api/tds"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.TDS)
 @Tag(name = "TDS & TCS Management", description = "End-to-end Indian Tax Deducted at Source (TDS) and Tax Collected at Source (TCS) compliance: TAN Profiles, Form 24Q/26Q/27Q/27EQ Returns, Challan 281 Reconciliation, Section Rate Engine, and Form 16/16A Certificates")
 @SecurityRequirement(name = "BearerAuth")
 public class TdsController {

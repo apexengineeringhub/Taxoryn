@@ -2,6 +2,7 @@ package com.taxoryn.module.notice.service;
 
 import com.taxoryn.core.dto.PageRequestDto;
 import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.module.notice.dto.AdjournHearingRequest;
 import com.taxoryn.module.notice.dto.ClientNoticeDto;
 import com.taxoryn.module.notice.dto.CloseNoticeRequest;
 import com.taxoryn.module.notice.dto.CreateNoticeResponseRequest;
@@ -13,9 +14,13 @@ import com.taxoryn.module.notice.dto.NoticeResponseDto;
 import com.taxoryn.module.notice.dto.RecordHearingOutcomeRequest;
 import com.taxoryn.module.notice.dto.ReviewNoticeResponseRequest;
 import com.taxoryn.module.notice.dto.ScheduleHearingRequest;
+import com.taxoryn.module.notice.dto.SetFollowUpRequest;
+import com.taxoryn.module.notice.dto.SetWaitingForClientRequest;
 import com.taxoryn.module.notice.dto.SubmitNoticeRequest;
 import com.taxoryn.module.notice.dto.TaxNoticeDto;
 import com.taxoryn.module.notice.dto.TaxNoticeFilterRequest;
+import com.taxoryn.module.notice.dto.UpdateNoticeHearingRequest;
+import com.taxoryn.module.notice.dto.UpdateNoticeResponseRequest;
 import com.taxoryn.module.notice.dto.UpdateTaxNoticeRequest;
 
 import java.util.List;
@@ -41,6 +46,14 @@ public interface TaxNoticeService {
 
     PagedResponse<ClientNoticeDto> getClientPortalNotices(UUID clientId, PageRequestDto pageRequest);
 
+    // Waiting for Client & Follow-up Workflow
+    TaxNoticeDto setWaitingForClient(UUID noticeId, SetWaitingForClientRequest request);
+
+    TaxNoticeDto resumeFromWaiting(UUID noticeId);
+
+    TaxNoticeDto setFollowUp(UUID noticeId, SetFollowUpRequest request);
+
+    // Response Drafting & Review
     List<NoticeResponseDto> getResponses(UUID noticeId);
 
     NoticeResponseDto getResponseById(UUID noticeId, UUID responseId);
@@ -49,16 +62,37 @@ public interface TaxNoticeService {
 
     NoticeResponseDto reviewResponse(UUID noticeId, UUID responseId, ReviewNoticeResponseRequest request);
 
+    NoticeResponseDto clientConfirmResponse(UUID noticeId, UUID responseId, String confirmationNotes);
+
+    NoticeResponseDto markResponseReadyForSubmission(UUID noticeId, UUID responseId);
+
+    TaxNoticeDto updateNoticeResponse(UUID noticeId, UpdateNoticeResponseRequest request);
+
+    NoticeResponseDto draftNoticeResponse(UUID noticeId, CreateNoticeResponseRequest request);
+
+    TaxNoticeDto submitNoticeResponse(UUID noticeId, SubmitNoticeRequest request);
+
+    // Hearings & Proceedings
     List<NoticeHearingDto> getHearings(UUID noticeId);
 
     NoticeHearingDto scheduleHearing(UUID noticeId, ScheduleHearingRequest request);
 
     NoticeHearingDto recordHearingOutcome(UUID noticeId, UUID hearingId, RecordHearingOutcomeRequest request);
 
+    TaxNoticeDto updateNoticeHearing(UUID noticeId, UpdateNoticeHearingRequest request);
+
+    NoticeHearingDto completeHearing(UUID noticeId, UUID hearingId, RecordHearingOutcomeRequest request);
+
+    NoticeHearingDto adjournHearing(UUID noticeId, UUID hearingId, AdjournHearingRequest request);
+
+    NoticeHearingDto cancelHearing(UUID noticeId, UUID hearingId, String reason);
+
+    // Portal Filing & Closure
     TaxNoticeDto submitNotice(UUID noticeId, SubmitNoticeRequest request);
 
     TaxNoticeDto closeNotice(UUID noticeId, CloseNoticeRequest request);
 
+    // Activities & Notes
     List<NoticeActivityDto> getActivities(UUID noticeId);
 
     void addInternalNote(UUID noticeId, String note);

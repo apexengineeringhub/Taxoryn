@@ -88,6 +88,69 @@ export interface OrganizationCapabilities {
   customInvoicingSupported: boolean;
 }
 
+// 1.1 Product Module Catalog & Organization Module Configuration
+export type ProductModuleCode =
+  | 'CLIENTS'
+  | 'TASKS'
+  | 'DOCUMENTS'
+  | 'DOCUMENT_REQUESTS'
+  | 'CLIENT_PORTAL'
+  | 'NOTIFICATIONS'
+  | 'AUDIT'
+  | 'GST'
+  | 'ITR'
+  | 'TDS'
+  | 'TAX_NOTICES'
+  | 'BILLING'
+  | 'REPORTS'
+  | 'MARKETPLACE';
+
+export type ProductModuleCategory =
+  | 'CORE'
+  | 'TAX'
+  | 'PRACTICE_OPERATIONS'
+  | 'NETWORK_GROWTH';
+
+export interface ProductModule {
+  id: string;
+  code: ProductModuleCode;
+  name: string;
+  description?: string;
+  category: ProductModuleCategory;
+  status: string;
+  enabledByDefault: boolean;
+  displayOrder: number;
+}
+
+export type ModuleAccessStatus =
+  | 'AVAILABLE'
+  | 'MODULE_DISABLED'
+  | 'SUBSCRIPTION_REQUIRED'
+  | 'UPGRADE_REQUIRED'
+  | 'PERMISSION_DENIED'
+  | 'LOADING'
+  | 'UNKNOWN';
+
+export interface OrganizationModule {
+  organizationId: string;
+  moduleCode: ProductModuleCode;
+  moduleName: string;
+  moduleDescription?: string;
+  category: ProductModuleCategory;
+  enabled: boolean;
+  explicitlyConfigured: boolean;
+  entitled?: boolean;
+  subscriptionStatus?: string;
+  effectiveAccess?: boolean;
+  accessStatus?: ModuleAccessStatus;
+  reason?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateOrganizationModulePayload {
+  enabled: boolean;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -236,6 +299,367 @@ export interface Client {
   portalUserEmail?: string;
   portalUserId?: string;
   createdAt?: string;
+}
+
+export type ClientServiceType =
+  | 'GST_COMPLIANCE'
+  | 'INCOME_TAX_FILING'
+  | 'TDS_COMPLIANCE'
+  | 'TAX_NOTICE_MANAGEMENT'
+  | 'COMPLIANCE_CALENDAR'
+  | 'DOCUMENT_MANAGEMENT'
+  | 'CLIENT_BILLING'
+  | 'ACCOUNTING_BOOKKEEPING'
+  | 'STATUTORY_AUDIT'
+  | 'TAX_AUDIT'
+  | 'COMPANY_SECRETARIAL'
+  | 'PAYROLL_PROCESSING'
+  | 'ADVISORY_CONSULTING'
+  | 'OTHER';
+
+export type ClientServiceStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'COMPLETED';
+
+export interface ServiceCatalogItem {
+  serviceType: ClientServiceType;
+  displayName: string;
+  category: string;
+  defaultBillingCycle: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  moduleCode?: ProductModuleCode;
+  requiredCapability?: string;
+  description: string;
+}
+
+export interface ClientServiceDto {
+  id: string;
+  clientId: string;
+  serviceType: ClientServiceType;
+  serviceName: string;
+  status: ClientServiceStatus;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedFee?: number;
+  currency?: string;
+  startDate?: string;
+  endDate?: string;
+  engagementNotes?: string;
+  moduleCode?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateClientServiceRequest {
+  serviceType: ClientServiceType;
+  serviceName?: string;
+  assignedEmployeeId?: string;
+  billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedFee?: number;
+  currency?: string;
+  startDate?: string;
+  endDate?: string;
+  engagementNotes?: string;
+}
+
+export interface UpdateClientServiceRequest {
+  serviceName?: string;
+  status?: ClientServiceStatus;
+  assignedEmployeeId?: string;
+  billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedFee?: number;
+  currency?: string;
+  startDate?: string;
+  endDate?: string;
+  engagementNotes?: string;
+}
+
+export type ComplianceWorkType =
+  | 'GST_RETURN'
+  | 'ITR_RETURN'
+  | 'TDS_RETURN'
+  | 'TAX_NOTICE'
+  | 'COMPLIANCE_TASK'
+  | 'DOCUMENT_COLLECTION'
+  | 'OTHER';
+
+export type ComplianceWorkStatus =
+  | 'NOT_STARTED'
+  | 'DOCUMENTS_PENDING'
+  | 'IN_PREPARATION'
+  | 'IN_REVIEW'
+  | 'READY_TO_FILE'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'ON_HOLD'
+  | 'CANCELLED';
+
+export interface ComplianceWorkItem {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  clientServiceId: string;
+  serviceName?: string;
+  serviceType?: string;
+  workType: ComplianceWorkType;
+  title: string;
+  description?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  compliancePeriod?: string;
+  status: ComplianceWorkStatus;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  reviewerEmployeeId?: string;
+  reviewerEmployeeName?: string;
+  reviewerEmployeeEmail?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  version?: number;
+  overdue?: boolean;
+}
+
+export interface CreateComplianceWorkItemRequest {
+  clientId: string;
+  clientServiceId: string;
+  workType: ComplianceWorkType;
+  title: string;
+  description?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  compliancePeriod?: string;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+}
+
+export interface UpdateComplianceWorkItemRequest {
+  title?: string;
+  description?: string;
+  workType?: ComplianceWorkType;
+  status?: ComplianceWorkStatus;
+  financialYear?: string;
+  assessmentYear?: string;
+  compliancePeriod?: string;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+}
+
+export interface UpdateComplianceWorkStatusRequest {
+  status: ComplianceWorkStatus;
+  notes?: string;
+}
+
+export interface AssignComplianceWorkRequest {
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  notes?: string;
+}
+
+export interface ClientServiceItem {
+  id?: string;
+  serviceType?: string;
+  serviceCode: string;
+  serviceName: string;
+  status: string;
+  identifier?: string;
+  summary?: string;
+  routePath?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  billingCycle?: string;
+  agreedFee?: number;
+  startDate?: string;
+  engagementNotes?: string;
+}
+
+export interface ClientTaskSummary {
+  totalTasks: number;
+  pendingTasks: number;
+  inProgressTasks: number;
+  underReviewTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  recentTasks: Task[];
+}
+
+export interface GstComplianceDetails {
+  registered: boolean;
+  gstin?: string;
+  filingFrequency?: string;
+  totalFilings: number;
+  pendingFilings: number;
+  filedFilings: number;
+  overdueFilings: number;
+  nextDueDate?: string;
+  nextReturnType?: string;
+  nextReturnPeriod?: string;
+}
+
+export interface ItrComplianceDetails {
+  registered: boolean;
+  pan?: string;
+  taxpayerType?: string;
+  defaultItrType?: string;
+  totalReturns: number;
+  pendingReturns: number;
+  filedReturns: number;
+  overdueReturns: number;
+  nextDueDate?: string;
+  currentAssessmentYear?: string;
+  currentStatus?: string;
+}
+
+export interface TdsComplianceDetails {
+  registered: boolean;
+  tan?: string;
+  deductorType?: string;
+  totalReturns: number;
+  pendingReturns: number;
+  filedReturns: number;
+  overdueReturns: number;
+  nextDueDate?: string;
+  currentQuarter?: string;
+  currentFinancialYear?: string;
+}
+
+export interface ClientComplianceSummary {
+  gstStatus: string;
+  itrStatus: string;
+  tdsStatus: string;
+  accountingStatus: string;
+  gstDetails?: GstComplianceDetails;
+  itrDetails?: ItrComplianceDetails;
+  tdsDetails?: TdsComplianceDetails;
+}
+
+export interface ClientDocumentItem {
+  id: string;
+  fileName: string;
+  documentCategory: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
+  fileUrl?: string;
+}
+
+export interface ClientDocumentSummary {
+  totalDocuments: number;
+  documentCategories: string[];
+  recentDocuments?: ClientDocumentItem[];
+}
+
+export interface ClientDocRequestItem {
+  id: string;
+  requestNumber: string;
+  title: string;
+  status: string;
+  priority: string;
+  dueDate?: string;
+  totalItems: number;
+  receivedItems: number;
+  createdAt: string;
+}
+
+export interface ClientDocRequestSummary {
+  totalRequests: number;
+  pendingRequests: number;
+  receivedRequests: number;
+  overdueRequests: number;
+  recentRequests?: ClientDocRequestItem[];
+}
+
+export interface ClientInvoiceItem {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  total: number;
+  paidAmount: number;
+  balanceDue: number;
+  status: string;
+}
+
+export interface ClientBillingSummary {
+  totalInvoiced: number;
+  totalPaid: number;
+  outstandingBalance: number;
+  currency: string;
+  totalInvoicesCount: number;
+  overdueInvoicesCount: number;
+  recentInvoices?: ClientInvoiceItem[];
+}
+
+export interface ClientNoticeItem {
+  id: string;
+  noticeNumber: string;
+  issuingAuthority?: string;
+  section?: string;
+  taxPeriod?: string;
+  status: string;
+  demandAmount?: number;
+  responseDueDate?: string;
+  hearingDate?: string;
+}
+
+export interface ClientNoticeSummary {
+  totalNotices: number;
+  activeNotices: number;
+  overdueNotices: number;
+  hearingsScheduled: number;
+  totalDemandAmount: number;
+  recentNotices?: ClientNoticeItem[];
+}
+
+export interface ClientNote {
+  id: string;
+  clientId: string;
+  authorId: string;
+  authorName?: string;
+  noteType: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ClientActivityItem {
+  id: string;
+  eventType: string;
+  title: string;
+  description: string;
+  performedBy?: string;
+  timestamp: string;
+  category: string;
+}
+
+export interface Client360Overview {
+  client: Client;
+  statutory: {
+    pan?: string;
+    gstin?: string;
+    tan?: string;
+    cin?: string;
+    dateOfIncorporation?: string;
+    isPanValid: boolean;
+    isGstActive: boolean;
+  };
+  services: ClientServiceItem[];
+  taskSummary: ClientTaskSummary;
+  complianceSummary: ClientComplianceSummary;
+  documentsSummary: ClientDocumentSummary;
+  docRequestsSummary?: ClientDocRequestSummary;
+  billingSummary?: ClientBillingSummary;
+  noticeSummary: ClientNoticeSummary;
+  recentNotes: ClientNote[];
+  activityTimeline: ClientActivityItem[];
 }
 
 export interface ClientContact {
@@ -3195,15 +3619,25 @@ export interface FinancialReport {
 // ==============================================================================
 export type NoticeDepartment = 'INCOME_TAX' | 'GST' | 'TDS' | 'CUSTOMS' | 'OTHER';
 
+export type NoticeRisk = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
 export type NoticeStatus =
   | 'RECEIVED'
+  | 'NOTICE_RECEIVED'
+  | 'NOTICE_REGISTERED'
   | 'UNDER_REVIEW'
   | 'INFO_REQUESTED'
+  | 'WAITING_FOR_CLIENT'
   | 'RESPONSE_DRAFTING'
+  | 'RESPONSE_PREPARATION'
   | 'INTERNAL_REVIEW'
+  | 'CLIENT_CONFIRMATION'
+  | 'READY_FOR_SUBMISSION'
   | 'PARTNER_APPROVED'
   | 'SUBMITTED'
+  | 'AWAITING_ORDER'
   | 'HEARING_SCHEDULED'
+  | 'ORDER_RECEIVED'
   | 'RESOLVED'
   | 'DEMAND_DROPPED'
   | 'APPEAL_FILED'
@@ -3223,14 +3657,40 @@ export type SubmissionMode =
 export type ReviewStatus =
   | 'DRAFT'
   | 'PENDING_REVIEW'
+  | 'INTERNAL_REVIEW'
   | 'REVISION_REQUESTED'
+  | 'CHANGES_REQUIRED'
   | 'APPROVED_BY_REVIEWER'
   | 'APPROVED_BY_PARTNER'
+  | 'CLIENT_CONFIRMATION'
+  | 'READY_FOR_SUBMISSION'
   | 'SUBMITTED';
 
-export type HearingMode = 'VIRTUAL_VC' | 'PHYSICAL' | 'WRITTEN_SUBMISSION_ONLY';
+export type NoticeResponseStatus =
+  | 'REQUIRED'
+  | 'DRAFT'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'SUBMITTED'
+  | 'NOT_REQUIRED';
 
-export type HearingStatus = 'SCHEDULED' | 'ADJOURNED' | 'COMPLETED' | 'CANCELLED';
+export type HearingMode =
+  | 'PHYSICAL'
+  | 'VIDEO'
+  | 'TELEPHONIC'
+  | 'OTHER'
+  | 'VIRTUAL_VC'
+  | 'WRITTEN_SUBMISSION_ONLY';
+
+export type HearingStatus =
+  | 'SCHEDULED'
+  | 'HEARING_SCHEDULED'
+  | 'ADJOURNED'
+  | 'HEARING_ADJOURNED'
+  | 'COMPLETED'
+  | 'HEARING_COMPLETED'
+  | 'CANCELLED'
+  | 'HEARING_CANCELLED';
 
 export type NoticeActivityType =
   | 'NOTICE_CREATED'
@@ -3248,6 +3708,11 @@ export type NoticeActivityType =
   | 'DOCUMENT_ATTACHED'
   | 'DOCUMENT_REQUESTED'
   | 'TASK_CREATED'
+  | 'WAITING_FOR_CLIENT'
+  | 'RESUMED_FROM_WAITING'
+  | 'FOLLOW_UP_SCHEDULED'
+  | 'CLIENT_CONFIRMED'
+  | 'RESPONSE_READY_FOR_SUBMISSION'
   | 'NOTICE_CLOSED'
   | 'INTERNAL_NOTE_ADDED';
 
@@ -3276,10 +3741,35 @@ export interface TaxNotice {
   responseDueDate: string;
   daysRemaining?: number;
   isOverdue?: boolean;
+  responseRequired?: boolean;
+  responseStatus?: NoticeResponseStatus;
+  responseDraft?: string;
+  responseSubmittedAt?: string;
+  responseSubmittedBy?: string;
+  submissionReference?: string;
+  submissionNotes?: string;
+  hearingRequired?: boolean;
   hearingDate?: string;
   hearingTime?: string;
+  hearingMode?: HearingMode;
+  hearingLocation?: string;
+  hearingReference?: string;
+  hearingNotes?: string;
+  hearingOutcome?: string;
+  hearingStatus?: HearingStatus;
+  waitingForClient?: boolean;
+  waitingReason?: string;
+  waitingRequestedAt?: string;
+  waitingRequestedBy?: string;
+  waitingRequestedByName?: string;
+  expectedResponseDate?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
   status: NoticeStatus;
   priority: NoticePriority;
+  riskLevel?: NoticeRisk;
+  complianceObligationId?: string;
+  clientServiceId?: string;
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   reviewerEmployeeId?: string;
@@ -3399,6 +3889,11 @@ export interface CreateTaxNoticeRequest {
   hearingDate?: string;
   hearingTime?: string;
   priority?: NoticePriority;
+  riskLevel?: NoticeRisk;
+  complianceObligationId?: string;
+  clientServiceId?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
   assignedEmployeeId?: string;
   reviewerEmployeeId?: string;
   partnerEmployeeId?: string;
@@ -3429,6 +3924,14 @@ export interface UpdateTaxNoticeRequest {
   hearingTime?: string;
   status?: NoticeStatus;
   priority?: NoticePriority;
+  riskLevel?: NoticeRisk;
+  waitingForClient?: boolean;
+  waitingReason?: string;
+  expectedResponseDate?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
+  complianceObligationId?: string;
+  clientServiceId?: string;
   assignedEmployeeId?: string;
   reviewerEmployeeId?: string;
   partnerEmployeeId?: string;
@@ -3443,6 +3946,9 @@ export interface TaxNoticeFilterRequest {
   department?: NoticeDepartment;
   status?: NoticeStatus;
   priority?: NoticePriority;
+  riskLevel?: NoticeRisk;
+  waitingForClient?: boolean;
+  followUpDue?: boolean;
   assignedEmployeeId?: string;
   reviewerEmployeeId?: string;
   partnerEmployeeId?: string;
@@ -3450,6 +3956,47 @@ export interface TaxNoticeFilterRequest {
   dueDateTo?: string;
   overdueOnly?: boolean;
   upcomingHearing?: boolean;
+}
+
+export interface SetWaitingForClientRequest {
+  waitingReason: string;
+  expectedResponseDate?: string;
+  createDocumentRequest?: boolean;
+  documentRequestTitle?: string;
+  documentRequestDescription?: string;
+}
+
+export interface SetFollowUpRequest {
+  followUpDate: string;
+  followUpNotes?: string;
+  responsibleEmployeeId?: string;
+}
+
+export interface UpdateNoticeResponseRequest {
+  responseRequired?: boolean;
+  responseStatus?: NoticeResponseStatus;
+  responseDraft?: string;
+  submissionReference?: string;
+  submissionNotes?: string;
+}
+
+export interface UpdateNoticeHearingRequest {
+  hearingRequired?: boolean;
+  hearingDate?: string;
+  hearingTime?: string;
+  hearingMode?: HearingMode;
+  hearingLocation?: string;
+  hearingReference?: string;
+  hearingNotes?: string;
+  hearingOutcome?: string;
+  hearingStatus?: HearingStatus;
+}
+
+export interface AdjournHearingRequest {
+  adjournmentReason: string;
+  nextHearingDate?: string;
+  nextHearingTime?: string;
+  notes?: string;
 }
 
 export interface CreateNoticeResponseRequest {
@@ -3530,8 +4077,637 @@ export interface ClientNotice {
   updatedAt: string;
 }
 
+export interface TaxNoticeConfig {
+  id?: string;
+  organizationId?: string;
+  organizationType?: string;
+  isCustomized?: boolean;
+  responseReviewRequired: boolean;
+  partnerApprovalRequired: boolean;
+  hearingTrackingEnabled: boolean;
+  responseSubmissionTrackingEnabled: boolean;
+  defaultResponseDueDays: number;
+  reminderDaysBeforeDue: number;
+  escalationDaysAfterDue: number;
+  autoCreateResponseTask: boolean;
+  defaultPriority: NoticePriority;
+  assignmentRequired: boolean;
+  notifyOnAssignment: boolean;
+  notifyOnDueSoon: boolean;
+  notifyOnOverdue: boolean;
+  notifyOnSubmission: boolean;
+  notifyOnHearing: boolean;
+  showDueSoon: boolean;
+  showOverdue: boolean;
+  showAwaitingResponse: boolean;
+  showAwaitingHearing: boolean;
+  showAwaitingOrder: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
 
+export interface UpdateTaxNoticeConfigRequest {
+  responseReviewRequired?: boolean;
+  partnerApprovalRequired?: boolean;
+  hearingTrackingEnabled?: boolean;
+  responseSubmissionTrackingEnabled?: boolean;
+  defaultResponseDueDays?: number;
+  reminderDaysBeforeDue?: number;
+  escalationDaysAfterDue?: number;
+  autoCreateResponseTask?: boolean;
+  defaultPriority?: NoticePriority;
+  assignmentRequired?: boolean;
+  notifyOnAssignment?: boolean;
+  notifyOnDueSoon?: boolean;
+  notifyOnOverdue?: boolean;
+  notifyOnSubmission?: boolean;
+  notifyOnHearing?: boolean;
+  showDueSoon?: boolean;
+  showOverdue?: boolean;
+  showAwaitingResponse?: boolean;
+  showAwaitingHearing?: boolean;
+  showAwaitingOrder?: boolean;
+}
 
+// =============================================================================
+// PHASE 13 — Client Engagement Operations & Compliance Workflow Foundation
+// =============================================================================
+
+export type ServiceWorkflowStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'WAITING_FOR_CLIENT'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type StepStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'WAITING_FOR_CLIENT'
+  | 'COMPLETED'
+  | 'SKIPPED';
+
+export type ServiceWorkType =
+  | 'DATA_COLLECTION'
+  | 'DOCUMENT_COLLECTION'
+  | 'PREPARATION'
+  | 'COMPUTATION'
+  | 'REVIEW'
+  | 'CLIENT_CONFIRMATION'
+  | 'FILING_PREPARATION'
+  | 'FILING'
+  | 'ACKNOWLEDGEMENT'
+  | 'HEARING_FOLLOW_UP'
+  | 'COMPLETION'
+  | 'OTHER';
+
+export type ServicePeriodType =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUAL'
+  | 'EVENT_BASED';
+
+export type ServicePeriodStatus =
+  | 'PLANNED'
+  | 'ACTIVE'
+  | 'COMPLETED'
+  | 'OVERDUE'
+  | 'CANCELLED';
+
+export interface ClientServicePeriod {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  clientServiceId: string;
+  serviceType: string;
+  serviceName: string;
+  periodType: ServicePeriodType;
+  periodLabel: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+  status: ServicePeriodStatus;
+  hasActiveWorkflow: boolean;
+  activeWorkflowId?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface ClientServiceWorkflowStep {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  sequence: number;
+  workType: ServiceWorkType;
+  name: string;
+  description?: string;
+  status: StepStatus;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  taskId?: string;
+  dueDate?: string;
+  mandatory: boolean;
+  requiresClientInput: boolean;
+  requiresReview: boolean;
+  completedAt?: string;
+  completedBy?: string;
+  completedByName?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientServiceWorkflow {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  clientPan?: string;
+  clientServiceId: string;
+  serviceType: string;
+  serviceName: string;
+  periodId: string;
+  periodLabel: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  templateId?: string;
+  templateName?: string;
+  title: string;
+  status: ServiceWorkflowStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  currentStepSequence: number;
+  currentStepName?: string;
+  totalSteps: number;
+  completedSteps: number;
+  progressPercentage: number;
+  dueDate?: string;
+  internalTargetDate?: string;
+  waitingForClient: boolean;
+  pendingClientActionSummary?: string;
+  isOverdue: boolean;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  steps: ClientServiceWorkflowStep[];
+}
+
+export interface CreateServicePeriodRequest {
+  clientServiceId: string;
+  periodType: ServicePeriodType;
+  periodLabel: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+}
+
+export interface GenerateWorkflowRequest {
+  clientServiceId: string;
+  periodId?: string;
+  periodType?: ServicePeriodType;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+  templateId?: string;
+  customTitle?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  assignedEmployeeId?: string;
+  internalTargetDate?: string;
+}
+
+export interface UpdateWorkflowStatusRequest {
+  status: ServiceWorkflowStatus;
+  notes?: string;
+  pendingClientActionSummary?: string;
+}
+
+export interface UpdateWorkflowStepStatusRequest {
+  status: StepStatus;
+  notes?: string;
+  clientActionSummary?: string;
+}
+
+export interface AssignWorkflowRequest {
+  assignedEmployeeId?: string;
+  notes?: string;
+}
+
+export interface UpdateWorkflowPriorityRequest {
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  notes?: string;
+}
+
+export interface WorkflowFilterRequest {
+  clientId?: string;
+  clientServiceId?: string;
+  serviceType?: string;
+  status?: ServiceWorkflowStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  assignedEmployeeId?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  periodLabel?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  overdue?: boolean;
+  dueToday?: boolean;
+  dueThisWeek?: boolean;
+  myWorkOnly?: boolean;
+  teamWorkOnly?: boolean;
+  waitingForClient?: boolean;
+  readyForFiling?: boolean;
+  search?: string;
+}
+
+export interface ServiceWorkflowStepTemplate {
+  id: string;
+  workflowTemplateId: string;
+  sequence: number;
+  workType: ServiceWorkType;
+  workTypeName: string;
+  name: string;
+  description?: string;
+  defaultDaysBeforeDueDate?: number;
+  mandatory: boolean;
+  requiresClientInput: boolean;
+  requiresReview: boolean;
+  active: boolean;
+}
+
+export interface ServiceWorkflowTemplate {
+  id: string;
+  organizationId?: string;
+  serviceType: string;
+  serviceTypeName: string;
+  name: string;
+  description?: string;
+  isSystemDefault: boolean;
+  active: boolean;
+  stepCount: number;
+  stepTemplates: ServiceWorkflowStepTemplate[];
+}
+
+// DTO Aliases for Phase 13 Workflow Engine
+export type ClientServicePeriodDto = ClientServicePeriod;
+export type ClientServiceWorkflowDto = ClientServiceWorkflow;
+export type ClientServiceWorkflowStepDto = ClientServiceWorkflowStep;
+export type ServiceWorkflowTemplateDto = ServiceWorkflowTemplate;
+export type ServiceWorkflowStepTemplateDto = ServiceWorkflowStepTemplate;
+
+// =============================================================================
+// PHASE 14 — Compliance Calendar & Recurring Compliance Cycle Foundation
+// =============================================================================
+
+export type ComplianceObligationType =
+  | 'GST_RETURN'
+  | 'TDS_RETURN'
+  | 'ITR_FILING'
+  | 'TAX_AUDIT'
+  | 'ADVANCE_TAX'
+  | 'ROC_ANNUAL_FILING'
+  | 'TAX_NOTICE_RESPONSE'
+  | 'CUSTOM';
+
+export type ComplianceObligationStatus =
+  | 'UPCOMING'
+  | 'READY'
+  | 'IN_PROGRESS'
+  | 'DUE_TODAY'
+  | 'OVERDUE'
+  | 'WAITING_FOR_CLIENT'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'WAIVED'
+  | 'CANCELLED';
+
+export type ComplianceRecurrenceType =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUALLY'
+  | 'EVENT_BASED';
+
+export type ComplianceReminderType =
+  | 'EMAIL'
+  | 'IN_APP'
+  | 'BOTH';
+
+export interface ComplianceObligationItem {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientDisplayName?: string;
+  clientPan?: string;
+  clientGstin?: string;
+  clientServiceId?: string;
+  servicePeriodId?: string;
+  workflowId?: string;
+  obligationType: ComplianceObligationType;
+  title: string;
+  description?: string;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  statutoryDueDate: string;
+  internalTargetDate?: string;
+  status: ComplianceObligationStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  assignedEmployeeEmail?: string;
+  taskId?: string;
+  filedDate?: string;
+  acknowledgementNumber?: string;
+  remarks?: string;
+  daysRemaining?: number;
+  isOverdue?: boolean;
+  isDueToday?: boolean;
+  waitingForClient?: boolean;
+  readyForFiling?: boolean;
+  workflowProgressPercentage?: number;
+  createdAt: string;
+  updatedAt: string;
+  version?: number;
+}
+
+export type ComplianceObligationDto = ComplianceObligationItem;
+
+export interface ComplianceCalendarSummary {
+  totalObligations: number;
+  dueToday: number;
+  upcoming: number;
+  overdue: number;
+  waitingForClient: number;
+  readyForFiling: number;
+  filed: number;
+  completed: number;
+  byType?: Record<string, number>;
+}
+
+export type ComplianceCalendarSummaryDto = ComplianceCalendarSummary;
+
+export interface ComplianceCycleTemplate {
+  id: string;
+  serviceType?: string;
+  obligationType: ComplianceObligationType;
+  recurrenceType: ComplianceRecurrenceType;
+  templateName: string;
+  defaultDueDay?: number;
+  defaultDueMonthOffset?: number;
+  fixedDueMonth?: number;
+  offsetDaysInternalTarget: number;
+  active: boolean;
+  description?: string;
+}
+
+export type ComplianceCycleTemplateDto = ComplianceCycleTemplate;
+
+export interface CreateComplianceObligationRequest {
+  clientId: string;
+  clientServiceId?: string;
+  servicePeriodId?: string;
+  workflowId?: string;
+  obligationType: ComplianceObligationType;
+  title: string;
+  description?: string;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  statutoryDueDate: string;
+  internalTargetDate?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  remarks?: string;
+}
+
+export interface UpdateComplianceObligationRequest {
+  title?: string;
+  description?: string;
+  statutoryDueDate?: string;
+  internalTargetDate?: string;
+  status?: ComplianceObligationStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  workflowId?: string;
+  remarks?: string;
+}
+
+export interface UpdateObligationStatusRequest {
+  status: ComplianceObligationStatus;
+  filedDate?: string;
+  acknowledgementNumber?: string;
+  remarks?: string;
+}
+
+export interface AssignObligationRequest {
+  assignedToId?: string;
+}
+
+export interface ComplianceCalendarFilterParams {
+  clientId?: string;
+  clientServiceId?: string;
+  obligationType?: ComplianceObligationType;
+  status?: ComplianceObligationStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  overdue?: boolean;
+  dueToday?: boolean;
+  dueThisWeek?: boolean;
+  waitingForClient?: boolean;
+  readyForFiling?: boolean;
+  myWorkOnly?: boolean;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
+}
+
+// ==============================================================================
+// Phase 15: Compliance Execution Workflow & Practitioner Workbench Types
+// ==============================================================================
+
+export type ComplianceWorkflowStatus =
+  | 'CREATED'
+  | 'READY'
+  | 'IN_PROGRESS'
+  | 'WAITING_FOR_CLIENT'
+  | 'UNDER_REVIEW'
+  | 'CHANGES_REQUIRED'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'ACKNOWLEDGEMENT_PENDING'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface ComplianceWorkflowChecklistItemDto {
+  id: string;
+  workflowId: string;
+  itemKey: string;
+  title: string;
+  description?: string;
+  sequenceOrder: number;
+  isCompleted: boolean;
+  isRequired: boolean;
+  completedAt?: string;
+  completedByUserId?: string;
+  completedByName?: string;
+  notes?: string;
+}
+
+export interface ComplianceWorkflowDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  pan?: string;
+  gstin?: string;
+  clientServiceId?: string;
+  serviceName?: string;
+  complianceObligationId: string;
+  obligationTitle?: string;
+  obligationType?: ComplianceObligationType;
+  periodLabel?: string;
+  statutoryDueDate?: string;
+  targetDate?: string;
+  statutoryStatus?: ComplianceObligationStatus;
+  workflowStatus: ComplianceWorkflowStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  reviewerEmployeeId?: string;
+  reviewerEmployeeName?: string;
+  waitingForClient: boolean;
+  waitingReason?: string;
+  expectedResponseDate?: string;
+  totalChecklistSteps: number;
+  completedChecklistSteps: number;
+  progressPercentage: number;
+  daysRemaining: number;
+  targetDaysRemaining: number;
+  isOverdue: boolean;
+  filedDate?: string;
+  acknowledgementNumber?: string;
+  reviewNotes?: string;
+  changesRequestedReason?: string;
+  startedAt?: string;
+  submittedAt?: string;
+  approvedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ComplianceWorkflowDetailDto {
+  workflow: ComplianceWorkflowDto;
+  checklistItems: ComplianceWorkflowChecklistItemDto[];
+  linkedTasks: Task[];
+  reviewNotes?: string;
+  changesRequestedReason?: string;
+  approvedBy?: string;
+  waitingRequestedBy?: string;
+  filedBy?: string;
+  completedBy?: string;
+  notes?: string;
+}
+
+export interface ComplianceWorkbenchSummaryDto {
+  totalActive: number;
+  dueToday: number;
+  dueThisWeek: number;
+  overdue: number;
+  waitingForClient: number;
+  underReview: number;
+  readyForFiling: number;
+  completedThisMonth: number;
+  myAssigned: number;
+  myReviews: number;
+}
+
+export interface ComplianceWorkbenchFilterParams {
+  clientId?: string;
+  clientServiceId?: string;
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  workflowStatus?: ComplianceWorkflowStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  waitingForClient?: boolean;
+  dueFrom?: string;
+  dueTo?: string;
+  targetFrom?: string;
+  targetTo?: string;
+  viewType?: 'ALL' | 'MY_ASSIGNED' | 'MY_REVIEWS' | 'WAITING_FOR_CLIENT' | 'READY_FOR_FILING' | 'DUE_TODAY' | 'OVERDUE' | 'COMPLETED';
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
+}
+
+export interface AssignComplianceWorkflowRequest {
+  assignedEmployeeId?: string;
+  reviewerEmployeeId?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  targetDate?: string;
+}
+
+export interface WaitClientWorkflowRequest {
+  reason: string;
+  expectedResponseDate?: string;
+}
+
+export interface RequestWorkflowChangesRequest {
+  reason: string;
+}
+
+export interface ApproveWorkflowRequest {
+  notes?: string;
+}
+
+export interface MarkWorkflowFiledRequest {
+  filedDate?: string;
+  acknowledgementNumber?: string;
+}
+
+export interface CompleteComplianceWorkflowRequest {
+  acknowledgementNumber?: string;
+  notes?: string;
+}
+
+export interface UpdateChecklistItemRequest {
+  isCompleted: boolean;
+  notes?: string;
+}
+
+export interface CreateWorkflowTaskRequest {
+  title: string;
+  description?: string;
+  category?: 'GST' | 'ITR' | 'TDS' | 'AUDIT' | 'COMPLIANCE' | 'NOTICE' | 'BILLING' | 'OTHER';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  dueDate?: string;
+  assignedTo?: string;
+}
 
 
 

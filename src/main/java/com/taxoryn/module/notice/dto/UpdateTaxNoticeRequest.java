@@ -1,7 +1,10 @@
 package com.taxoryn.module.notice.dto;
 
+import com.taxoryn.module.notice.enums.HearingMode;
+import com.taxoryn.module.notice.enums.HearingStatus;
 import com.taxoryn.module.notice.enums.NoticeDepartment;
 import com.taxoryn.module.notice.enums.NoticePriority;
+import com.taxoryn.module.notice.enums.NoticeResponseStatus;
 import com.taxoryn.module.notice.enums.NoticeStatus;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -54,13 +57,40 @@ public class UpdateTaxNoticeRequest {
     private LocalDate noticeDate;
     private LocalDate receivedDate;
     private LocalDate responseDueDate;
+
+    // Response Fields
+    private Boolean responseRequired;
+    private NoticeResponseStatus responseStatus;
+    private String responseDraft;
+    private String submissionReference;
+    private String submissionNotes;
+
+    // Hearing Fields
+    private Boolean hearingRequired;
     private LocalDate hearingDate;
 
     @Size(max = 20, message = "Hearing time cannot exceed 20 characters")
     private String hearingTime;
+    private HearingMode hearingMode;
+    private String hearingLocation;
+    private String hearingReference;
+    private String hearingNotes;
+    private String hearingOutcome;
+    private HearingStatus hearingStatus;
 
     private NoticeStatus status;
     private NoticePriority priority;
+    private com.taxoryn.module.notice.enums.NoticeRisk riskLevel;
+
+    private Boolean waitingForClient;
+    private String waitingReason;
+    private LocalDate expectedResponseDate;
+
+    private LocalDate followUpDate;
+    private String followUpNotes;
+
+    private UUID complianceObligationId;
+    private UUID clientServiceId;
 
     private UUID assignedEmployeeId;
     private UUID reviewerEmployeeId;

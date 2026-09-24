@@ -16,6 +16,7 @@ import {
   Headphones,
 } from 'lucide-react';
 import { CLIENT_ROLES } from '../utils/permissionUtils.ts';
+import type { ProductModuleCode } from '../types/index.ts';
 
 export type ActionCategory =
   | 'CLIENT'
@@ -41,6 +42,7 @@ export interface ActionDefinition {
   requiredPermissions: string[];
   allowedRoles: string[];
   targetPath: string;
+  moduleCode?: ProductModuleCode;
   supportsClientContext?: boolean;
 }
 
@@ -52,6 +54,7 @@ export interface ComplianceSubmenuAction {
   requiredPermissions: string[];
   allowedRoles: string[];
   targetPath: string;
+  moduleCode?: ProductModuleCode;
   supportsClientContext?: boolean;
 }
 
@@ -65,6 +68,7 @@ export const COMPLIANCE_SUBMENU_ACTIONS: ComplianceSubmenuAction[] = [
     requiredPermissions: ['GST_CREATE', 'GST_WRITE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
     targetPath: '/gst?action=new',
+    moduleCode: 'GST',
     supportsClientContext: true,
   },
   {
@@ -75,6 +79,7 @@ export const COMPLIANCE_SUBMENU_ACTIONS: ComplianceSubmenuAction[] = [
     requiredPermissions: ['ITR_CREATE', 'ITR_WRITE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
     targetPath: '/itr?action=new',
+    moduleCode: 'ITR',
     supportsClientContext: true,
   },
   {
@@ -85,6 +90,7 @@ export const COMPLIANCE_SUBMENU_ACTIONS: ComplianceSubmenuAction[] = [
     requiredPermissions: ['TDS_CREATE', 'TDS_WRITE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
     targetPath: '/tds?action=new',
+    moduleCode: 'TDS',
     supportsClientContext: true,
   },
 ];
@@ -177,6 +183,7 @@ export const PRACTICE_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: ['CLIENT_CREATE', 'CLIENT_WRITE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER'],
     targetPath: '/clients?action=new',
+    moduleCode: 'CLIENTS',
     supportsClientContext: false,
   },
   {
@@ -189,6 +196,7 @@ export const PRACTICE_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: ['TASK_CREATE', 'TASK_WRITE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT'],
     targetPath: '/tasks?action=new',
+    moduleCode: 'TASKS',
     supportsClientContext: true,
   },
   {
@@ -201,6 +209,7 @@ export const PRACTICE_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: ['DOC_REQUEST_CREATE', 'DOCUMENT_WRITE', 'CLIENT_UPDATE', 'CLIENT_CREATE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'STAFF', 'PRACTITIONER'],
     targetPath: '/documents?action=request',
+    moduleCode: 'DOCUMENTS',
     supportsClientContext: true,
   },
   {
@@ -225,6 +234,7 @@ export const PRACTICE_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'STAFF'],
     targetPath: '/portal?tab=messages',
+    moduleCode: 'CLIENT_PORTAL',
     supportsClientContext: true,
   },
   {
@@ -249,6 +259,7 @@ export const PRACTICE_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: ['BILLING_CREATE', 'BILLING_WRITE'],
     allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER'],
     targetPath: '/billing?action=new',
+    moduleCode: 'BILLING',
     supportsClientContext: true,
   },
 ];

@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.time.LocalDate;
 
@@ -25,6 +27,7 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/v1/reports")
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.REPORTS)
 @Tag(name = "Central Reports", description = "Aggregated Central Reporting APIs across Practice, Tax, Clients, Work, and Financials")
 public class ReportController {
 

@@ -5,7 +5,7 @@ import com.taxoryn.core.security.TenantContext;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
-import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.ComplianceStatus;
+import com.taxoryn.module.compliance.model.ComplianceObligationStatus;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
 import com.taxoryn.module.docrequest.dto.CreateDocumentRequest;
 import com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem;
@@ -253,7 +253,7 @@ public class GstEndToEndWorkflowIntegrationTest {
                 .findByIdAndOrganizationId(filing.getComplianceId(), testOrg.getId()).orElseThrow();
         assertThat(obligation.getPeriod()).isEqualTo("2026-07");
         assertThat(obligation.getGstFilingId()).isEqualTo(filing.getId());
-        assertThat(obligation.getStatus()).isEqualTo(ComplianceStatus.PENDING);
+        assertThat(obligation.getStatus()).isEqualTo(ComplianceObligationStatus.UPCOMING);
     }
 
     @Test
@@ -392,7 +392,7 @@ public class GstEndToEndWorkflowIntegrationTest {
         // Step 4: Verify Compliance Obligation is automatically COMPLETED
         ComplianceObligationEntity completedObligation = complianceObligationRepository
                 .findByIdAndOrganizationId(filing.getComplianceId(), testOrg.getId()).orElseThrow();
-        assertThat(completedObligation.getStatus()).isEqualTo(ComplianceStatus.COMPLETED);
+        assertThat(completedObligation.getStatus()).isEqualTo(ComplianceObligationStatus.COMPLETED);
         assertThat(completedObligation.getCompletedAt()).isNotNull();
 
         // Step 5: Verify Task is automatically COMPLETED

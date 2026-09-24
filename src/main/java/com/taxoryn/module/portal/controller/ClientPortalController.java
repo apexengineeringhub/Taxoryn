@@ -43,6 +43,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -50,6 +52,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/portal", "/api/portal"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.CLIENT_PORTAL)
 @Tag(name = "Client Portal", description = "Client-facing portal for business clients: Secure login, compliance dashboard, pending documents, GST & ITR tracking, and notifications")
 @SecurityRequirement(name = "BearerAuth")
 public class ClientPortalController {

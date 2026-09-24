@@ -1,16 +1,31 @@
 package com.taxoryn.module.notice.enums;
 
 public enum NoticeStatus {
-    RECEIVED,
+    // Standard Lifecycle Statuses
+    NOTICE_RECEIVED,
+    NOTICE_REGISTERED,
+    ASSIGNED,
     UNDER_REVIEW,
+    RESPONSE_PREPARATION,
+    HEARING,
+    SUBMITTED,
+    AWAITING_ORDER,
+    RESOLVED,
+    FOLLOW_UP,
+    CLOSED,
+
+    // Extended / Workflow Aliases
+    RECEIVED,
     INFO_REQUESTED,
+    WAITING_FOR_CLIENT,
     RESPONSE_DRAFTING,
     INTERNAL_REVIEW,
+    CLIENT_CONFIRMATION,
+    READY_FOR_SUBMISSION,
     PARTNER_APPROVED,
-    SUBMITTED,
     HEARING_SCHEDULED,
-    RESOLVED,
+    ORDER_RECEIVED,
     DEMAND_DROPPED,
-    APPEAL_FILED,
-    CLOSED
+    APPEAL_FILED
 }
+

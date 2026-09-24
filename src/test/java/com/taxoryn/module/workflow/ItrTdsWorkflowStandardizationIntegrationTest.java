@@ -5,7 +5,7 @@ import com.taxoryn.core.security.TenantContext;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
-import com.taxoryn.module.compliance.entity.ComplianceObligationEntity.ComplianceStatus;
+import com.taxoryn.module.compliance.model.ComplianceObligationStatus;
 import com.taxoryn.module.compliance.entity.ComplianceRuleEntity.ComplianceType;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
 import com.taxoryn.module.employee.entity.EmployeeEntity;
@@ -216,7 +216,7 @@ public class ItrTdsWorkflowStandardizationIntegrationTest {
         ComplianceObligationEntity compliance = complianceObligationRepository.findById(returnDto.getComplianceId()).orElseThrow();
         assertThat(compliance.getComplianceType()).isEqualTo(ComplianceType.ITR);
         assertThat(compliance.getPeriod()).isEqualTo("2026-27");
-        assertThat(compliance.getStatus()).isEqualTo(ComplianceStatus.PENDING);
+        assertThat(compliance.getStatus()).isEqualTo(ComplianceObligationStatus.UPCOMING);
         assertThat(compliance.getItrReturnId()).isEqualTo(returnDto.getId());
 
         // Verify linked Task (Respecting Employee ID -> User ID resolution)
@@ -272,7 +272,7 @@ public class ItrTdsWorkflowStandardizationIntegrationTest {
 
         // Verify Compliance Obligation is COMPLETED
         ComplianceObligationEntity completedCompliance = complianceObligationRepository.findById(returnDto.getComplianceId()).orElseThrow();
-        assertThat(completedCompliance.getStatus()).isEqualTo(ComplianceStatus.COMPLETED);
+        assertThat(completedCompliance.getStatus()).isEqualTo(ComplianceObligationStatus.COMPLETED);
         assertThat(completedCompliance.getCompletedAt()).isNotNull();
     }
 
@@ -308,7 +308,7 @@ public class ItrTdsWorkflowStandardizationIntegrationTest {
         ComplianceObligationEntity compliance = complianceObligationRepository.findById(returnDto.getComplianceId()).orElseThrow();
         assertThat(compliance.getComplianceType()).isEqualTo(ComplianceType.TDS);
         assertThat(compliance.getPeriod()).contains("Q2");
-        assertThat(compliance.getStatus()).isEqualTo(ComplianceStatus.PENDING);
+        assertThat(compliance.getStatus()).isEqualTo(ComplianceObligationStatus.UPCOMING);
         assertThat(compliance.getTdsReturnId()).isEqualTo(returnDto.getId());
 
         // Verify linked Task (Respecting Employee ID -> User ID resolution)
@@ -350,7 +350,7 @@ public class ItrTdsWorkflowStandardizationIntegrationTest {
 
         // Verify Compliance Obligation is COMPLETED
         ComplianceObligationEntity completedCompliance = complianceObligationRepository.findById(returnDto.getComplianceId()).orElseThrow();
-        assertThat(completedCompliance.getStatus()).isEqualTo(ComplianceStatus.COMPLETED);
+        assertThat(completedCompliance.getStatus()).isEqualTo(ComplianceObligationStatus.COMPLETED);
         assertThat(completedCompliance.getCompletedAt()).isNotNull();
     }
 

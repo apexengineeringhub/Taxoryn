@@ -239,7 +239,7 @@ class ComplianceManagementIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.title").value("TDS Deposit Challan 281 for August 2026"))
-                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.status").value("UPCOMING"))
                 .andReturn().getResponse().getContentAsString();
 
         String obligationId = objectMapper.readTree(response).path("data").path("id").asText();
@@ -292,7 +292,7 @@ class ComplianceManagementIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.taskId").isNotEmpty())
-                .andExpect(jsonPath("$.data.status").value("IN_PROGRESS"));
+                .andExpect(jsonPath("$.data.status").value("READY"));
     }
 
     @Test

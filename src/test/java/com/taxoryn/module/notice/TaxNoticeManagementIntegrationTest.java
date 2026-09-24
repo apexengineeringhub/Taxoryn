@@ -42,6 +42,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -574,5 +575,141 @@ class TaxNoticeManagementIntegrationTest {
                         .header("Authorization", org2AdminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("Phase 16: Tax Notice Resolution Workflow - Waiting for Client, Follow-up, Client Confirm & Ready for Submission")
+    void testPhase16ResolutionWorkflowAndWaitingForClient() throws Exception {
+        // 1. Create notice with risk level & follow up
+        CreateTaxNoticeRequest createRequest = CreateTaxNoticeRequest.builder()
+                .clientId(client1.getId())
+                .noticeNumber("IT-148A-2024-PH16")
+                .department(NoticeDepartment.INCOME_TAX)
+                .noticeType("Section 148A(b) Show Cause Notice")
+                .section("Section 148A")
+                .subject("Information suggesting income escaped assessment")
+                .receivedDate(LocalDate.now().minusDays(1))
+                .responseDueDate(LocalDate.now().plusDays(10))
+                .demandAmount(new BigDecimal("750000.00"))
+                .priority(NoticePriority.HIGH)
+                .riskLevel(NoticeRisk.CRITICAL)
+                .followUpDate(LocalDate.now().plusDays(3))
+                .followUpNotes("Call CFO to collect ledger")
+                .assignedEmployeeId(employeePreparer.getId())
+                .reviewerEmployeeId(employeeReviewer.getId())
+                .partnerEmployeeId(employeePartner.getId())
+                .build();
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/tax-notices")
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.noticeNumber").value("IT-148A-2024-PH16"))
+                .andExpect(jsonPath("$.data.riskLevel").value("CRITICAL"))
+                .andExpect(jsonPath("$.data.followUpDate").value(LocalDate.now().plusDays(3).toString()))
+                .andReturn();
+
+        UUID noticeId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data").path("id").asText());
+
+        // 2. Put notice in WAITING_FOR_CLIENT with document request
+        SetWaitingForClientRequest waitingReq = SetWaitingForClientRequest.builder()
+                .waitingReason("Awaiting bank statements for FY 2021-22 from client")
+                .expectedResponseDate(LocalDate.now().plusDays(5))
+                .createDocumentRequest(true)
+                .documentRequestTitle("Bank Statement for FY 2021-22")
+                .documentRequestDescription("Please upload bank statements for ICICI Bank account")
+                .build();
+
+        mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/waiting-for-client")
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(waitingReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.waitingForClient").value(true))
+                .andExpect(jsonPath("$.data.waitingReason").value("Awaiting bank statements for FY 2021-22 from client"))
+                .andExpect(jsonPath("$.data.status").value("WAITING_FOR_CLIENT"));
+
+        // 3. Resume notice from waiting
+        mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/resume")
+                        .header("Authorization", preparerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.waitingForClient").value(false))
+                .andExpect(jsonPath("$.data.waitingReason").doesNotExist())
+                .andExpect(jsonPath("$.data.status").value("UNDER_REVIEW"));
+
+        // 4. Update follow-up date
+        SetFollowUpRequest followUpReq = SetFollowUpRequest.builder()
+                .followUpDate(LocalDate.now().plusDays(2))
+                .followUpNotes("Check if documents received on email")
+                .responsibleEmployeeId(employeePreparer.getId())
+                .build();
+
+        mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/follow-up")
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(followUpReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.followUpDate").value(LocalDate.now().plusDays(2).toString()))
+                .andExpect(jsonPath("$.data.followUpNotes").value("Check if documents received on email"));
+
+        // 5. Draft response
+        CreateNoticeResponseRequest draftReq = CreateNoticeResponseRequest.builder()
+                .responseTitle("Formal Reply to Section 148A(b) Notice")
+                .responseSummary("All transaction values explained with bank reconciliation")
+                .legalGrounds("Assessment barred by limitation under proviso to Section 149")
+                .factsOfCase("Transactions pertain to exempt agricultural income")
+                .submitForReview(true)
+                .build();
+
+        MvcResult draftResult = mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/responses")
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(draftReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.reviewStatus").value("PENDING_REVIEW"))
+                .andReturn();
+
+        UUID responseId = UUID.fromString(objectMapper.readTree(draftResult.getResponse().getContentAsString()).path("data").path("id").asText());
+
+        // 6. Review by Reviewer
+        ReviewNoticeResponseRequest reviewReq = ReviewNoticeResponseRequest.builder()
+                .action("APPROVE_REVIEW")
+                .comments("Legal grounds vetted and substantiated.")
+                .build();
+
+        mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/responses/" + responseId + "/review")
+                        .header("Authorization", reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reviewReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reviewStatus").value("APPROVED_BY_REVIEWER"));
+
+        // 7. Partner sign-off
+        ReviewNoticeResponseRequest partnerReq = ReviewNoticeResponseRequest.builder()
+                .action("APPROVE_PARTNER")
+                .comments("Partner approved for client submission.")
+                .build();
+
+        mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/responses/" + responseId + "/review")
+                        .header("Authorization", partnerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(partnerReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reviewStatus").value("APPROVED_BY_PARTNER"));
+
+        // 8. Client Confirmation
+        mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/responses/" + responseId + "/client-confirm")
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("notes", "Client confirmed draft via email on 2024-09-24"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reviewStatus").value("CLIENT_CONFIRMATION"));
+
+        // 9. Mark Ready for Submission
+        mockMvc.perform(post("/api/v1/tax-notices/" + noticeId + "/responses/" + responseId + "/ready-for-submission")
+                        .header("Authorization", preparerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reviewStatus").value("READY_FOR_SUBMISSION"));
     }
 }
