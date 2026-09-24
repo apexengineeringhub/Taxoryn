@@ -201,6 +201,8 @@ import {
   UpdateNoticeHearingRequest,
   AdjournHearingRequest,
   TaxNoticeFilterRequest,
+  SetWaitingForClientRequest,
+  SetFollowUpRequest,
   CreateNoticeResponseRequest,
   ReviewNoticeResponseRequest,
   ScheduleHearingRequest,
@@ -2641,6 +2643,28 @@ export const noticesApi = {
   },
   cancelHearing: async (id: string, payload: { cancellationReason?: string }) => {
     const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/tax-notices/${id}/hearing/cancel`, payload);
+    return res.data.data;
+  },
+  // Phase 16: Resolution Workflow & Waiting for Client
+  setWaitingForClient: async (id: string, payload: SetWaitingForClientRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${id}/waiting-for-client`, payload);
+    return res.data.data;
+  },
+  resumeFromWaiting: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${id}/resume`);
+    return res.data.data;
+  },
+  setFollowUp: async (id: string, payload: SetFollowUpRequest) => {
+    const res = await apiClient.post<ApiResponse<TaxNotice>>(`/v1/notices/${id}/follow-up`, payload);
+    return res.data.data;
+  },
+  clientConfirmResponse: async (noticeId: string, responseId: string, payload?: { clientConfirmed?: boolean; comments?: string; notes?: string } | string) => {
+    const notes = typeof payload === 'string' ? payload : (payload?.comments || payload?.notes);
+    const res = await apiClient.post<ApiResponse<NoticeResponse>>(`/v1/notices/${noticeId}/responses/${responseId}/client-confirm`, { notes });
+    return res.data.data;
+  },
+  markResponseReadyForSubmission: async (noticeId: string, responseId: string, comments?: string) => {
+    const res = await apiClient.post<ApiResponse<NoticeResponse>>(`/v1/notices/${noticeId}/responses/${responseId}/ready-for-submission`, { comments });
     return res.data.data;
   },
   // Client Portal Notices

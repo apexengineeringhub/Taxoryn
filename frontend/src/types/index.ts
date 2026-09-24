@@ -3619,15 +3619,25 @@ export interface FinancialReport {
 // ==============================================================================
 export type NoticeDepartment = 'INCOME_TAX' | 'GST' | 'TDS' | 'CUSTOMS' | 'OTHER';
 
+export type NoticeRisk = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
 export type NoticeStatus =
   | 'RECEIVED'
+  | 'NOTICE_RECEIVED'
+  | 'NOTICE_REGISTERED'
   | 'UNDER_REVIEW'
   | 'INFO_REQUESTED'
+  | 'WAITING_FOR_CLIENT'
   | 'RESPONSE_DRAFTING'
+  | 'RESPONSE_PREPARATION'
   | 'INTERNAL_REVIEW'
+  | 'CLIENT_CONFIRMATION'
+  | 'READY_FOR_SUBMISSION'
   | 'PARTNER_APPROVED'
   | 'SUBMITTED'
+  | 'AWAITING_ORDER'
   | 'HEARING_SCHEDULED'
+  | 'ORDER_RECEIVED'
   | 'RESOLVED'
   | 'DEMAND_DROPPED'
   | 'APPEAL_FILED'
@@ -3647,9 +3657,13 @@ export type SubmissionMode =
 export type ReviewStatus =
   | 'DRAFT'
   | 'PENDING_REVIEW'
+  | 'INTERNAL_REVIEW'
   | 'REVISION_REQUESTED'
+  | 'CHANGES_REQUIRED'
   | 'APPROVED_BY_REVIEWER'
   | 'APPROVED_BY_PARTNER'
+  | 'CLIENT_CONFIRMATION'
+  | 'READY_FOR_SUBMISSION'
   | 'SUBMITTED';
 
 export type NoticeResponseStatus =
@@ -3694,6 +3708,11 @@ export type NoticeActivityType =
   | 'DOCUMENT_ATTACHED'
   | 'DOCUMENT_REQUESTED'
   | 'TASK_CREATED'
+  | 'WAITING_FOR_CLIENT'
+  | 'RESUMED_FROM_WAITING'
+  | 'FOLLOW_UP_SCHEDULED'
+  | 'CLIENT_CONFIRMED'
+  | 'RESPONSE_READY_FOR_SUBMISSION'
   | 'NOTICE_CLOSED'
   | 'INTERNAL_NOTE_ADDED';
 
@@ -3738,8 +3757,19 @@ export interface TaxNotice {
   hearingNotes?: string;
   hearingOutcome?: string;
   hearingStatus?: HearingStatus;
+  waitingForClient?: boolean;
+  waitingReason?: string;
+  waitingRequestedAt?: string;
+  waitingRequestedBy?: string;
+  waitingRequestedByName?: string;
+  expectedResponseDate?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
   status: NoticeStatus;
   priority: NoticePriority;
+  riskLevel?: NoticeRisk;
+  complianceObligationId?: string;
+  clientServiceId?: string;
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   reviewerEmployeeId?: string;
@@ -3859,6 +3889,11 @@ export interface CreateTaxNoticeRequest {
   hearingDate?: string;
   hearingTime?: string;
   priority?: NoticePriority;
+  riskLevel?: NoticeRisk;
+  complianceObligationId?: string;
+  clientServiceId?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
   assignedEmployeeId?: string;
   reviewerEmployeeId?: string;
   partnerEmployeeId?: string;
@@ -3889,6 +3924,14 @@ export interface UpdateTaxNoticeRequest {
   hearingTime?: string;
   status?: NoticeStatus;
   priority?: NoticePriority;
+  riskLevel?: NoticeRisk;
+  waitingForClient?: boolean;
+  waitingReason?: string;
+  expectedResponseDate?: string;
+  followUpDate?: string;
+  followUpNotes?: string;
+  complianceObligationId?: string;
+  clientServiceId?: string;
   assignedEmployeeId?: string;
   reviewerEmployeeId?: string;
   partnerEmployeeId?: string;
@@ -3903,6 +3946,9 @@ export interface TaxNoticeFilterRequest {
   department?: NoticeDepartment;
   status?: NoticeStatus;
   priority?: NoticePriority;
+  riskLevel?: NoticeRisk;
+  waitingForClient?: boolean;
+  followUpDue?: boolean;
   assignedEmployeeId?: string;
   reviewerEmployeeId?: string;
   partnerEmployeeId?: string;
@@ -3910,6 +3956,20 @@ export interface TaxNoticeFilterRequest {
   dueDateTo?: string;
   overdueOnly?: boolean;
   upcomingHearing?: boolean;
+}
+
+export interface SetWaitingForClientRequest {
+  waitingReason: string;
+  expectedResponseDate?: string;
+  createDocumentRequest?: boolean;
+  documentRequestTitle?: string;
+  documentRequestDescription?: string;
+}
+
+export interface SetFollowUpRequest {
+  followUpDate: string;
+  followUpNotes?: string;
+  responsibleEmployeeId?: string;
 }
 
 export interface UpdateNoticeResponseRequest {

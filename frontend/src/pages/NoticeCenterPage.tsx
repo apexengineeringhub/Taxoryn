@@ -52,8 +52,11 @@ export const NoticeCenterPage: React.FC = () => {
   const [selectedDept, setSelectedDept] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedPriority, setSelectedPriority] = useState<string>('ALL');
+  const [selectedRisk, setSelectedRisk] = useState<string>('ALL');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [upcomingHearingOnly, setUpcomingHearingOnly] = useState(false);
+  const [waitingForClientOnly, setWaitingForClientOnly] = useState(false);
+  const [followUpDueOnly, setFollowUpDueOnly] = useState(false);
 
   // Create Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -78,6 +81,9 @@ export const NoticeCenterPage: React.FC = () => {
     hearingDate: '',
     hearingTime: '',
     priority: 'MEDIUM',
+    riskLevel: 'MEDIUM',
+    followUpDate: '',
+    followUpNotes: '',
     assignedEmployeeId: '',
     reviewerEmployeeId: '',
     partnerEmployeeId: '',
@@ -94,7 +100,7 @@ export const NoticeCenterPage: React.FC = () => {
 
   useEffect(() => {
     loadNotices();
-  }, [search, selectedDept, selectedStatus, selectedPriority, overdueOnly, upcomingHearingOnly]);
+  }, [search, selectedDept, selectedStatus, selectedPriority, selectedRisk, overdueOnly, upcomingHearingOnly, waitingForClientOnly, followUpDueOnly]);
 
   const loadDashboardStats = async () => {
     try {
@@ -137,8 +143,11 @@ export const NoticeCenterPage: React.FC = () => {
       if (selectedDept !== 'ALL') params.department = selectedDept;
       if (selectedStatus !== 'ALL') params.status = selectedStatus;
       if (selectedPriority !== 'ALL') params.priority = selectedPriority;
+      if (selectedRisk !== 'ALL') params.riskLevel = selectedRisk;
       if (overdueOnly) params.overdueOnly = true;
       if (upcomingHearingOnly) params.upcomingHearing = true;
+      if (waitingForClientOnly) params.waitingForClient = true;
+      if (followUpDueOnly) params.followUpDue = true;
 
       const res = await noticesApi.getNotices(params);
       setNotices(res.content || []);
@@ -204,15 +213,23 @@ export const NoticeCenterPage: React.FC = () => {
   const getStatusBadge = (status: NoticeStatus) => {
     switch (status) {
       case 'RECEIVED':
+      case 'NOTICE_RECEIVED':
+      case 'NOTICE_REGISTERED':
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200">Received</span>;
       case 'UNDER_REVIEW':
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 border border-purple-200">Under Review</span>;
       case 'INFO_REQUESTED':
-        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200">Info Requested</span>;
+      case 'WAITING_FOR_CLIENT':
+        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">Waiting for Client</span>;
       case 'RESPONSE_DRAFTING':
+      case 'RESPONSE_PREPARATION':
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">Drafting Reply</span>;
       case 'INTERNAL_REVIEW':
-        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800 border border-orange-200 animate-pulse">Internal Review</span>;
+        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800 border border-orange-200">Internal Review</span>;
+      case 'CLIENT_CONFIRMATION':
+        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-300">Client Confirmation</span>;
+      case 'READY_FOR_SUBMISSION':
+        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-teal-100 text-teal-800 border border-teal-300">Ready for Filing</span>;
       case 'PARTNER_APPROVED':
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-teal-100 text-teal-800 border border-teal-200">Partner Approved</span>;
       case 'SUBMITTED':
@@ -229,6 +246,21 @@ export const NoticeCenterPage: React.FC = () => {
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 border border-gray-200">Closed</span>;
       default:
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{status}</span>;
+    }
+  };
+
+  const getRiskBadge = (risk?: string) => {
+    switch (risk) {
+      case 'CRITICAL':
+        return <span className="px-2 py-0.5 text-xs font-bold rounded bg-rose-700 text-white border border-rose-800">RISK: CRITICAL</span>;
+      case 'HIGH':
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded bg-rose-100 text-rose-800 border border-rose-300">RISK: HIGH</span>;
+      case 'MEDIUM':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-800 border border-amber-300">RISK: MED</span>;
+      case 'LOW':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded bg-emerald-50 text-emerald-700 border border-emerald-200">RISK: LOW</span>;
+      default:
+        return null;
     }
   };
 
@@ -381,7 +413,7 @@ export const NoticeCenterPage: React.FC = () => {
 
       {/* Filter & Search Bar */}
       <Card className="p-4 bg-white border border-gray-200 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           {/* Search */}
           <div className="relative md:col-span-1">
             <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
@@ -420,8 +452,11 @@ export const NoticeCenterPage: React.FC = () => {
               <option value="ALL">All Statuses</option>
               <option value="RECEIVED">Received</option>
               <option value="UNDER_REVIEW">Under Review</option>
+              <option value="WAITING_FOR_CLIENT">Waiting for Client</option>
               <option value="RESPONSE_DRAFTING">Response Drafting</option>
               <option value="INTERNAL_REVIEW">Internal Review (Maker-Checker)</option>
+              <option value="CLIENT_CONFIRMATION">Client Confirmation</option>
+              <option value="READY_FOR_SUBMISSION">Ready for Filing</option>
               <option value="PARTNER_APPROVED">Partner Approved</option>
               <option value="SUBMITTED">Filed / Submitted</option>
               <option value="HEARING_SCHEDULED">Hearing Scheduled</option>
@@ -439,10 +474,25 @@ export const NoticeCenterPage: React.FC = () => {
               className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="ALL">All Priorities</option>
-              <option value="CRITICAL">Critical (1-3 days)</option>
-              <option value="HIGH">High (4-7 days)</option>
-              <option value="MEDIUM">Medium (8-15 days)</option>
-              <option value="LOW">Low (&gt;15 days)</option>
+              <option value="CRITICAL">Critical Priority</option>
+              <option value="HIGH">High Priority</option>
+              <option value="MEDIUM">Medium Priority</option>
+              <option value="LOW">Low Priority</option>
+            </select>
+          </div>
+
+          {/* Risk Filter */}
+          <div>
+            <select
+              value={selectedRisk}
+              onChange={(e) => setSelectedRisk(e.target.value)}
+              className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="ALL">All Risk Levels</option>
+              <option value="CRITICAL">Risk: Critical</option>
+              <option value="HIGH">Risk: High</option>
+              <option value="MEDIUM">Risk: Medium</option>
+              <option value="LOW">Risk: Low</option>
             </select>
           </div>
         </div>
@@ -467,6 +517,26 @@ export const NoticeCenterPage: React.FC = () => {
               className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
             />
             <span className="text-purple-700 font-semibold">Upcoming Hearings Only</span>
+          </label>
+
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={waitingForClientOnly}
+              onChange={(e) => setWaitingForClientOnly(e.target.checked)}
+              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+            />
+            <span className="text-amber-700 font-semibold">Waiting on Client</span>
+          </label>
+
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={followUpDueOnly}
+              onChange={(e) => setFollowUpDueOnly(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-blue-700 font-semibold">Follow-up Due</span>
           </label>
 
           <span className="text-gray-400">|</span>
@@ -503,8 +573,10 @@ export const NoticeCenterPage: React.FC = () => {
                 'p-4 bg-white border transition-all hover:shadow-md cursor-pointer',
                 notice.isOverdue
                   ? 'border-rose-300 bg-rose-50/20'
-                  : notice.priority === 'CRITICAL'
-                  ? 'border-orange-300'
+                  : notice.riskLevel === 'CRITICAL'
+                  ? 'border-rose-300 bg-rose-50/10'
+                  : notice.waitingForClient
+                  ? 'border-amber-300 bg-amber-50/10'
                   : 'border-gray-200'
               )}
               onClick={() => navigate(`/notices/${notice.id}`)}
@@ -521,7 +593,13 @@ export const NoticeCenterPage: React.FC = () => {
                       </span>
                     )}
                     {getPriorityBadge(notice.priority, notice.isOverdue)}
+                    {getRiskBadge(notice.riskLevel)}
                     {getStatusBadge(notice.status)}
+                    {notice.waitingForClient && (
+                      <span className="px-2 py-0.5 text-xs font-bold rounded bg-amber-100 text-amber-900 border border-amber-300">
+                        Waiting on Client
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
@@ -542,11 +620,21 @@ export const NoticeCenterPage: React.FC = () => {
                     )}
                   </div>
 
-                  {notice.dinNumber && (
-                    <div className="text-xs text-gray-400 font-mono">
-                      DIN: {notice.dinNumber}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400">
+                    {notice.dinNumber && (
+                      <span className="font-mono">DIN: {notice.dinNumber}</span>
+                    )}
+                    {notice.waitingReason && (
+                      <span className="text-amber-700 font-medium truncate max-w-md">
+                        Waiting: {notice.waitingReason}
+                      </span>
+                    )}
+                    {notice.followUpDate && (
+                      <span className="text-blue-700 font-medium">
+                        Follow-up: {notice.followUpDate}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right: Demand & Deadlines */}
@@ -598,7 +686,7 @@ export const NoticeCenterPage: React.FC = () => {
                         navigate(`/notices/${notice.id}`);
                       }}
                     >
-                      <Eye className="w-3.5 h-3.5" /> View Case
+                      View Case <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -758,9 +846,9 @@ export const NoticeCenterPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Section 3: Demand & Deadlines */}
+              {/* Section 3: Demand, Risk & Deadlines */}
               <div className="space-y-3 pt-2 border-t border-gray-100">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">3. Demand & Deadlines</h3>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">3. Demand, Risk & Deadlines</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Demand Amount (₹)</label>
@@ -795,6 +883,55 @@ export const NoticeCenterPage: React.FC = () => {
                       value={formData.responseDueDate}
                       onChange={(e) => setFormData({ ...formData, responseDueDate: e.target.value })}
                       required
+                      className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value as NoticePriority })}
+                      className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="CRITICAL">Critical</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Risk Level</label>
+                    <select
+                      value={formData.riskLevel || 'MEDIUM'}
+                      onChange={(e) => setFormData({ ...formData, riskLevel: e.target.value as any })}
+                      className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="LOW">Low Risk</option>
+                      <option value="MEDIUM">Medium Risk</option>
+                      <option value="HIGH">High Risk</option>
+                      <option value="CRITICAL">Critical Risk</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Follow-up Date</label>
+                    <input
+                      type="date"
+                      value={formData.followUpDate || ''}
+                      onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
+                      className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Follow-up Notes</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Call client regarding missing ledger accounts"
+                      value={formData.followUpNotes || ''}
+                      onChange={(e) => setFormData({ ...formData, followUpNotes: e.target.value })}
                       className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
