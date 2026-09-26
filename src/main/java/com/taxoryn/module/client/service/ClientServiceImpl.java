@@ -119,7 +119,11 @@ public class ClientServiceImpl implements ClientService {
     private final DocumentRequestRepository documentRequestRepository;
     private final InvoiceRepository invoiceRepository;
     private final AuditLogRepository auditLogRepository;
+    private final com.taxoryn.module.client.repository.ClientLocationAssignmentRepository clientLocationAssignmentRepository;
+    private final com.taxoryn.module.client.repository.ClientUserAssignmentRepository clientUserAssignmentRepository;
     private final com.taxoryn.module.client.repository.ClientServiceRepository clientServiceRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+    private final com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository;
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
@@ -141,6 +145,13 @@ public class ClientServiceImpl implements ClientService {
         // Check MAX_CLIENTS Subscription Limit
         subscriptionService.checkClientLimit(organizationId);
 
+        if (StringUtils.hasText(request.getClientCode())) {
+            String code = request.getClientCode().trim();
+            if (clientRepository.existsByOrganizationIdAndClientCode(organizationId, code)) {
+                throw new DuplicateResourceException("Client", "clientCode", code);
+            }
+        }
+
         if (StringUtils.hasText(request.getPan())
                 && clientRepository.existsByOrganizationIdAndPan(organizationId, request.getPan().toUpperCase().trim())) {
             throw new DuplicateResourceException("Client", "pan", request.getPan());
@@ -156,8 +167,14 @@ public class ClientServiceImpl implements ClientService {
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
         }
 
+        if (request.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+        }
+
         ClientEntity client = ClientEntity.builder()
                 .clientType(request.getClientType())
+                .clientCode(StringUtils.hasText(request.getClientCode()) ? request.getClientCode().trim() : null)
                 .displayName(request.getDisplayName().trim())
                 .legalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : null)
                 .tradeName(StringUtils.hasText(request.getTradeName()) ? request.getTradeName().trim() : null)
@@ -187,6 +204,19 @@ public class ClientServiceImpl implements ClientService {
         ClientEntity saved = clientRepository.save(client);
         log.info("Created client: id={}, displayName={} for tenant={}", saved.getId(), saved.getDisplayName(), organizationId);
 
+        if (saved.getLocationId() != null) {
+            com.taxoryn.module.client.entity.ClientLocationAssignmentEntity initialLoc =
+                    com.taxoryn.module.client.entity.ClientLocationAssignmentEntity.builder()
+                            .clientId(saved.getId())
+                            .locationId(saved.getLocationId())
+                            .primaryLocation(true)
+                            .active(true)
+                            .assignedAt(Instant.now())
+                            .build();
+            initialLoc.setOrganizationId(organizationId);
+            clientLocationAssignmentRepository.save(initialLoc);
+        }
+
         if (StringUtils.hasText(saved.getEmail())) {
             UserEntity portalUser = provisionUserForClient(organizationId, saved);
             sendClientPortalInvitation(saved, portalUser, organizationId);
@@ -207,6 +237,17 @@ public class ClientServiceImpl implements ClientService {
         validateClientAccess(client);
 
         ClientDto oldSnapshot = enrichDto(client);
+
+        if (StringUtils.hasText(request.getClientCode())) {
+            String newCode = request.getClientCode().trim();
+            if (!newCode.equalsIgnoreCase(client.getClientCode())
+                    && clientRepository.existsByOrganizationIdAndClientCode(organizationId, newCode)) {
+                throw new DuplicateResourceException("Client", "clientCode", newCode);
+            }
+            client.setClientCode(newCode);
+        } else {
+            client.setClientCode(null);
+        }
 
         if (StringUtils.hasText(request.getPan())) {
             String newPan = request.getPan().toUpperCase().trim();
@@ -1633,6 +1674,242 @@ public class ClientServiceImpl implements ClientService {
         if (!StringUtils.hasText(pincode)) return null;
         String digitsOnly = pincode.replaceAll("[^0-9]", "");
         return digitsOnly.length() == 6 ? digitsOnly : digitsOnly;
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.client.dto.ClientLocationAssignmentDto assignClientLocation(UUID clientId, com.taxoryn.module.client.dto.AssignClientLocationRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        var location = locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+
+        if (request.isPrimaryLocation()) {
+            clientLocationAssignmentRepository.clearPrimaryByOrganizationIdAndClientId(organizationId, clientId);
+            client.setLocationId(request.getLocationId());
+            clientRepository.save(client);
+        }
+
+        var existingOpt = clientLocationAssignmentRepository.findByOrganizationIdAndClientIdAndLocationId(organizationId, clientId, request.getLocationId());
+        com.taxoryn.module.client.entity.ClientLocationAssignmentEntity assignment;
+        if (existingOpt.isPresent()) {
+            assignment = existingOpt.get();
+            assignment.setPrimaryLocation(request.isPrimaryLocation());
+            assignment.setActive(true);
+            assignment.setAssignedAt(Instant.now());
+        } else {
+            assignment = com.taxoryn.module.client.entity.ClientLocationAssignmentEntity.builder()
+                    .clientId(clientId)
+                    .locationId(request.getLocationId())
+                    .primaryLocation(request.isPrimaryLocation())
+                    .active(true)
+                    .assignedAt(Instant.now())
+                    .build();
+            assignment.setOrganizationId(organizationId);
+        }
+        var saved = clientLocationAssignmentRepository.save(assignment);
+        log.info("Assigned location {} to client {} (primary={}) in tenant {}", request.getLocationId(), clientId, request.isPrimaryLocation(), organizationId);
+        auditService.logEvent("CLIENT_LOCATION_ASSIGNED", "CLIENT", clientId.toString(), null, request.getLocationId().toString());
+        return toLocationAssignmentDto(saved, location);
+    }
+
+    @Override
+    @Transactional
+    public void removeClientLocation(UUID clientId, UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        var assignment = clientLocationAssignmentRepository.findByOrganizationIdAndClientIdAndLocationId(organizationId, clientId, locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientLocationAssignment", "locationId", locationId));
+
+        clientLocationAssignmentRepository.delete(assignment);
+        if (client.getLocationId() != null && client.getLocationId().equals(locationId)) {
+            client.setLocationId(null);
+            clientRepository.save(client);
+        }
+        log.info("Removed location {} from client {} in tenant {}", locationId, clientId, organizationId);
+        auditService.logEvent("CLIENT_LOCATION_REMOVED", "CLIENT", clientId.toString(), locationId.toString(), null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.client.dto.ClientLocationAssignmentDto> getClientLocations(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        List<com.taxoryn.module.client.entity.ClientLocationAssignmentEntity> assignments =
+                clientLocationAssignmentRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
+
+        return assignments.stream().map(a -> {
+            var loc = locationRepository.findByIdAndOrganizationId(a.getLocationId(), organizationId).orElse(null);
+            return toLocationAssignmentDto(a, loc);
+        }).toList();
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.client.dto.ClientLocationAssignmentDto setPrimaryLocation(UUID clientId, UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        var location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Location", "id", locationId));
+
+        var assignment = clientLocationAssignmentRepository.findByOrganizationIdAndClientIdAndLocationId(organizationId, clientId, locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientLocationAssignment", "locationId", locationId));
+
+        clientLocationAssignmentRepository.clearPrimaryByOrganizationIdAndClientId(organizationId, clientId);
+        assignment.setPrimaryLocation(true);
+        assignment.setActive(true);
+        var saved = clientLocationAssignmentRepository.save(assignment);
+
+        client.setLocationId(locationId);
+        clientRepository.save(client);
+
+        log.info("Set primary location {} for client {} in tenant {}", locationId, clientId, organizationId);
+        auditService.logEvent("CLIENT_PRIMARY_LOCATION_UPDATED", "CLIENT", clientId.toString(), null, locationId.toString());
+        return toLocationAssignmentDto(saved, location);
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.client.dto.ClientUserAssignmentDto assignClientUser(UUID clientId, com.taxoryn.module.client.dto.AssignClientUserRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        UserEntity user = userRepository.findByIdAndOrganizationId(request.getUserId(), organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getUserId()));
+
+        if (request.isPrimaryResponsible()) {
+            clientUserAssignmentRepository.clearPrimaryByOrganizationIdAndClientId(organizationId, clientId);
+        }
+
+        var existingOpt = clientUserAssignmentRepository.findByOrganizationIdAndClientIdAndUserId(organizationId, clientId, request.getUserId());
+        com.taxoryn.module.client.entity.ClientUserAssignmentEntity assignment;
+        if (existingOpt.isPresent()) {
+            assignment = existingOpt.get();
+            assignment.setAssignmentRole(request.getAssignmentRole() != null ? request.getAssignmentRole() : com.taxoryn.module.client.entity.ClientAssignmentRole.PRIMARY);
+            assignment.setPrimaryResponsible(request.isPrimaryResponsible());
+            assignment.setActive(true);
+            assignment.setAssignedAt(Instant.now());
+        } else {
+            assignment = com.taxoryn.module.client.entity.ClientUserAssignmentEntity.builder()
+                    .clientId(clientId)
+                    .userId(request.getUserId())
+                    .assignmentRole(request.getAssignmentRole() != null ? request.getAssignmentRole() : com.taxoryn.module.client.entity.ClientAssignmentRole.PRIMARY)
+                    .primaryResponsible(request.isPrimaryResponsible())
+                    .active(true)
+                    .assignedAt(Instant.now())
+                    .build();
+            assignment.setOrganizationId(organizationId);
+        }
+        var saved = clientUserAssignmentRepository.save(assignment);
+        log.info("Assigned user {} to client {} (role={}, primary={}) in tenant {}", request.getUserId(), clientId, assignment.getAssignmentRole(), request.isPrimaryResponsible(), organizationId);
+        auditService.logEvent("CLIENT_USER_ASSIGNED", "CLIENT", clientId.toString(), null, request.getUserId().toString());
+        return toUserAssignmentDto(saved, user);
+    }
+
+    @Override
+    @Transactional
+    public void removeClientUser(UUID clientId, UUID userId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        var assignment = clientUserAssignmentRepository.findByOrganizationIdAndClientIdAndUserId(organizationId, clientId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientUserAssignment", "userId", userId));
+
+        clientUserAssignmentRepository.delete(assignment);
+        log.info("Removed user {} from client {} in tenant {}", userId, clientId, organizationId);
+        auditService.logEvent("CLIENT_USER_REMOVED", "CLIENT", clientId.toString(), userId.toString(), null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.client.dto.ClientUserAssignmentDto> getClientUsers(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        List<com.taxoryn.module.client.entity.ClientUserAssignmentEntity> assignments =
+                clientUserAssignmentRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
+
+        return assignments.stream().map(a -> {
+            var user = userRepository.findByIdAndOrganizationId(a.getUserId(), organizationId).orElse(null);
+            return toUserAssignmentDto(a, user);
+        }).toList();
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.client.dto.ClientUserAssignmentDto setPrimaryResponsibleUser(UUID clientId, UUID userId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateClientAccess(client);
+
+        UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        var assignment = clientUserAssignmentRepository.findByOrganizationIdAndClientIdAndUserId(organizationId, clientId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientUserAssignment", "userId", userId));
+
+        clientUserAssignmentRepository.clearPrimaryByOrganizationIdAndClientId(organizationId, clientId);
+        assignment.setPrimaryResponsible(true);
+        assignment.setActive(true);
+        var saved = clientUserAssignmentRepository.save(assignment);
+
+        log.info("Set primary responsible user {} for client {} in tenant {}", userId, clientId, organizationId);
+        auditService.logEvent("CLIENT_PRIMARY_RESPONSIBLE_USER_UPDATED", "CLIENT", clientId.toString(), null, userId.toString());
+        return toUserAssignmentDto(saved, user);
+    }
+
+    private com.taxoryn.module.client.dto.ClientLocationAssignmentDto toLocationAssignmentDto(
+            com.taxoryn.module.client.entity.ClientLocationAssignmentEntity entity,
+            com.taxoryn.module.organization.entity.LocationEntity location) {
+        return com.taxoryn.module.client.dto.ClientLocationAssignmentDto.builder()
+                .id(entity.getId())
+                .organizationId(entity.getOrganizationId())
+                .clientId(entity.getClientId())
+                .locationId(entity.getLocationId())
+                .locationName(location != null ? location.getName() : null)
+                .locationCode(location != null ? location.getCode() : null)
+                .city(location != null ? location.getCity() : null)
+                .state(location != null ? location.getState() : null)
+                .primaryLocation(entity.isPrimaryLocation())
+                .assignedAt(entity.getAssignedAt())
+                .active(entity.isActive())
+                .build();
+    }
+
+    private com.taxoryn.module.client.dto.ClientUserAssignmentDto toUserAssignmentDto(
+            com.taxoryn.module.client.entity.ClientUserAssignmentEntity entity,
+            UserEntity user) {
+        return com.taxoryn.module.client.dto.ClientUserAssignmentDto.builder()
+                .id(entity.getId())
+                .organizationId(entity.getOrganizationId())
+                .clientId(entity.getClientId())
+                .userId(entity.getUserId())
+                .userName(user != null ? user.getFullName() : null)
+                .userEmail(user != null ? user.getEmail() : null)
+                .assignmentRole(entity.getAssignmentRole())
+                .primaryResponsible(entity.isPrimaryResponsible())
+                .assignedAt(entity.getAssignedAt())
+                .active(entity.isActive())
+                .build();
     }
 
     private ClientDto enrichDto(ClientEntity client) {

@@ -29,6 +29,9 @@ public class ClientEntity extends TenantAuditableEntity {
     @Builder.Default
     private ClientType clientType = ClientType.INDIVIDUAL;
 
+    @Column(name = "client_code", length = 50)
+    private String clientCode;
+
     @Column(name = "display_name", nullable = false)
     private String displayName;
 

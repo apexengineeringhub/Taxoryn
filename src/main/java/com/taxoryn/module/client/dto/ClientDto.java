@@ -28,6 +28,9 @@ public class ClientDto {
     @Schema(description = "Client entity constitution type", example = "PRIVATE_LIMITED")
     private ClientType clientType;
 
+    @Schema(description = "Unique client alphanumeric code within practice", example = "CLI-001")
+    private String clientCode;
+
     @Schema(description = "Display name / Operating name", example = "Zenith Infotech Pvt Ltd")
     private String displayName;
 

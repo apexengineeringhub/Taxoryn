@@ -369,7 +369,11 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
                 mock(com.taxoryn.module.docrequest.repository.DocumentRequestRepository.class),
                 mock(com.taxoryn.module.billing.repository.InvoiceRepository.class),
                 mock(com.taxoryn.module.audit.repository.AuditLogRepository.class),
+                mock(com.taxoryn.module.client.repository.ClientLocationAssignmentRepository.class),
+                mock(com.taxoryn.module.client.repository.ClientUserAssignmentRepository.class),
                 mock(com.taxoryn.module.client.repository.ClientServiceRepository.class),
+                mock(com.taxoryn.module.organization.repository.LocationRepository.class),
+                mock(com.taxoryn.module.user.repository.UserLocationRepository.class),
                 clientMapper, taskMapper, auditService
         );
 

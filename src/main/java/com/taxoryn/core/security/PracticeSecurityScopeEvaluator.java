@@ -24,6 +24,8 @@ public class PracticeSecurityScopeEvaluator {
     private final TaskRepository taskRepository;
     private final com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository;
     private final com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository;
+    private final com.taxoryn.module.client.repository.ClientLocationAssignmentRepository clientLocationAssignmentRepository;
+    private final com.taxoryn.module.client.repository.ClientUserAssignmentRepository clientUserAssignmentRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     public PracticeSecurityScopeEvaluator(
@@ -31,13 +33,27 @@ public class PracticeSecurityScopeEvaluator {
             ClientRepository clientRepository,
             TaskRepository taskRepository,
             com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository,
-            com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository
+            com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository,
+            com.taxoryn.module.client.repository.ClientLocationAssignmentRepository clientLocationAssignmentRepository,
+            com.taxoryn.module.client.repository.ClientUserAssignmentRepository clientUserAssignmentRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.clientRepository = clientRepository;
         this.taskRepository = taskRepository;
         this.employeeLocationRepository = employeeLocationRepository;
         this.userLocationRepository = userLocationRepository;
+        this.clientLocationAssignmentRepository = clientLocationAssignmentRepository;
+        this.clientUserAssignmentRepository = clientUserAssignmentRepository;
+    }
+
+    public PracticeSecurityScopeEvaluator(
+            EmployeeRepository employeeRepository,
+            ClientRepository clientRepository,
+            TaskRepository taskRepository,
+            com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository,
+            com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository
+    ) {
+        this(employeeRepository, clientRepository, taskRepository, employeeLocationRepository, userLocationRepository, null, null);
     }
 
     public PracticeSecurityScopeEvaluator(
@@ -46,7 +62,7 @@ public class PracticeSecurityScopeEvaluator {
             TaskRepository taskRepository,
             com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository
     ) {
-        this(employeeRepository, clientRepository, taskRepository, employeeLocationRepository, null);
+        this(employeeRepository, clientRepository, taskRepository, employeeLocationRepository, null, null, null);
     }
 
     public PracticeSecurityScopeEvaluator(
@@ -54,7 +70,7 @@ public class PracticeSecurityScopeEvaluator {
             ClientRepository clientRepository,
             TaskRepository taskRepository
     ) {
-        this(employeeRepository, clientRepository, taskRepository, null, null);
+        this(employeeRepository, clientRepository, taskRepository, null, null, null, null);
     }
 
     public PracticeSecurityScope evaluateCurrentScope() {
@@ -197,10 +213,33 @@ public class PracticeSecurityScopeEvaluator {
         UUID orgId = scope.getOrganizationId();
         Set<UUID> assigneeIds = scope.getAccessibleAssigneeIds();
         if (assigneeIds != null && !assigneeIds.isEmpty() && orgId != null) {
-            // 1. Clients directly assigned to these employees (Client Portfolio Scope)
+            // 1. Clients directly assigned to these employees (Legacy Client Portfolio Scope)
             List<UUID> assignedClientIds = clientRepository.findIdsByOrganizationIdAndAssignedEmployeeIdIn(orgId, assigneeIds);
             if (assignedClientIds != null) {
                 accessibleClientIds.addAll(assignedClientIds);
+            }
+        }
+
+        // 2. Clients assigned via client_user_assignments
+        if (scope.getUserId() != null && clientUserAssignmentRepository != null && orgId != null) {
+            List<UUID> userAssignedClientIds = clientUserAssignmentRepository.findActiveClientIdsByUserIdAndOrganizationId(scope.getUserId(), orgId);
+            if (userAssignedClientIds != null) {
+                accessibleClientIds.addAll(userAssignedClientIds);
+            }
+        }
+
+        // 3. Clients in user's accessible locations via client_location_assignments or direct locationId
+        Set<UUID> locIds = scope.getAccessibleLocationIds();
+        if (locIds != null && !locIds.isEmpty() && orgId != null) {
+            if (clientLocationAssignmentRepository != null) {
+                List<UUID> locClientIds = clientLocationAssignmentRepository.findActiveClientIdsByLocationIdsAndOrganizationId(locIds, orgId);
+                if (locClientIds != null) {
+                    accessibleClientIds.addAll(locClientIds);
+                }
+            }
+            List<UUID> directLocClientIds = clientRepository.findIdsByOrganizationIdAndLocationIdIn(orgId, locIds);
+            if (directLocClientIds != null) {
+                accessibleClientIds.addAll(directLocClientIds);
             }
         }
 

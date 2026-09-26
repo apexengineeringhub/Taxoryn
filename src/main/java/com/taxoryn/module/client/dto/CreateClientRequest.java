@@ -27,6 +27,10 @@ public class CreateClientRequest {
     @Schema(description = "Constitution / Legal Type", example = "PRIVATE_LIMITED")
     private ClientType clientType;
 
+    @Size(max = 50, message = "Client code cannot exceed 50 characters")
+    @Schema(description = "Unique client alphanumeric code within practice", example = "CLI-001")
+    private String clientCode;
+
     @NotBlank(message = "Display name is required")
     @Size(min = 2, max = 255, message = "Display name must be between 2 and 255 characters")
     @Schema(description = "Client primary display name", example = "Zenith Infotech Pvt Ltd")
