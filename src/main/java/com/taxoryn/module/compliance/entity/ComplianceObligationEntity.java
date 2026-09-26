@@ -92,6 +92,12 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;
 
+    @Column(name = "assigned_user_id")
+    private UUID assignedUserId;
+
+    @Column(name = "location_id")
+    private UUID locationId;
+
     @Column(name = "task_id")
     private UUID taskId;
 

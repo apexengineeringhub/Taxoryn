@@ -77,6 +77,8 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
     private final ClientRepository clientRepository;
     private final ClientServiceRepository clientServiceRepository;
     private final EmployeeRepository employeeRepository;
+    private final com.taxoryn.module.user.repository.UserRepository userRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final TaskRepository taskRepository;
     private final TaskMapper taskMapper;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
@@ -98,8 +100,75 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
     private record ChecklistSeedSpec(String key, String title, String description, int order, boolean required) {}
 
     // =========================================================================
-    // 1. Get or Create Workflow for Obligation (Idempotent)
+    // 1. Workflow Creation & Retrieval
     // =========================================================================
+
+    @Override
+    @Transactional
+    public ComplianceWorkflowDto createWorkflow(com.taxoryn.module.compliance.dto.CreateComplianceWorkflowRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+
+        ComplianceObligationEntity obligation = obligationRepository.findByIdAndOrganizationId(request.getComplianceObligationId(), organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Compliance obligation not found: " + request.getComplianceObligationId()));
+
+        validateClientAccess(scope, obligation.getClientId());
+
+        UUID targetLocationId = request.getLocationId() != null ? request.getLocationId() : obligation.getLocationId();
+        validateLocationAccess(scope, targetLocationId);
+
+        if (request.getAssignedUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getAssignedUserId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.getAssignedUserId()));
+        }
+
+        Optional<ComplianceWorkflowEntity> existing = workflowRepository.findByComplianceObligationIdAndOrganizationId(obligation.getId(), organizationId);
+        if (existing.isPresent()) {
+            return mapToDto(existing.get(), obligation);
+        }
+
+        ComplianceWorkflowEntity workflow = ComplianceWorkflowEntity.builder()
+                .clientId(obligation.getClientId())
+                .clientServiceId(obligation.getClientServiceId())
+                .complianceObligationId(obligation.getId())
+                .workflowType(request.getWorkflowType())
+                .workflowStatus(ComplianceWorkflowStatus.NOT_STARTED)
+                .priority(request.getPriority() != null ? request.getPriority() : (obligation.getPriority() != null ? obligation.getPriority() : TaskPriority.MEDIUM))
+                .targetDate(request.getTargetDate() != null ? request.getTargetDate() : (obligation.getInternalTargetDate() != null ? obligation.getInternalTargetDate() : obligation.getStatutoryDueDate()))
+                .statutoryDueDate(obligation.getStatutoryDueDate())
+                .assignedUserId(request.getAssignedUserId() != null ? request.getAssignedUserId() : obligation.getAssignedUserId())
+                .assignedEmployeeId(obligation.getAssignedEmployeeId())
+                .locationId(targetLocationId)
+                .notes(request.getNotes() != null ? request.getNotes() : obligation.getNotes())
+                .build();
+        workflow.setOrganizationId(organizationId);
+
+        for (ChecklistSeedSpec seed : DEFAULT_CHECKLIST_SEEDS) {
+            ComplianceWorkflowChecklistItemEntity item = ComplianceWorkflowChecklistItemEntity.builder()
+                    .itemKey(seed.key())
+                    .title(seed.title())
+                    .description(seed.description())
+                    .sequenceOrder(seed.order())
+                    .isRequired(seed.required())
+                    .isCompleted(false)
+                    .build();
+            workflow.addChecklistItem(item);
+        }
+
+        ComplianceWorkflowEntity saved = workflowRepository.save(workflow);
+        obligation.setWorkflowId(saved.getId());
+        obligationRepository.save(obligation);
+
+        auditService.logEvent(
+                "WORKFLOW_CREATED",
+                "COMPLIANCE_WORKFLOW",
+                saved.getId().toString(),
+                null,
+                saved.getWorkflowStatus().name()
+        );
+
+        return mapToDto(saved, obligation);
+    }
 
     @Override
     @Transactional
@@ -111,6 +180,7 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .orElseThrow(() -> new ResourceNotFoundException("Compliance obligation not found: " + obligationId));
 
         validateClientAccess(scope, obligation.getClientId());
+        validateLocationAccess(scope, obligation.getLocationId());
 
         Optional<ComplianceWorkflowEntity> existing = workflowRepository.findByComplianceObligationIdAndOrganizationId(obligationId, organizationId);
         if (existing.isPresent()) {
@@ -127,7 +197,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .priority(obligation.getPriority() != null ? obligation.getPriority() : TaskPriority.MEDIUM)
                 .targetDate(obligation.getInternalTargetDate() != null ? obligation.getInternalTargetDate() : obligation.getStatutoryDueDate())
                 .statutoryDueDate(obligation.getStatutoryDueDate())
+                .assignedUserId(obligation.getAssignedUserId())
                 .assignedEmployeeId(obligation.getAssignedEmployeeId())
+                .locationId(obligation.getLocationId())
                 .build();
         workflow.setOrganizationId(organizationId);
 
@@ -175,15 +247,16 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .orElseThrow(() -> new ResourceNotFoundException("Compliance workflow not found: " + workflowId));
 
         validateClientAccess(scope, workflow.getClientId());
+        validateLocationAccess(scope, workflow.getLocationId());
 
         ComplianceObligationEntity obligation = obligationRepository.findByIdAndOrganizationId(workflow.getComplianceObligationId(), organizationId)
                 .orElse(null);
 
         ComplianceWorkflowDto baseDto = mapToDto(workflow, obligation);
 
-        List<ComplianceWorkflowChecklistItemDto> checklistDtos = workflow.getChecklistItems().stream()
+        List<ComplianceWorkflowChecklistItemDto> checklistDtos = workflow.getChecklistItems() != null ? workflow.getChecklistItems().stream()
                 .map(this::mapToChecklistItemDto)
-                .toList();
+                .toList() : Collections.emptyList();
 
         List<TaskEntity> linkedTaskEntities = taskRepository.findAllByOrganizationIdAndComplianceId(organizationId, workflow.getComplianceObligationId());
         List<TaskDto> linkedTasks = taskMapper.toDtoList(linkedTaskEntities);
@@ -200,6 +273,105 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .completedBy(workflow.getCompletedBy())
                 .notes(workflow.getNotes())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ComplianceWorkflowChecklistItemDto> getWorkflowChecklist(UUID workflowId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
+        validateClientAccess(scope, workflow.getClientId());
+        validateLocationAccess(scope, workflow.getLocationId());
+
+        List<ComplianceWorkflowChecklistItemEntity> items = checklistItemRepository
+                .findByWorkflowIdAndOrganizationIdOrderBySequenceOrderAsc(workflowId, organizationId);
+        if (items.isEmpty() && workflow.getChecklistItems() != null) {
+            items = workflow.getChecklistItems();
+        }
+
+        return items.stream()
+                .map(this::mapToChecklistItemDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public ComplianceWorkflowDto updateWorkflowStatus(UUID workflowId, com.taxoryn.module.compliance.dto.UpdateComplianceWorkflowStatusRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
+        validateClientAccess(scope, workflow.getClientId());
+        validateLocationAccess(scope, workflow.getLocationId());
+
+        ComplianceWorkflowStatus previousStatus = workflow.getWorkflowStatus();
+        workflow.validateTransition(request.getStatus());
+        workflow.setWorkflowStatus(request.getStatus());
+
+        if (request.getStatus() == ComplianceWorkflowStatus.IN_PROGRESS && workflow.getStartedAt() == null) {
+            workflow.setStartedAt(Instant.now());
+        } else if (request.getStatus() == ComplianceWorkflowStatus.WAITING_FOR_CLIENT) {
+            workflow.setWaitingForClient(true);
+            workflow.setWaitingReason(request.getReason());
+            workflow.setWaitingRequestedAt(Instant.now());
+            workflow.setWaitingRequestedBy(SecurityUtils.getCurrentUserEmail());
+        } else if (request.getStatus() == ComplianceWorkflowStatus.FILED) {
+            workflow.setFiledAt(Instant.now());
+            workflow.setFiledDate(request.getFiledDate() != null ? request.getFiledDate() : LocalDate.now());
+            workflow.setFiledBy(SecurityUtils.getCurrentUserEmail());
+            if (request.getAcknowledgementNumber() != null) {
+                workflow.setAcknowledgementNumber(request.getAcknowledgementNumber());
+            }
+        } else if (request.getStatus() == ComplianceWorkflowStatus.COMPLETED) {
+            workflow.setCompletedAt(Instant.now());
+            workflow.setCompletedBy(SecurityUtils.getCurrentUserEmail());
+        } else if (request.getStatus() == ComplianceWorkflowStatus.CANCELLED) {
+            workflow.setCancelledAt(Instant.now());
+            workflow.setCancelledBy(SecurityUtils.getCurrentUserEmail());
+            workflow.setCancellationReason(request.getReason());
+        }
+
+        if (previousStatus == ComplianceWorkflowStatus.WAITING_FOR_CLIENT && request.getStatus() != ComplianceWorkflowStatus.WAITING_FOR_CLIENT) {
+            workflow.setWaitingForClient(false);
+        }
+
+        ComplianceWorkflowEntity saved = workflowRepository.save(workflow);
+
+        // Sync obligation status
+        ComplianceObligationEntity obligation = obligationRepository.findByIdAndOrganizationId(saved.getComplianceObligationId(), organizationId).orElse(null);
+        if (obligation != null) {
+            switch (request.getStatus()) {
+                case IN_PROGRESS -> obligation.setStatus(ComplianceObligationStatus.IN_PROGRESS);
+                case WAITING_FOR_CLIENT -> obligation.setStatus(ComplianceObligationStatus.WAITING_FOR_CLIENT);
+                case READY_FOR_FILING -> obligation.setStatus(ComplianceObligationStatus.READY_FOR_FILING);
+                case FILED -> {
+                    obligation.setStatus(ComplianceObligationStatus.FILED);
+                    obligation.setFiledDate(saved.getFiledDate());
+                    obligation.setFiledAt(saved.getFiledAt());
+                    obligation.setFiledBy(saved.getFiledBy());
+                }
+                case COMPLETED -> {
+                    obligation.setStatus(ComplianceObligationStatus.COMPLETED);
+                    obligation.setCompletedAt(saved.getCompletedAt());
+                    obligation.setCompletedBy(saved.getCompletedBy());
+                }
+                case CANCELLED -> obligation.setStatus(ComplianceObligationStatus.CANCELLED);
+                default -> {}
+            }
+            obligationRepository.save(obligation);
+        }
+
+        auditService.logEvent(
+                "WORKFLOW_STATUS_UPDATED",
+                "COMPLIANCE_WORKFLOW",
+                saved.getId().toString(),
+                previousStatus.name(),
+                saved.getWorkflowStatus().name()
+        );
+
+        return mapToDto(saved, obligation);
     }
 
     // =========================================================================
@@ -844,6 +1016,12 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 if (filter.getAssignedEmployeeId() != null) {
                     predicates.add(cb.equal(root.get("assignedEmployeeId"), filter.getAssignedEmployeeId()));
                 }
+                if (filter.getAssignedUserId() != null) {
+                    predicates.add(cb.equal(root.get("assignedUserId"), filter.getAssignedUserId()));
+                }
+                if (filter.getLocationId() != null) {
+                    predicates.add(cb.equal(root.get("locationId"), filter.getLocationId()));
+                }
                 if (filter.getReviewerEmployeeId() != null) {
                     predicates.add(cb.equal(root.get("reviewerEmployeeId"), filter.getReviewerEmployeeId()));
                 }
@@ -924,6 +1102,16 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
         };
     }
 
+    private void validateLocationAccess(PracticeSecurityScope scope, UUID locationId) {
+        if (scope == null || scope.isFirmAdmin() || locationId == null) {
+            return;
+        }
+        Set<UUID> accessibleLocs = scope.getAccessibleLocationIds();
+        if (accessibleLocs != null && !accessibleLocs.isEmpty() && !accessibleLocs.contains(locationId)) {
+            throw new ForbiddenException("Access denied: You do not have permission to access location: " + locationId);
+        }
+    }
+
     private ComplianceWorkflowDto mapToDto(ComplianceWorkflowEntity workflow) {
         return mapToDto(workflow, null, null, null, null);
     }
@@ -960,6 +1148,20 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                         .map(EmployeeEntity::getFullName)
                         .orElse(null);
             }
+        }
+
+        String assignedUserName = null;
+        if (workflow.getAssignedUserId() != null) {
+            assignedUserName = userRepository.findByIdAndOrganizationId(workflow.getAssignedUserId(), organizationId)
+                    .map(u -> StringUtils.hasText(u.getFullName()) ? u.getFullName() : u.getEmail())
+                    .orElse(null);
+        }
+
+        String locationName = null;
+        if (workflow.getLocationId() != null) {
+            locationName = locationRepository.findByIdAndOrganizationId(workflow.getLocationId(), organizationId)
+                    .map(com.taxoryn.module.organization.entity.LocationEntity::getName)
+                    .orElse(null);
         }
 
         String reviewerName = null;
@@ -1004,7 +1206,12 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .targetDate(target)
                 .statutoryStatus(obligation != null ? obligation.getStatus() : null)
                 .workflowStatus(workflow.getWorkflowStatus())
+                .workflowType(workflow.getWorkflowType())
                 .priority(workflow.getPriority())
+                .assignedUserId(workflow.getAssignedUserId())
+                .assignedUserName(assignedUserName)
+                .locationId(workflow.getLocationId())
+                .locationName(locationName)
                 .assignedEmployeeId(workflow.getAssignedEmployeeId())
                 .assignedEmployeeName(assignedName)
                 .reviewerEmployeeId(workflow.getReviewerEmployeeId())

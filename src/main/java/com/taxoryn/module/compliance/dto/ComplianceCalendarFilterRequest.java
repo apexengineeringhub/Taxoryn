@@ -55,6 +55,12 @@ public class ComplianceCalendarFilterRequest extends PageRequestDto {
     @Schema(description = "Filter by assigned employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Filter by assigned user ID")
+    private UUID assignedUserId;
+
+    @Schema(description = "Filter by location ID")
+    private UUID locationId;
+
     @Schema(description = "Filter due dates from this start date (inclusive)", example = "2026-08-01")
     private LocalDate startDate;
 

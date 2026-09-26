@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(90);
+        assertThat(allMigrations.length).isEqualTo(91);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -151,6 +151,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v73 = infoService.all()[72];
         assertThat(v73.getVersion().getVersion()).isEqualTo("73");
         assertThat(v73.getDescription()).isEqualTo("product module catalog and organization configuration");
+
+        MigrationInfo v91 = infoService.all()[90];
+        assertThat(v91.getVersion().getVersion()).isEqualTo("91");
+        assertThat(v91.getDescription()).isEqualTo("compliance workflow foundation enhancements");
     }
 
     @Test
@@ -286,7 +290,7 @@ public class FlywayMigrationValidationTest {
     }
 
     @Test
-    @DisplayName("Verify all Flyway migrations V1 to V90 resolve with valid descriptions and checksums")
+    @DisplayName("Verify all Flyway migrations V1 to V91 resolve with valid descriptions and checksums")
     void testAllFlywayMigrationsResolveSuccessfully() {
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:h2:mem:flyway_metadata_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL", "sa", "")
@@ -294,7 +298,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(90);
+        assertThat(all).hasSize(91);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -320,5 +324,21 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("UPDATE documents");
         assertThat(sql).contains("SET scan_status = 'LEGACY_UNSCANNED'");
         assertThat(sql).contains("WHERE scan_status = 'CLEAN' AND (scanned_at IS NULL OR scanner_name IS NULL)");
+    }
+
+    @Test
+    @DisplayName("Verify V91 migration script contents for compliance workflow foundation enhancements")
+    void testV91MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v91Resource = resolver.getResource("classpath:db/migration/V91__compliance_workflow_foundation_enhancements.sql");
+
+        assertThat(v91Resource.exists()).isTrue();
+        String sql = new String(v91Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS assigned_user_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_type VARCHAR(50)");
     }
 }

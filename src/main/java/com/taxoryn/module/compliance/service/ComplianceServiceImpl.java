@@ -86,6 +86,8 @@ public class ComplianceServiceImpl implements ComplianceService {
     private final DueDateCalculationService dueDateCalculationService;
     private final ClientRepository clientRepository;
     private final EmployeeRepository employeeRepository;
+    private final com.taxoryn.module.user.repository.UserRepository userRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final TaskRepository taskRepository;
     private final ClientServiceRepository clientServiceRepository;
     private final ClientServicePeriodRepository clientServicePeriodRepository;
@@ -437,6 +439,17 @@ public class ComplianceServiceImpl implements ComplianceService {
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
         }
 
+        if (request.getAssignedUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getAssignedUserId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getAssignedUserId()));
+        }
+
+        if (request.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+            validateLocationAccess(request.getLocationId());
+        }
+
         LocalDate statutoryDueDate = request.getStatutoryDueDate();
         LocalDate internalTargetDate = request.getInternalTargetDate() != null
                 ? request.getInternalTargetDate()
@@ -459,6 +472,8 @@ public class ComplianceServiceImpl implements ComplianceService {
                 .status(request.getStatus() != null ? request.getStatus() : ComplianceObligationStatus.UPCOMING)
                 .priority(request.getPriority() != null ? request.getPriority() : TaskPriority.MEDIUM)
                 .assignedEmployeeId(request.getAssignedEmployeeId() != null ? request.getAssignedEmployeeId() : client.getAssignedEmployeeId())
+                .assignedUserId(request.getAssignedUserId())
+                .locationId(request.getLocationId())
                 .notes(request.getNotes())
                 .build();
         obligation.setOrganizationId(organizationId);
@@ -487,6 +502,7 @@ public class ComplianceServiceImpl implements ComplianceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Compliance Obligation", "id", id));
 
         validateClientAccess(obligation.getClientId());
+        validateLocationAccess(obligation.getLocationId());
 
         ClientEntity client = clientRepository.findByIdAndOrganizationId(obligation.getClientId(), organizationId).orElse(null);
         ClientServiceEntity service = obligation.getClientServiceId() != null
@@ -510,6 +526,7 @@ public class ComplianceServiceImpl implements ComplianceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Compliance Obligation", "id", id));
 
         validateClientAccess(obligation.getClientId());
+        validateLocationAccess(obligation.getLocationId());
 
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             obligation.setTitle(request.getTitle().trim());
@@ -542,6 +559,17 @@ public class ComplianceServiceImpl implements ComplianceService {
             employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", request.getAssignedEmployeeId()));
             obligation.setAssignedEmployeeId(request.getAssignedEmployeeId());
+        }
+        if (request.getAssignedUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getAssignedUserId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getAssignedUserId()));
+            obligation.setAssignedUserId(request.getAssignedUserId());
+        }
+        if (request.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+            validateLocationAccess(request.getLocationId());
+            obligation.setLocationId(request.getLocationId());
         }
         if (request.getNotes() != null) {
             obligation.setNotes(request.getNotes());
@@ -1024,6 +1052,16 @@ public class ComplianceServiceImpl implements ComplianceService {
         }
     }
 
+    private void validateLocationAccess(UUID locationId) {
+        if (locationId == null) return;
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope == null || scope.isFirmAdmin()) return;
+        Set<UUID> accessibleLocs = scope.getAccessibleLocationIds();
+        if (accessibleLocs != null && !accessibleLocs.isEmpty() && !accessibleLocs.contains(locationId)) {
+            throw new ForbiddenException("Access denied: You do not have permission to access location: " + locationId);
+        }
+    }
+
     private Specification<ComplianceObligationEntity> createSpecification(
             UUID organizationId,
             ComplianceCalendarFilterRequest filter,
@@ -1082,9 +1120,20 @@ public class ComplianceServiceImpl implements ComplianceService {
                 predicates.add(cb.equal(root.get("assignedEmployeeId"), filter.getAssignedEmployeeId()));
             }
 
+            if (filter.getAssignedUserId() != null) {
+                predicates.add(cb.equal(root.get("assignedUserId"), filter.getAssignedUserId()));
+            }
+
+            if (filter.getLocationId() != null) {
+                predicates.add(cb.equal(root.get("locationId"), filter.getLocationId()));
+            }
+
             if (Boolean.TRUE.equals(filter.getMyObligationsOnly())) {
                 UUID currentUserId = SecurityUtils.getCurrentUserId();
-                predicates.add(cb.equal(root.get("assignedEmployeeId"), currentUserId));
+                predicates.add(cb.or(
+                        cb.equal(root.get("assignedEmployeeId"), currentUserId),
+                        cb.equal(root.get("assignedUserId"), currentUserId)
+                ));
             }
 
             if (filter.getStartDate() != null && filter.getEndDate() != null) {
@@ -1152,6 +1201,20 @@ public class ComplianceServiceImpl implements ComplianceService {
 
         EmployeeEntity employee = entity.getAssignedEmployeeId() != null ? employeeMap.get(entity.getAssignedEmployeeId()) : null;
 
+        String assignedUserName = null;
+        if (entity.getAssignedUserId() != null) {
+            assignedUserName = userRepository.findByIdAndOrganizationId(entity.getAssignedUserId(), entity.getOrganizationId())
+                    .map(u -> StringUtils.hasText(u.getFullName()) ? u.getFullName() : u.getEmail())
+                    .orElse(null);
+        }
+
+        String locationName = null;
+        if (entity.getLocationId() != null) {
+            locationName = locationRepository.findByIdAndOrganizationId(entity.getLocationId(), entity.getOrganizationId())
+                    .map(com.taxoryn.module.organization.entity.LocationEntity::getName)
+                    .orElse(null);
+        }
+
         return ComplianceObligationDto.builder()
                 .id(entity.getId())
                 .organizationId(entity.getOrganizationId())
@@ -1180,6 +1243,10 @@ public class ComplianceServiceImpl implements ComplianceService {
                 .assignedEmployeeId(entity.getAssignedEmployeeId())
                 .assignedEmployeeName(employee != null ? employee.getFullName() : null)
                 .assignedEmployeeEmail(employee != null ? employee.getEmail() : null)
+                .assignedUserId(entity.getAssignedUserId())
+                .assignedUserName(assignedUserName)
+                .locationId(entity.getLocationId())
+                .locationName(locationName)
                 .taskId(entity.getTaskId())
                 .completedAt(entity.getCompletedAt())
                 .completedBy(entity.getCompletedBy())

@@ -72,6 +72,21 @@ public class ComplianceWorkflowDto {
     @Schema(description = "Priority level", example = "HIGH")
     private TaskPriority priority;
 
+    @Schema(description = "Assigned user ID")
+    private UUID assignedUserId;
+
+    @Schema(description = "Assigned user name")
+    private String assignedUserName;
+
+    @Schema(description = "Location / branch ID")
+    private UUID locationId;
+
+    @Schema(description = "Location / branch name")
+    private String locationName;
+
+    @Schema(description = "Workflow type code")
+    private String workflowType;
+
     @Schema(description = "Assigned practitioner employee ID")
     private UUID assignedEmployeeId;
 
