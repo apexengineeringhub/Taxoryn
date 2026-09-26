@@ -40,6 +40,13 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final ProfileImageService profileImageService;
+    private final com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+    private final com.taxoryn.module.organization.service.LocationService locationService;
+    private final com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
+    private final com.taxoryn.module.organization.repository.PracticeProfileRepository practiceProfileRepository;
+    private final com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -308,5 +315,248 @@ public class UserServiceImpl implements UserService {
     public UserEntity getUserEntityById(UUID userId, UUID organizationId) {
         return userRepository.findByIdAndOrganizationId(userId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.user.dto.UserContextDto getCurrentUserContext() {
+        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (userId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated user context is required");
+        }
+
+        UserEntity userEntity = getUserEntityById(userId, organizationId);
+        UserDto userDto = toEnrichedDto(userEntity);
+
+        String orgName = null;
+        String practiceType = null;
+        if (organizationId != null) {
+            orgName = organizationRepository.findById(organizationId)
+                    .map(com.taxoryn.module.organization.entity.OrganizationEntity::getName)
+                    .orElse(null);
+            practiceType = practiceProfileRepository.findByOrganizationId(organizationId)
+                    .map(p -> p.getPracticeType() != null ? p.getPracticeType().name() : null)
+                    .orElse(null);
+        }
+
+        Set<String> roles = userEntity.getRoles() != null
+                ? userEntity.getRoles().stream().map(RoleEntity::getCode).collect(Collectors.toSet())
+                : java.util.Collections.emptySet();
+
+        boolean isPracticeAdmin = roles.contains("PRACTICE_ADMIN") || roles.contains("ORG_ADMIN")
+                || roles.contains("PRACTICE_OWNER") || roles.contains("SUPER_ADMIN") || SecurityUtils.isTaxorynSuperAdmin();
+
+        List<com.taxoryn.module.organization.dto.LocationDto> accessibleLocations;
+        Set<UUID> assignedLocationIds;
+        String scopeType;
+
+        if (isPracticeAdmin) {
+            scopeType = "ALL_LOCATIONS";
+            accessibleLocations = organizationId != null ? locationService.getLocations(organizationId) : java.util.Collections.emptyList();
+            assignedLocationIds = accessibleLocations.stream().map(com.taxoryn.module.organization.dto.LocationDto::getId).collect(Collectors.toSet());
+        } else {
+            scopeType = "ASSIGNED_LOCATIONS";
+            accessibleLocations = getUserLocations(userId);
+            assignedLocationIds = accessibleLocations.stream().map(com.taxoryn.module.organization.dto.LocationDto::getId).collect(Collectors.toSet());
+        }
+
+        com.taxoryn.module.user.dto.UserContextDto.LocationScopeDto locationScope = com.taxoryn.module.user.dto.UserContextDto.LocationScopeDto.builder()
+                .scopeType(scopeType)
+                .isAllLocations(isPracticeAdmin)
+                .assignedLocationIds(assignedLocationIds)
+                .accessibleLocations(accessibleLocations)
+                .build();
+
+        com.taxoryn.module.moduleconfig.dto.EffectiveConfigurationResponse effectiveConfig = organizationId != null
+                ? moduleConfigurationService.getEffectiveConfiguration(organizationId)
+                : null;
+
+        return com.taxoryn.module.user.dto.UserContextDto.builder()
+                .user(userDto)
+                .organizationId(organizationId)
+                .organizationName(orgName)
+                .practiceType(practiceType)
+                .roles(roles)
+                .locationScope(locationScope)
+                .effectiveConfiguration(effectiveConfig)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.organization.dto.LocationDto> getUserLocations(UUID userId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        boolean isPracticeAdmin = user.getRoles() != null && user.getRoles().stream()
+                .anyMatch(r -> "PRACTICE_ADMIN".equals(r.getCode()) || "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()) || "SUPER_ADMIN".equals(r.getCode()));
+
+        if (isPracticeAdmin) {
+            return locationService.getLocations(organizationId);
+        }
+
+        Set<UUID> locationIds = new HashSet<>(userLocationRepository.findLocationIdsByUserIdAndOrganizationId(userId, organizationId));
+
+        employeeRepository.findByOrganizationIdAndUserId(organizationId, userId).ifPresent(emp -> {
+            locationIds.addAll(locationService.getLocationsForEmployee(organizationId, emp.getId()));
+        });
+
+        if (locationIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        return locationRepository.findAllById(locationIds).stream()
+                .filter(loc -> loc.getOrganizationId().equals(organizationId) && loc.isActive())
+                .map(loc -> locationService.getLocationById(organizationId, loc.getId()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public List<com.taxoryn.module.organization.dto.LocationDto> assignUserLocations(UUID userId, List<UUID> locationIds) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        if (locationIds != null && !locationIds.isEmpty()) {
+            for (UUID locId : locationIds) {
+                com.taxoryn.module.organization.entity.LocationEntity loc = locationRepository.findById(locId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Location", "id", locId));
+                if (!organizationId.equals(loc.getOrganizationId())) {
+                    throw new com.taxoryn.core.exception.TenantAccessDeniedException(
+                            "Cross-tenant location assignment violation: Location " + locId +
+                                    " belongs to organization " + loc.getOrganizationId() +
+                                    ", but user " + userId + " belongs to organization " + organizationId
+                    );
+                }
+            }
+        }
+
+        userLocationRepository.deleteByUserIdAndOrganizationId(userId, organizationId);
+
+        if (locationIds != null && !locationIds.isEmpty()) {
+            for (UUID locId : locationIds) {
+                userLocationRepository.save(
+                        com.taxoryn.module.user.entity.UserLocationEntity.builder()
+                                .id(new com.taxoryn.module.user.entity.UserLocationEntity.UserLocationId(userId, locId))
+                                .organizationId(organizationId)
+                                .build()
+                );
+            }
+        }
+
+        auditService.logEvent(
+                organizationId,
+                SecurityUtils.getCurrentUserId(),
+                "USER_LOCATIONS_ASSIGNED",
+                "USER",
+                userId.toString(),
+                null,
+                java.util.Map.of("assignedLocationCount", locationIds != null ? locationIds.size() : 0)
+        );
+
+        log.info("Assigned {} locations to user {} in organization {}", locationIds != null ? locationIds.size() : 0, userId, organizationId);
+        return getUserLocations(userId);
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.organization.dto.LocationDto assignUserLocation(UUID userId, UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        com.taxoryn.module.organization.entity.LocationEntity loc = locationRepository.findById(locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Location", "id", locationId));
+        if (!organizationId.equals(loc.getOrganizationId())) {
+            throw new com.taxoryn.core.exception.TenantAccessDeniedException(
+                    "Cross-tenant location assignment violation: Location " + locationId +
+                            " belongs to organization " + loc.getOrganizationId() +
+                            ", but user " + userId + " belongs to organization " + organizationId
+            );
+        }
+
+        if (!userLocationRepository.existsByIdUserIdAndIdLocationIdAndOrganizationId(userId, locationId, organizationId)) {
+            userLocationRepository.save(
+                    com.taxoryn.module.user.entity.UserLocationEntity.builder()
+                            .id(new com.taxoryn.module.user.entity.UserLocationEntity.UserLocationId(userId, locationId))
+                            .organizationId(organizationId)
+                            .build()
+            );
+        }
+
+        auditService.logEvent(
+                organizationId,
+                SecurityUtils.getCurrentUserId(),
+                "USER_LOCATION_ASSIGNED",
+                "USER",
+                userId.toString(),
+                null,
+                java.util.Map.of("locationId", locationId.toString())
+        );
+
+        return locationService.getLocationById(organizationId, locationId);
+    }
+
+    @Override
+    @Transactional
+    public void removeUserLocation(UUID userId, UUID locationId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        userLocationRepository.deleteByUserIdAndLocationIdAndOrganizationId(userId, locationId, organizationId);
+
+        auditService.logEvent(
+                organizationId,
+                SecurityUtils.getCurrentUserId(),
+                "USER_LOCATION_REMOVED",
+                "USER",
+                userId.toString(),
+                null,
+                java.util.Map.of("locationId", locationId.toString())
+        );
+        log.info("Removed location {} from user {} in organization {}", locationId, userId, organizationId);
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateUserStatus(UUID userId, UserStatus status) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UserEntity user = getUserEntityById(userId, organizationId);
+
+        boolean isCurrentlyAdmin = user.getRoles().stream()
+                .anyMatch(r -> "ORG_ADMIN".equals(r.getCode()) || "PRACTICE_ADMIN".equals(r.getCode()) || "PRACTICE_OWNER".equals(r.getCode()));
+
+        if (isCurrentlyAdmin && status != UserStatus.ACTIVE && user.getStatus() == UserStatus.ACTIVE) {
+            long activeAdminCount = userRepository.countActiveOrgAdmins(organizationId);
+            if (activeAdminCount <= 1) {
+                throw new com.taxoryn.core.exception.BusinessValidationException(
+                        "Cannot deactivate the sole remaining active Organization Administrator"
+                );
+            }
+        }
+
+        user.setStatus(status);
+        UserEntity saved = userRepository.save(user);
+
+        auditService.logEvent(
+                organizationId,
+                SecurityUtils.getCurrentUserId(),
+                "USER_STATUS_UPDATED",
+                "USER",
+                userId.toString(),
+                null,
+                java.util.Map.of("newStatus", status.name())
+        );
+        log.info("Updated status of user {} to {} in organization {}", userId, status, organizationId);
+        return toEnrichedDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateUserRole(UUID userId, Set<String> roleCodes) {
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setFirstName(getUserEntityById(userId, SecurityUtils.getCurrentOrganizationId()).getFirstName());
+        request.setRoleCodes(roleCodes);
+        return updateUser(userId, request);
     }
 }

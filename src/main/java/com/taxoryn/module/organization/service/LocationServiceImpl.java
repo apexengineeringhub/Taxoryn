@@ -41,6 +41,7 @@ public class LocationServiceImpl implements LocationService {
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
     private final AuditService auditService;
+    private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
     @Override
     @Transactional
@@ -160,6 +161,16 @@ public class LocationServiceImpl implements LocationService {
         validateTenantAccess(organizationId);
         LocationEntity location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Location", "id", locationId));
+
+        if (securityScopeEvaluator != null) {
+            com.taxoryn.core.security.PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin()) {
+                if (!scope.canAccessLocation(locationId)) {
+                    throw new TenantAccessDeniedException("Access denied: Location " + locationId + " is not in your allowed location scope");
+                }
+            }
+        }
+
         return mapToDto(location);
     }
 

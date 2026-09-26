@@ -23,18 +23,30 @@ public class PracticeSecurityScopeEvaluator {
     private final ClientRepository clientRepository;
     private final TaskRepository taskRepository;
     private final com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository;
+    private final com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository;
 
     @org.springframework.beans.factory.annotation.Autowired
     public PracticeSecurityScopeEvaluator(
             EmployeeRepository employeeRepository,
             ClientRepository clientRepository,
             TaskRepository taskRepository,
-            com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository
+            com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository,
+            com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.clientRepository = clientRepository;
         this.taskRepository = taskRepository;
         this.employeeLocationRepository = employeeLocationRepository;
+        this.userLocationRepository = userLocationRepository;
+    }
+
+    public PracticeSecurityScopeEvaluator(
+            EmployeeRepository employeeRepository,
+            ClientRepository clientRepository,
+            TaskRepository taskRepository,
+            com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository
+    ) {
+        this(employeeRepository, clientRepository, taskRepository, employeeLocationRepository, null);
     }
 
     public PracticeSecurityScopeEvaluator(
@@ -42,7 +54,7 @@ public class PracticeSecurityScopeEvaluator {
             ClientRepository clientRepository,
             TaskRepository taskRepository
     ) {
-        this(employeeRepository, clientRepository, taskRepository, null);
+        this(employeeRepository, clientRepository, taskRepository, null, null);
     }
 
     public PracticeSecurityScope evaluateCurrentScope() {
@@ -101,9 +113,13 @@ public class PracticeSecurityScopeEvaluator {
                     .build();
         }
 
-        Set<UUID> locationIds = (employeeId != null && employeeLocationRepository != null)
-                ? new HashSet<>(employeeLocationRepository.findLocationIdsByEmployeeId(employeeId))
-                : Collections.emptySet();
+        Set<UUID> locationIds = new HashSet<>();
+        if (userId != null && userLocationRepository != null) {
+            locationIds.addAll(userLocationRepository.findLocationIdsByUserIdAndOrganizationId(userId, organizationId));
+        }
+        if (employeeId != null && employeeLocationRepository != null) {
+            locationIds.addAll(employeeLocationRepository.findLocationIdsByEmployeeId(employeeId));
+        }
 
         boolean hasManagerRole = roles != null && (
                 roles.contains("MANAGER") || roles.contains("ROLE_MANAGER")

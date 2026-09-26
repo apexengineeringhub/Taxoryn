@@ -46,6 +46,16 @@ public class PracticeSecurityScope {
         return accessibleLocationIds;
     }
 
+    public boolean canAccessLocation(UUID locationId) {
+        if (locationId == null) {
+            return true;
+        }
+        if (isFirmAdmin) {
+            return true;
+        }
+        return accessibleLocationIds != null && accessibleLocationIds.contains(locationId);
+    }
+
     public static PracticeSecurityScope firmAdmin(UUID userId) {
         return PracticeSecurityScope.builder()
                 .roleTier(RoleTier.FIRM_ADMIN)
