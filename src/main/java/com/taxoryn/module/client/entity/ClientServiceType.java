@@ -11,6 +11,14 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ClientServiceType {
+    GST(
+            "GST Compliance & Returns",
+            "GSTR-1, GSTR-3B monthly and quarterly compliance, reconciliations, and filing",
+            "TAX",
+            ProductModuleCode.GST,
+            ProductCapability.GST_COMPLIANCE,
+            "/gst"
+    ),
     GST_COMPLIANCE(
             "GST Compliance & Returns",
             "GSTR-1, GSTR-3B monthly and quarterly compliance, reconciliations, and filing",
@@ -18,6 +26,14 @@ public enum ClientServiceType {
             ProductModuleCode.GST,
             ProductCapability.GST_COMPLIANCE,
             "/gst"
+    ),
+    ITR(
+            "Income Tax Computations & Filing",
+            "ITR-1 to ITR-7 computation, advance tax computation, tax audits, and e-filing",
+            "TAX",
+            ProductModuleCode.ITR,
+            ProductCapability.ITR_COMPLIANCE,
+            "/itr"
     ),
     ITR_COMPLIANCE(
             "Income Tax Computations & Filing",
@@ -27,6 +43,14 @@ public enum ClientServiceType {
             ProductCapability.ITR_COMPLIANCE,
             "/itr"
     ),
+    TDS(
+            "TDS / TCS Quarterly Filing",
+            "Forms 24Q, 26Q, 27Q, 27EQ quarterly returns, ITNS 281 challans, and 16A generation",
+            "TAX",
+            ProductModuleCode.TDS,
+            ProductCapability.TDS_COMPLIANCE,
+            "/tds"
+    ),
     TDS_COMPLIANCE(
             "TDS / TCS Quarterly Filing",
             "Forms 24Q, 26Q, 27Q, 27EQ quarterly returns, ITNS 281 challans, and 16A generation",
@@ -34,6 +58,14 @@ public enum ClientServiceType {
             ProductModuleCode.TDS,
             ProductCapability.TDS_COMPLIANCE,
             "/tds"
+    ),
+    TAX_NOTICE(
+            "Tax Notice & Assessment Representation",
+            "Statutory notice tracking, hearing schedules, and response drafting across ITD, GSTN, and CPC",
+            "ADVISORY",
+            ProductModuleCode.TAX_NOTICES,
+            ProductCapability.TAX_NOTICE_MANAGEMENT,
+            "/notices"
     ),
     TAX_NOTICE_MANAGEMENT(
             "Tax Notice & Assessment Representation",

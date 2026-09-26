@@ -26,6 +26,18 @@ public class ClientOverviewDto {
     @Schema(description = "Statutory & Tax Registrations")
     private StatutoryDetails statutory;
 
+    @Schema(description = "Primary servicing location")
+    private ClientLocationAssignmentDto primaryLocation;
+
+    @Schema(description = "All assigned branch and operating locations")
+    private List<ClientLocationAssignmentDto> locations;
+
+    @Schema(description = "Assigned practitioner/staff users portfolio")
+    private List<ClientUserAssignmentDto> assignedUsers;
+
+    @Schema(description = "Configured client services list")
+    private List<ClientServiceDto> configuredServices;
+
     @Schema(description = "Active client service engagements")
     private List<ClientServiceItem> services;
 

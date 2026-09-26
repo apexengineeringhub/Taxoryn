@@ -109,7 +109,9 @@ public class ClientEntity extends TenantAuditableEntity {
 
     public enum ClientType {
         INDIVIDUAL,
+        PROPRIETOR,
         PROPRIETORSHIP,
+        COMPANY,
         PARTNERSHIP,
         LLP,
         PRIVATE_LIMITED,

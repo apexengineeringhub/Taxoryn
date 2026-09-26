@@ -46,6 +46,8 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
     private final ClientRepository clientRepository;
     private final ClientServiceRepository clientServiceRepository;
     private final EmployeeRepository employeeRepository;
+    private final com.taxoryn.module.user.repository.UserRepository userRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final ModuleConfigurationService moduleConfigurationService;
     private final AuditService auditService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
@@ -54,16 +56,6 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
     @Transactional(readOnly = true)
     public List<ServiceCatalogItemDto> getServiceCatalog() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        Map<ProductModuleCode, OrganizationModuleDto> moduleMap = Map.of();
-        if (organizationId != null) {
-            try {
-                List<OrganizationModuleDto> orgModules = moduleConfigurationService.getOrganizationModules(organizationId);
-                moduleMap = orgModules.stream()
-                        .collect(Collectors.toMap(OrganizationModuleDto::getModuleCode, m -> m, (a, b) -> a));
-            } catch (Exception e) {
-                log.warn("Could not load organization modules for catalog evaluation: {}", e.getMessage());
-            }
-        }
 
         List<ServiceCatalogItemDto> catalog = new ArrayList<>();
         for (ClientServiceType type : ClientServiceType.values()) {
@@ -71,20 +63,10 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
             boolean subscriptionEntitled = true;
             String accessStatus = "AVAILABLE";
 
-            if (type.getAssociatedModule() != null) {
-                OrganizationModuleDto module = moduleMap.get(type.getAssociatedModule());
-                if (module != null) {
-                    moduleEnabled = module.isEnabled();
-                    subscriptionEntitled = module.isEntitled();
-                    if (!module.isEnabled()) {
-                        accessStatus = "MODULE_DISABLED";
-                    } else if (!subscriptionEntitled) {
-                        accessStatus = module.getSubscriptionStatus() != null &&
-                                !List.of("ACTIVE", "TRIALING").contains(module.getSubscriptionStatus()) ?
-                                "SUBSCRIPTION_REQUIRED" : "UPGRADE_REQUIRED";
-                    } else {
-                        accessStatus = "AVAILABLE";
-                    }
+            if (type.getAssociatedModule() != null && organizationId != null) {
+                moduleEnabled = moduleConfigurationService.isModuleEnabled(organizationId, type.getAssociatedModule());
+                if (!moduleEnabled) {
+                    accessStatus = "MODULE_DISABLED";
                 }
             }
 
@@ -123,10 +105,8 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
         List<ClientServiceEntity> entities = clientServiceRepository
                 .findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);
 
-        Map<UUID, String> employeeNameMap = loadEmployeeNames(organizationId);
-
         return entities.stream()
-                .map(entity -> mapToDto(entity, client.getDisplayName(), employeeNameMap))
+                .map(entity -> mapToDto(entity, client.getDisplayName(), organizationId))
                 .toList();
     }
 
@@ -146,8 +126,7 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
         ClientServiceEntity service = clientServiceRepository.findByIdAndOrganizationIdAndClientId(serviceId, organizationId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClientService", "id", serviceId));
 
-        Map<UUID, String> employeeNameMap = loadEmployeeNames(organizationId);
-        return mapToDto(service, client.getDisplayName(), employeeNameMap);
+        return mapToDto(service, client.getDisplayName(), organizationId);
     }
 
     @Override
@@ -185,7 +164,19 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
         }
 
-        // 5. Validate Dates
+        // 5. Validate Responsible User if provided
+        if (request.getResponsibleUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getResponsibleUserId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Responsible User", "id", request.getResponsibleUserId()));
+        }
+
+        // 6. Validate Location if provided
+        if (request.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+        }
+
+        // 7. Validate Dates
         if (request.getStartDate() != null && request.getEndDate() != null && request.getEndDate().isBefore(request.getStartDate())) {
             throw new BusinessValidationException("Service end date cannot be before start date");
         }
@@ -197,6 +188,8 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .assignedEmployeeId(request.getAssignedEmployeeId())
+                .responsibleUserId(request.getResponsibleUserId())
+                .locationId(request.getLocationId())
                 .billingFrequency(request.getBillingFrequency() != null ? request.getBillingFrequency() : "MONTHLY")
                 .notes(request.getNotes())
                 .build();
@@ -214,8 +207,7 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
                 "Created " + serviceType.name() + " service engagement for client " + client.getDisplayName()
         );
 
-        Map<UUID, String> employeeNameMap = loadEmployeeNames(organizationId);
-        return mapToDto(saved, client.getDisplayName(), employeeNameMap);
+        return mapToDto(saved, client.getDisplayName(), organizationId);
     }
 
     @Override
@@ -251,6 +243,20 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
             service.setAssignedEmployeeId(request.getAssignedEmployeeId());
         }
 
+        // 3. Validate Responsible User
+        if (request.getResponsibleUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getResponsibleUserId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Responsible User", "id", request.getResponsibleUserId()));
+            service.setResponsibleUserId(request.getResponsibleUserId());
+        }
+
+        // 4. Validate Location
+        if (request.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+            service.setLocationId(request.getLocationId());
+        }
+
         if (request.getStatus() != null) {
             service.setStatus(request.getStatus());
         }
@@ -284,8 +290,7 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
                 "Updated " + service.getServiceType().name() + " service engagement for client " + client.getDisplayName()
         );
 
-        Map<UUID, String> employeeNameMap = loadEmployeeNames(organizationId);
-        return mapToDto(saved, client.getDisplayName(), employeeNameMap);
+        return mapToDto(saved, client.getDisplayName(), organizationId);
     }
 
     @Override
@@ -334,25 +339,9 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
             return;
         }
 
-        try {
-            List<OrganizationModuleDto> orgModules = moduleConfigurationService.getOrganizationModules(organizationId);
-            Optional<OrganizationModuleDto> moduleOpt = orgModules.stream()
-                    .filter(m -> m.getModuleCode() == serviceType.getAssociatedModule())
-                    .findFirst();
-
-            if (moduleOpt.isPresent()) {
-                OrganizationModuleDto module = moduleOpt.get();
-                if (!module.isEnabled()) {
-                    throw new BusinessValidationException("The module '" + serviceType.getAssociatedModule() + "' is disabled in your organization settings.");
-                }
-                if (!module.isEntitled()) {
-                    throw new ForbiddenException("Your current subscription plan is not entitled to use the '" + serviceType.getAssociatedModule() + "' module.");
-                }
-            }
-        } catch (BusinessValidationException | ForbiddenException e) {
-            throw e;
-        } catch (Exception e) {
-            log.warn("Could not verify module entitlement for service {}: {}", serviceType, e.getMessage());
+        ProductModuleCode moduleCode = serviceType.getAssociatedModule();
+        if (!moduleConfigurationService.isModuleEnabled(organizationId, moduleCode)) {
+            throw new BusinessValidationException("The module '" + moduleCode.name() + "' is disabled in your organization settings or not included in your subscription plan.");
         }
     }
 
@@ -376,9 +365,27 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
                 ));
     }
 
-    private ClientServiceDto mapToDto(ClientServiceEntity entity, String clientName, Map<UUID, String> employeeNameMap) {
-        String employeeName = entity.getAssignedEmployeeId() != null ?
-                employeeNameMap.getOrDefault(entity.getAssignedEmployeeId(), "Unassigned") : null;
+    private ClientServiceDto mapToDto(ClientServiceEntity entity, String clientName, UUID organizationId) {
+        String employeeName = null;
+        if (entity.getAssignedEmployeeId() != null) {
+            employeeName = employeeRepository.findByIdAndOrganizationId(entity.getAssignedEmployeeId(), organizationId)
+                    .map(com.taxoryn.module.employee.entity.EmployeeEntity::getFullName)
+                    .orElse(null);
+        }
+
+        String responsibleUserName = null;
+        if (entity.getResponsibleUserId() != null) {
+            responsibleUserName = userRepository.findByIdAndOrganizationId(entity.getResponsibleUserId(), organizationId)
+                    .map(u -> org.springframework.util.StringUtils.hasText(u.getFullName()) ? u.getFullName() : u.getEmail())
+                    .orElse(null);
+        }
+
+        String locationName = null;
+        if (entity.getLocationId() != null) {
+            locationName = locationRepository.findByIdAndOrganizationId(entity.getLocationId(), organizationId)
+                    .map(com.taxoryn.module.organization.entity.LocationEntity::getName)
+                    .orElse(null);
+        }
 
         return ClientServiceDto.builder()
                 .id(entity.getId())
@@ -393,6 +400,10 @@ public class ClientEngagementServiceImpl implements ClientEngagementService {
                 .endDate(entity.getEndDate())
                 .assignedEmployeeId(entity.getAssignedEmployeeId())
                 .assignedEmployeeName(employeeName)
+                .responsibleUserId(entity.getResponsibleUserId())
+                .responsibleUserName(responsibleUserName)
+                .locationId(entity.getLocationId())
+                .locationName(locationName)
                 .billingFrequency(entity.getBillingFrequency())
                 .notes(entity.getNotes())
                 .routePath(entity.getServiceType() != null ? entity.getServiceType().getRoutePath() : null)

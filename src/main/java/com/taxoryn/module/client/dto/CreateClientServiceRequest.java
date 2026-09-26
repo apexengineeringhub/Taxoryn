@@ -31,6 +31,12 @@ public class CreateClientServiceRequest {
     @Schema(description = "Assigned lead practitioner employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Responsible user ID within practice")
+    private UUID responsibleUserId;
+
+    @Schema(description = "Associated location ID")
+    private UUID locationId;
+
     @Schema(description = "Billing frequency (e.g. MONTHLY, QUARTERLY, ANNUAL, ONE_TIME)", defaultValue = "MONTHLY")
     @Builder.Default
     private String billingFrequency = "MONTHLY";

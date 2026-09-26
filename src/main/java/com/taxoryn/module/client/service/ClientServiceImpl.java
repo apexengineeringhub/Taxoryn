@@ -141,6 +141,9 @@ public class ClientServiceImpl implements ClientService {
     @Transactional
     public ClientDto createClient(CreateClientRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required to create a client");
+        }
 
         // Check MAX_CLIENTS Subscription Limit
         subscriptionService.checkClientLimit(organizationId);
@@ -231,6 +234,9 @@ public class ClientServiceImpl implements ClientService {
     @Transactional
     public ClientDto updateClient(UUID clientId, UpdateClientRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required to update a client");
+        }
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
@@ -378,6 +384,7 @@ public class ClientServiceImpl implements ClientService {
                         cb.like(cb.lower(root.get("displayName")), searchPattern),
                         cb.like(cb.lower(root.get("legalName")), searchPattern),
                         cb.like(cb.lower(root.get("tradeName")), searchPattern),
+                        cb.like(cb.lower(root.get("clientCode")), searchPattern),
                         cb.like(cb.lower(root.get("pan")), searchPattern),
                         cb.like(cb.lower(root.get("gstin")), searchPattern),
                         cb.like(cb.lower(root.get("tan")), searchPattern),
@@ -385,6 +392,10 @@ public class ClientServiceImpl implements ClientService {
                         cb.like(cb.lower(root.get("phone")), searchPattern)
                 );
                 predicates.add(searchMatch);
+            }
+
+            if (StringUtils.hasText(filterRequest.getClientCode())) {
+                predicates.add(cb.equal(cb.lower(root.get("clientCode")), filterRequest.getClientCode().trim().toLowerCase()));
             }
 
             if (filterRequest.getClientType() != null) {
@@ -413,6 +424,24 @@ public class ClientServiceImpl implements ClientService {
 
             if (StringUtils.hasText(filterRequest.getGstin())) {
                 predicates.add(cb.equal(cb.lower(root.get("gstin")), filterRequest.getGstin().trim().toLowerCase()));
+            }
+
+            if (StringUtils.hasText(filterRequest.getTan())) {
+                predicates.add(cb.equal(cb.lower(root.get("tan")), filterRequest.getTan().trim().toLowerCase()));
+            }
+
+            if (filterRequest.getLocationId() != null) {
+                Subquery<UUID> locSub = query.subquery(UUID.class);
+                Root<com.taxoryn.module.client.entity.ClientLocationAssignmentEntity> locRoot = locSub.from(com.taxoryn.module.client.entity.ClientLocationAssignmentEntity.class);
+                locSub.select(locRoot.get("clientId")).where(
+                        cb.equal(locRoot.get("organizationId"), organizationId),
+                        cb.equal(locRoot.get("locationId"), filterRequest.getLocationId()),
+                        cb.isTrue(locRoot.get("active"))
+                );
+                predicates.add(cb.or(
+                        cb.equal(root.get("locationId"), filterRequest.getLocationId()),
+                        root.get("id").in(locSub)
+                ));
             }
 
             if (StringUtils.hasText(filterRequest.getPortalStatus()) && !"ALL".equalsIgnoreCase(filterRequest.getPortalStatus().trim())) {
@@ -1064,9 +1093,56 @@ public class ClientServiceImpl implements ClientService {
                 java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())
         ));
 
+        List<com.taxoryn.module.client.dto.ClientLocationAssignmentDto> locAssignments = getClientLocations(clientId);
+        com.taxoryn.module.client.dto.ClientLocationAssignmentDto primaryLoc = locAssignments.stream()
+                .filter(com.taxoryn.module.client.dto.ClientLocationAssignmentDto::isPrimaryLocation)
+                .findFirst()
+                .orElse(null);
+        List<com.taxoryn.module.client.dto.ClientUserAssignmentDto> userAssignments = getClientUsers(clientId);
+
+        List<com.taxoryn.module.client.dto.ClientServiceDto> detailedConfiguredServices = new ArrayList<>();
+        if (configuredServices != null) {
+            Map<UUID, String> employeeNameMap = employeeRepository.findAllByOrganizationId(organizationId).stream()
+                    .collect(Collectors.toMap(com.taxoryn.module.employee.entity.EmployeeEntity::getId, com.taxoryn.module.employee.entity.EmployeeEntity::getFullName, (a, b) -> a));
+            Map<UUID, String> userNameMap = userRepository.findAllByOrganizationId(organizationId).stream()
+                    .collect(Collectors.toMap(UserEntity::getId, u -> StringUtils.hasText(u.getFullName()) ? u.getFullName() : u.getEmail(), (a, b) -> a));
+            Map<UUID, String> locationNameMap = locationRepository.findAllByOrganizationId(organizationId).stream()
+                    .collect(Collectors.toMap(com.taxoryn.module.organization.entity.LocationEntity::getId, com.taxoryn.module.organization.entity.LocationEntity::getName, (a, b) -> a));
+
+            for (ClientServiceEntity se : configuredServices) {
+                detailedConfiguredServices.add(com.taxoryn.module.client.dto.ClientServiceDto.builder()
+                        .id(se.getId())
+                        .organizationId(se.getOrganizationId())
+                        .clientId(se.getClientId())
+                        .clientName(client.getDisplayName())
+                        .serviceType(se.getServiceType())
+                        .serviceName(se.getServiceType() != null ? se.getServiceType().getDisplayName() : null)
+                        .category(se.getServiceType() != null ? se.getServiceType().getCategory() : null)
+                        .status(se.getStatus())
+                        .startDate(se.getStartDate())
+                        .endDate(se.getEndDate())
+                        .assignedEmployeeId(se.getAssignedEmployeeId())
+                        .assignedEmployeeName(se.getAssignedEmployeeId() != null ? employeeNameMap.get(se.getAssignedEmployeeId()) : null)
+                        .responsibleUserId(se.getResponsibleUserId())
+                        .responsibleUserName(se.getResponsibleUserId() != null ? userNameMap.get(se.getResponsibleUserId()) : null)
+                        .locationId(se.getLocationId())
+                        .locationName(se.getLocationId() != null ? locationNameMap.get(se.getLocationId()) : null)
+                        .billingFrequency(se.getBillingFrequency())
+                        .notes(se.getNotes())
+                        .routePath(se.getServiceType() != null ? se.getServiceType().getRoutePath() : null)
+                        .createdAt(se.getCreatedAt())
+                        .updatedAt(se.getUpdatedAt())
+                        .build());
+            }
+        }
+
         return ClientOverviewDto.builder()
                 .client(clientDto)
                 .statutory(statutory)
+                .primaryLocation(primaryLoc)
+                .locations(locAssignments)
+                .assignedUsers(userAssignments)
+                .configuredServices(detailedConfiguredServices)
                 .services(services)
                 .taskSummary(taskSummary)
                 .complianceSummary(complianceSummary)
@@ -1076,6 +1152,91 @@ public class ClientServiceImpl implements ClientService {
                 .noticeSummary(noticeSummary)
                 .recentNotes(recentNotes)
                 .activityTimeline(activityTimeline.stream().limit(25).toList())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.client.dto.Client360Dto getClient360(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required to query client 360");
+        }
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
+
+        ClientDto clientDto = enrichDto(client);
+
+        StatutoryDetails statutory = StatutoryDetails.builder()
+                .pan(client.getPan())
+                .gstin(client.getGstin())
+                .tan(client.getTan())
+                .cin(client.getCin())
+                .dateOfIncorporation(client.getDateOfIncorporation())
+                .isPanValid(StringUtils.hasText(client.getPan()))
+                .isGstActive(StringUtils.hasText(client.getGstin()) && client.getStatus() == ClientStatus.ACTIVE)
+                .build();
+
+        List<com.taxoryn.module.client.dto.ClientLocationAssignmentDto> locations = getClientLocations(clientId);
+        com.taxoryn.module.client.dto.ClientLocationAssignmentDto primaryLoc = locations.stream()
+                .filter(com.taxoryn.module.client.dto.ClientLocationAssignmentDto::isPrimaryLocation)
+                .findFirst()
+                .orElse(null);
+
+        List<com.taxoryn.module.client.dto.ClientUserAssignmentDto> users = getClientUsers(clientId);
+
+        List<com.taxoryn.module.client.dto.ClientServiceDto> services = new ArrayList<>();
+        if (clientServiceRepository != null) {
+            List<ClientServiceEntity> serviceEntities = clientServiceRepository
+                    .findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);
+            Map<UUID, String> employeeNameMap = employeeRepository.findAllByOrganizationId(organizationId).stream()
+                    .collect(Collectors.toMap(com.taxoryn.module.employee.entity.EmployeeEntity::getId, com.taxoryn.module.employee.entity.EmployeeEntity::getFullName, (a, b) -> a));
+            Map<UUID, String> userNameMap = userRepository.findAllByOrganizationId(organizationId).stream()
+                    .collect(Collectors.toMap(UserEntity::getId, u -> StringUtils.hasText(u.getFullName()) ? u.getFullName() : u.getEmail(), (a, b) -> a));
+            Map<UUID, String> locationNameMap = locationRepository.findAllByOrganizationId(organizationId).stream()
+                    .collect(Collectors.toMap(com.taxoryn.module.organization.entity.LocationEntity::getId, com.taxoryn.module.organization.entity.LocationEntity::getName, (a, b) -> a));
+
+            for (ClientServiceEntity se : serviceEntities) {
+                String empName = se.getAssignedEmployeeId() != null ? employeeNameMap.get(se.getAssignedEmployeeId()) : null;
+                String usrName = se.getResponsibleUserId() != null ? userNameMap.get(se.getResponsibleUserId()) : null;
+                String locName = se.getLocationId() != null ? locationNameMap.get(se.getLocationId()) : null;
+
+                services.add(com.taxoryn.module.client.dto.ClientServiceDto.builder()
+                        .id(se.getId())
+                        .organizationId(se.getOrganizationId())
+                        .clientId(se.getClientId())
+                        .clientName(client.getDisplayName())
+                        .serviceType(se.getServiceType())
+                        .serviceName(se.getServiceType() != null ? se.getServiceType().getDisplayName() : null)
+                        .category(se.getServiceType() != null ? se.getServiceType().getCategory() : null)
+                        .status(se.getStatus())
+                        .startDate(se.getStartDate())
+                        .endDate(se.getEndDate())
+                        .assignedEmployeeId(se.getAssignedEmployeeId())
+                        .assignedEmployeeName(empName)
+                        .responsibleUserId(se.getResponsibleUserId())
+                        .responsibleUserName(usrName)
+                        .locationId(se.getLocationId())
+                        .locationName(locName)
+                        .billingFrequency(se.getBillingFrequency())
+                        .notes(se.getNotes())
+                        .routePath(se.getServiceType() != null ? se.getServiceType().getRoutePath() : null)
+                        .createdAt(se.getCreatedAt())
+                        .updatedAt(se.getUpdatedAt())
+                        .build());
+            }
+        }
+
+        return com.taxoryn.module.client.dto.Client360Dto.builder()
+                .client(clientDto)
+                .identifiers(statutory)
+                .primaryLocation(primaryLoc)
+                .locations(locations)
+                .assignedUsers(users)
+                .services(services)
+                .status(client.getStatus())
                 .build();
     }
 

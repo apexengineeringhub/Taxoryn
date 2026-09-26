@@ -120,4 +120,34 @@ public class ClientDto {
 
     @Schema(description = "Last update timestamp")
     private Instant updatedAt;
+
+    public String getPrimaryPhone() {
+        return phone;
+    }
+
+    public void setPrimaryPhone(String primaryPhone) {
+        if (primaryPhone != null) {
+            this.phone = primaryPhone;
+        }
+    }
+
+    public String getAlternatePhone() {
+        return altPhone;
+    }
+
+    public void setAlternatePhone(String alternatePhone) {
+        if (alternatePhone != null) {
+            this.altPhone = alternatePhone;
+        }
+    }
+
+    public String getPostalCode() {
+        return pincode;
+    }
+
+    public void setPostalCode(String postalCode) {
+        if (postalCode != null) {
+            this.pincode = postalCode;
+        }
+    }
 }

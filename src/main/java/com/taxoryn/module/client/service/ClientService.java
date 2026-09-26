@@ -35,6 +35,8 @@ public interface ClientService {
 
     ClientOverviewDto getClientOverview(UUID clientId);
 
+    com.taxoryn.module.client.dto.Client360Dto getClient360(UUID clientId);
+
     ClientNoteDto addClientNote(UUID clientId, CreateClientNoteRequest request);
 
     List<ClientNoteDto> getClientNotes(UUID clientId);

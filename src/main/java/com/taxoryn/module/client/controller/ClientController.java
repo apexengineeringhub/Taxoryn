@@ -160,12 +160,20 @@ public class ClientController {
         return ResponseEntity.ok(ApiResponse.success("Client archived successfully", null));
     }
 
-    @GetMapping({ "/{clientId}/overview", "/{clientId}/360" })
+    @GetMapping("/{clientId}/overview")
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "Client 360-Degree Overview", description = "Aggregates all modules related to a client into a single dashboard: Profile, Statutory, Active Services, Tasks, Compliance (GST/ITR/TDS), Documents, Document Requests, Billing, Notices, and Activity Timeline.")
     public ResponseEntity<ApiResponse<ClientOverviewDto>> getClientOverview(@PathVariable UUID clientId) {
         ClientOverviewDto overview = clientService.getClientOverview(clientId);
         return ResponseEntity.ok(ApiResponse.success("Client 360 overview retrieved successfully", overview));
+    }
+
+    @GetMapping("/{clientId}/360")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Client 360 Foundation Read Model", description = "Retrieves unified client foundation: profile, identifiers, primary/assigned locations, assigned user portfolio, and configured services.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.Client360Dto>> getClient360(@PathVariable UUID clientId) {
+        com.taxoryn.module.client.dto.Client360Dto client360 = clientService.getClient360(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client 360 retrieved successfully", client360));
     }
 
     @PostMapping("/{clientId}/notes")
