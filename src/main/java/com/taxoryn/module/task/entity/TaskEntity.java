@@ -30,6 +30,12 @@ public class TaskEntity extends TenantAuditableEntity {
     @Column(name = "assigned_to")
     private UUID assignedTo;
 
+    @Column(name = "work_item_id")
+    private UUID workItemId;
+
+    @Column(name = "location_id")
+    private UUID locationId;
+
     @Column(name = "title", nullable = false)
     private String title;
 
@@ -78,8 +84,19 @@ public class TaskEntity extends TenantAuditableEntity {
     @Column(name = "blocked_reason", columnDefinition = "TEXT")
     private String blockedReason;
 
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
     @Column(name = "completed_at")
     private java.time.Instant completedAt;
+
+    public UUID getAssignedUserId() {
+        return assignedTo;
+    }
+
+    public void setAssignedUserId(UUID assignedUserId) {
+        this.assignedTo = assignedUserId;
+    }
 
     public enum TaskCategory {
         GST,

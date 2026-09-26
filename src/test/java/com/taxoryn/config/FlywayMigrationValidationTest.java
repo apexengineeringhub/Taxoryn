@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(92);
+        assertThat(allMigrations.length).isEqualTo(93);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -159,6 +159,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v92 = infoService.all()[91];
         assertThat(v92.getVersion().getVersion()).isEqualTo("92");
         assertThat(v92.getDescription()).isEqualTo("client document and request foundation");
+
+        MigrationInfo v93 = infoService.all()[92];
+        assertThat(v93.getVersion().getVersion()).isEqualTo("93");
+        assertThat(v93.getDescription()).isEqualTo("task work management foundation");
     }
 
     @Test
@@ -302,7 +306,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(92);
+        assertThat(all).hasSize(93);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -362,5 +366,21 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ALTER TABLE document_requests");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_id UUID");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V93 migration script contents for task and work management foundation")
+    void testV93MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v93Resource = resolver.getResource("classpath:db/migration/V93__task_work_management_foundation.sql");
+
+        assertThat(v93Resource.exists()).isTrue();
+        String sql = new String(v93Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS work_items");
+        assertThat(sql).contains("ALTER TABLE tasks");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS work_item_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS notes TEXT");
     }
 }

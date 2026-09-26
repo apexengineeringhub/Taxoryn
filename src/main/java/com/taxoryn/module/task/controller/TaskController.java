@@ -101,6 +101,22 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success("Task updated successfully", updated));
     }
 
+    @org.springframework.web.bind.annotation.PatchMapping("/{taskId}/status")
+    @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
+    @Operation(summary = "Update task status", description = "Transitions task status within the authenticated tenant.")
+    public ResponseEntity<ApiResponse<TaskDto>> patchTaskStatus(@PathVariable UUID taskId, @Valid @RequestBody UpdateTaskRequest request) {
+        TaskDto updated = taskService.updateTask(taskId, request);
+        return ResponseEntity.ok(ApiResponse.success("Task status updated successfully", updated));
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/{taskId}/assign")
+    @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER')")
+    @Operation(summary = "Assign task", description = "Assigns task to a user within the authenticated tenant.")
+    public ResponseEntity<ApiResponse<TaskDto>> patchTaskAssignment(@PathVariable UUID taskId, @Valid @RequestBody UpdateTaskRequest request) {
+        TaskDto updated = taskService.updateTask(taskId, request);
+        return ResponseEntity.ok(ApiResponse.success("Task assignment updated successfully", updated));
+    }
+
     @DeleteMapping("/{taskId}")
     @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Cancel task", description = "Cancels task within the authenticated tenant.")

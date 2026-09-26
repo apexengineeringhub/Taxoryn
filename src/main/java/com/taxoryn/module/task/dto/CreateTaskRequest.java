@@ -22,7 +22,12 @@ import java.util.UUID;
 public class CreateTaskRequest {
 
     private UUID clientId;
+
+    @JsonAlias({"assignedUserId", "assignedTo"})
     private UUID assignedTo;
+
+    private UUID workItemId;
+    private UUID locationId;
 
     @NotBlank(message = "Task title is required")
     @Size(min = 2, max = 255, message = "Task title must be between 2 and 255 characters")
@@ -42,4 +47,13 @@ public class CreateTaskRequest {
     private UUID documentRequestId;
     private UUID noticeId;
     private String blockedReason;
+    private String notes;
+
+    public UUID getAssignedUserId() {
+        return assignedTo;
+    }
+
+    public void setAssignedUserId(UUID assignedUserId) {
+        this.assignedTo = assignedUserId;
+    }
 }
