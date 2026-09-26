@@ -36,6 +36,8 @@ public class DocumentRequestDto {
     private UUID requestedByUserId;
     private String requestedByName;
     private UUID taskId;
+    private UUID workflowId;
+    private UUID locationId;
     private UUID complianceId;
     private DocumentRequestEntity.ExchangeType exchangeType;
     private DocumentRequestEntity.RequestDirection direction;

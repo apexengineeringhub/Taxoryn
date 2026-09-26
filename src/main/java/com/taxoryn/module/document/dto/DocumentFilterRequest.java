@@ -44,6 +44,15 @@ public class DocumentFilterRequest extends PageRequestDto {
     @Schema(description = "Filter by Task ID")
     private UUID taskId;
 
+    @Schema(description = "Filter by Compliance Workflow ID")
+    private UUID workflowId;
+
+    @Schema(description = "Filter by Document Request ID")
+    private UUID requestId;
+
+    @Schema(description = "Filter by Practice Location ID")
+    private UUID locationId;
+
     @Schema(description = "Filter by Document Status")
     private DocumentStatus status;
 }

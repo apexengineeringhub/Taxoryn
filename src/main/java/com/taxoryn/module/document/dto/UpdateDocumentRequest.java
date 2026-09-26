@@ -27,6 +27,15 @@ public class UpdateDocumentRequest {
     @Schema(description = "Document status")
     private DocumentStatus status;
 
+    @Schema(description = "Associated Compliance Workflow ID")
+    private java.util.UUID workflowId;
+
+    @Schema(description = "Associated Document Request ID")
+    private java.util.UUID requestId;
+
+    @Schema(description = "Associated Practice Location ID")
+    private java.util.UUID locationId;
+
     @Schema(description = "Notes or remarks")
     private String notes;
 }

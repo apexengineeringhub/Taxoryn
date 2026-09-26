@@ -77,6 +77,14 @@ public class DocumentRequestController {
         return ResponseEntity.ok(ApiResponse.success("Client document requests retrieved successfully", result));
     }
 
+    @GetMapping("/workflows/{workflowId}")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('DOCUMENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
+    @Operation(summary = "List compliance workflow document requests", description = "Retrieves all document requests linked to a compliance execution workflow.")
+    public ResponseEntity<ApiResponse<List<DocumentRequestDto>>> getWorkflowRequests(@PathVariable UUID workflowId) {
+        List<DocumentRequestDto> result = documentRequestService.getWorkflowRequests(workflowId);
+        return ResponseEntity.ok(ApiResponse.success("Workflow document requests retrieved successfully", result));
+    }
+
     @GetMapping("/summary/stats")
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('DOCUMENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
     @Operation(summary = "Get document requests summary metrics", description = "Retrieves counts of pending, partially completed, completed, and overdue requests.")

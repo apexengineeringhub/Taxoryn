@@ -63,6 +63,12 @@ public class DocumentRequestEntity extends TenantAuditableEntity {
     @Column(name = "task_id")
     private UUID taskId;
 
+    @Column(name = "workflow_id")
+    private UUID workflowId;
+
+    @Column(name = "location_id")
+    private UUID locationId;
+
     @Column(name = "compliance_id")
     private UUID complianceId;
 

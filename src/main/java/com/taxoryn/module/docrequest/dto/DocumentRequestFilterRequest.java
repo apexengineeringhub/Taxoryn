@@ -18,6 +18,8 @@ import java.util.UUID;
 public class DocumentRequestFilterRequest {
 
     private UUID clientId;
+    private UUID workflowId;
+    private UUID locationId;
     private RequestStatus status;
     private DocumentRequestEntity.RequestDirection direction;
     private DocumentRequestEntity.ExchangeType exchangeType;

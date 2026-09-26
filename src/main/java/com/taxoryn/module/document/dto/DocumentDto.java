@@ -40,6 +40,15 @@ public class DocumentDto {
     @Schema(description = "Associated Task ID")
     private UUID taskId;
 
+    @Schema(description = "Associated Compliance Workflow ID")
+    private UUID workflowId;
+
+    @Schema(description = "Associated Document Request ID")
+    private UUID requestId;
+
+    @Schema(description = "Associated Practice Location ID")
+    private UUID locationId;
+
     @Schema(description = "Associated Tax Notice ID")
     private UUID noticeId;
 

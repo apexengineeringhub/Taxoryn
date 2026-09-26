@@ -47,7 +47,6 @@ import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
@@ -58,12 +57,79 @@ public class DocumentServiceImpl implements DocumentService {
     private final com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
     private final com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository;
     private final com.taxoryn.module.task.repository.TaskRepository taskRepository;
+    private final com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository;
+    private final com.taxoryn.module.docrequest.repository.DocumentRequestRepository docRequestRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
     private final DocumentMapper documentMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final FileValidator fileValidator;
     private final MalwareScanner malwareScanner;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DocumentServiceImpl(
+            DocumentRepository documentRepository,
+            DocumentStorageService storageService,
+            StorageProperties storageProperties,
+            ClientRepository clientRepository,
+            com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository,
+            com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository,
+            com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository,
+            com.taxoryn.module.task.repository.TaskRepository taskRepository,
+            com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository,
+            com.taxoryn.module.docrequest.repository.DocumentRequestRepository docRequestRepository,
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            com.taxoryn.module.subscription.service.SubscriptionService subscriptionService,
+            DocumentMapper documentMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            FileValidator fileValidator,
+            MalwareScanner malwareScanner
+    ) {
+        this.documentRepository = documentRepository;
+        this.storageService = storageService;
+        this.storageProperties = storageProperties;
+        this.clientRepository = clientRepository;
+        this.gstReturnFilingRepository = gstReturnFilingRepository;
+        this.itrReturnRepository = itrReturnRepository;
+        this.tdsReturnRepository = tdsReturnRepository;
+        this.taskRepository = taskRepository;
+        this.complianceWorkflowRepository = complianceWorkflowRepository;
+        this.docRequestRepository = docRequestRepository;
+        this.locationRepository = locationRepository;
+        this.subscriptionService = subscriptionService;
+        this.documentMapper = documentMapper;
+        this.auditService = auditService;
+        this.securityScopeEvaluator = securityScopeEvaluator;
+        this.fileValidator = fileValidator;
+        this.malwareScanner = malwareScanner;
+    }
+
+    public DocumentServiceImpl(
+            DocumentRepository documentRepository,
+            DocumentStorageService storageService,
+            StorageProperties storageProperties,
+            ClientRepository clientRepository,
+            com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository,
+            com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository,
+            com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository,
+            com.taxoryn.module.task.repository.TaskRepository taskRepository,
+            com.taxoryn.module.subscription.service.SubscriptionService subscriptionService,
+            DocumentMapper documentMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            FileValidator fileValidator,
+            MalwareScanner malwareScanner
+    ) {
+        this(
+                documentRepository, storageService, storageProperties, clientRepository,
+                gstReturnFilingRepository, itrReturnRepository, tdsReturnRepository,
+                taskRepository, null, null, null,
+                subscriptionService, documentMapper, auditService, securityScopeEvaluator,
+                fileValidator, malwareScanner
+        );
+    }
 
     @Override
     @Transactional
@@ -76,6 +142,42 @@ public class DocumentServiceImpl implements DocumentService {
 
         // Check MAX_STORAGE Subscription Limit
         subscriptionService.checkStorageLimit(organizationId, file.getSize());
+
+        // Validate Workflow relationship and tenant boundary
+        if (request.getWorkflowId() != null && complianceWorkflowRepository != null) {
+            com.taxoryn.module.compliance.entity.ComplianceWorkflowEntity workflow = complianceWorkflowRepository.findByIdAndOrganizationId(request.getWorkflowId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("ComplianceWorkflow", "id", request.getWorkflowId()));
+            if (request.getClientId() == null) {
+                request.setClientId(workflow.getClientId());
+            } else if (!request.getClientId().equals(workflow.getClientId())) {
+                throw new BadRequestException("Workflow does not belong to specified client");
+            }
+            if (request.getLocationId() == null && workflow.getLocationId() != null) {
+                request.setLocationId(workflow.getLocationId());
+            }
+        }
+
+        // Validate Document Request relationship and tenant boundary
+        if (request.getRequestId() != null && docRequestRepository != null) {
+            com.taxoryn.module.docrequest.entity.DocumentRequestEntity docReq = docRequestRepository.findByIdAndOrganizationId(request.getRequestId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", request.getRequestId()));
+            if (request.getClientId() == null) {
+                request.setClientId(docReq.getClientId());
+            }
+        }
+
+        // Validate Location relationship and tenant boundary
+        if (request.getLocationId() != null && locationRepository != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+            if (securityScopeEvaluator != null) {
+                PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+                if (scope != null && !scope.canAccessLocation(request.getLocationId())) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You do not have permission for this location");
+                }
+            }
+        }
 
         // Validate Client relationship and tenant boundary
         if (request.getClientId() != null) {
@@ -203,6 +305,9 @@ public class DocumentServiceImpl implements DocumentService {
                     .itrReturnId(request.getItrReturnId())
                     .tdsReturnId(request.getTdsReturnId())
                     .taskId(request.getTaskId())
+                    .workflowId(request.getWorkflowId())
+                    .requestId(request.getRequestId())
+                    .locationId(request.getLocationId())
                     .documentType(request.getDocumentType())
                     .fileName(originalFilename)
                     .contentType(contentType)
@@ -410,6 +515,25 @@ public class DocumentServiceImpl implements DocumentService {
                 predicates.add(cb.equal(root.get("taskId"), filterRequest.getTaskId()));
             }
 
+            if (filterRequest.getWorkflowId() != null) {
+                predicates.add(cb.equal(root.get("workflowId"), filterRequest.getWorkflowId()));
+            }
+
+            if (filterRequest.getRequestId() != null) {
+                predicates.add(cb.equal(root.get("requestId"), filterRequest.getRequestId()));
+            }
+
+            if (filterRequest.getLocationId() != null) {
+                predicates.add(cb.equal(root.get("locationId"), filterRequest.getLocationId()));
+            }
+
+            if (!scope.isFirmAdmin() && scope.getAccessibleLocationIds() != null && !scope.getAccessibleLocationIds().isEmpty()) {
+                predicates.add(cb.or(
+                        root.get("locationId").isNull(),
+                        root.get("locationId").in(scope.getAccessibleLocationIds())
+                ));
+            }
+
             if (filterRequest.getStatus() != null) {
                 predicates.add(cb.equal(root.get("status"), filterRequest.getStatus()));
             } else {
@@ -463,6 +587,40 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getWorkflowDocuments(UUID workflowId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.compliance.entity.ComplianceWorkflowEntity workflow = complianceWorkflowRepository.findByIdAndOrganizationId(workflowId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("ComplianceWorkflow", "id", workflowId));
+
+        // Enforce security scoping
+        if (workflow.getClientId() != null) {
+            UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
+            if (currentClientId != null && currentClientId.equals(workflow.getClientId())) {
+                // Authorized: Client portal user
+            } else {
+                PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+                if (!scope.isFirmAdmin()) {
+                    Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                    if (accessibleClientIds == null || !accessibleClientIds.contains(workflow.getClientId())) {
+                        throw new org.springframework.security.access.AccessDeniedException(
+                                "Access denied: You do not have permission to view documents for this workflow's client.");
+                    }
+                    if (workflow.getLocationId() != null && !scope.canAccessLocation(workflow.getLocationId())) {
+                        throw new org.springframework.security.access.AccessDeniedException(
+                                "Access denied: You do not have permission for this workflow location.");
+                    }
+                }
+            }
+        }
+
+        List<DocumentEntity> docs = documentRepository.findAllByOrganizationIdAndWorkflowIdAndStatus(
+                organizationId, workflowId, DocumentStatus.ACTIVE);
+
+        return docs.stream().map(this::enrichDto).toList();
+    }
+
+    @Override
     @Transactional
     public void deleteDocument(UUID id) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
@@ -502,6 +660,15 @@ public class DocumentServiceImpl implements DocumentService {
         }
         if (request.getAssessmentYear() != null) {
             document.setAssessmentYear(request.getAssessmentYear());
+        }
+        if (request.getWorkflowId() != null) {
+            document.setWorkflowId(request.getWorkflowId());
+        }
+        if (request.getRequestId() != null) {
+            document.setRequestId(request.getRequestId());
+        }
+        if (request.getLocationId() != null) {
+            document.setLocationId(request.getLocationId());
         }
         if (request.getStatus() != null) {
             document.setStatus(request.getStatus());

@@ -45,6 +45,12 @@ public class CreateDocumentRequest {
     @Schema(description = "Optional linked task ID")
     private UUID taskId;
 
+    @Schema(description = "Optional linked compliance workflow ID")
+    private UUID workflowId;
+
+    @Schema(description = "Optional linked practice location ID")
+    private UUID locationId;
+
     @Schema(description = "Optional linked compliance obligation ID")
     private UUID complianceId;
 

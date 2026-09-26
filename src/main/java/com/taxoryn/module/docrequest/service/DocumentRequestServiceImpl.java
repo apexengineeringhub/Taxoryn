@@ -70,7 +70,6 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DocumentRequestServiceImpl implements DocumentRequestService {
 
     private final DocumentRequestRepository docRequestRepository;
@@ -86,6 +85,67 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final com.taxoryn.module.task.repository.TaskRepository taskRepository;
     private final com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
+    private final com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DocumentRequestServiceImpl(
+            DocumentRequestRepository docRequestRepository,
+            DocumentRequestItemRepository docRequestItemRepository,
+            ClientRepository clientRepository,
+            OrganizationRepository organizationRepository,
+            UserRepository userRepository,
+            DocumentRepository documentRepository,
+            DocumentService documentService,
+            NotificationService notificationService,
+            EmailNotificationService emailNotificationService,
+            AuditService auditService,
+            PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            com.taxoryn.module.task.repository.TaskRepository taskRepository,
+            com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository,
+            com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository,
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository
+    ) {
+        this.docRequestRepository = docRequestRepository;
+        this.docRequestItemRepository = docRequestItemRepository;
+        this.clientRepository = clientRepository;
+        this.organizationRepository = organizationRepository;
+        this.userRepository = userRepository;
+        this.documentRepository = documentRepository;
+        this.documentService = documentService;
+        this.notificationService = notificationService;
+        this.emailNotificationService = emailNotificationService;
+        this.auditService = auditService;
+        this.securityScopeEvaluator = securityScopeEvaluator;
+        this.taskRepository = taskRepository;
+        this.employeeRepository = employeeRepository;
+        this.complianceWorkflowRepository = complianceWorkflowRepository;
+        this.locationRepository = locationRepository;
+    }
+
+    public DocumentRequestServiceImpl(
+            DocumentRequestRepository docRequestRepository,
+            DocumentRequestItemRepository docRequestItemRepository,
+            ClientRepository clientRepository,
+            OrganizationRepository organizationRepository,
+            UserRepository userRepository,
+            DocumentRepository documentRepository,
+            DocumentService documentService,
+            NotificationService notificationService,
+            EmailNotificationService emailNotificationService,
+            AuditService auditService,
+            PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            com.taxoryn.module.task.repository.TaskRepository taskRepository,
+            com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository
+    ) {
+        this(
+                docRequestRepository, docRequestItemRepository, clientRepository,
+                organizationRepository, userRepository, documentRepository,
+                documentService, notificationService, emailNotificationService,
+                auditService, securityScopeEvaluator, taskRepository, employeeRepository,
+                null, null
+        );
+    }
 
     @Override
     @Transactional
@@ -96,6 +156,31 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
         validateClientAccess(client.getId());
+
+        // Validate Workflow relationship and tenant boundary
+        if (request.getWorkflowId() != null && complianceWorkflowRepository != null) {
+            com.taxoryn.module.compliance.entity.ComplianceWorkflowEntity workflow = complianceWorkflowRepository.findByIdAndOrganizationId(request.getWorkflowId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("ComplianceWorkflow", "id", request.getWorkflowId()));
+            if (!client.getId().equals(workflow.getClientId())) {
+                throw new BadRequestException("Workflow does not belong to specified client");
+            }
+            if (request.getLocationId() == null && workflow.getLocationId() != null) {
+                request.setLocationId(workflow.getLocationId());
+            }
+        }
+
+        // Validate Location relationship and tenant boundary
+        if (request.getLocationId() != null && locationRepository != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+            if (securityScopeEvaluator != null) {
+                PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+                if (scope != null && !scope.canAccessLocation(request.getLocationId())) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You do not have permission for this location");
+                }
+            }
+        }
 
         String requestNumber = generateRequestNumber();
 
@@ -109,6 +194,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 .financialYear(request.getFinancialYear())
                 .assessmentYear(request.getAssessmentYear())
                 .taskId(request.getTaskId())
+                .workflowId(request.getWorkflowId())
+                .locationId(request.getLocationId())
                 .complianceId(request.getComplianceId())
                 .requestedByUserId(currentUserId)
                 .sentAt(Instant.now())
@@ -232,6 +319,18 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
             if (filter.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filter.getClientId()));
             }
+            if (filter.getWorkflowId() != null) {
+                predicates.add(cb.equal(root.get("workflowId"), filter.getWorkflowId()));
+            }
+            if (filter.getLocationId() != null) {
+                predicates.add(cb.equal(root.get("locationId"), filter.getLocationId()));
+            }
+            if (!scope.isFirmAdmin() && scope.getAccessibleLocationIds() != null && !scope.getAccessibleLocationIds().isEmpty()) {
+                predicates.add(cb.or(
+                        root.get("locationId").isNull(),
+                        root.get("locationId").in(scope.getAccessibleLocationIds())
+                ));
+            }
             if (filter.getStatus() != null) {
                 predicates.add(cb.equal(root.get("status"), filter.getStatus()));
             }
@@ -264,6 +363,25 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
         validateClientAccess(clientId);
 
         return docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId)
+                .stream().map(this::toDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentRequestDto> getWorkflowRequests(UUID workflowId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.compliance.entity.ComplianceWorkflowEntity workflow = complianceWorkflowRepository.findByIdAndOrganizationId(workflowId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("ComplianceWorkflow", "id", workflowId));
+        validateClientAccess(workflow.getClientId());
+        if (workflow.getLocationId() != null && securityScopeEvaluator != null) {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.canAccessLocation(workflow.getLocationId())) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission for this location");
+            }
+        }
+
+        return docRequestRepository.findAllByOrganizationIdAndWorkflowIdOrderByCreatedAtDesc(organizationId, workflowId)
                 .stream().map(this::toDto).toList();
     }
 
@@ -1129,6 +1247,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 .requestedByUserId(entity.getRequestedByUserId())
                 .requestedByName(requestedByName)
                 .taskId(entity.getTaskId())
+                .workflowId(entity.getWorkflowId())
+                .locationId(entity.getLocationId())
                 .complianceId(entity.getComplianceId())
                 .exchangeType(entity.getExchangeType())
                 .direction(entity.getDirection())

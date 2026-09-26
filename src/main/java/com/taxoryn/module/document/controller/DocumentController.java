@@ -140,6 +140,14 @@ public class DocumentController {
         return ResponseEntity.ok(ApiResponse.success("Client documents retrieved successfully", documents));
     }
 
+    @GetMapping("/workflows/{workflowId}")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF')")
+    @Operation(summary = "Get compliance workflow documents", description = "Retrieves all active documents linked to a compliance execution workflow.")
+    public ResponseEntity<ApiResponse<List<DocumentDto>>> getWorkflowDocuments(@PathVariable UUID workflowId) {
+        List<DocumentDto> documents = documentService.getWorkflowDocuments(workflowId);
+        return ResponseEntity.ok(ApiResponse.success("Workflow documents retrieved successfully", documents));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('DOCUMENT_UPLOAD') or hasAuthority('DOCUMENT_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update document metadata", description = "Updates document category, tags, notes, or assessment/financial year.")
