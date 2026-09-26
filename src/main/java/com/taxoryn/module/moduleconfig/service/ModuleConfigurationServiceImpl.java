@@ -1,27 +1,38 @@
 package com.taxoryn.module.moduleconfig.service;
 
+import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.exception.TenantAccessDeniedException;
 import com.taxoryn.core.exception.UnauthorizedException;
 import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.audit.service.AuditService;
+import com.taxoryn.module.moduleconfig.dto.EffectiveConfigurationResponse;
 import com.taxoryn.module.moduleconfig.dto.OrganizationModuleDto;
 import com.taxoryn.module.moduleconfig.dto.ProductModuleDto;
+import com.taxoryn.module.moduleconfig.entity.OrganizationFeatureEntity;
 import com.taxoryn.module.moduleconfig.entity.OrganizationModuleEntity;
+import com.taxoryn.module.moduleconfig.entity.ProductFeatureEntity;
 import com.taxoryn.module.moduleconfig.entity.ProductModuleEntity;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
+import com.taxoryn.module.moduleconfig.repository.OrganizationFeatureRepository;
 import com.taxoryn.module.moduleconfig.repository.OrganizationModuleRepository;
+import com.taxoryn.module.moduleconfig.repository.ProductFeatureRepository;
 import com.taxoryn.module.moduleconfig.repository.ProductModuleRepository;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.subscription.entity.SubscriptionEntity;
 import com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus;
 import com.taxoryn.module.subscription.repository.SubscriptionRepository;
+import com.taxoryn.module.subscription.service.SubscriptionPlanEntitlementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,8 +47,12 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
     private final ProductModuleRepository productModuleRepository;
     private final OrganizationModuleRepository organizationModuleRepository;
+    private final ProductFeatureRepository productFeatureRepository;
+    private final OrganizationFeatureRepository organizationFeatureRepository;
     private final OrganizationRepository organizationRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
+    private final LocationRepository locationRepository;
     private final AuditService auditService;
 
     @Override
@@ -57,7 +72,15 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             return false;
         }
 
-        // 1. Check if an explicit organization configuration exists
+        // 1. Check Subscription Plan Entitlement Gate
+        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
+        if (subscription != null) {
+            if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), moduleCode.name())) {
+                return false;
+            }
+        }
+
+        // 2. Check if an explicit organization configuration exists
         Optional<OrganizationModuleEntity> configOpt = organizationModuleRepository
                 .findByOrganizationIdAndModuleCode(organizationId, moduleCode);
 
@@ -65,7 +88,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             return configOpt.get().isEnabled();
         }
 
-        // 2. Fall back to catalog default (safe backward compatibility)
+        // 3. Fall back to catalog default
         return productModuleRepository.findByCode(moduleCode)
                 .map(ProductModuleEntity::isEnabledByDefault)
                 .orElse(true);
@@ -80,7 +103,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         Set<ProductModuleCode> enabledSet = EnumSet.noneOf(ProductModuleCode.class);
 
         for (OrganizationModuleDto mod : modules) {
-            if (mod.isEnabled()) {
+            if (mod.isEnabled() && mod.isEntitled()) {
                 enabledSet.add(mod.getModuleCode());
             }
         }
@@ -93,7 +116,6 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
     public List<OrganizationModuleDto> getOrganizationModules(UUID organizationId) {
         validateTenantAccess(organizationId);
 
-        // Verify organization exists
         if (!organizationRepository.existsById(organizationId)) {
             throw new ResourceNotFoundException("Organization", "id", organizationId);
         }
@@ -142,6 +164,16 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         ProductModuleEntity catalogModule = productModuleRepository.findByCode(moduleCode)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", moduleCode));
 
+        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
+
+        // Enforce: Organization cannot enable a module not included in its plan entitlement
+        if (enabled && subscription != null) {
+            if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), moduleCode.name())) {
+                throw new BusinessValidationException("Cannot enable module " + moduleCode.name() +
+                        " because it is not included in current subscription plan (" + subscription.getPlan().name() + "). Please upgrade your subscription first.");
+            }
+        }
+
         Optional<OrganizationModuleEntity> existingOpt = organizationModuleRepository
                 .findByOrganizationIdAndModuleCode(organizationId, moduleCode);
 
@@ -163,7 +195,6 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         OrganizationModuleEntity saved = organizationModuleRepository.save(entity);
 
-        // Audit state transition if changed or newly saved
         if (existingOpt.isEmpty() || previousEnabled != enabled) {
             UUID userId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
             auditService.logEvent(
@@ -179,8 +210,6 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                     organizationId, moduleCode, enabled, previousEnabled);
         }
 
-        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
-
         return mapToOrganizationDto(organizationId, catalogModule, saved, subscription);
     }
 
@@ -190,6 +219,80 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         return productModuleRepository.findAllByOrderByDisplayOrderAsc().stream()
                 .map(this::mapToProductModuleDto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EffectiveConfigurationResponse getEffectiveConfiguration(UUID organizationId) {
+        validateTenantAccess(organizationId);
+
+        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
+        String planCode = subscription != null && subscription.getPlan() != null ? subscription.getPlan().name() : "STARTER";
+        String statusStr = subscription != null && subscription.getStatus() != null ? subscription.getStatus().name() : "ACTIVE";
+
+        boolean multiLoc = subscriptionPlanEntitlementService.isMultiLocationEnabled(planCode);
+        int maxLocs = subscriptionPlanEntitlementService.getMaxLocations(planCode);
+        long activeLocCount = locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId);
+
+        List<ProductModuleEntity> modules = productModuleRepository.findAllByOrderByDisplayOrderAsc();
+        List<OrganizationModuleEntity> orgModuleConfigs = organizationModuleRepository.findByOrganizationId(organizationId);
+        Map<ProductModuleCode, Boolean> orgModuleMap = orgModuleConfigs.stream()
+                .collect(Collectors.toMap(OrganizationModuleEntity::getModuleCode, OrganizationModuleEntity::isEnabled));
+
+        Map<String, Boolean> effectiveModules = new LinkedHashMap<>();
+        for (ProductModuleEntity mod : modules) {
+            boolean entitled = subscriptionPlanEntitlementService.isModuleEntitled(planCode, mod.getCode().name());
+            boolean configured = orgModuleMap.getOrDefault(mod.getCode(), mod.isEnabledByDefault());
+            boolean effective = entitled && configured;
+            effectiveModules.put(mod.getCode().name(), effective);
+        }
+
+        List<ProductFeatureEntity> features = productFeatureRepository.findAllByOrderByDisplayOrderAsc();
+        List<OrganizationFeatureEntity> orgFeatureConfigs = organizationFeatureRepository.findByOrganizationId(organizationId);
+        Map<String, Boolean> orgFeatureMap = orgFeatureConfigs.stream()
+                .collect(Collectors.toMap(f -> f.getModuleCode() + ":" + f.getFeatureCode(), OrganizationFeatureEntity::isEnabled));
+
+        Map<String, Map<String, Boolean>> effectiveFeatures = new LinkedHashMap<>();
+        for (ProductFeatureEntity feat : features) {
+            String modCode = feat.getModuleCode();
+            boolean moduleEffective = effectiveModules.getOrDefault(modCode, false);
+
+            boolean featEntitled = subscriptionPlanEntitlementService.isFeatureEntitled(planCode, modCode, feat.getCode());
+            boolean featConfigured = orgFeatureMap.getOrDefault(modCode + ":" + feat.getCode(), feat.isEnabledByDefault());
+            boolean featEffective = moduleEffective && featEntitled && featConfigured;
+
+            effectiveFeatures.computeIfAbsent(modCode, k -> new LinkedHashMap<>()).put(feat.getCode(), featEffective);
+        }
+
+        List<String> navigationItems = new ArrayList<>();
+        navigationItems.add("DASHBOARD");
+        navigationItems.add("CLIENTS");
+
+        if (Boolean.TRUE.equals(effectiveModules.get("GST"))) navigationItems.add("GST");
+        if (Boolean.TRUE.equals(effectiveModules.get("ITR"))) navigationItems.add("ITR");
+        if (Boolean.TRUE.equals(effectiveModules.get("TDS"))) navigationItems.add("TDS");
+        if (Boolean.TRUE.equals(effectiveModules.get("TAX_NOTICES"))) navigationItems.add("TAX_NOTICES");
+        if (Boolean.TRUE.equals(effectiveModules.get("BILLING"))) navigationItems.add("BILLING");
+        if (Boolean.TRUE.equals(effectiveModules.get("DOCUMENT"))) navigationItems.add("DOCUMENTS");
+        if (Boolean.TRUE.equals(effectiveModules.get("COMMUNICATION"))) navigationItems.add("COMMUNICATION");
+        if (Boolean.TRUE.equals(effectiveModules.get("REPORTS"))) navigationItems.add("REPORTS");
+
+        if (multiLoc || activeLocCount > 1) {
+            navigationItems.add("LOCATIONS");
+        }
+        navigationItems.add("SETTINGS");
+
+        return EffectiveConfigurationResponse.builder()
+                .organizationId(organizationId)
+                .subscriptionPlan(planCode)
+                .subscriptionStatus(statusStr)
+                .multiLocationEnabled(multiLoc)
+                .maxLocations(maxLocs)
+                .activeLocationCount((int) activeLocCount)
+                .modules(effectiveModules)
+                .features(effectiveFeatures)
+                .navigationItems(navigationItems)
+                .build();
     }
 
     private void validateTenantAccess(UUID organizationId) {
@@ -223,25 +326,22 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                 || subscription.getStatus() == SubscriptionStatus.ACTIVE
                 || subscription.getStatus() == SubscriptionStatus.TRIALING;
 
-        boolean isEntitled = true;
-        if (subscription != null && subscription.getPlan() == null) {
-            isEntitled = false;
-        }
+        boolean isEntitled = subscription == null || subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), catalog.getCode().name());
 
         boolean effectiveAccess = isEnabled && isStatusValid && isEntitled;
 
         String accessStatus;
         String reason;
 
-        if (!isEnabled) {
+        if (!isEntitled) {
+            accessStatus = "UPGRADE_REQUIRED";
+            reason = "Current subscription plan does not include " + catalog.getCode().name() + ". Please upgrade your subscription.";
+        } else if (!isEnabled) {
             accessStatus = "MODULE_DISABLED";
             reason = "Product module " + catalog.getCode().name() + " is administratively disabled for this organization.";
         } else if (!isStatusValid) {
             accessStatus = "SUBSCRIPTION_REQUIRED";
             reason = "Active subscription required to access " + catalog.getCode().name() + ". Current status: " + subStatusStr + ".";
-        } else if (!isEntitled) {
-            accessStatus = "UPGRADE_REQUIRED";
-            reason = "Current subscription plan does not include " + catalog.getCode().name() + ". Please upgrade your subscription.";
         } else {
             accessStatus = "AVAILABLE";
             reason = "Module is active and available.";

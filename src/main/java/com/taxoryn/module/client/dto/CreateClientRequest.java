@@ -96,6 +96,9 @@ public class CreateClientRequest {
     @Schema(description = "Postal pincode", example = "400093")
     private String pincode;
 
+    @Schema(description = "Practice branch / Location ID")
+    private UUID locationId;
+
     @Schema(description = "Assigned practitioner / Account manager employee ID")
     private UUID assignedEmployeeId;
 

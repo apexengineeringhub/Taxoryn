@@ -33,6 +33,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationSettingsRepository settingsRepository;
     private final OrganizationMapper organizationMapper;
+    private final PracticeProfileService practiceProfileService;
+    private final LocationService locationService;
     private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
@@ -68,6 +70,10 @@ public class OrganizationServiceImpl implements OrganizationService {
         OrganizationSettingsEntity defaultSettings = OrganizationSettingsEntity.createDefault(saved.getId());
         OrganizationSettingsEntity savedSettings = settingsRepository.save(defaultSettings);
         saved.setSettings(savedSettings);
+
+        // Auto-provision default practice profile and head office location
+        practiceProfileService.initializeDefaultProfile(saved.getId(), saved.getOrganizationType());
+        locationService.initializeDefaultHeadOffice(saved.getId(), saved.getName(), saved.getAddress(), saved.getCity(), saved.getState(), saved.getPincode());
 
         log.info("Created organization: id={}, name={}", saved.getId(), saved.getName());
         return organizationMapper.toDto(saved);

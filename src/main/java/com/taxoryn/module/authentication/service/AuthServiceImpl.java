@@ -89,6 +89,8 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final OrganizationMapper organizationMapper;
     private final com.taxoryn.module.subscription.service.SubscriptionService subscriptionService;
+    private final com.taxoryn.module.organization.service.PracticeProfileService practiceProfileService;
+    private final com.taxoryn.module.organization.service.LocationService locationService;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
@@ -222,6 +224,10 @@ public class AuthServiceImpl implements AuthService {
 
         // 4. Create Initial STARTER SaaS Subscription
         subscriptionService.createInitialSubscription(savedOrg.getId(), com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.STARTER);
+
+        // 4b. Initialize Default Practice Profile and Head Office Location
+        practiceProfileService.initializeDefaultProfile(savedOrg.getId(), savedOrg.getOrganizationType());
+        locationService.initializeDefaultHeadOffice(savedOrg.getId(), savedOrg.getName(), null, null, null, null);
 
         // 5. Invalidate any existing activation tokens for this user as safety precaution
         organizationActivationTokenRepository.invalidateAllPendingTokensForUser(savedUser.getId(), Instant.now());

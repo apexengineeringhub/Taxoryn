@@ -90,6 +90,9 @@ public class ClientEntity extends TenantAuditableEntity {
     @Column(name = "pincode", length = 20)
     private String pincode;
 
+    @Column(name = "location_id")
+    private UUID locationId;
+
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;
 

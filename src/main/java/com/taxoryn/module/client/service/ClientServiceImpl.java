@@ -177,6 +177,7 @@ public class ClientServiceImpl implements ClientService {
                 .state(request.getState())
                 .country(StringUtils.hasText(request.getCountry()) ? request.getCountry() : "India")
                 .pincode(request.getPincode())
+                .locationId(request.getLocationId())
                 .assignedEmployeeId(request.getAssignedEmployeeId())
                 .notes(request.getNotes())
                 .status(request.getStatus() != null ? request.getStatus() : ClientStatus.ACTIVE)
@@ -254,6 +255,9 @@ public class ClientServiceImpl implements ClientService {
             client.setCountry(request.getCountry());
         }
         client.setPincode(request.getPincode());
+        if (request.getLocationId() != null) {
+            client.setLocationId(request.getLocationId());
+        }
         client.setAssignedEmployeeId(request.getAssignedEmployeeId());
         client.setNotes(request.getNotes());
         if (request.getStatus() != null) {

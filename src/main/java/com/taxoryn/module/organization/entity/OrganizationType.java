@@ -5,16 +5,18 @@ package com.taxoryn.module.organization.entity;
  *
  * Supported values:
  * - UNKNOWN: Default fallback for unclassified or legacy organizations
- * - SOLO_PRACTITIONER: Individual practitioner / solo tax consultant
- * - SMALL_TAX_FIRM: Small tax firm (e.g. 2-10 practitioners/staff)
- * - GROWING_PRACTICE: Mid-to-large accounting and tax practice
- * - BUSINESS: Commercial business / enterprise managing in-house tax & compliance
+ * - SOLO / SOLO_PRACTITIONER: Individual practitioner / solo tax consultant
+ * - FIRM / SMALL_TAX_FIRM / GROWING_PRACTICE: Tax firm (practitioners/staff operating together)
+ * - ENTERPRISE / BUSINESS: Commercial business / enterprise managing large-scale operations
  *
  * NOTE: OrganizationType is strictly a domain classification and is NOT a security mechanism.
  * It is completely decoupled from RBAC roles, permissions, tenant access, and client visibility.
  */
 public enum OrganizationType {
     UNKNOWN,
+    SOLO,
+    FIRM,
+    ENTERPRISE,
     SOLO_PRACTITIONER,
     SMALL_TAX_FIRM,
     GROWING_PRACTICE,

@@ -210,8 +210,8 @@ public class TaxNoticeConfigurationServiceImpl implements TaxNoticeConfiguration
         OrganizationType type = organizationType != null ? organizationType : OrganizationType.UNKNOWN;
 
         return switch (type) {
-            case SOLO_PRACTITIONER -> TaxNoticeConfigDto.builder()
-                    .organizationType(OrganizationType.SOLO_PRACTITIONER)
+            case SOLO, SOLO_PRACTITIONER -> TaxNoticeConfigDto.builder()
+                    .organizationType(OrganizationType.SOLO)
                     .isCustomized(false)
                     .responseReviewRequired(false)
                     .partnerApprovalRequired(false)
@@ -235,8 +235,8 @@ public class TaxNoticeConfigurationServiceImpl implements TaxNoticeConfiguration
                     .showAwaitingOrder(false)
                     .build();
 
-            case SMALL_TAX_FIRM -> TaxNoticeConfigDto.builder()
-                    .organizationType(OrganizationType.SMALL_TAX_FIRM)
+            case FIRM, SMALL_TAX_FIRM -> TaxNoticeConfigDto.builder()
+                    .organizationType(OrganizationType.FIRM)
                     .isCustomized(false)
                     .responseReviewRequired(true)
                     .partnerApprovalRequired(false)
@@ -285,8 +285,8 @@ public class TaxNoticeConfigurationServiceImpl implements TaxNoticeConfiguration
                     .showAwaitingOrder(true)
                     .build();
 
-            case BUSINESS -> TaxNoticeConfigDto.builder()
-                    .organizationType(OrganizationType.BUSINESS)
+            case ENTERPRISE, BUSINESS -> TaxNoticeConfigDto.builder()
+                    .organizationType(OrganizationType.ENTERPRISE)
                     .isCustomized(false)
                     .responseReviewRequired(true)
                     .partnerApprovalRequired(false)

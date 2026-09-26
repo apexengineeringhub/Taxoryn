@@ -41,6 +41,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
     private final DocumentRepository documentRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+    private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
     private final SubscriptionMapper subscriptionMapper;
 
     @Override
@@ -238,6 +240,27 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         long currentClients = clientRepository.countByOrganizationId(organizationId);
         if (currentClients >= sub.getMaxClients()) {
             throw new SubscriptionLimitExceededException("MAX_CLIENTS", currentClients, sub.getMaxClients(), sub.getPlan().name());
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkLocationLimit(UUID organizationId) {
+        SubscriptionEntity sub = getOrCreateSubscriptionEntity(organizationId);
+        validateSubscriptionActive(sub);
+
+        long currentLocations = locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId);
+        if (currentLocations >= 1) {
+            boolean multiLocationEnabled = subscriptionPlanEntitlementService.isMultiLocationEnabled(sub.getPlan());
+            if (!multiLocationEnabled) {
+                throw new SubscriptionLimitExceededException("Multi-location management is not enabled for your subscription plan (" +
+                        sub.getPlan().name() + "). Please upgrade to Professional, Business, or Enterprise tier.");
+            }
+
+            int maxLocations = subscriptionPlanEntitlementService.getMaxLocations(sub.getPlan());
+            if (currentLocations >= maxLocations) {
+                throw new SubscriptionLimitExceededException("MAX_LOCATIONS", currentLocations, maxLocations, sub.getPlan().name());
+            }
         }
     }
 

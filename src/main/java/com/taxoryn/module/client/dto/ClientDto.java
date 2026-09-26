@@ -88,6 +88,9 @@ public class ClientDto {
     @Schema(description = "Postal pincode", example = "400093")
     private String pincode;
 
+    @Schema(description = "Practice branch / Location ID")
+    private UUID locationId;
+
     @Schema(description = "Assigned employee / Account manager ID")
     private UUID assignedEmployeeId;
 

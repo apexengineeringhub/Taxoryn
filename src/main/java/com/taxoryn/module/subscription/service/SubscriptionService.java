@@ -32,5 +32,7 @@ public interface SubscriptionService {
 
     void checkClientLimit(UUID organizationId);
 
+    void checkLocationLimit(UUID organizationId);
+
     void checkStorageLimit(UUID organizationId, long additionalBytes);
 }

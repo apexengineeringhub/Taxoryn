@@ -17,12 +17,33 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class PracticeSecurityScopeEvaluator {
 
     private final EmployeeRepository employeeRepository;
     private final ClientRepository clientRepository;
     private final TaskRepository taskRepository;
+    private final com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PracticeSecurityScopeEvaluator(
+            EmployeeRepository employeeRepository,
+            ClientRepository clientRepository,
+            TaskRepository taskRepository,
+            com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository
+    ) {
+        this.employeeRepository = employeeRepository;
+        this.clientRepository = clientRepository;
+        this.taskRepository = taskRepository;
+        this.employeeLocationRepository = employeeLocationRepository;
+    }
+
+    public PracticeSecurityScopeEvaluator(
+            EmployeeRepository employeeRepository,
+            ClientRepository clientRepository,
+            TaskRepository taskRepository
+    ) {
+        this(employeeRepository, clientRepository, taskRepository, null);
+    }
 
     public PracticeSecurityScope evaluateCurrentScope() {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
@@ -39,6 +60,7 @@ public class PracticeSecurityScopeEvaluator {
                     .isDepartmentManager(false)
                     .isStaff(true)
                     .accessibleAssigneeIds(userId != null ? Set.of(userId) : Collections.emptySet())
+                    .accessibleLocationIds(Collections.emptySet())
                     .build();
         }
 
@@ -75,8 +97,13 @@ public class PracticeSecurityScopeEvaluator {
                     .isDepartmentManager(false)
                     .isStaff(false)
                     .accessibleAssigneeIds(null) // unrestricted
+                    .accessibleLocationIds(null) // unrestricted across all locations
                     .build();
         }
+
+        Set<UUID> locationIds = (employeeId != null && employeeLocationRepository != null)
+                ? new HashSet<>(employeeLocationRepository.findLocationIdsByEmployeeId(employeeId))
+                : Collections.emptySet();
 
         boolean hasManagerRole = roles != null && (
                 roles.contains("MANAGER") || roles.contains("ROLE_MANAGER")
@@ -116,6 +143,7 @@ public class PracticeSecurityScopeEvaluator {
                     .isDepartmentManager(true)
                     .isStaff(false)
                     .accessibleAssigneeIds(accessibleIds)
+                    .accessibleLocationIds(locationIds)
                     .build();
         }
 
@@ -136,6 +164,7 @@ public class PracticeSecurityScopeEvaluator {
                 .isDepartmentManager(false)
                 .isStaff(true)
                 .accessibleAssigneeIds(selfIds)
+                .accessibleLocationIds(locationIds)
                 .build();
     }
 

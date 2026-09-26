@@ -3,6 +3,7 @@ package com.taxoryn.module.moduleconfig.controller;
 import com.taxoryn.core.exception.UnauthorizedException;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.module.moduleconfig.dto.EffectiveConfigurationResponse;
 import com.taxoryn.module.moduleconfig.dto.OrganizationModuleDto;
 import com.taxoryn.module.moduleconfig.dto.ProductModuleDto;
 import com.taxoryn.module.moduleconfig.dto.UpdateOrganizationModuleRequest;
@@ -28,7 +29,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/organizations/modules", "/api/v1/organizations/current/modules", "/api/v1/modules"})
 @RequiredArgsConstructor
-@Tag(name = "Organization Module Configuration", description = "Endpoints for inspecting and configuring organization product modules")
+@Tag(name = "Organization Module Configuration", description = "Endpoints for inspecting and configuring organization product modules and effective capability gates")
 @SecurityRequirement(name = "BearerAuth")
 public class OrganizationModuleController {
 
@@ -41,6 +42,15 @@ public class OrganizationModuleController {
         UUID organizationId = resolveCurrentOrganizationId();
         List<OrganizationModuleDto> modules = moduleConfigurationService.getOrganizationModules(organizationId);
         return ResponseEntity.ok(ApiResponse.success("Organization modules retrieved successfully", modules));
+    }
+
+    @GetMapping("/effective")
+    @PreAuthorize("hasAuthority('ORGANIZATION_VIEW') or hasAuthority('ORG_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
+    @Operation(summary = "Get Effective Module & Feature Configuration", description = "Retrieves resolved effective module and feature configuration boolean gates for UI navigation rendering.")
+    public ResponseEntity<ApiResponse<EffectiveConfigurationResponse>> getEffectiveConfiguration() {
+        UUID organizationId = resolveCurrentOrganizationId();
+        EffectiveConfigurationResponse effectiveConfig = moduleConfigurationService.getEffectiveConfiguration(organizationId);
+        return ResponseEntity.ok(ApiResponse.success("Effective configuration retrieved successfully", effectiveConfig));
     }
 
     @GetMapping("/{moduleCode}")
