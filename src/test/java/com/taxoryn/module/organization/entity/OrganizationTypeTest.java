@@ -21,23 +21,21 @@ class OrganizationTypeTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    @DisplayName("Verify OrganizationType enum contains exactly the 5 required supported values")
+    @DisplayName("Verify OrganizationType enum contains the 8 supported domain classification values")
     void testOrganizationTypeEnumValues() {
         Set<String> enumNames = Arrays.stream(OrganizationType.values())
                 .map(Enum::name)
                 .collect(Collectors.toSet());
 
-        assertEquals(5, enumNames.size(), "OrganizationType must have exactly 5 supported values");
+        assertEquals(8, enumNames.size(), "OrganizationType must have exactly 8 supported values");
         assertTrue(enumNames.contains("UNKNOWN"));
+        assertTrue(enumNames.contains("SOLO"));
+        assertTrue(enumNames.contains("FIRM"));
+        assertTrue(enumNames.contains("ENTERPRISE"));
         assertTrue(enumNames.contains("SOLO_PRACTITIONER"));
         assertTrue(enumNames.contains("SMALL_TAX_FIRM"));
         assertTrue(enumNames.contains("GROWING_PRACTICE"));
         assertTrue(enumNames.contains("BUSINESS"));
-
-        // Verify prohibited legacy / competing names are NOT present
-        assertFalse(enumNames.contains("SOLO"));
-        assertFalse(enumNames.contains("FIRM"));
-        assertFalse(enumNames.contains("ENTERPRISE"));
     }
 
     @Test

@@ -154,6 +154,12 @@ class AuthServiceTest {
     @Mock
     private com.taxoryn.module.client.repository.ClientRepository clientRepository;
 
+    @Mock
+    private com.taxoryn.module.organization.service.PracticeProfileService practiceProfileService;
+
+    @Mock
+    private com.taxoryn.module.organization.service.LocationService locationService;
+
     @InjectMocks
     private AuthServiceImpl authService;
 

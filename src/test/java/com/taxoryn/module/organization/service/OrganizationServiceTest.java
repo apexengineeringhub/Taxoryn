@@ -57,6 +57,12 @@ class OrganizationServiceTest {
     @Mock
     private OrganizationMapper organizationMapper;
 
+    @Mock
+    private PracticeProfileService practiceProfileService;
+
+    @Mock
+    private LocationService locationService;
+
     @InjectMocks
     private OrganizationServiceImpl organizationService;
 
@@ -111,6 +117,10 @@ class OrganizationServiceTest {
         OrganizationEntity savedOrg = OrganizationEntity.builder()
                 .name(request.getName())
                 .email(request.getEmail())
+                .address(request.getAddress())
+                .city(request.getCity())
+                .state(request.getState())
+                .pincode(request.getPincode())
                 .build();
         savedOrg.setId(tenantId);
 
@@ -125,6 +135,8 @@ class OrganizationServiceTest {
         assertNotNull(result);
         assertEquals(tenantId, result.getId());
         verify(settingsRepository).save(any(OrganizationSettingsEntity.class));
+        verify(practiceProfileService).initializeDefaultProfile(eq(tenantId), any());
+        verify(locationService).initializeDefaultHeadOffice(eq(tenantId), eq("Apex Advisors"), any(), eq("Mumbai"), eq("Maharashtra"), eq("400001"));
     }
 
     @Test

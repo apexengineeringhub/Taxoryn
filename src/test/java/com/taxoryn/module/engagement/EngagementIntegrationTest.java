@@ -92,6 +92,7 @@ public class EngagementIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.clear();
         cleanUp();
 
         RoleEntity adminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN")
@@ -108,6 +109,8 @@ public class EngagementIntegrationTest {
                 .email("admin." + UUID.randomUUID() + "@firm.com")
                 .status(OrganizationStatus.ACTIVE)
                 .build());
+
+        TenantContext.setTenantId(orgA.getId());
 
         LocationEntity loc = LocationEntity.builder()
                 .name("Mumbai HQ")
@@ -149,6 +152,8 @@ public class EngagementIntegrationTest {
         client.setOrganizationId(orgA.getId());
         clientA = clientRepository.save(client);
 
+        TenantContext.clear();
+
         // Tenant B (Isolation)
         orgB = organizationRepository.save(OrganizationEntity.builder()
                 .name("Beta Firm - " + UUID.randomUUID())
@@ -156,6 +161,8 @@ public class EngagementIntegrationTest {
                 .email("admin." + UUID.randomUUID() + "@beta.com")
                 .status(OrganizationStatus.ACTIVE)
                 .build());
+
+        TenantContext.setTenantId(orgB.getId());
 
         userB = userRepository.save(UserEntity.builder()
                 .organizationId(orgB.getId())
@@ -174,6 +181,8 @@ public class EngagementIntegrationTest {
                 Set.of("ROLE_ORG_ADMIN"),
                 Set.of("ROLE_ORG_ADMIN", "CLIENT_VIEW", "CLIENT_CREATE", "CLIENT_UPDATE")
         );
+
+        TenantContext.clear();
     }
 
     @AfterEach

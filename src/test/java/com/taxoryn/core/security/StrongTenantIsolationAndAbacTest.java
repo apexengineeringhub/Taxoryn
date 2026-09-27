@@ -242,7 +242,6 @@ class StrongTenantIsolationAndAbacTest {
                 .build();
 
         when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(staffScope);
-        when(securityScopeEvaluator.hasBillingAccess(staffScope)).thenReturn(false);
         when(securityScopeEvaluator.getAccessibleClientIds(staffScope)).thenReturn(Set.of(client1Id)); // client2 is unassigned
 
         assertThrows(AccessDeniedException.class, () -> invoiceService.getInvoiceById(invoiceId));
