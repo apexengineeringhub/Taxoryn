@@ -15,6 +15,7 @@ import {
   XCircle,
   Trash2,
   ExternalLink,
+  Tag,
 } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -154,6 +155,8 @@ export const BillingPage: React.FC = () => {
   });
   const [newTerms, setNewTerms] = useState('1. Payment is due within 15 days of invoice date.\n2. Please mention Invoice Number in bank transfer remark.\n3. Late payment surcharge @ 18% p.a. applicable after due date.');
   const [newNotes, setNewNotes] = useState('Thank you for trusting us with your tax and compliance matters.');
+  const [discountType, setDiscountType] = useState<'NONE' | 'FLAT' | 'PERCENTAGE'>('NONE');
+  const [discountValue, setDiscountValue] = useState<number>(0);
   const [newItems, setNewItems] = useState<Array<{
     service: InvoiceLineItem['service'];
     description: string;
@@ -239,6 +242,29 @@ export const BillingPage: React.FC = () => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
   };
 
+  const getTaxRateLabel = (inv: Invoice) => {
+    if (!inv.subtotal || inv.subtotal <= 0 || !inv.tax || inv.tax <= 0) {
+      return { cgst: 'Central GST (CGST)', sgst: 'State GST (SGST)' };
+    }
+    if (inv.items && inv.items.length > 0) {
+      const rates = inv.items.map((it) => Number(it.taxRate || 0));
+      const allSame = rates.every((r) => r === rates[0]);
+      if (allSame && rates[0] > 0) {
+        const half = Number((rates[0] / 2).toFixed(2));
+        return {
+          cgst: `Central GST (CGST @ ${half}%)`,
+          sgst: `State GST (SGST @ ${half}%)`,
+        };
+      }
+    }
+    const effectiveTotal = Math.round((Number(inv.tax) / Number(inv.subtotal)) * 1000) / 10;
+    const half = Number((effectiveTotal / 2).toFixed(2));
+    return {
+      cgst: `Central GST (CGST @ ${half}%)`,
+      sgst: `State GST (SGST @ ${half}%)`,
+    };
+  };
+
   // KPI Calculations
   const stats = useMemo(() => {
     const totalBilled = invoices.reduce((sum, inv) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT' ? sum + Number(inv.total || 0) : sum, 0);
@@ -279,9 +305,16 @@ export const BillingPage: React.FC = () => {
       subtotal += lineSub;
       totalTax += lineTax;
     }
-    const grandTotal = subtotal + totalTax;
-    return { subtotal, totalTax, grandTotal };
-  }, [newItems]);
+    let discountAmount = 0;
+    if (discountType === 'FLAT') {
+      discountAmount = Math.min(Math.max(0, Number(discountValue || 0)), subtotal + totalTax);
+    } else if (discountType === 'PERCENTAGE') {
+      const pct = Math.min(Math.max(0, Number(discountValue || 0)), 100);
+      discountAmount = (subtotal * pct) / 100;
+    }
+    const grandTotal = Math.max(0, subtotal + totalTax - discountAmount);
+    return { subtotal, totalTax, discountAmount, grandTotal };
+  }, [newItems, discountType, discountValue]);
 
   // Handlers
   const handleAddItem = () => {
@@ -333,6 +366,7 @@ export const BillingPage: React.FC = () => {
         clientId: newClientId,
         invoiceDate: newInvoiceDate,
         dueDate: newDueDate,
+        discount: Number(newInvoiceCalculations.discountAmount || 0),
         items: newItems.map((it) => ({
           service: it.service,
           description: it.description,
@@ -958,6 +992,87 @@ export const BillingPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Discount & Concession Setup */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-indigo-600" />
+                <label className="text-xs font-bold text-slate-800">
+                  Discount / Concession Setup
+                </label>
+              </div>
+              <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDiscountType('NONE');
+                    setDiscountValue(0);
+                  }}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                    discountType === 'NONE'
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  None
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('FLAT')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                    discountType === 'FLAT'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Flat (₹)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('PERCENTAGE')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                    discountType === 'PERCENTAGE'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Percent (%)
+                </button>
+              </div>
+            </div>
+
+            {discountType !== 'NONE' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    {discountType === 'FLAT' ? 'Flat Discount Amount (₹)' : 'Discount Percentage (%)'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max={discountType === 'PERCENTAGE' ? 100 : undefined}
+                      value={discountValue || ''}
+                      onChange={(e) => setDiscountValue(Math.max(0, Number(e.target.value)))}
+                      placeholder={discountType === 'FLAT' ? 'e.g. 500' : 'e.g. 10'}
+                      className="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                    <span className="absolute right-3 top-1.5 text-xs text-slate-400 font-semibold">
+                      {discountType === 'FLAT' ? '₹' : '%'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col justify-center bg-indigo-50/70 border border-indigo-100 rounded-lg px-3 py-2">
+                  <span className="text-[11px] font-medium text-indigo-700">Calculated Discount:</span>
+                  <span className="text-sm font-bold font-mono text-indigo-900">
+                    - {formatCurrency(newInvoiceCalculations.discountAmount)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Calculations Summary Card */}
           <div className="bg-slate-900 text-white p-4 rounded-xl space-y-2">
             <div className="flex justify-between text-xs text-slate-300">
@@ -968,6 +1083,12 @@ export const BillingPage: React.FC = () => {
               <span>GST (CGST 9% + SGST 9% / IGST 18%):</span>
               <span className="font-mono font-semibold">{formatCurrency(newInvoiceCalculations.totalTax)}</span>
             </div>
+            {newInvoiceCalculations.discountAmount > 0 && (
+              <div className="flex justify-between text-xs text-amber-300 font-semibold">
+                <span>Discount / Concession Applied:</span>
+                <span className="font-mono">- {formatCurrency(newInvoiceCalculations.discountAmount)}</span>
+              </div>
+            )}
             <div className="border-t border-slate-700 pt-2 flex justify-between text-sm font-bold text-emerald-400">
               <span>Grand Total Amount Due:</span>
               <span className="font-mono text-base">{formatCurrency(newInvoiceCalculations.grandTotal)}</span>
@@ -1427,32 +1548,43 @@ export const BillingPage: React.FC = () => {
                 {/* Amount Table */}
                 <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
                   <table className="w-full text-xs">
-                    <tbody className="divide-y divide-slate-100">
-                      <tr>
-                        <td className="p-2 text-slate-600 font-medium">Taxable Amount:</td>
-                        <td className="p-2 text-right font-mono font-bold">{formatCurrency(selectedInvoice.subtotal)}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2 text-slate-600">Central GST (CGST @ 9%):</td>
-                        <td className="p-2 text-right font-mono">{formatCurrency(selectedInvoice.tax / 2)}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2 text-slate-600">State GST (SGST @ 9%):</td>
-                        <td className="p-2 text-right font-mono">{formatCurrency(selectedInvoice.tax / 2)}</td>
-                      </tr>
-                      <tr className="bg-slate-100 text-sm font-black text-slate-900 border-t-2 border-slate-900">
-                        <td className="p-2">Total Invoice Value (₹):</td>
-                        <td className="p-2 text-right font-mono">{formatCurrency(selectedInvoice.total)}</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2 text-emerald-700 font-medium">Amount Received / Paid:</td>
-                        <td className="p-2 text-right font-mono font-bold text-emerald-700">{formatCurrency(selectedInvoice.paidAmount)}</td>
-                      </tr>
-                      <tr className="bg-rose-50 text-rose-700 font-bold">
-                        <td className="p-2">Net Balance Payable:</td>
-                        <td className="p-2 text-right font-mono font-black text-sm">{formatCurrency(selectedInvoice.balanceDue)}</td>
-                      </tr>
-                    </tbody>
+                    {(() => {
+                      const taxLabels = getTaxRateLabel(selectedInvoice);
+                      return (
+                        <tbody className="divide-y divide-slate-100">
+                          <tr>
+                            <td className="p-2 text-slate-600 font-medium">Taxable Amount:</td>
+                            <td className="p-2 text-right font-mono font-bold">{formatCurrency(selectedInvoice.subtotal)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 text-slate-600">{taxLabels.cgst}:</td>
+                            <td className="p-2 text-right font-mono">{formatCurrency(selectedInvoice.tax / 2)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 text-slate-600">{taxLabels.sgst}:</td>
+                            <td className="p-2 text-right font-mono">{formatCurrency(selectedInvoice.tax / 2)}</td>
+                          </tr>
+                          {Number(selectedInvoice.discount || 0) > 0 && (
+                            <tr className="bg-amber-50/70 text-amber-900 font-semibold">
+                              <td className="p-2">Discount / Concession:</td>
+                              <td className="p-2 text-right font-mono text-amber-700">- {formatCurrency(selectedInvoice.discount)}</td>
+                            </tr>
+                          )}
+                          <tr className="bg-slate-100 text-sm font-black text-slate-900 border-t-2 border-slate-900">
+                            <td className="p-2">Total Invoice Value (₹):</td>
+                            <td className="p-2 text-right font-mono">{formatCurrency(selectedInvoice.total)}</td>
+                          </tr>
+                          <tr>
+                            <td className="p-2 text-emerald-700 font-medium">Amount Received / Paid:</td>
+                            <td className="p-2 text-right font-mono font-bold text-emerald-700">{formatCurrency(selectedInvoice.paidAmount)}</td>
+                          </tr>
+                          <tr className="bg-rose-50 text-rose-700 font-bold">
+                            <td className="p-2">Net Balance Payable:</td>
+                            <td className="p-2 text-right font-mono font-black text-sm">{formatCurrency(selectedInvoice.balanceDue)}</td>
+                          </tr>
+                        </tbody>
+                      );
+                    })()}
                   </table>
                 </div>
               </div>

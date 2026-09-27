@@ -986,6 +986,7 @@ export interface Invoice {
   dueDate: string;
   subtotal: number;
   tax: number;
+  discount?: number;
   total: number;
   totalAmount?: number;
   paidAmount: number;
