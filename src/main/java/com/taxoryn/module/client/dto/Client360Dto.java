@@ -46,6 +46,9 @@ public class Client360Dto {
     @Schema(description = "Client tax notices (when Tax Notices module is enabled)")
     private List<com.taxoryn.module.notice.dto.TaxNoticeDto> taxNotices;
 
+    @Schema(description = "Client billing history & balance (when Billing module is enabled)")
+    private com.taxoryn.module.billing.dto.ClientBillingHistoryDto billing;
+
     @Schema(description = "Client lifecycle status")
     private ClientStatus status;
 }

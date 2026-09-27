@@ -57,6 +57,10 @@ public class InvoiceEntity extends TenantAuditableEntity {
     @Builder.Default
     private BigDecimal subtotal = BigDecimal.ZERO;
 
+    @Column(name = "discount", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal discount = BigDecimal.ZERO;
+
     @Column(name = "tax", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal tax = BigDecimal.ZERO;

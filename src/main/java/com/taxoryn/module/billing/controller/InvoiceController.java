@@ -67,6 +67,38 @@ public class InvoiceController {
                 .body(ApiResponse.created("Bulk invoices batch generated successfully", result));
     }
 
+    @PostMapping("/from-time-entries")
+    @PreAuthorize("hasAuthority('BILLING_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Generate invoice from unbilled time entries", description = "Generates a draft tax invoice converting recorded professional hours into billed line items.")
+    public ResponseEntity<ApiResponse<InvoiceDto>> generateInvoiceFromTimeEntries(
+            @Valid @RequestBody com.taxoryn.module.billing.dto.GenerateInvoiceFromTimeEntriesRequest request) {
+        InvoiceDto invoice = invoiceService.generateInvoiceFromTimeEntries(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Invoice generated from time entries successfully", invoice));
+    }
+
+    @GetMapping("/unbilled-time")
+    @PreAuthorize("hasAuthority('BILLING_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Lookup unbilled time entries", description = "Retrieves all unbilled, billable recorded professional time entries available for invoicing.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.billing.dto.UnbilledTimeEntryDto>>> getUnbilledTimeEntries(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) UUID clientId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) UUID engagementId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) java.time.LocalDate startDate,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) java.time.LocalDate endDate) {
+        List<com.taxoryn.module.billing.dto.UnbilledTimeEntryDto> entries = invoiceService.getUnbilledTimeEntries(clientId, engagementId, startDate, endDate);
+        return ResponseEntity.ok(ApiResponse.success("Unbilled time entries retrieved successfully", entries));
+    }
+
+    @GetMapping("/receivables")
+    @PreAuthorize("hasAuthority('BILLING_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Practice receivables and aging summary", description = "Retrieves total practice receivables, collections, outstanding balances, and aging breakdown (Current, 1-30, 31-60, 60+ days).")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.billing.dto.ReceivablesSummaryDto>> getReceivablesSummary(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) UUID locationId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) UUID clientId) {
+        com.taxoryn.module.billing.dto.ReceivablesSummaryDto summary = invoiceService.getReceivablesSummary(locationId, clientId);
+        return ResponseEntity.ok(ApiResponse.success("Receivables summary retrieved successfully", summary));
+    }
+
     @PostMapping("/seed-demo")
     @PreAuthorize("hasAuthority('BILLING_CREATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Seed demo practice invoices", description = "Generates sample practice tax invoices for testing and demo.")
@@ -171,7 +203,7 @@ public class InvoiceController {
     // 3. Client History & Executive Dashboard
     // =========================================================================
 
-    @GetMapping("/clients/{clientId}/history")
+    @GetMapping({"/clients/{clientId}/history", "/clients/{clientId}/billing"})
     @PreAuthorize("hasAuthority('BILLING_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Client billing history & outstanding summary", description = "Retrieves complete invoice ledger, total billed, total paid, and outstanding balance for a specific client.")
     public ResponseEntity<ApiResponse<ClientBillingHistoryDto>> getClientBillingHistory(@PathVariable UUID clientId) {

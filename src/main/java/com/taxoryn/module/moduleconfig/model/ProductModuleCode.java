@@ -20,6 +20,7 @@ public enum ProductModuleCode {
     TAX_NOTICES,
     TAX_NOTICE_MANAGEMENT,
     BILLING,
+    BILLING_PRACTICE_OPERATIONS,
     REPORTS,
     MARKETPLACE
 }

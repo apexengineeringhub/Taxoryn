@@ -18,6 +18,12 @@ public interface InvoicePaymentRepository extends JpaRepository<InvoicePaymentEn
 
     long countByOrganizationIdAndPaymentDateNotNullAndAmountNotNull(UUID organizationId);
 
+    long countByOrganizationId(UUID organizationId);
+
+    boolean existsByOrganizationIdAndReceiptNumber(UUID organizationId, String receiptNumber);
+
+    List<InvoicePaymentEntity> findAllByOrganizationIdAndLocationId(UUID organizationId, UUID locationId);
+
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.amount), 0) FROM InvoicePaymentEntity p WHERE p.organizationId = :organizationId AND p.paymentDate >= :sinceDate AND p.amount IS NOT NULL")
     java.math.BigDecimal sumAmountByOrganizationIdAndPaymentDateAfterOrEqual(
             @org.springframework.data.repository.query.Param("organizationId") UUID organizationId,

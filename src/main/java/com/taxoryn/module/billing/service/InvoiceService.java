@@ -44,4 +44,10 @@ public interface InvoiceService {
     void sendInvoiceReminder(UUID invoiceId);
 
     List<InvoiceDto> seedDemoInvoices();
+
+    InvoiceDto generateInvoiceFromTimeEntries(com.taxoryn.module.billing.dto.GenerateInvoiceFromTimeEntriesRequest request);
+
+    List<com.taxoryn.module.billing.dto.UnbilledTimeEntryDto> getUnbilledTimeEntries(UUID clientId, UUID engagementId, java.time.LocalDate startDate, java.time.LocalDate endDate);
+
+    com.taxoryn.module.billing.dto.ReceivablesSummaryDto getReceivablesSummary(UUID locationId, UUID clientId);
 }

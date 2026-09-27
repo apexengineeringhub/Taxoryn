@@ -37,6 +37,7 @@ public class InvoiceDto {
     private LocalDate dueDate;
 
     private BigDecimal subtotal;
+    private BigDecimal discount;
     private BigDecimal tax;
     private BigDecimal total;
     private BigDecimal paidAmount;

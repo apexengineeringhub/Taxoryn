@@ -128,6 +128,7 @@ public class ClientServiceImpl implements ClientService {
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final com.taxoryn.module.gst.repository.GstRegistrationRepository gstRegistrationRepository;
     private final com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
+    private final com.taxoryn.module.billing.service.InvoiceService invoiceService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public ClientServiceImpl(
@@ -163,7 +164,8 @@ public class ClientServiceImpl implements ClientService {
             TaskMapper taskMapper,
             com.taxoryn.module.audit.service.AuditService auditService,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.gst.repository.GstRegistrationRepository gstRegistrationRepository,
-            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) @org.springframework.context.annotation.Lazy com.taxoryn.module.billing.service.InvoiceService invoiceService
     ) {
         this.clientRepository = clientRepository;
         this.clientNoteRepository = clientNoteRepository;
@@ -198,6 +200,7 @@ public class ClientServiceImpl implements ClientService {
         this.auditService = auditService;
         this.gstRegistrationRepository = gstRegistrationRepository;
         this.moduleConfigurationService = moduleConfigurationService;
+        this.invoiceService = invoiceService;
     }
 
     public ClientServiceImpl(
@@ -240,7 +243,7 @@ public class ClientServiceImpl implements ClientService {
                 itrReturnRepository, tdsProfileRepository, tdsReturnRepository, documentRepository,
                 documentRequestRepository, invoiceRepository, auditLogRepository, clientLocationAssignmentRepository,
                 clientUserAssignmentRepository, clientServiceRepository, locationRepository, userLocationRepository,
-                clientMapper, taskMapper, auditService, null, null);
+                clientMapper, taskMapper, auditService, null, null, null);
     }
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
@@ -1493,6 +1496,17 @@ public class ClientServiceImpl implements ClientService {
             }).collect(Collectors.toList());
         }
 
+        com.taxoryn.module.billing.dto.ClientBillingHistoryDto billingHistory = null;
+        if (moduleConfigurationService != null && moduleConfigurationService.isModuleEnabled(organizationId, com.taxoryn.module.moduleconfig.model.ProductModuleCode.BILLING)) {
+            if (invoiceService != null) {
+                try {
+                    billingHistory = invoiceService.getClientBillingHistory(clientId);
+                } catch (Exception ex) {
+                    log.debug("Could not load billing history for client {}: {}", clientId, ex.getMessage());
+                }
+            }
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1504,6 +1518,7 @@ public class ClientServiceImpl implements ClientService {
                 .itrProfile(itrProfileDto)
                 .tdsProfile(tdsProfileDto)
                 .taxNotices(taxNoticeDtos)
+                .billing(billingHistory)
                 .status(client.getStatus())
                 .build();
     }

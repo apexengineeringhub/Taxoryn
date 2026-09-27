@@ -36,6 +36,9 @@ public class InvoiceItemEntity extends BaseEntity {
     @Column(name = "time_entry_id")
     private java.util.UUID timeEntryId;
 
+    @Column(name = "service_id")
+    private java.util.UUID serviceId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "service", nullable = false, length = 50)
     @Builder.Default

@@ -9,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +45,12 @@ public class CreateInvoiceRequest {
     @NotNull(message = "Due date is required")
     @Schema(description = "Payment due date", example = "2026-09-05")
     private LocalDate dueDate;
+
+    @Schema(description = "Discount amount", example = "0.00")
+    private BigDecimal discount;
+
+    @Schema(description = "Invoice status (DRAFT or ISSUED)", example = "DRAFT")
+    private com.taxoryn.module.billing.entity.InvoiceEntity.InvoiceStatus status;
 
     @NotEmpty(message = "Invoice must contain at least one line item")
     @Valid

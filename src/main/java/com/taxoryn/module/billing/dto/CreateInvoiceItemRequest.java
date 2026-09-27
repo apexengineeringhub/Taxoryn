@@ -28,6 +28,9 @@ public class CreateInvoiceItemRequest {
     @Schema(description = "Linked Time Entry ID")
     private java.util.UUID timeEntryId;
 
+    @Schema(description = "Linked Service ID")
+    private java.util.UUID serviceId;
+
     @Schema(description = "Description of professional services rendered", example = "GSTR-1 & GSTR-3B preparation and filing for August 2026")
     private String description;
 

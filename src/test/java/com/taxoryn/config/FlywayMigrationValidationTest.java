@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(98);
+        assertThat(allMigrations.length).isEqualTo(99);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -314,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(98);
+        assertThat(all).hasSize(99);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -459,5 +459,23 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_id UUID");
         assertThat(sql).contains("ALTER TABLE work_items");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS notice_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V99 migration script contents for practice billing operations foundation")
+    void testV99MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v99Resource = resolver.getResource("classpath:db/migration/V99__practice_billing_operations_foundation.sql");
+
+        assertThat(v99Resource.exists()).isTrue();
+        String sql = new String(v99Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE invoices");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount NUMERIC(15, 2)");
+        assertThat(sql).contains("ALTER TABLE invoice_payments");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS receipt_number VARCHAR(100)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ALTER TABLE invoice_items");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS service_id UUID");
     }
 }

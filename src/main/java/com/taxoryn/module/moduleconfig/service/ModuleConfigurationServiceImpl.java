@@ -65,6 +65,21 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         return isModuleEnabled(currentOrgId, moduleCode);
     }
 
+    private ProductModuleCode canonicalizeModuleCode(ProductModuleCode moduleCode) {
+        if (moduleCode == ProductModuleCode.GST_COMPLIANCE) {
+            return ProductModuleCode.GST;
+        } else if (moduleCode == ProductModuleCode.ITR_COMPLIANCE) {
+            return ProductModuleCode.ITR;
+        } else if (moduleCode == ProductModuleCode.TDS_COMPLIANCE) {
+            return ProductModuleCode.TDS;
+        } else if (moduleCode == ProductModuleCode.TAX_NOTICE_MANAGEMENT) {
+            return ProductModuleCode.TAX_NOTICES;
+        } else if (moduleCode == ProductModuleCode.BILLING_PRACTICE_OPERATIONS) {
+            return ProductModuleCode.BILLING;
+        }
+        return moduleCode;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public boolean isModuleEnabled(UUID organizationId, ProductModuleCode moduleCode) {
@@ -72,16 +87,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             return false;
         }
 
-        ProductModuleCode effectiveCode = moduleCode;
-        if (moduleCode == ProductModuleCode.GST_COMPLIANCE) {
-            effectiveCode = ProductModuleCode.GST;
-        } else if (moduleCode == ProductModuleCode.ITR_COMPLIANCE) {
-            effectiveCode = ProductModuleCode.ITR;
-        } else if (moduleCode == ProductModuleCode.TDS_COMPLIANCE) {
-            effectiveCode = ProductModuleCode.TDS;
-        } else if (moduleCode == ProductModuleCode.TAX_NOTICE_MANAGEMENT) {
-            effectiveCode = ProductModuleCode.TAX_NOTICES;
-        }
+        ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
 
         // 1. Check Subscription Plan Entitlement Gate
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
@@ -100,7 +106,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         }
 
         // 3. Fall back to catalog default
-        return productModuleRepository.findByCode(moduleCode)
+        return productModuleRepository.findByCode(effectiveCode)
                 .map(ProductModuleEntity::isEnabledByDefault)
                 .orElse(true);
     }
@@ -152,11 +158,12 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             throw new ResourceNotFoundException("Organization", "id", organizationId);
         }
 
-        ProductModuleEntity catalogModule = productModuleRepository.findByCode(moduleCode)
-                .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", moduleCode));
+        ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
+        ProductModuleEntity catalogModule = productModuleRepository.findByCode(effectiveCode)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", effectiveCode));
 
         Optional<OrganizationModuleEntity> configOpt = organizationModuleRepository
-                .findByOrganizationIdAndModuleCode(organizationId, moduleCode);
+                .findByOrganizationIdAndModuleCode(organizationId, effectiveCode);
 
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
 
@@ -172,21 +179,22 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             throw new ResourceNotFoundException("Organization", "id", organizationId);
         }
 
-        ProductModuleEntity catalogModule = productModuleRepository.findByCode(moduleCode)
-                .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", moduleCode));
+        ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
+        ProductModuleEntity catalogModule = productModuleRepository.findByCode(effectiveCode)
+                .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", effectiveCode));
 
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
 
         // Enforce: Organization cannot enable a module not included in its plan entitlement
         if (enabled && subscription != null) {
-            if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), moduleCode.name())) {
-                throw new BusinessValidationException("Cannot enable module " + moduleCode.name() +
+            if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), effectiveCode.name())) {
+                throw new BusinessValidationException("Cannot enable module " + effectiveCode.name() +
                         " because it is not included in current subscription plan (" + subscription.getPlan().name() + "). Please upgrade your subscription first.");
             }
         }
 
         Optional<OrganizationModuleEntity> existingOpt = organizationModuleRepository
-                .findByOrganizationIdAndModuleCode(organizationId, moduleCode);
+                .findByOrganizationIdAndModuleCode(organizationId, effectiveCode);
 
         boolean previousEnabled;
         OrganizationModuleEntity entity;
