@@ -284,7 +284,7 @@ class CrossModuleScopeSecurityIntegrationTest {
         tdsService = new TdsServiceImpl(
                 tdsProfileRepository, tdsReturnRepository, tdsChallanRepository,
                 tdsDeducteeEntryRepository, tdsCertificateRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 documentRequestService, documentRepository, documentMapper,

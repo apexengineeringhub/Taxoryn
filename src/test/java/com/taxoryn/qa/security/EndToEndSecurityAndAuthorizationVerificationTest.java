@@ -407,7 +407,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
         tdsService = new TdsServiceImpl(
                 tdsProfileRepository, tdsReturnRepository, tdsChallanRepository,
                 tdsDeducteeEntryRepository, tdsCertificateRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 null, documentRepository, documentMapper,

@@ -131,6 +131,27 @@ class ClientServiceTest {
     @Mock
     private com.taxoryn.module.audit.repository.AuditLogRepository auditLogRepository;
 
+    @Mock
+    private com.taxoryn.module.client.repository.ClientLocationAssignmentRepository clientLocationAssignmentRepository;
+
+    @Mock
+    private com.taxoryn.module.client.repository.ClientUserAssignmentRepository clientUserAssignmentRepository;
+
+    @Mock
+    private com.taxoryn.module.client.repository.ClientServiceRepository clientServiceRepository;
+
+    @Mock
+    private com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+
+    @Mock
+    private com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository;
+
+    @Mock
+    private com.taxoryn.module.gst.repository.GstRegistrationRepository gstRegistrationRepository;
+
+    @Mock
+    private com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
+
     @InjectMocks
     private ClientServiceImpl clientService;
 

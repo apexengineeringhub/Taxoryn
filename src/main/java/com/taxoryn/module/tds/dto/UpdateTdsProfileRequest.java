@@ -19,6 +19,12 @@ import java.util.UUID;
 @Schema(description = "Request to update an existing TAN Deductor Profile")
 public class UpdateTdsProfileRequest {
 
+    @Schema(description = "Operating Location / Branch ID")
+    private UUID locationId;
+
+    @Schema(description = "Whether profile is active", example = "true")
+    private Boolean active;
+
     @Schema(description = "Constitution of Deductor", example = "COMPANY")
     private DeductorType deductorType;
 

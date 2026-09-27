@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(96);
+        assertThat(allMigrations.length).isEqualTo(97);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -314,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(96);
+        assertThat(all).hasSize(97);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -425,5 +425,23 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS itr_profile_id UUID");
         assertThat(sql).contains("ALTER TABLE compliance_workflows");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS itr_profile_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V97 migration script contents for TDS compliance workspace foundation")
+    void testV97MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v97Resource = resolver.getResource("classpath:db/migration/V97__tds_compliance_workspace_foundation.sql");
+
+        assertThat(v97Resource.exists()).isTrue();
+        String sql = new String(v97Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE tds_profiles");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE");
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS tds_profile_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS tds_profile_id UUID");
     }
 }

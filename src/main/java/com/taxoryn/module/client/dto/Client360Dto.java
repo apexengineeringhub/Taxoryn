@@ -40,6 +40,9 @@ public class Client360Dto {
     @Schema(description = "Client ITR profile (when ITR module is enabled)")
     private com.taxoryn.module.itr.dto.ItrProfileDto itrProfile;
 
+    @Schema(description = "Client TDS profile (when TDS module is enabled)")
+    private com.taxoryn.module.tds.dto.TdsProfileDto tdsProfile;
+
     @Schema(description = "Client lifecycle status")
     private ClientStatus status;
 }

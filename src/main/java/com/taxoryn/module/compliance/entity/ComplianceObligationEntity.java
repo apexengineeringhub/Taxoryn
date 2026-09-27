@@ -104,6 +104,9 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "itr_profile_id")
     private UUID itrProfileId;
 
+    @Column(name = "tds_profile_id")
+    private UUID tdsProfileId;
+
     @Column(name = "task_id")
     private UUID taskId;
 

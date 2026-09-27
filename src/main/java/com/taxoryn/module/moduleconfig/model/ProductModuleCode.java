@@ -16,6 +16,7 @@ public enum ProductModuleCode {
     ITR,
     ITR_COMPLIANCE,
     TDS,
+    TDS_COMPLIANCE,
     TAX_NOTICES,
     BILLING,
     REPORTS,

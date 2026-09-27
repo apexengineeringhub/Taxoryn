@@ -73,6 +73,9 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
     @Column(name = "itr_profile_id")
     private UUID itrProfileId;
 
+    @Column(name = "tds_profile_id")
+    private UUID tdsProfileId;
+
     @Column(name = "workflow_type", length = 50)
     private String workflowType;
 

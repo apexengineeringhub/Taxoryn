@@ -1397,6 +1397,48 @@ public class ClientServiceImpl implements ClientService {
                     .orElse(null);
         }
 
+        com.taxoryn.module.tds.dto.TdsProfileDto tdsProfileDto = null;
+        if (tdsProfileRepository != null && (moduleConfigurationService == null || moduleConfigurationService.isModuleEnabled(organizationId, com.taxoryn.module.moduleconfig.model.ProductModuleCode.TDS_COMPLIANCE))) {
+            tdsProfileDto = tdsProfileRepository.findByOrganizationIdAndClientId(organizationId, clientId)
+                    .map(p -> {
+                        String locName = p.getLocationId() != null
+                                ? locationRepository.findByIdAndOrganizationId(p.getLocationId(), organizationId).map(com.taxoryn.module.organization.entity.LocationEntity::getName).orElse(null)
+                                : null;
+                        String empName = p.getAssignedEmployeeId() != null
+                                ? employeeRepository.findByIdAndOrganizationId(p.getAssignedEmployeeId(), organizationId).map(com.taxoryn.module.employee.entity.EmployeeEntity::getFullName).orElse(null)
+                                : null;
+                        return com.taxoryn.module.tds.dto.TdsProfileDto.builder()
+                                .id(p.getId())
+                                .clientId(p.getClientId())
+                                .clientName(client.getDisplayName())
+                                .locationId(p.getLocationId())
+                                .locationName(locName)
+                                .tan(p.getTan())
+                                .active(p.isActive())
+                                .deductorType(p.getDeductorType())
+                                .branchDivisionName(p.getBranchDivisionName())
+                                .paCode(p.getPaCode())
+                                .ddoCode(p.getDdoCode())
+                                .ministryName(p.getMinistryName())
+                                .responsiblePersonName(p.getResponsiblePersonName())
+                                .responsiblePersonPan(p.getResponsiblePersonPan())
+                                .responsiblePersonDesignation(p.getResponsiblePersonDesignation())
+                                .responsiblePersonFatherName(p.getResponsiblePersonFatherName())
+                                .responsiblePersonEmail(p.getResponsiblePersonEmail())
+                                .responsiblePersonMobile(p.getResponsiblePersonMobile())
+                                .responsiblePersonAddress(p.getResponsiblePersonAddress())
+                                .assignedEmployeeId(p.getAssignedEmployeeId())
+                                .assignedEmployeeName(empName)
+                                .status(p.getStatus())
+                                .tracesUsername(p.getTracesUsername())
+                                .tracesStatus(p.getTracesStatus())
+                                .createdAt(p.getCreatedAt())
+                                .updatedAt(p.getUpdatedAt())
+                                .build();
+                    })
+                    .orElse(null);
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1406,6 +1448,7 @@ public class ClientServiceImpl implements ClientService {
                 .services(services)
                 .gstRegistrations(gstRegistrations)
                 .itrProfile(itrProfileDto)
+                .tdsProfile(tdsProfileDto)
                 .status(client.getStatus())
                 .build();
     }

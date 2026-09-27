@@ -28,8 +28,17 @@ public class TdsProfileDto {
     @Schema(description = "Client Display Name")
     private String clientName;
 
+    @Schema(description = "Location / branch ID")
+    private UUID locationId;
+
+    @Schema(description = "Location / branch name")
+    private String locationName;
+
     @Schema(description = "Tax Deduction and Collection Account Number (TAN)", example = "BLRP12345A")
     private String tan;
+
+    @Schema(description = "Whether profile is active", example = "true")
+    private boolean active;
 
     @Schema(description = "Constitution of Deductor", example = "COMPANY")
     private DeductorType deductorType;
