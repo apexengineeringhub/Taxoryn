@@ -30,3 +30,9 @@ CREATE INDEX IF NOT EXISTS idx_tax_notices_org_client_status ON tax_notices(orga
 
 -- 7. Billing Profiles Multi-Tenant Lookup Index
 CREATE INDEX IF NOT EXISTS idx_billing_profiles_org_client_active ON billing_profiles(organization_id, client_id, active);
+
+-- 8. Missing Optimistic Locking Version Columns for Tenant Auditable Entities
+ALTER TABLE client_location_assignments ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE client_user_assignments ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE gst_registrations ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
+

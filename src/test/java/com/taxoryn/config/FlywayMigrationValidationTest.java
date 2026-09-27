@@ -498,4 +498,24 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_value NUMERIC(15, 2)");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(15, 2)");
     }
+
+    @Test
+    @DisplayName("Verify V101 migration script contents for stage 2 performance hardening indexes and schema corrections")
+    void testV101MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v101Resource = resolver.getResource("classpath:db/migration/V101__stage2_performance_hardening_indexes.sql");
+
+        assertThat(v101Resource.exists()).isTrue();
+        String sql = new String(v101Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_clients_org_loc_status");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_compliance_org_status_due");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_work_items_org_status_due");
+        assertThat(sql).contains("ALTER TABLE client_location_assignments");
+        assertThat(sql).contains("ALTER TABLE client_user_assignments");
+        assertThat(sql).contains("ALTER TABLE gst_registrations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0");
+    }
 }
+
+
