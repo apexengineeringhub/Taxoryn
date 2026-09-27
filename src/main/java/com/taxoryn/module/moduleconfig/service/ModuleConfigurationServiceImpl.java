@@ -72,17 +72,19 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             return false;
         }
 
+        ProductModuleCode effectiveCode = (moduleCode == ProductModuleCode.GST_COMPLIANCE) ? ProductModuleCode.GST : moduleCode;
+
         // 1. Check Subscription Plan Entitlement Gate
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
         if (subscription != null) {
-            if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), moduleCode.name())) {
+            if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), effectiveCode.name())) {
                 return false;
             }
         }
 
         // 2. Check if an explicit organization configuration exists
         Optional<OrganizationModuleEntity> configOpt = organizationModuleRepository
-                .findByOrganizationIdAndModuleCode(organizationId, moduleCode);
+                .findByOrganizationIdAndModuleCode(organizationId, effectiveCode);
 
         if (configOpt.isPresent()) {
             return configOpt.get().isEnabled();

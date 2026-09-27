@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(94);
+        assertThat(allMigrations.length).isEqualTo(95);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -167,6 +167,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v94 = infoService.all()[93];
         assertThat(v94.getVersion().getVersion()).isEqualTo("94");
         assertThat(v94.getDescription()).isEqualTo("engagement time tracking billing foundation");
+
+        MigrationInfo v95 = infoService.all()[94];
+        assertThat(v95.getVersion().getVersion()).isEqualTo("95");
+        assertThat(v95.getDescription()).isEqualTo("gst compliance workspace foundation");
     }
 
     @Test
@@ -310,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(94);
+        assertThat(all).hasSize(95);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -386,5 +390,21 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS work_item_id UUID");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS notes TEXT");
+    }
+
+    @Test
+    @DisplayName("Verify V95 migration script contents for GST compliance workspace foundation")
+    void testV95MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v95Resource = resolver.getResource("classpath:db/migration/V95__gst_compliance_workspace_foundation.sql");
+
+        assertThat(v95Resource.exists()).isTrue();
+        String sql = new String(v95Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gst_registrations");
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS gst_registration_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS gst_registration_id UUID");
     }
 }

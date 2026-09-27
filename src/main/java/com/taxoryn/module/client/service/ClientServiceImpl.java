@@ -93,7 +93,6 @@ import jakarta.persistence.criteria.Subquery;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ClientServiceImpl implements ClientService {
 
     private final ClientRepository clientRepository;
@@ -127,6 +126,122 @@ public class ClientServiceImpl implements ClientService {
     private final ClientMapper clientMapper;
     private final TaskMapper taskMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+    private final com.taxoryn.module.gst.repository.GstRegistrationRepository gstRegistrationRepository;
+    private final com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ClientServiceImpl(
+            ClientRepository clientRepository,
+            ClientNoteRepository clientNoteRepository,
+            EmployeeRepository employeeRepository,
+            TaskRepository taskRepository,
+            UserRepository userRepository,
+            RoleRepository roleRepository,
+            OrganizationRepository organizationRepository,
+            OrganizationActivationTokenRepository organizationActivationTokenRepository,
+            RefreshTokenRepository refreshTokenRepository,
+            EmailNotificationService emailNotificationService,
+            com.taxoryn.module.subscription.service.SubscriptionService subscriptionService,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            TaxNoticeRepository noticeRepository,
+            GstProfileRepository gstProfileRepository,
+            GstReturnFilingRepository gstFilingRepository,
+            ItrProfileRepository itrProfileRepository,
+            ItrReturnRepository itrReturnRepository,
+            TdsProfileRepository tdsProfileRepository,
+            TdsReturnRepository tdsReturnRepository,
+            DocumentRepository documentRepository,
+            DocumentRequestRepository documentRequestRepository,
+            InvoiceRepository invoiceRepository,
+            AuditLogRepository auditLogRepository,
+            com.taxoryn.module.client.repository.ClientLocationAssignmentRepository clientLocationAssignmentRepository,
+            com.taxoryn.module.client.repository.ClientUserAssignmentRepository clientUserAssignmentRepository,
+            com.taxoryn.module.client.repository.ClientServiceRepository clientServiceRepository,
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository,
+            ClientMapper clientMapper,
+            TaskMapper taskMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.gst.repository.GstRegistrationRepository gstRegistrationRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService
+    ) {
+        this.clientRepository = clientRepository;
+        this.clientNoteRepository = clientNoteRepository;
+        this.employeeRepository = employeeRepository;
+        this.taskRepository = taskRepository;
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.organizationRepository = organizationRepository;
+        this.organizationActivationTokenRepository = organizationActivationTokenRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.emailNotificationService = emailNotificationService;
+        this.subscriptionService = subscriptionService;
+        this.securityScopeEvaluator = securityScopeEvaluator;
+        this.noticeRepository = noticeRepository;
+        this.gstProfileRepository = gstProfileRepository;
+        this.gstFilingRepository = gstFilingRepository;
+        this.itrProfileRepository = itrProfileRepository;
+        this.itrReturnRepository = itrReturnRepository;
+        this.tdsProfileRepository = tdsProfileRepository;
+        this.tdsReturnRepository = tdsReturnRepository;
+        this.documentRepository = documentRepository;
+        this.documentRequestRepository = documentRequestRepository;
+        this.invoiceRepository = invoiceRepository;
+        this.auditLogRepository = auditLogRepository;
+        this.clientLocationAssignmentRepository = clientLocationAssignmentRepository;
+        this.clientUserAssignmentRepository = clientUserAssignmentRepository;
+        this.clientServiceRepository = clientServiceRepository;
+        this.locationRepository = locationRepository;
+        this.userLocationRepository = userLocationRepository;
+        this.clientMapper = clientMapper;
+        this.taskMapper = taskMapper;
+        this.auditService = auditService;
+        this.gstRegistrationRepository = gstRegistrationRepository;
+        this.moduleConfigurationService = moduleConfigurationService;
+    }
+
+    public ClientServiceImpl(
+            ClientRepository clientRepository,
+            ClientNoteRepository clientNoteRepository,
+            EmployeeRepository employeeRepository,
+            TaskRepository taskRepository,
+            UserRepository userRepository,
+            RoleRepository roleRepository,
+            OrganizationRepository organizationRepository,
+            OrganizationActivationTokenRepository organizationActivationTokenRepository,
+            RefreshTokenRepository refreshTokenRepository,
+            EmailNotificationService emailNotificationService,
+            com.taxoryn.module.subscription.service.SubscriptionService subscriptionService,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            TaxNoticeRepository noticeRepository,
+            GstProfileRepository gstProfileRepository,
+            GstReturnFilingRepository gstFilingRepository,
+            ItrProfileRepository itrProfileRepository,
+            ItrReturnRepository itrReturnRepository,
+            TdsProfileRepository tdsProfileRepository,
+            TdsReturnRepository tdsReturnRepository,
+            DocumentRepository documentRepository,
+            DocumentRequestRepository documentRequestRepository,
+            InvoiceRepository invoiceRepository,
+            AuditLogRepository auditLogRepository,
+            com.taxoryn.module.client.repository.ClientLocationAssignmentRepository clientLocationAssignmentRepository,
+            com.taxoryn.module.client.repository.ClientUserAssignmentRepository clientUserAssignmentRepository,
+            com.taxoryn.module.client.repository.ClientServiceRepository clientServiceRepository,
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            com.taxoryn.module.user.repository.UserLocationRepository userLocationRepository,
+            ClientMapper clientMapper,
+            TaskMapper taskMapper,
+            com.taxoryn.module.audit.service.AuditService auditService
+    ) {
+        this(clientRepository, clientNoteRepository, employeeRepository, taskRepository,
+                userRepository, roleRepository, organizationRepository, organizationActivationTokenRepository,
+                refreshTokenRepository, emailNotificationService, subscriptionService, securityScopeEvaluator,
+                noticeRepository, gstProfileRepository, gstFilingRepository, itrProfileRepository,
+                itrReturnRepository, tdsProfileRepository, tdsReturnRepository, documentRepository,
+                documentRequestRepository, invoiceRepository, auditLogRepository, clientLocationAssignmentRepository,
+                clientUserAssignmentRepository, clientServiceRepository, locationRepository, userLocationRepository,
+                clientMapper, taskMapper, auditService, null, null);
+    }
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
@@ -1229,6 +1344,34 @@ public class ClientServiceImpl implements ClientService {
             }
         }
 
+        List<com.taxoryn.module.gst.dto.GstRegistrationDto> gstRegistrations = null;
+        if (gstRegistrationRepository != null && (moduleConfigurationService == null || moduleConfigurationService.isModuleEnabled(organizationId, com.taxoryn.module.moduleconfig.model.ProductModuleCode.GST))) {
+            gstRegistrations = gstRegistrationRepository.findAllByOrganizationIdAndClientId(organizationId, clientId).stream()
+                    .map(reg -> com.taxoryn.module.gst.dto.GstRegistrationDto.builder()
+                            .id(reg.getId())
+                            .organizationId(reg.getOrganizationId())
+                            .clientId(reg.getClientId())
+                            .locationId(reg.getLocationId())
+                            .gstin(reg.getGstin())
+                            .legalName(reg.getLegalName())
+                            .tradeName(reg.getTradeName())
+                            .registrationType(reg.getRegistrationType())
+                            .registrationStatus(reg.getRegistrationStatus())
+                            .registrationDate(reg.getRegistrationDate())
+                            .stateCode(reg.getStateCode())
+                            .jurisdiction(reg.getJurisdiction())
+                            .filingFrequency(reg.getFilingFrequency())
+                            .effectiveFrom(reg.getEffectiveFrom())
+                            .effectiveTo(reg.getEffectiveTo())
+                            .active(reg.isActive())
+                            .createdAt(reg.getCreatedAt())
+                            .updatedAt(reg.getUpdatedAt())
+                            .createdBy(reg.getCreatedBy())
+                            .updatedBy(reg.getUpdatedBy())
+                            .build())
+                    .collect(Collectors.toList());
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1236,6 +1379,7 @@ public class ClientServiceImpl implements ClientService {
                 .locations(locations)
                 .assignedUsers(users)
                 .services(services)
+                .gstRegistrations(gstRegistrations)
                 .status(client.getStatus())
                 .build();
     }

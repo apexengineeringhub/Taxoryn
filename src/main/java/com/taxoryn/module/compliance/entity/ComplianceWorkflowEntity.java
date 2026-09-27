@@ -67,6 +67,9 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
     @Column(name = "location_id")
     private UUID locationId;
 
+    @Column(name = "gst_registration_id")
+    private UUID gstRegistrationId;
+
     @Column(name = "workflow_type", length = 50)
     private String workflowType;
 

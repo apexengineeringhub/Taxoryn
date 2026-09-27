@@ -34,6 +34,9 @@ public class Client360Dto {
     @Schema(description = "Active and configured service engagements")
     private List<ClientServiceDto> services;
 
+    @Schema(description = "Client GST registrations (when GST module is enabled)")
+    private List<com.taxoryn.module.gst.dto.GstRegistrationDto> gstRegistrations;
+
     @Schema(description = "Client lifecycle status")
     private ClientStatus status;
 }

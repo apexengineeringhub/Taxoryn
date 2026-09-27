@@ -12,6 +12,7 @@ public enum ProductModuleCode {
     NOTIFICATIONS,
     AUDIT,
     GST,
+    GST_COMPLIANCE,
     ITR,
     TDS,
     TAX_NOTICES,
