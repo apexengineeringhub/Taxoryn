@@ -848,9 +848,12 @@ public class DashboardServiceImpl implements DashboardService {
         Set<UUID> locationIds;
         if (filter.getLocationId() != null) {
             UUID reqLocId = filter.getLocationId();
+            if (locationRepository.findByIdAndOrganizationId(reqLocId, organizationId).isEmpty()) {
+                throw new ResourceNotFoundException("Location", "id", reqLocId);
+            }
             if (!scope.isFirmAdmin()) {
                 Set<UUID> permittedLocs = scope.getAccessibleLocationIds();
-                if (permittedLocs == null || !permittedLocs.isEmpty() && !permittedLocs.contains(reqLocId)) {
+                if (permittedLocs == null || (!permittedLocs.isEmpty() && !permittedLocs.contains(reqLocId))) {
                     throw new ForbiddenException("Access denied: You do not have permission for location " + reqLocId);
                 }
             }
