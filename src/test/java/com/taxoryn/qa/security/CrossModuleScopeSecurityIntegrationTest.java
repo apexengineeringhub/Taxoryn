@@ -54,6 +54,7 @@ import com.taxoryn.module.notice.service.TaxNoticeServiceImpl;
 import com.taxoryn.module.notification.service.NotificationService;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationType;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.portal.entity.ClientNotificationEntity;
 import com.taxoryn.module.portal.mapper.ClientPortalMapper;
@@ -135,6 +136,7 @@ class CrossModuleScopeSecurityIntegrationTest {
     @Mock private NotificationService notificationService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private OrganizationRepository organizationRepository;
+    @Mock private LocationRepository locationRepository;
     @Mock private com.taxoryn.module.compliance.repository.ComplianceObligationRepository complianceObligationRepository;
     @Mock private com.taxoryn.module.compliance.repository.ComplianceRuleRepository complianceRuleRepository;
 
@@ -272,7 +274,7 @@ class CrossModuleScopeSecurityIntegrationTest {
 
         itrService = new ItrServiceImpl(
                 itrProfileRepository, itrReturnRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 documentRequestService, documentRepository, documentMapper,

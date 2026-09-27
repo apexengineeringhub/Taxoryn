@@ -37,6 +37,9 @@ public class Client360Dto {
     @Schema(description = "Client GST registrations (when GST module is enabled)")
     private List<com.taxoryn.module.gst.dto.GstRegistrationDto> gstRegistrations;
 
+    @Schema(description = "Client ITR profile (when ITR module is enabled)")
+    private com.taxoryn.module.itr.dto.ItrProfileDto itrProfile;
+
     @Schema(description = "Client lifecycle status")
     private ClientStatus status;
 }

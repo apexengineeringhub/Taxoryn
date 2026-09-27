@@ -76,6 +76,7 @@ import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import com.taxoryn.module.notification.service.NotificationService;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationType;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.portal.entity.ClientPortalMessageEntity;
 import com.taxoryn.module.portal.mapper.ClientPortalMapper;
@@ -188,6 +189,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
     @Mock private EmployeeRepository employeeRepository;
     @Mock private UserRepository userRepository;
     @Mock private OrganizationRepository organizationRepository;
+    @Mock private LocationRepository locationRepository;
     @Mock private TaskRepository taskRepository;
     @Mock private AuditService auditService;
     @Mock private PracticeSecurityScopeEvaluator securityScopeEvaluator;
@@ -395,7 +397,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
 
         itrService = new ItrServiceImpl(
                 itrProfileRepository, itrReturnRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 null, documentRepository, documentMapper,

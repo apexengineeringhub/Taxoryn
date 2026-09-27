@@ -8,6 +8,7 @@ import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.employee.entity.EmployeeEntity;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.itr.dto.AssignItrEmployeeRequest;
 import com.taxoryn.module.itr.dto.BatchGenerateItrReturnsRequest;
 import com.taxoryn.module.itr.dto.BulkItrImportResultDto;
@@ -80,6 +81,7 @@ public class ItrServiceImpl implements ItrService {
     private final ItrProfileRepository itrProfileRepository;
     private final ItrReturnRepository itrReturnRepository;
     private final ClientRepository clientRepository;
+    private final LocationRepository locationRepository;
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final ComplianceObligationRepository complianceObligationRepository;
@@ -103,13 +105,32 @@ public class ItrServiceImpl implements ItrService {
     public ItrProfileDto createProfile(CreateItrProfileRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        String formattedPan = request.getPan().toUpperCase().trim();
+        String rawPan = request.getPan();
+        ClientEntity client = null;
+        if (request.getClientId() != null) {
+            client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+        }
+
+        if (!StringUtils.hasText(rawPan) && client != null && StringUtils.hasText(client.getPan())) {
+            rawPan = client.getPan();
+        }
+
+        if (!StringUtils.hasText(rawPan)) {
+            throw new IllegalArgumentException("PAN is required for ITR profile registration");
+        }
+
+        String formattedPan = rawPan.toUpperCase().trim();
         if (itrProfileRepository.existsByOrganizationIdAndPan(organizationId, formattedPan)) {
             throw new DuplicateResourceException("ITR Profile", "pan", formattedPan);
         }
 
-        ClientEntity client = resolveOrCreateClient(request.getClientId(), formattedPan, request.getDisplayName(), request.getLegalName(), request.getTaxpayerType(), organizationId);
-        validateClientAccess(client.getId());
+        if (client == null) {
+            client = resolveOrCreateClient(null, formattedPan, request.getDisplayName(), request.getLegalName(), request.getTaxpayerType(), organizationId);
+        }
+
+        UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
+        validateAccess(client.getId(), locationId);
 
         if (itrProfileRepository.existsByOrganizationIdAndClientId(organizationId, client.getId())) {
             throw new DuplicateResourceException("ITR Profile", "clientId", client.getId().toString());
@@ -120,13 +141,22 @@ public class ItrServiceImpl implements ItrService {
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
         }
 
+        ItrType formType = request.getApplicableReturnType() != null
+                ? request.getApplicableReturnType()
+                : (request.getDefaultItrType() != null ? request.getDefaultItrType() : ItrType.ITR_1);
+
         ItrProfileEntity profile = ItrProfileEntity.builder()
                 .clientId(client.getId())
+                .locationId(locationId)
                 .pan(formattedPan)
                 .taxpayerType(request.getTaxpayerType() != null ? request.getTaxpayerType() : mapClientTypeToTaxpayerType(client.getClientType()))
-                .defaultItrType(request.getDefaultItrType() != null ? request.getDefaultItrType() : ItrType.ITR_1)
+                .defaultItrType(formType)
+                .applicableReturnType(formType)
+                .defaultAssessmentYear(request.getDefaultAssessmentYear())
+                .assessmentCategory(request.getAssessmentCategory())
                 .residentialStatus(request.getResidentialStatus() != null ? request.getResidentialStatus() : ItrProfileEntity.ResidentialStatus.RESIDENT)
                 .assignedEmployeeId(request.getAssignedEmployeeId() != null ? request.getAssignedEmployeeId() : client.getAssignedEmployeeId())
+                .active(true)
                 .status(ItrProfileStatus.ACTIVE)
                 .build();
         profile.setOrganizationId(organizationId);
@@ -225,30 +255,56 @@ public class ItrServiceImpl implements ItrService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ItrProfileEntity profile = itrProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("ITR Profile", "id", id));
-        validateClientAccess(profile.getClientId());
+        validateAccess(profile.getClientId(), profile.getLocationId());
 
         ItrProfileDto oldSnapshot = enrichProfileDto(profile);
 
-        String newPan = request.getPan().toUpperCase().trim();
-        if (!newPan.equalsIgnoreCase(profile.getPan())
-                && itrProfileRepository.existsByOrganizationIdAndPan(organizationId, newPan)) {
-            throw new DuplicateResourceException("ITR Profile", "pan", newPan);
+        if (StringUtils.hasText(request.getPan())) {
+            String newPan = request.getPan().toUpperCase().trim();
+            if (!newPan.equalsIgnoreCase(profile.getPan())
+                    && itrProfileRepository.existsByOrganizationIdAndPan(organizationId, newPan)) {
+                throw new DuplicateResourceException("ITR Profile", "pan", newPan);
+            }
+            profile.setPan(newPan);
         }
 
-        if (request.getAssignedEmployeeId() != null) {
-            employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
+        if (request.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+            profile.setLocationId(request.getLocationId());
         }
 
-        profile.setPan(newPan);
-        profile.setTaxpayerType(request.getTaxpayerType());
-        profile.setDefaultItrType(request.getDefaultItrType());
+        if (request.getTaxpayerType() != null) {
+            profile.setTaxpayerType(request.getTaxpayerType());
+        }
+        if (request.getDefaultItrType() != null) {
+            profile.setDefaultItrType(request.getDefaultItrType());
+        }
+        if (request.getApplicableReturnType() != null) {
+            profile.setApplicableReturnType(request.getApplicableReturnType());
+            profile.setDefaultItrType(request.getApplicableReturnType());
+        }
+        if (request.getDefaultAssessmentYear() != null) {
+            profile.setDefaultAssessmentYear(request.getDefaultAssessmentYear());
+        }
+        if (request.getAssessmentCategory() != null) {
+            profile.setAssessmentCategory(request.getAssessmentCategory());
+        }
         if (request.getResidentialStatus() != null) {
             profile.setResidentialStatus(request.getResidentialStatus());
         }
-        profile.setAssignedEmployeeId(request.getAssignedEmployeeId());
+        if (request.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
+            profile.setAssignedEmployeeId(request.getAssignedEmployeeId());
+        }
+        if (request.getActive() != null) {
+            profile.setActive(request.getActive());
+            profile.setStatus(request.getActive() ? ItrProfileStatus.ACTIVE : ItrProfileStatus.INACTIVE);
+        }
         if (request.getStatus() != null) {
             profile.setStatus(request.getStatus());
+            profile.setActive(request.getStatus() == ItrProfileStatus.ACTIVE);
         }
 
         ItrProfileEntity saved = itrProfileRepository.save(profile);
@@ -1046,10 +1102,21 @@ public class ItrServiceImpl implements ItrService {
         clientRepository.findByIdAndOrganizationId(profile.getClientId(), profile.getOrganizationId())
                 .ifPresent(c -> dto.setClientName(c.getDisplayName()));
 
+        if (profile.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(profile.getLocationId(), profile.getOrganizationId())
+                    .ifPresent(loc -> dto.setLocationName(loc.getName()));
+        }
+
         if (profile.getAssignedEmployeeId() != null) {
             employeeRepository.findByIdAndOrganizationId(profile.getAssignedEmployeeId(), profile.getOrganizationId())
                     .ifPresent(e -> dto.setAssignedEmployeeName(e.getFullName()));
         }
+
+        dto.setLocationId(profile.getLocationId());
+        dto.setDefaultAssessmentYear(profile.getDefaultAssessmentYear());
+        dto.setAssessmentCategory(profile.getAssessmentCategory());
+        dto.setApplicableReturnType(profile.getEffectiveReturnType());
+        dto.setActive(profile.isActive());
         return dto;
     }
 
@@ -1378,15 +1445,26 @@ public class ItrServiceImpl implements ItrService {
     }
 
     private void validateClientAccess(UUID clientId) {
-        if (clientId == null) {
+        validateAccess(clientId, null);
+    }
+
+    private void validateAccess(UUID clientId, UUID locationId) {
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (scope == null || scope.isFirmAdmin()) {
             return;
         }
-        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-        if (scope != null && !scope.isFirmAdmin()) {
-            Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-            if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
-                throw new org.springframework.security.access.AccessDeniedException(
-                        "Access denied: You do not have permission to access records for this client.");
+
+        if (locationId != null) {
+            Set<UUID> accessibleLocs = scope.getAccessibleLocationIds();
+            if (accessibleLocs != null && !accessibleLocs.isEmpty() && !accessibleLocs.contains(locationId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission for this location");
+            }
+        }
+
+        if (clientId != null) {
+            Set<UUID> accessibleClients = securityScopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClients != null && !accessibleClients.contains(clientId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission for this client");
             }
         }
     }

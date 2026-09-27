@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(95);
+        assertThat(allMigrations.length).isEqualTo(96);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -314,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(95);
+        assertThat(all).hasSize(96);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -406,5 +406,24 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS gst_registration_id UUID");
         assertThat(sql).contains("ALTER TABLE compliance_workflows");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS gst_registration_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V96 migration script contents for ITR compliance workspace foundation")
+    void testV96MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v96Resource = resolver.getResource("classpath:db/migration/V96__itr_compliance_workspace_foundation.sql");
+
+        assertThat(v96Resource.exists()).isTrue();
+        String sql = new String(v96Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE itr_profiles");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS default_assessment_year VARCHAR(20)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS applicable_return_type VARCHAR(50)");
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS itr_profile_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS itr_profile_id UUID");
     }
 }

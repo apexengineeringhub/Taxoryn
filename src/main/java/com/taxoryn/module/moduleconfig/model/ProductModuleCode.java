@@ -14,6 +14,7 @@ public enum ProductModuleCode {
     GST,
     GST_COMPLIANCE,
     ITR,
+    ITR_COMPLIANCE,
     TDS,
     TAX_NOTICES,
     BILLING,

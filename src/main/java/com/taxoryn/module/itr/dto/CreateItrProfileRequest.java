@@ -24,8 +24,10 @@ public class CreateItrProfileRequest {
     @Schema(description = "Client ID to associate ITR profile with (optional if PAN is provided)")
     private UUID clientId;
 
-    @NotBlank(message = "PAN is required")
-    @Pattern(regexp = "^[A-Z]{5}[0-9]{4}[A-Z]{1}$", message = "Invalid PAN format (expected e.g. ABCDE1234F)")
+    @Schema(description = "Location ID for practice branch")
+    private UUID locationId;
+
+    @Pattern(regexp = "^$|^[A-Z]{5}[0-9]{4}[A-Z]{1}$", message = "Invalid PAN format (expected e.g. ABCDE1234F)")
     @JsonAlias({"clientPan", "panNumber"})
     @Schema(description = "Permanent Account Number (PAN)", example = "ABCPJ9876M")
     private String pan;
@@ -45,6 +47,18 @@ public class CreateItrProfileRequest {
     @Schema(description = "Default ITR form", example = "ITR_1")
     @Builder.Default
     private ItrType defaultItrType = ItrType.ITR_1;
+
+    @JsonAlias({"applicableForm", "returnType"})
+    @Schema(description = "Applicable ITR form", example = "ITR_1")
+    private ItrType applicableReturnType;
+
+    @JsonAlias({"assessmentYear", "ay"})
+    @Schema(description = "Default Assessment Year", example = "2026-27")
+    private String defaultAssessmentYear;
+
+    @JsonAlias({"assessmentType"})
+    @Schema(description = "Assessment category/type", example = "REGULAR")
+    private String assessmentCategory;
 
     @JsonAlias({"residence", "residenceStatus"})
     @Schema(description = "Residential status", defaultValue = "RESIDENT")

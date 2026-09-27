@@ -1372,6 +1372,31 @@ public class ClientServiceImpl implements ClientService {
                     .collect(Collectors.toList());
         }
 
+        com.taxoryn.module.itr.dto.ItrProfileDto itrProfileDto = null;
+        if (itrProfileRepository != null && (moduleConfigurationService == null || moduleConfigurationService.isModuleEnabled(organizationId, com.taxoryn.module.moduleconfig.model.ProductModuleCode.ITR_COMPLIANCE))) {
+            itrProfileDto = itrProfileRepository.findByOrganizationIdAndClientId(organizationId, clientId)
+                    .map(p -> com.taxoryn.module.itr.dto.ItrProfileDto.builder()
+                            .id(p.getId())
+                            .organizationId(p.getOrganizationId())
+                            .clientId(p.getClientId())
+                            .clientName(client.getDisplayName())
+                            .locationId(p.getLocationId())
+                            .pan(p.getPan())
+                            .taxpayerType(p.getTaxpayerType())
+                            .defaultItrType(p.getDefaultItrType())
+                            .applicableReturnType(p.getEffectiveReturnType())
+                            .defaultAssessmentYear(p.getDefaultAssessmentYear())
+                            .assessmentCategory(p.getAssessmentCategory())
+                            .residentialStatus(p.getResidentialStatus())
+                            .assignedEmployeeId(p.getAssignedEmployeeId())
+                            .active(p.isActive())
+                            .status(p.getStatus())
+                            .createdAt(p.getCreatedAt())
+                            .updatedAt(p.getUpdatedAt())
+                            .build())
+                    .orElse(null);
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1380,6 +1405,7 @@ public class ClientServiceImpl implements ClientService {
                 .assignedUsers(users)
                 .services(services)
                 .gstRegistrations(gstRegistrations)
+                .itrProfile(itrProfileDto)
                 .status(client.getStatus())
                 .build();
     }

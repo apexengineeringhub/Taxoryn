@@ -56,6 +56,7 @@ import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import com.taxoryn.module.notification.service.NotificationService;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationType;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.portal.mapper.ClientPortalMapper;
 import com.taxoryn.module.portal.repository.ClientDocumentRequestRepository;
@@ -165,6 +166,7 @@ public class EndpointSecurityCoverageIntegrationTest {
     @Mock private ClientNoteRepository clientNoteRepository;
     @Mock private EmployeeRepository employeeRepository;
     @Mock private UserRepository userRepository;
+    @Mock private LocationRepository locationRepository;
     @Mock private OrganizationRepository organizationRepository;
     @Mock private TaskRepository taskRepository;
     @Mock private AuditService auditService;
@@ -348,7 +350,7 @@ public class EndpointSecurityCoverageIntegrationTest {
 
         itrService = new ItrServiceImpl(
                 itrProfileRepository, itrReturnRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 null, documentRepository, documentMapper,

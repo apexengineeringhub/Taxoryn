@@ -72,7 +72,12 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             return false;
         }
 
-        ProductModuleCode effectiveCode = (moduleCode == ProductModuleCode.GST_COMPLIANCE) ? ProductModuleCode.GST : moduleCode;
+        ProductModuleCode effectiveCode = moduleCode;
+        if (moduleCode == ProductModuleCode.GST_COMPLIANCE) {
+            effectiveCode = ProductModuleCode.GST;
+        } else if (moduleCode == ProductModuleCode.ITR_COMPLIANCE) {
+            effectiveCode = ProductModuleCode.ITR;
+        }
 
         // 1. Check Subscription Plan Entitlement Gate
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
