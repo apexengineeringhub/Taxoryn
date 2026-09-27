@@ -4,13 +4,27 @@
 -- ==============================================================================
 
 -- 1. Seed/Ensure System Roles: PRACTICE_ADMIN, PRACTITIONER, STAFF
-INSERT INTO roles (id, organization_id, code, name, description, is_system_role) VALUES
-    ('20000000-0000-0000-0000-000000000110', NULL, 'PRACTICE_ADMIN', 'Practice Administrator', 'Full administrative authority within a practice tenant', TRUE),
-    ('20000000-0000-0000-0000-000000000114', NULL, 'PRACTITIONER', 'Tax Practitioner', 'Professional practitioner executing compliance workflows across assigned locations', TRUE),
-    ('20000000-0000-0000-0000-000000000006', NULL, 'STAFF', 'Articled Assistant / Junior Staff', 'Data entry, document collection and basic task execution in assigned locations', TRUE)
+INSERT INTO roles (
+    id,
+    organization_id,
+    code,
+    name,
+    description,
+    is_system_role,
+    created_at,
+    updated_at,
+    created_by,
+    updated_by,
+    version
+) VALUES
+    ('20000000-0000-0000-0000-000000000110', NULL, 'PRACTICE_ADMIN', 'Practice Administrator', 'Full administrative authority within a practice tenant', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'SYSTEM', 'SYSTEM', 0),
+    ('20000000-0000-0000-0000-000000000114', NULL, 'PRACTITIONER', 'Tax Practitioner', 'Professional practitioner executing compliance workflows across assigned locations', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'SYSTEM', 'SYSTEM', 0),
+    ('20000000-0000-0000-0000-000000000006', NULL, 'STAFF', 'Articled Assistant / Junior Staff', 'Data entry, document collection and basic task execution in assigned locations', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'SYSTEM', 'SYSTEM', 0)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
-    description = EXCLUDED.description;
+    description = EXCLUDED.description,
+    updated_at = CURRENT_TIMESTAMP,
+    updated_by = 'SYSTEM';
 
 -- Ensure PRACTITIONER permissions (view and work with client filings, documents, and tasks)
 INSERT INTO role_permissions (role_id, permission_id)

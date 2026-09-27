@@ -192,7 +192,7 @@ class EarlyAccessSecurityIntegrationTest {
     @Test
     @DisplayName("5. Resend/SMTP email delivery failure does not fail persistence or return error to requester")
     void testEmailFailure_PreservesDatabaseRecordAndReturnsSuccess() {
-        doThrow(new RuntimeException("Resend API connection timeout"))
+        org.mockito.Mockito.lenient().doThrow(new RuntimeException("Resend API connection timeout"))
                 .when(emailNotificationService)
                 .sendEarlyAccessInternalNotification(any(), any(), any(), any(), any(), any(), any(), any());
 

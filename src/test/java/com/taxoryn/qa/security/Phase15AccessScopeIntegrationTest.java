@@ -25,6 +25,8 @@ import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.role.entity.RoleEntity;
 import com.taxoryn.module.role.repository.RoleRepository;
+import com.taxoryn.module.subscription.entity.SubscriptionEntity;
+import com.taxoryn.module.subscription.repository.SubscriptionRepository;
 import com.taxoryn.module.timetracking.entity.TimeEntryEntity;
 import com.taxoryn.module.timetracking.model.TimeEntryStatus;
 import com.taxoryn.module.timetracking.repository.TimeEntryRepository;
@@ -64,6 +66,9 @@ public class Phase15AccessScopeIntegrationTest {
 
     @Autowired
     private OrganizationRepository organizationRepository;
+
+    @Autowired
+    private SubscriptionRepository subscriptionRepository;
 
     @Autowired
     private LocationRepository locationRepository;
@@ -150,7 +155,16 @@ public class Phase15AccessScopeIntegrationTest {
                 .name("Apex Advisors - " + UUID.randomUUID())
                 .legalName("Apex Advisors LLP")
                 .status(OrganizationStatus.ACTIVE)
+                .subscriptionPlan(OrganizationEntity.SubscriptionPlan.ENTERPRISE)
                 .email("info-" + UUID.randomUUID() + "@apexadvisors.in")
+                .build());
+
+        subscriptionRepository.save(SubscriptionEntity.builder()
+                .organizationId(org1.getId())
+                .plan(SubscriptionEntity.SubscriptionPlan.ENTERPRISE)
+                .status(SubscriptionEntity.SubscriptionStatus.ACTIVE)
+                .startDate(LocalDate.now())
+                .renewalDate(LocalDate.now().plusYears(1))
                 .build());
 
         // 2. Setup Tenant 2
@@ -158,7 +172,16 @@ public class Phase15AccessScopeIntegrationTest {
                 .name("Vertex Consulting - " + UUID.randomUUID())
                 .legalName("Vertex Consulting LLP")
                 .status(OrganizationStatus.ACTIVE)
+                .subscriptionPlan(OrganizationEntity.SubscriptionPlan.ENTERPRISE)
                 .email("info-" + UUID.randomUUID() + "@vertex.in")
+                .build());
+
+        subscriptionRepository.save(SubscriptionEntity.builder()
+                .organizationId(org2.getId())
+                .plan(SubscriptionEntity.SubscriptionPlan.ENTERPRISE)
+                .status(SubscriptionEntity.SubscriptionStatus.ACTIVE)
+                .startDate(LocalDate.now())
+                .renewalDate(LocalDate.now().plusYears(1))
                 .build());
 
         // Locations in Org 1
@@ -462,6 +485,7 @@ public class Phase15AccessScopeIntegrationTest {
         userLocationRepository.deleteAll();
         locationRepository.deleteAll();
         userRepository.deleteAll();
+        subscriptionRepository.deleteAll();
         organizationRepository.deleteAll();
     }
 
