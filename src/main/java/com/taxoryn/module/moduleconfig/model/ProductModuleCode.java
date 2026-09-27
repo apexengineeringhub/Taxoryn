@@ -18,6 +18,7 @@ public enum ProductModuleCode {
     TDS,
     TDS_COMPLIANCE,
     TAX_NOTICES,
+    TAX_NOTICE_MANAGEMENT,
     BILLING,
     REPORTS,
     MARKETPLACE

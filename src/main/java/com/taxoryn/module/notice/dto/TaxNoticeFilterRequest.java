@@ -31,4 +31,6 @@ public class TaxNoticeFilterRequest {
     private LocalDate dueDateTo;
     private Boolean overdueOnly;
     private Boolean upcomingHearing;
+    private UUID locationId;
+    private UUID workflowId;
 }

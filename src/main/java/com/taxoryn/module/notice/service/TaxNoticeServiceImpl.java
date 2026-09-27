@@ -96,7 +96,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TaxNoticeServiceImpl implements TaxNoticeService {
 
     private final TaxNoticeRepository noticeRepository;
@@ -113,7 +112,65 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final TaxNoticeConfigurationService configurationService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public TaxNoticeServiceImpl(
+            TaxNoticeRepository noticeRepository,
+            NoticeResponseRepository responseRepository,
+            NoticeHearingRepository hearingRepository,
+            NoticeActivityRepository activityRepository,
+            ClientRepository clientRepository,
+            EmployeeRepository employeeRepository,
+            UserRepository userRepository,
+            TaskRepository taskRepository,
+            DocumentRepository documentRepository,
+            DocumentRequestRepository documentRequestRepository,
+            TaxNoticeMapper noticeMapper,
+            AuditService auditService,
+            NotificationService notificationService,
+            PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            TaxNoticeConfigurationService configurationService) {
+        this.noticeRepository = noticeRepository;
+        this.responseRepository = responseRepository;
+        this.hearingRepository = hearingRepository;
+        this.activityRepository = activityRepository;
+        this.clientRepository = clientRepository;
+        this.employeeRepository = employeeRepository;
+        this.userRepository = userRepository;
+        this.taskRepository = taskRepository;
+        this.documentRepository = documentRepository;
+        this.documentRequestRepository = documentRequestRepository;
+        this.noticeMapper = noticeMapper;
+        this.auditService = auditService;
+        this.notificationService = notificationService;
+        this.securityScopeEvaluator = securityScopeEvaluator;
+        this.locationRepository = locationRepository;
+        this.configurationService = configurationService;
+    }
+
+    public TaxNoticeServiceImpl(
+            TaxNoticeRepository noticeRepository,
+            NoticeResponseRepository responseRepository,
+            NoticeHearingRepository hearingRepository,
+            NoticeActivityRepository activityRepository,
+            ClientRepository clientRepository,
+            EmployeeRepository employeeRepository,
+            UserRepository userRepository,
+            TaskRepository taskRepository,
+            DocumentRepository documentRepository,
+            DocumentRequestRepository documentRequestRepository,
+            TaxNoticeMapper noticeMapper,
+            AuditService auditService,
+            NotificationService notificationService,
+            PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            TaxNoticeConfigurationService configurationService) {
+        this(noticeRepository, responseRepository, hearingRepository, activityRepository, clientRepository,
+                employeeRepository, userRepository, taskRepository, documentRepository, documentRequestRepository,
+                noticeMapper, auditService, notificationService, securityScopeEvaluator, null, configurationService);
+    }
 
     private static final Set<NoticeStatus> CLOSED_STATUSES = Set.of(
             NoticeStatus.RESOLVED,
@@ -130,7 +187,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
 
         Pageable pageable = pageRequest != null ? pageRequest.toPageable() : PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "responseDueDate"));
-        Specification<TaxNoticeEntity> spec = buildSpecification(organizationId, filterRequest, accessibleClientIds);
+        Specification<TaxNoticeEntity> spec = buildSpecification(organizationId, filterRequest, scope, accessibleClientIds);
         Page<TaxNoticeEntity> page = noticeRepository.findAll(spec, pageable);
 
         List<TaxNoticeDto> dtos = page.getContent().stream()
@@ -157,7 +214,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity entity = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
-        validateClientAccess(entity.getClientId());
+        validateNoticeAccess(entity);
         return enrichNoticeDto(entity);
     }
 
@@ -168,7 +225,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity entity = noticeRepository.findByOrganizationIdAndNoticeNumber(organizationId, noticeNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with number: " + noticeNumber));
 
-        validateClientAccess(entity.getClientId());
+        validateNoticeAccess(entity);
         return enrichNoticeDto(entity);
     }
 
@@ -183,6 +240,19 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Client not found with id: " + request.getClientId()));
 
         validateClientAccess(client.getId());
+
+        // 1c. Resolve Location
+        final UUID targetLocationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
+        if (targetLocationId != null) {
+            locationRepository.findByIdAndOrganizationId(targetLocationId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location not found with id: " + targetLocationId));
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (!scope.isFirmAdmin() && scope.getAccessibleLocationIds() != null && !scope.getAccessibleLocationIds().isEmpty()) {
+                if (!scope.getAccessibleLocationIds().contains(targetLocationId)) {
+                    throw new ForbiddenException("Access denied: You do not have permission for this location");
+                }
+            }
+        }
 
         // 1b. Verify Employees if provided
         if (request.getAssignedEmployeeId() != null) {
@@ -225,6 +295,8 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         // 4. Build Notice Entity
         TaxNoticeEntity entity = TaxNoticeEntity.builder()
                 .clientId(request.getClientId())
+                .locationId(targetLocationId)
+                .workflowId(request.getWorkflowId())
                 .complianceObligationId(request.getComplianceObligationId())
                 .clientServiceId(request.getClientServiceId())
                 .noticeNumber(request.getNoticeNumber().trim())
@@ -308,7 +380,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         TaxNoticeEntity entity = noticeRepository.findByIdAndOrganizationId(noticeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax notice not found with id: " + noticeId));
 
-        validateClientAccess(entity.getClientId());
+        validateNoticeAccess(entity);
 
         if (StringUtils.hasText(request.getNoticeNumber()) && !request.getNoticeNumber().equals(entity.getNoticeNumber())) {
             if (noticeRepository.existsByOrganizationIdAndNoticeNumberAndIdNot(organizationId, request.getNoticeNumber(), noticeId)) {
@@ -322,6 +394,21 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                     .orElseThrow(() -> new ResourceNotFoundException("Client not found with id: " + request.getClientId()));
             validateClientAccess(request.getClientId());
             entity.setClientId(request.getClientId());
+        }
+
+        if (request.getLocationId() != null && !request.getLocationId().equals(entity.getLocationId())) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location not found with id: " + request.getLocationId()));
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (!scope.isFirmAdmin() && scope.getAccessibleLocationIds() != null && !scope.getAccessibleLocationIds().isEmpty()) {
+                if (!scope.getAccessibleLocationIds().contains(request.getLocationId())) {
+                    throw new ForbiddenException("Access denied: You do not have permission for this location");
+                }
+            }
+            entity.setLocationId(request.getLocationId());
+        }
+        if (request.getWorkflowId() != null) {
+            entity.setWorkflowId(request.getWorkflowId());
         }
 
         if (request.getDinNumber() != null) entity.setDinNumber(request.getDinNumber());
@@ -448,10 +535,10 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
             if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
                 notices = List.of();
             } else {
-                notices = noticeRepository.findAll(buildSpecification(organizationId, null, accessibleClientIds));
+                notices = noticeRepository.findAll(buildSpecification(organizationId, null, scope, accessibleClientIds));
             }
         } else {
-            notices = noticeRepository.findAll(buildSpecification(organizationId, null, null));
+            notices = noticeRepository.findAll(buildSpecification(organizationId, null, scope, null));
         }
 
         long totalActive = 0;
@@ -1403,7 +1490,7 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
     // Helper Methods
     // ==========================================
 
-    private Specification<TaxNoticeEntity> buildSpecification(UUID organizationId, TaxNoticeFilterRequest filter, Set<UUID> accessibleClientIds) {
+    private Specification<TaxNoticeEntity> buildSpecification(UUID organizationId, TaxNoticeFilterRequest filter, PracticeSecurityScope scope, Set<UUID> accessibleClientIds) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("organizationId"), organizationId));
@@ -1412,9 +1499,22 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 predicates.add(root.get("clientId").in(accessibleClientIds));
             }
 
+            if (scope != null && !scope.isFirmAdmin()) {
+                Set<UUID> accessibleLocs = scope.getAccessibleLocationIds();
+                if (accessibleLocs != null && !accessibleLocs.isEmpty()) {
+                    predicates.add(root.get("locationId").in(accessibleLocs));
+                }
+            }
+
             if (filter != null) {
                 if (filter.getClientId() != null) {
                     predicates.add(cb.equal(root.get("clientId"), filter.getClientId()));
+                }
+                if (filter.getLocationId() != null) {
+                    predicates.add(cb.equal(root.get("locationId"), filter.getLocationId()));
+                }
+                if (filter.getWorkflowId() != null) {
+                    predicates.add(cb.equal(root.get("workflowId"), filter.getWorkflowId()));
                 }
                 if (filter.getDepartment() != null) {
                     predicates.add(cb.equal(root.get("department"), filter.getDepartment()));
@@ -1496,6 +1596,14 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
                 dto.setClientEmail(c.getEmail());
                 dto.setClientPhone(c.getPhone());
             });
+        }
+
+        // 1b. Location & Workflow
+        dto.setLocationId(entity.getLocationId());
+        dto.setWorkflowId(entity.getWorkflowId());
+        if (entity.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(entity.getLocationId(), orgId).ifPresent(l ->
+                    dto.setLocationName(l.getName()));
         }
 
         // 2. Employee Names
@@ -1721,5 +1829,18 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         if (accessibleClientIds != null && !accessibleClientIds.contains(clientId)) {
             throw new ForbiddenException("You do not have access to notices for this client");
         }
+    }
+
+    private void validateNoticeAccess(TaxNoticeEntity notice) {
+        if (notice == null) return;
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            if (notice.getLocationId() != null && scope.getAccessibleLocationIds() != null && !scope.getAccessibleLocationIds().isEmpty()) {
+                if (!scope.getAccessibleLocationIds().contains(notice.getLocationId())) {
+                    throw new ForbiddenException("Access denied: You do not have permission for this notice location");
+                }
+            }
+        }
+        validateClientAccess(notice.getClientId());
     }
 }

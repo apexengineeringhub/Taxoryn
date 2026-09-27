@@ -1439,6 +1439,60 @@ public class ClientServiceImpl implements ClientService {
                     .orElse(null);
         }
 
+        List<com.taxoryn.module.notice.dto.TaxNoticeDto> taxNoticeDtos = null;
+        if (moduleConfigurationService.isModuleEnabled(organizationId, com.taxoryn.module.moduleconfig.model.ProductModuleCode.TAX_NOTICES)) {
+            List<TaxNoticeEntity> notices = noticeRepository.findAllByOrganizationIdAndClientId(organizationId, clientId);
+            taxNoticeDtos = notices.stream().map(n -> {
+                String locName = null;
+                if (n.getLocationId() != null) {
+                    locName = locationRepository.findById(n.getLocationId()).map(com.taxoryn.module.organization.entity.LocationEntity::getName).orElse(null);
+                }
+                return com.taxoryn.module.notice.dto.TaxNoticeDto.builder()
+                        .id(n.getId())
+                        .organizationId(n.getOrganizationId())
+                        .clientId(n.getClientId())
+                        .clientName(client.getDisplayName())
+                        .clientPan(client.getPan())
+                        .clientGstin(client.getGstin())
+                        .locationId(n.getLocationId())
+                        .locationName(locName)
+                        .workflowId(n.getWorkflowId())
+                        .complianceObligationId(n.getComplianceObligationId())
+                        .clientServiceId(n.getClientServiceId())
+                        .noticeNumber(n.getNoticeNumber())
+                        .dinNumber(n.getDinNumber())
+                        .department(n.getDepartment())
+                        .noticeType(n.getNoticeType())
+                        .section(n.getSection())
+                        .subject(n.getSubject())
+                        .description(n.getDescription())
+                        .assessmentYear(n.getAssessmentYear())
+                        .financialYear(n.getFinancialYear())
+                        .taxPeriod(n.getTaxPeriod())
+                        .demandAmount(n.getDemandAmount())
+                        .noticeDate(n.getNoticeDate())
+                        .receivedDate(n.getReceivedDate())
+                        .responseDueDate(n.getResponseDueDate())
+                        .responseRequired(n.getResponseRequired())
+                        .responseStatus(n.getResponseStatus())
+                        .hearingRequired(n.getHearingRequired())
+                        .hearingDate(n.getHearingDate())
+                        .hearingTime(n.getHearingTime())
+                        .hearingMode(n.getHearingMode())
+                        .hearingLocation(n.getHearingLocation())
+                        .hearingStatus(n.getHearingStatus())
+                        .status(n.getStatus())
+                        .priority(n.getPriority())
+                        .riskLevel(n.getRiskLevel())
+                        .assignedEmployeeId(n.getAssignedEmployeeId())
+                        .reviewerEmployeeId(n.getReviewerEmployeeId())
+                        .partnerEmployeeId(n.getPartnerEmployeeId())
+                        .createdAt(n.getCreatedAt())
+                        .updatedAt(n.getUpdatedAt())
+                        .build();
+            }).collect(Collectors.toList());
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1449,6 +1503,7 @@ public class ClientServiceImpl implements ClientService {
                 .gstRegistrations(gstRegistrations)
                 .itrProfile(itrProfileDto)
                 .tdsProfile(tdsProfileDto)
+                .taxNotices(taxNoticeDtos)
                 .status(client.getStatus())
                 .build();
     }

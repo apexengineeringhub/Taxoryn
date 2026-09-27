@@ -42,6 +42,9 @@ public class WorkItemEntity extends TenantAuditableEntity {
     @Column(name = "workflow_id")
     private UUID workflowId;
 
+    @Column(name = "notice_id")
+    private UUID noticeId;
+
     @Column(name = "title", nullable = false)
     private String title;
 

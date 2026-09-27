@@ -37,6 +37,12 @@ public class TaxNoticeEntity extends TenantAuditableEntity {
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
 
+    @Column(name = "location_id")
+    private UUID locationId;
+
+    @Column(name = "workflow_id")
+    private UUID workflowId;
+
     @Column(name = "compliance_obligation_id")
     private UUID complianceObligationId;
 

@@ -26,6 +26,9 @@ public class TaxNoticeDto {
     private UUID organizationId;
     private UUID clientId;
     private String clientName;
+    private UUID locationId;
+    private String locationName;
+    private UUID workflowId;
     private String clientPan;
     private String clientGstin;
     private String clientEmail;

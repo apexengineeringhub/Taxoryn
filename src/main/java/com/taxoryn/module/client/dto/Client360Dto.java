@@ -43,6 +43,9 @@ public class Client360Dto {
     @Schema(description = "Client TDS profile (when TDS module is enabled)")
     private com.taxoryn.module.tds.dto.TdsProfileDto tdsProfile;
 
+    @Schema(description = "Client tax notices (when Tax Notices module is enabled)")
+    private List<com.taxoryn.module.notice.dto.TaxNoticeDto> taxNotices;
+
     @Schema(description = "Client lifecycle status")
     private ClientStatus status;
 }

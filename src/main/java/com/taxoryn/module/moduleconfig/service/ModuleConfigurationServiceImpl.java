@@ -79,6 +79,8 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             effectiveCode = ProductModuleCode.ITR;
         } else if (moduleCode == ProductModuleCode.TDS_COMPLIANCE) {
             effectiveCode = ProductModuleCode.TDS;
+        } else if (moduleCode == ProductModuleCode.TAX_NOTICE_MANAGEMENT) {
+            effectiveCode = ProductModuleCode.TAX_NOTICES;
         }
 
         // 1. Check Subscription Plan Entitlement Gate

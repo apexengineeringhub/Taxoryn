@@ -38,6 +38,9 @@ public class CreateWorkItemRequest {
     @Schema(description = "Compliance workflow ID")
     private UUID workflowId;
 
+    @Schema(description = "Tax notice ID")
+    private UUID noticeId;
+
     @Schema(description = "Initial status")
     @Builder.Default
     private WorkItemStatus status = WorkItemStatus.TODO;

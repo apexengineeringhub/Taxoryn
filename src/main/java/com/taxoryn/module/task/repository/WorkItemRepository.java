@@ -19,6 +19,8 @@ public interface WorkItemRepository extends JpaRepository<WorkItemEntity, UUID>,
 
     List<WorkItemEntity> findAllByOrganizationIdAndWorkflowIdOrderByCreatedAtDesc(UUID organizationId, UUID workflowId);
 
+    List<WorkItemEntity> findAllByOrganizationIdAndNoticeIdOrderByCreatedAtDesc(UUID organizationId, UUID noticeId);
+
     List<WorkItemEntity> findAllByOrganizationIdAndLocationId(UUID organizationId, UUID locationId);
 
     List<WorkItemEntity> findAllByOrganizationIdAndAssignedUserId(UUID organizationId, UUID assignedUserId);

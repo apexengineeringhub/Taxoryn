@@ -26,6 +26,10 @@ public class CreateTaxNoticeRequest {
     @NotNull(message = "Client ID is required")
     private UUID clientId;
 
+    private UUID locationId;
+
+    private UUID workflowId;
+
     @NotBlank(message = "Notice number is required")
     @Size(max = 100, message = "Notice number cannot exceed 100 characters")
     private String noticeNumber;

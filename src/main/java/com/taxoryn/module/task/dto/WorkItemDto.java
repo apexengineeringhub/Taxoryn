@@ -43,6 +43,12 @@ public class WorkItemDto {
     @Schema(description = "Compliance Workflow ID")
     private UUID workflowId;
 
+    @Schema(description = "Tax Notice ID")
+    private UUID noticeId;
+
+    @Schema(description = "Tax Notice Number")
+    private String noticeNumber;
+
     @Schema(description = "Work item title")
     private String title;
 

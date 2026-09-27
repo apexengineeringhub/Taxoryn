@@ -23,6 +23,8 @@ import java.util.UUID;
 public class UpdateTaxNoticeRequest {
 
     private UUID clientId;
+    private UUID locationId;
+    private UUID workflowId;
 
     @Size(max = 100, message = "Notice number cannot exceed 100 characters")
     private String noticeNumber;

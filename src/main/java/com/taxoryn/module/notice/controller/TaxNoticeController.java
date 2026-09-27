@@ -38,6 +38,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
@@ -92,7 +93,7 @@ public class TaxNoticeController {
                 .body(ApiResponse.success("Tax notice logged successfully", created));
     }
 
-    @PutMapping("/{id}")
+    @org.springframework.web.bind.annotation.RequestMapping(value = "/{id}", method = {org.springframework.web.bind.annotation.RequestMethod.PUT, org.springframework.web.bind.annotation.RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
     @Operation(summary = "Update tax notice details")
     public ResponseEntity<ApiResponse<TaxNoticeDto>> updateNotice(
@@ -175,7 +176,7 @@ public class TaxNoticeController {
                 .body(ApiResponse.success("Response draft created successfully", response));
     }
 
-    @PostMapping("/{id}/response/submit")
+    @PostMapping(value = {"/{id}/response/submit", "/{id}/submit-response"})
     @PreAuthorize("hasAuthority('NOTICE_SUBMIT') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
     @Operation(summary = "Record response filing and portal acknowledgement")
     public ResponseEntity<ApiResponse<TaxNoticeDto>> submitNoticeResponse(
@@ -212,6 +213,21 @@ public class TaxNoticeController {
         NoticeResponseDto response = noticeService.createResponse(id, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Response draft created successfully", response));
+    }
+
+    @PostMapping("/{id}/responses/{responseId}/submit-for-review")
+    @PreAuthorize("hasAuthority('NOTICE_RESPONSE_CREATE') or hasAuthority('NOTICE_RESPONSE_REVIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
+    @Operation(summary = "Submit response draft for internal review")
+    public ResponseEntity<ApiResponse<NoticeResponseDto>> submitResponseForReview(
+            @PathVariable UUID id,
+            @PathVariable UUID responseId,
+            @RequestBody(required = false) ReviewNoticeResponseRequest request) {
+        ReviewNoticeResponseRequest req = request != null ? request : ReviewNoticeResponseRequest.builder().action("SUBMIT_FOR_REVIEW").build();
+        if (req.getAction() == null) {
+            req.setAction("SUBMIT_FOR_REVIEW");
+        }
+        NoticeResponseDto response = noticeService.reviewResponse(id, responseId, req);
+        return ResponseEntity.ok(ApiResponse.success("Response submitted for review successfully", response));
     }
 
     @PostMapping("/{id}/responses/{responseId}/review")
@@ -315,7 +331,7 @@ public class TaxNoticeController {
                 .body(ApiResponse.success("Hearing scheduled successfully", hearing));
     }
 
-    @PutMapping("/{id}/hearings/{hearingId}/outcome")
+    @RequestMapping(value = "/{id}/hearings/{hearingId}/outcome", method = {RequestMethod.PUT, RequestMethod.POST})
     @PreAuthorize("hasAuthority('NOTICE_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL')")
     @Operation(summary = "Record hearing proceedings and outcome")
     public ResponseEntity<ApiResponse<NoticeHearingDto>> recordHearingOutcome(

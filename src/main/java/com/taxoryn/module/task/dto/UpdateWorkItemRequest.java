@@ -27,6 +27,9 @@ public class UpdateWorkItemRequest {
     @Schema(description = "Location ID")
     private UUID locationId;
 
+    @Schema(description = "Tax notice ID")
+    private UUID noticeId;
+
     @Schema(description = "Status")
     private WorkItemStatus status;
 

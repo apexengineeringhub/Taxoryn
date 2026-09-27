@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(97);
+        assertThat(allMigrations.length).isEqualTo(98);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -314,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(97);
+        assertThat(all).hasSize(98);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -443,5 +443,21 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS tds_profile_id UUID");
         assertThat(sql).contains("ALTER TABLE compliance_workflows");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS tds_profile_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V98 migration script contents for tax notice management workspace foundation")
+    void testV98MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v98Resource = resolver.getResource("classpath:db/migration/V98__tax_notice_management_workspace_foundation.sql");
+
+        assertThat(v98Resource.exists()).isTrue();
+        String sql = new String(v98Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE tax_notices");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_id UUID");
+        assertThat(sql).contains("ALTER TABLE work_items");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS notice_id UUID");
     }
 }

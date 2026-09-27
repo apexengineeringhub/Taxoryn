@@ -100,6 +100,7 @@ public class WorkItemServiceImpl implements WorkItemService {
                 .locationId(locationId)
                 .clientServiceId(request.getClientServiceId())
                 .workflowId(request.getWorkflowId())
+                .noticeId(request.getNoticeId())
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .status(request.getStatus() != null ? request.getStatus() : WorkItemStatus.TODO)
@@ -164,6 +165,9 @@ public class WorkItemServiceImpl implements WorkItemService {
         }
         if (request.getAssignedUserId() != null) {
             workItem.setAssignedUserId(request.getAssignedUserId());
+        }
+        if (request.getNoticeId() != null) {
+            workItem.setNoticeId(request.getNoticeId());
         }
         if (request.getDueDate() != null) {
             workItem.setDueDate(request.getDueDate());
@@ -461,6 +465,7 @@ public class WorkItemServiceImpl implements WorkItemService {
                 .clientName(clientName)
                 .clientServiceId(entity.getClientServiceId())
                 .workflowId(entity.getWorkflowId())
+                .noticeId(entity.getNoticeId())
                 .title(entity.getTitle())
                 .description(entity.getDescription())
                 .status(entity.getStatus())
@@ -505,6 +510,7 @@ public class WorkItemServiceImpl implements WorkItemService {
                     .clientName(e.getClientId() != null ? clientNames.get(e.getClientId()) : null)
                     .clientServiceId(e.getClientServiceId())
                     .workflowId(e.getWorkflowId())
+                    .noticeId(e.getNoticeId())
                     .title(e.getTitle())
                     .description(e.getDescription())
                     .status(e.getStatus())
