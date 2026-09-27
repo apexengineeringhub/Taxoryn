@@ -47,10 +47,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
@@ -63,6 +63,55 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+    private final com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InvoiceServiceImpl(
+            InvoiceRepository invoiceRepository,
+            InvoiceItemRepository invoiceItemRepository,
+            InvoicePaymentRepository invoicePaymentRepository,
+            ClientRepository clientRepository,
+            ClientNotificationRepository notificationRepository,
+            InvoiceMapper invoiceMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository
+    ) {
+        this.invoiceRepository = invoiceRepository;
+        this.invoiceItemRepository = invoiceItemRepository;
+        this.invoicePaymentRepository = invoicePaymentRepository;
+        this.clientRepository = clientRepository;
+        this.notificationRepository = notificationRepository;
+        this.invoiceMapper = invoiceMapper;
+        this.auditService = auditService;
+        this.eventPublisher = eventPublisher;
+        this.securityScopeEvaluator = securityScopeEvaluator;
+        this.organizationRepository = organizationRepository;
+        this.locationRepository = locationRepository;
+        this.engagementRepository = engagementRepository;
+    }
+
+    public InvoiceServiceImpl(
+            InvoiceRepository invoiceRepository,
+            InvoiceItemRepository invoiceItemRepository,
+            InvoicePaymentRepository invoicePaymentRepository,
+            ClientRepository clientRepository,
+            ClientNotificationRepository notificationRepository,
+            InvoiceMapper invoiceMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository
+    ) {
+        this(invoiceRepository, invoiceItemRepository, invoicePaymentRepository,
+                clientRepository, notificationRepository, invoiceMapper,
+                auditService, eventPublisher, securityScopeEvaluator, organizationRepository,
+                null, null);
+    }
 
     @Override
     @Transactional
@@ -73,6 +122,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
 
         validateClientAccess(client.getId());
+
+        UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
 
         String invoiceNumber = request.getInvoiceNumber();
         if (StringUtils.hasText(invoiceNumber)) {
@@ -86,7 +137,10 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .clientId(client.getId())
+                .locationId(locationId)
+                .engagementId(request.getEngagementId())
                 .invoiceNumber(invoiceNumber)
+                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().trim() : "INR")
                 .invoiceDate(request.getInvoiceDate())
                 .dueDate(request.getDueDate())
                 .status(InvoiceStatus.DRAFT)
@@ -100,7 +154,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         for (CreateInvoiceItemRequest itemReq : request.getItems()) {
             BigDecimal qty = itemReq.getQuantity() != null ? itemReq.getQuantity() : BigDecimal.ONE;
-            BigDecimal price = itemReq.getUnitPrice() != null ? itemReq.getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal price = itemReq.getEffectiveUnitPrice();
             BigDecimal taxRate = itemReq.getTaxRate() != null ? itemReq.getTaxRate() : new BigDecimal("18.00");
 
             BigDecimal lineSubtotal = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
@@ -111,7 +165,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             totalTax = totalTax.add(lineTax);
 
             InvoiceItemEntity item = InvoiceItemEntity.builder()
-                    .service(itemReq.getService())
+                    .service(itemReq.getService() != null ? itemReq.getService() : InvoiceItemEntity.BillingServiceType.CONSULTING)
+                    .workItemId(itemReq.getWorkItemId())
+                    .timeEntryId(itemReq.getTimeEntryId())
                     .description(itemReq.getDescription())
                     .quantity(qty)
                     .unitPrice(price)
@@ -165,7 +221,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 predicates.add(cb.equal(root.get("clientId"), currentClientId));
             } else {
                 PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-                if (!scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+                if (!scope.isFirmAdmin()) {
                     Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
                     if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
                         predicates.add(cb.disjunction());
@@ -804,6 +860,41 @@ public class InvoiceServiceImpl implements InvoiceService {
         return seeded;
     }
 
+    @Override
+    @Transactional
+    public InvoiceDto updateInvoiceStatus(UUID id, com.taxoryn.module.billing.dto.UpdateInvoiceStatusRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", id));
+
+        validateInvoiceAccess(invoice);
+
+        invoice.setStatus(request.getStatus());
+        if (request.getNotes() != null) {
+            invoice.setNotes(request.getNotes());
+        }
+
+        invoice = invoiceRepository.save(invoice);
+        log.info("Updated status for Invoice: id={}, status={}", invoice.getId(), invoice.getStatus());
+
+        InvoiceDto result = enrichDto(invoice);
+        auditService.logEvent("INVOICE_STATUS_UPDATED", "INVOICE", invoice.getId().toString(), null, result);
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InvoiceDto> getInvoicesByClientId(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client.getId());
+
+        List<InvoiceEntity> invoices = invoiceRepository.findAllByOrganizationIdAndClientIdOrderByInvoiceDateDesc(organizationId, clientId);
+        return invoices.stream().map(this::enrichDto).collect(Collectors.toList());
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================
@@ -818,6 +909,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                     dto.setClientGstin(client.getGstin());
                     dto.setClientPan(client.getPan());
                 });
+
+        if (entity.getLocationId() != null && locationRepository != null) {
+            locationRepository.findByIdAndOrganizationId(entity.getLocationId(), entity.getOrganizationId())
+                    .ifPresent(loc -> dto.setLocationName(loc.getName()));
+        }
+        if (entity.getEngagementId() != null && engagementRepository != null) {
+            engagementRepository.findByIdAndOrganizationId(entity.getEngagementId(), entity.getOrganizationId())
+                    .ifPresent(eng -> dto.setEngagementName(eng.getName()));
+        }
 
         if (entity.getItems() != null) {
             dto.setItems(invoiceMapper.toItemDtoList(entity.getItems()));
@@ -840,10 +940,23 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private void validateInvoiceAccess(InvoiceEntity invoice) {
-        if (invoice == null || invoice.getClientId() == null) {
+        if (invoice == null) {
             return;
         }
-        validateClientAccess(invoice.getClientId());
+
+        if (invoice.getLocationId() != null && securityScopeEvaluator != null) {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin()) {
+                Set<UUID> accessibleLocs = scope.getAccessibleLocationIds();
+                if (accessibleLocs != null && !accessibleLocs.isEmpty() && !accessibleLocs.contains(invoice.getLocationId())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission for this location.");
+                }
+            }
+        }
+
+        if (invoice.getClientId() != null) {
+            validateClientAccess(invoice.getClientId());
+        }
     }
 
     private void validateClientAccess(UUID clientId) {
@@ -860,12 +973,12 @@ public class InvoiceServiceImpl implements InvoiceService {
             return;
         }
 
-        // 2. ABAC Portfolio Scoping for Practice Staff without broad billing privileges
+        // 2. ABAC Portfolio Scoping for Practice Staff
         if (securityScopeEvaluator != null) {
             PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-            if (scope != null && !scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+            if (scope != null && !scope.isFirmAdmin()) {
                 Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-                if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
+                if (accessibleClientIds != null && !accessibleClientIds.contains(clientId)) {
                     throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view or manage invoices for this client.");
                 }
             }

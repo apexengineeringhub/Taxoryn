@@ -149,6 +149,24 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success("Payments retrieved successfully", payments));
     }
 
+    @org.springframework.web.bind.annotation.PatchMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('BILLING_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Update invoice status", description = "Updates invoice lifecycle status.")
+    public ResponseEntity<ApiResponse<InvoiceDto>> patchInvoiceStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.taxoryn.module.billing.dto.UpdateInvoiceStatusRequest request) {
+        InvoiceDto invoice = invoiceService.updateInvoiceStatus(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Invoice status updated successfully", invoice));
+    }
+
+    @GetMapping("/clients/{clientId}")
+    @PreAuthorize("hasAuthority('BILLING_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get invoices by client ID", description = "Retrieves all invoices for a specific client (Client 360).")
+    public ResponseEntity<ApiResponse<List<InvoiceDto>>> getClientInvoices(@PathVariable UUID clientId) {
+        List<InvoiceDto> invoices = invoiceService.getInvoicesByClientId(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client invoices retrieved successfully", invoices));
+    }
+
     // =========================================================================
     // 3. Client History & Executive Dashboard
     // =========================================================================

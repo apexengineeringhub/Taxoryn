@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(93);
+        assertThat(allMigrations.length).isEqualTo(94);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -163,6 +163,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v93 = infoService.all()[92];
         assertThat(v93.getVersion().getVersion()).isEqualTo("93");
         assertThat(v93.getDescription()).isEqualTo("task work management foundation");
+
+        MigrationInfo v94 = infoService.all()[93];
+        assertThat(v94.getVersion().getVersion()).isEqualTo("94");
+        assertThat(v94.getDescription()).isEqualTo("engagement time tracking billing foundation");
     }
 
     @Test
@@ -306,7 +310,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(93);
+        assertThat(all).hasSize(94);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];

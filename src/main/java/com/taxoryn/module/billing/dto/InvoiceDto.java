@@ -22,12 +22,17 @@ public class InvoiceDto {
 
     private UUID id;
     private UUID organizationId;
+    private UUID locationId;
+    private String locationName;
     private UUID clientId;
     private String clientName;
     private String clientGstin;
     private String clientPan;
+    private UUID engagementId;
+    private String engagementName;
 
     private String invoiceNumber;
+    private String currency;
     private LocalDate invoiceDate;
     private LocalDate dueDate;
 
@@ -36,6 +41,14 @@ public class InvoiceDto {
     private BigDecimal total;
     private BigDecimal paidAmount;
     private BigDecimal balanceDue;
+
+    public BigDecimal getTaxAmount() {
+        return tax;
+    }
+
+    public BigDecimal getTotalAmount() {
+        return total;
+    }
 
     private InvoiceStatus status;
     private String notes;

@@ -24,6 +24,16 @@ public class CreateInvoiceRequest {
     @Schema(description = "Target Client ID")
     private UUID clientId;
 
+    @Schema(description = "Operating Location ID")
+    private UUID locationId;
+
+    @Schema(description = "Engagement ID")
+    private UUID engagementId;
+
+    @Schema(description = "Currency code", example = "INR")
+    @Builder.Default
+    private String currency = "INR";
+
     @Schema(description = "Custom invoice number (leave blank for automatic sequence generation)", example = "INV-2026-0001")
     private String invoiceNumber;
 

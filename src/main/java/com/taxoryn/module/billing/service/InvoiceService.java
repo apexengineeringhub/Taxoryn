@@ -23,6 +23,10 @@ public interface InvoiceService {
 
     InvoiceDto updateInvoice(UUID id, UpdateInvoiceRequest request);
 
+    InvoiceDto updateInvoiceStatus(UUID id, com.taxoryn.module.billing.dto.UpdateInvoiceStatusRequest request);
+
+    List<InvoiceDto> getInvoicesByClientId(UUID clientId);
+
     InvoiceDto issueInvoice(UUID id);
 
     InvoiceDto cancelInvoice(UUID id);

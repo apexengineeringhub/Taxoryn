@@ -20,6 +20,8 @@ import java.util.UUID;
 public class InvoiceItemDto {
 
     private UUID id;
+    private UUID workItemId;
+    private UUID timeEntryId;
     private BillingServiceType service;
     private String description;
     private BigDecimal quantity;
@@ -27,4 +29,19 @@ public class InvoiceItemDto {
     private BigDecimal taxRate;
     private BigDecimal tax;
     private BigDecimal amount;
+
+    public BigDecimal getUnitRate() {
+        return unitPrice;
+    }
+
+    public BigDecimal getTaxAmount() {
+        return tax;
+    }
+
+    public BigDecimal getTotalAmount() {
+        if (amount != null && tax != null) {
+            return amount.add(tax);
+        }
+        return amount != null ? amount : BigDecimal.ZERO;
+    }
 }
