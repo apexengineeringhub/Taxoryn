@@ -71,6 +71,16 @@ public class ComplianceWorkflowController {
     // 2. Workflow Creation & Details
     // =========================================================================
 
+    @PostMapping("/workflows")
+    @PreAuthorize("hasAnyAuthority('TASK_CREATE', 'CLIENT_EDIT', 'GST_EDIT', 'ITR_EDIT', 'TDS_EDIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
+    @Operation(summary = "Create compliance execution workflow", description = "Creates a compliance execution workflow with 9-step standard checklist for an obligation.")
+    public ResponseEntity<ApiResponse<ComplianceWorkflowDto>> createWorkflow(
+            @Valid @RequestBody com.taxoryn.module.compliance.dto.CreateComplianceWorkflowRequest request
+    ) {
+        ComplianceWorkflowDto workflow = workflowService.createWorkflow(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Compliance workflow created", workflow));
+    }
+
     @PostMapping("/obligations/{obligationId}/workflow")
     @PreAuthorize("hasAnyAuthority('TASK_CREATE', 'CLIENT_EDIT', 'GST_EDIT', 'ITR_EDIT', 'TDS_EDIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
     @Operation(summary = "Get or create workflow for obligation", description = "Idempotently returns or initializes an operational compliance execution workflow with default 9 checklist items for a statutory obligation.")
@@ -89,6 +99,27 @@ public class ComplianceWorkflowController {
     ) {
         ComplianceWorkflowDetailDto detail = workflowService.getWorkflowById(workflowId);
         return ResponseEntity.ok(ApiResponse.success(detail));
+    }
+
+    @GetMapping("/workflows/{workflowId}/checklist")
+    @PreAuthorize("hasAnyAuthority('TASK_VIEW', 'CLIENT_VIEW', 'GST_VIEW', 'ITR_VIEW', 'TDS_VIEW', 'NOTICE_VIEW', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
+    @Operation(summary = "Get workflow checklist", description = "Retrieves the list of operational checkpoint checklist items for the workflow.")
+    public ResponseEntity<ApiResponse<java.util.List<ComplianceWorkflowChecklistItemDto>>> getWorkflowChecklist(
+            @PathVariable UUID workflowId
+    ) {
+        java.util.List<ComplianceWorkflowChecklistItemDto> checklist = workflowService.getWorkflowChecklist(workflowId);
+        return ResponseEntity.ok(ApiResponse.success(checklist));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/workflows/{workflowId}/status")
+    @PreAuthorize("hasAnyAuthority('TASK_EDIT', 'CLIENT_EDIT', 'GST_EDIT', 'ITR_EDIT', 'TDS_EDIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_STAFF', 'ROLE_PRACTITIONER', 'ROLE_MANAGER')")
+    @Operation(summary = "Update compliance workflow status", description = "Generic status transition endpoint for compliance workflow.")
+    public ResponseEntity<ApiResponse<ComplianceWorkflowDto>> updateWorkflowStatus(
+            @PathVariable UUID workflowId,
+            @Valid @RequestBody com.taxoryn.module.compliance.dto.UpdateComplianceWorkflowStatusRequest request
+    ) {
+        ComplianceWorkflowDto updated = workflowService.updateWorkflowStatus(workflowId, request);
+        return ResponseEntity.ok(ApiResponse.success("Workflow status updated", updated));
     }
 
     // =========================================================================

@@ -1,5 +1,6 @@
 package com.taxoryn.module.moduleconfig.service;
 
+import com.taxoryn.module.moduleconfig.dto.EffectiveConfigurationResponse;
 import com.taxoryn.module.moduleconfig.dto.OrganizationModuleDto;
 import com.taxoryn.module.moduleconfig.dto.ProductModuleDto;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
@@ -47,4 +48,9 @@ public interface ModuleConfigurationService {
      * Retrieves the global product module catalog master list.
      */
     List<ProductModuleDto> getAllProductModules();
+
+    /**
+     * Computes the effective module and feature configuration for an organization.
+     */
+    EffectiveConfigurationResponse getEffectiveConfiguration(UUID organizationId);
 }

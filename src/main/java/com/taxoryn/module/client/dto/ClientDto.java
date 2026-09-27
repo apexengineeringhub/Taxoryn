@@ -28,6 +28,9 @@ public class ClientDto {
     @Schema(description = "Client entity constitution type", example = "PRIVATE_LIMITED")
     private ClientType clientType;
 
+    @Schema(description = "Unique client alphanumeric code within practice", example = "CLI-001")
+    private String clientCode;
+
     @Schema(description = "Display name / Operating name", example = "Zenith Infotech Pvt Ltd")
     private String displayName;
 
@@ -88,6 +91,9 @@ public class ClientDto {
     @Schema(description = "Postal pincode", example = "400093")
     private String pincode;
 
+    @Schema(description = "Practice branch / Location ID")
+    private UUID locationId;
+
     @Schema(description = "Assigned employee / Account manager ID")
     private UUID assignedEmployeeId;
 
@@ -114,4 +120,34 @@ public class ClientDto {
 
     @Schema(description = "Last update timestamp")
     private Instant updatedAt;
+
+    public String getPrimaryPhone() {
+        return phone;
+    }
+
+    public void setPrimaryPhone(String primaryPhone) {
+        if (primaryPhone != null) {
+            this.phone = primaryPhone;
+        }
+    }
+
+    public String getAlternatePhone() {
+        return altPhone;
+    }
+
+    public void setAlternatePhone(String alternatePhone) {
+        if (alternatePhone != null) {
+            this.altPhone = alternatePhone;
+        }
+    }
+
+    public String getPostalCode() {
+        return pincode;
+    }
+
+    public void setPostalCode(String postalCode) {
+        if (postalCode != null) {
+            this.pincode = postalCode;
+        }
+    }
 }

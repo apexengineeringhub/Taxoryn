@@ -24,6 +24,8 @@ public class InvoicePaymentDto {
     private UUID id;
     private UUID invoiceId;
     private UUID clientId;
+    private UUID locationId;
+    private String receiptNumber;
     private LocalDate paymentDate;
     private BigDecimal amount;
     private PaymentMethod paymentMethod;

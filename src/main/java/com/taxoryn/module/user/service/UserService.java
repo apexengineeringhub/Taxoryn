@@ -38,4 +38,18 @@ public interface UserService {
     void deleteUser(UUID userId);
 
     UserEntity getUserEntityById(UUID userId, UUID organizationId);
+
+    com.taxoryn.module.user.dto.UserContextDto getCurrentUserContext();
+
+    java.util.List<com.taxoryn.module.organization.dto.LocationDto> getUserLocations(UUID userId);
+
+    java.util.List<com.taxoryn.module.organization.dto.LocationDto> assignUserLocations(UUID userId, java.util.List<UUID> locationIds);
+
+    com.taxoryn.module.organization.dto.LocationDto assignUserLocation(UUID userId, UUID locationId);
+
+    void removeUserLocation(UUID userId, UUID locationId);
+
+    UserDto updateUserStatus(UUID userId, com.taxoryn.module.user.entity.UserEntity.UserStatus status);
+
+    UserDto updateUserRole(UUID userId, java.util.Set<String> roleCodes);
 }

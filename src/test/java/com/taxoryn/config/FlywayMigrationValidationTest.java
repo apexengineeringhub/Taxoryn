@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(86);
+        assertThat(allMigrations.length).isEqualTo(101);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -151,6 +151,26 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v73 = infoService.all()[72];
         assertThat(v73.getVersion().getVersion()).isEqualTo("73");
         assertThat(v73.getDescription()).isEqualTo("product module catalog and organization configuration");
+
+        MigrationInfo v91 = infoService.all()[90];
+        assertThat(v91.getVersion().getVersion()).isEqualTo("91");
+        assertThat(v91.getDescription()).isEqualTo("compliance workflow foundation enhancements");
+
+        MigrationInfo v92 = infoService.all()[91];
+        assertThat(v92.getVersion().getVersion()).isEqualTo("92");
+        assertThat(v92.getDescription()).isEqualTo("client document and request foundation");
+
+        MigrationInfo v93 = infoService.all()[92];
+        assertThat(v93.getVersion().getVersion()).isEqualTo("93");
+        assertThat(v93.getDescription()).isEqualTo("task work management foundation");
+
+        MigrationInfo v94 = infoService.all()[93];
+        assertThat(v94.getVersion().getVersion()).isEqualTo("94");
+        assertThat(v94.getDescription()).isEqualTo("engagement time tracking billing foundation");
+
+        MigrationInfo v95 = infoService.all()[94];
+        assertThat(v95.getVersion().getVersion()).isEqualTo("95");
+        assertThat(v95.getDescription()).isEqualTo("gst compliance workspace foundation");
     }
 
     @Test
@@ -286,7 +306,7 @@ public class FlywayMigrationValidationTest {
     }
 
     @Test
-    @DisplayName("Verify all Flyway migrations V1 to V86 resolve with valid descriptions and checksums")
+    @DisplayName("Verify all Flyway migrations V1 to V91 resolve with valid descriptions and checksums")
     void testAllFlywayMigrationsResolveSuccessfully() {
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:h2:mem:flyway_metadata_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL", "sa", "")
@@ -294,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(86);
+        assertThat(all).hasSize(101);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -321,4 +341,181 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("SET scan_status = 'LEGACY_UNSCANNED'");
         assertThat(sql).contains("WHERE scan_status = 'CLEAN' AND (scanned_at IS NULL OR scanner_name IS NULL)");
     }
+
+    @Test
+    @DisplayName("Verify V91 migration script contents for compliance workflow foundation enhancements")
+    void testV91MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v91Resource = resolver.getResource("classpath:db/migration/V91__compliance_workflow_foundation_enhancements.sql");
+
+        assertThat(v91Resource.exists()).isTrue();
+        String sql = new String(v91Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS assigned_user_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_type VARCHAR(50)");
+    }
+
+    @Test
+    @DisplayName("Verify V92 migration script contents for client document and request foundation")
+    void testV92MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v92Resource = resolver.getResource("classpath:db/migration/V92__client_document_and_request_foundation.sql");
+
+        assertThat(v92Resource.exists()).isTrue();
+        String sql = new String(v92Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE documents");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS request_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ALTER TABLE document_requests");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V93 migration script contents for task and work management foundation")
+    void testV93MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v93Resource = resolver.getResource("classpath:db/migration/V93__task_work_management_foundation.sql");
+
+        assertThat(v93Resource.exists()).isTrue();
+        String sql = new String(v93Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS work_items");
+        assertThat(sql).contains("ALTER TABLE tasks");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS work_item_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS notes TEXT");
+    }
+
+    @Test
+    @DisplayName("Verify V95 migration script contents for GST compliance workspace foundation")
+    void testV95MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v95Resource = resolver.getResource("classpath:db/migration/V95__gst_compliance_workspace_foundation.sql");
+
+        assertThat(v95Resource.exists()).isTrue();
+        String sql = new String(v95Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gst_registrations");
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS gst_registration_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS gst_registration_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V96 migration script contents for ITR compliance workspace foundation")
+    void testV96MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v96Resource = resolver.getResource("classpath:db/migration/V96__itr_compliance_workspace_foundation.sql");
+
+        assertThat(v96Resource.exists()).isTrue();
+        String sql = new String(v96Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE itr_profiles");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS default_assessment_year VARCHAR(20)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS applicable_return_type VARCHAR(50)");
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS itr_profile_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS itr_profile_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V97 migration script contents for TDS compliance workspace foundation")
+    void testV97MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v97Resource = resolver.getResource("classpath:db/migration/V97__tds_compliance_workspace_foundation.sql");
+
+        assertThat(v97Resource.exists()).isTrue();
+        String sql = new String(v97Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE tds_profiles");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE");
+        assertThat(sql).contains("ALTER TABLE compliance_obligations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS tds_profile_id UUID");
+        assertThat(sql).contains("ALTER TABLE compliance_workflows");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS tds_profile_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V98 migration script contents for tax notice management workspace foundation")
+    void testV98MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v98Resource = resolver.getResource("classpath:db/migration/V98__tax_notice_management_workspace_foundation.sql");
+
+        assertThat(v98Resource.exists()).isTrue();
+        String sql = new String(v98Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE tax_notices");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS workflow_id UUID");
+        assertThat(sql).contains("ALTER TABLE work_items");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS notice_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V99 migration script contents for practice billing operations foundation")
+    void testV99MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v99Resource = resolver.getResource("classpath:db/migration/V99__practice_billing_operations_foundation.sql");
+
+        assertThat(v99Resource.exists()).isTrue();
+        String sql = new String(v99Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("ALTER TABLE invoices");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount NUMERIC(15, 2)");
+        assertThat(sql).contains("ALTER TABLE invoice_payments");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS receipt_number VARCHAR(100)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
+        assertThat(sql).contains("ALTER TABLE invoice_items");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS service_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V100 migration script contents for practice promotional pricing")
+    void testV100MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v100Resource = resolver.getResource("classpath:db/migration/V100__practice_promotional_pricing.sql");
+
+        assertThat(v100Resource.exists()).isTrue();
+        String sql = new String(v100Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS promotions");
+        assertThat(sql).contains("ALTER TABLE invoice_items");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS promotion_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS promotion_name VARCHAR(255)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS pricing_type VARCHAR(50)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS standard_unit_price NUMERIC(15, 2)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_value NUMERIC(15, 2)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(15, 2)");
+    }
+
+    @Test
+    @DisplayName("Verify V101 migration script contents for stage 2 performance hardening indexes and schema corrections")
+    void testV101MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v101Resource = resolver.getResource("classpath:db/migration/V101__stage2_performance_hardening_indexes.sql");
+
+        assertThat(v101Resource.exists()).isTrue();
+        String sql = new String(v101Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_clients_org_loc_status");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_compliance_org_status_due");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_work_items_org_status_due");
+        assertThat(sql).contains("ALTER TABLE client_location_assignments");
+        assertThat(sql).contains("ALTER TABLE client_user_assignments");
+        assertThat(sql).contains("ALTER TABLE gst_registrations");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0");
+    }
 }
+
+

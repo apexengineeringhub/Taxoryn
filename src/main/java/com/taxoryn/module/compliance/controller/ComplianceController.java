@@ -170,7 +170,10 @@ public class ComplianceController {
         return ResponseEntity.ok(ApiResponse.success("Compliance obligation updated successfully", obligation));
     }
 
-    @PatchMapping({"/obligations/{id}/status", "/calendar/obligations/{id}/status"})
+    @org.springframework.web.bind.annotation.RequestMapping(
+            value = {"/obligations/{id}/status", "/calendar/obligations/{id}/status"},
+            method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT}
+    )
     @PreAuthorize("hasAnyAuthority('TASK_UPDATE', 'CLIENT_UPDATE', 'GST_UPDATE', 'ITR_UPDATE', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
     @Operation(summary = "Update compliance obligation status", description = "Updates status (e.g. IN_PROGRESS, WAITING_FOR_CLIENT, READY_FOR_FILING, COMPLETED).")
     public ResponseEntity<ApiResponse<ComplianceObligationDto>> updateStatus(

@@ -17,6 +17,34 @@ public enum ComplianceObligationType {
             "GSTR-1, GSTR-3B, CMP-08 periodic return filing and liability settlement"
     ),
 
+    GSTR_1(
+            "GSTR-1 Outward Supplies Return",
+            ProductModuleCode.GST,
+            ProductCapability.COMPLIANCE_CALENDAR,
+            "Monthly or quarterly statement of outward supplies of goods and services"
+    ),
+
+    GSTR_3B(
+            "GSTR-3B Summary Return & Tax Settlement",
+            ProductModuleCode.GST,
+            ProductCapability.COMPLIANCE_CALENDAR,
+            "Monthly or quarterly self-assessed summary return and tax liability payment"
+    ),
+
+    GSTR_9(
+            "GSTR-9 Annual Return",
+            ProductModuleCode.GST,
+            ProductCapability.COMPLIANCE_CALENDAR,
+            "Annual return consolidating monthly/quarterly filings for the financial year"
+    ),
+
+    GSTR_9C(
+            "GSTR-9C Reconciliation Statement",
+            ProductModuleCode.GST,
+            ProductCapability.COMPLIANCE_CALENDAR,
+            "Annual reconciliation statement between audited financial statements and GSTR-9"
+    ),
+
     ITR_FILING(
             "Income Tax Return (ITR)",
             ProductModuleCode.ITR,

@@ -24,7 +24,11 @@ public class TaskDto {
     private UUID organizationId;
     private UUID clientId;
     private String clientName;
+    private UUID locationId;
+    private String locationName;
+    private UUID workItemId;
     private UUID assignedTo;
+    private UUID assignedUserId;
     private String assigneeName;
     private String assigneeEmail;
     private String title;
@@ -44,6 +48,7 @@ public class TaskDto {
     private UUID noticeId;
     private String noticeNumber;
     private String blockedReason;
+    private String notes;
     private Boolean isOverdue;
     private Boolean isDueToday;
     private Boolean isDueThisWeek;

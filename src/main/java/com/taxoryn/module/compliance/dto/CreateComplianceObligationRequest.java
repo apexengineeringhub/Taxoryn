@@ -74,6 +74,12 @@ public class CreateComplianceObligationRequest {
     @Schema(description = "Assigned practitioner employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Assigned user ID")
+    private UUID assignedUserId;
+
+    @Schema(description = "Location / branch ID")
+    private UUID locationId;
+
     @Schema(description = "Notes or remarks")
     private String notes;
 

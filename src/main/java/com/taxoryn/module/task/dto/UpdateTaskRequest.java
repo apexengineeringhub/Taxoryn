@@ -1,5 +1,6 @@
 package com.taxoryn.module.task.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.taxoryn.module.task.entity.TaskEntity.TaskCategory;
 import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
 import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
@@ -21,8 +22,13 @@ import java.util.UUID;
 public class UpdateTaskRequest {
 
     private UUID clientId;
+
+    @JsonAlias({"assignedUserId", "assignedTo"})
     private UUID assignedTo;
     private Boolean unassign;
+
+    private UUID workItemId;
+    private UUID locationId;
 
     @Size(min = 3, max = 255, message = "Task title must be between 3 and 255 characters")
     private String title;
@@ -37,4 +43,13 @@ public class UpdateTaskRequest {
     private UUID noticeId;
     private String blockedReason;
     private Boolean clearBlockedReason;
+    private String notes;
+
+    public UUID getAssignedUserId() {
+        return assignedTo;
+    }
+
+    public void setAssignedUserId(UUID assignedUserId) {
+        this.assignedTo = assignedUserId;
+    }
 }

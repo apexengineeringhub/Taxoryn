@@ -18,9 +18,18 @@ import java.math.BigDecimal;
 @Schema(description = "Create Invoice Line Item Payload")
 public class CreateInvoiceItemRequest {
 
-    @NotNull(message = "Billing service is required")
     @Schema(description = "Service category", example = "GST_FILING")
-    private BillingServiceType service;
+    @Builder.Default
+    private BillingServiceType service = BillingServiceType.CONSULTING;
+
+    @Schema(description = "Linked Work Item ID")
+    private java.util.UUID workItemId;
+
+    @Schema(description = "Linked Time Entry ID")
+    private java.util.UUID timeEntryId;
+
+    @Schema(description = "Linked Service ID")
+    private java.util.UUID serviceId;
 
     @Schema(description = "Description of professional services rendered", example = "GSTR-1 & GSTR-3B preparation and filing for August 2026")
     private String description;
@@ -31,10 +40,18 @@ public class CreateInvoiceItemRequest {
     @Builder.Default
     private BigDecimal quantity = BigDecimal.ONE;
 
-    @NotNull(message = "Unit price is required")
     @DecimalMin(value = "0.00", message = "Unit price cannot be negative")
     @Schema(description = "Unit price in INR", example = "2500.00")
     private BigDecimal unitPrice;
+
+    @Schema(description = "Unit rate in INR (alias for unitPrice)", example = "2500.00")
+    private BigDecimal unitRate;
+
+    public BigDecimal getEffectiveUnitPrice() {
+        if (unitPrice != null) return unitPrice;
+        if (unitRate != null) return unitRate;
+        return BigDecimal.ZERO;
+    }
 
     @Schema(description = "GST tax rate percentage (e.g. 18.00)", example = "18.00")
     @Builder.Default

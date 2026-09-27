@@ -8,6 +8,7 @@ import com.taxoryn.module.subscription.entity.SubscriptionEntity;
 import com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan;
 import com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus;
 import com.taxoryn.module.subscription.repository.SubscriptionRepository;
+import com.taxoryn.module.subscription.service.SubscriptionPlanEntitlementService;
 import com.taxoryn.module.subscription.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ public class ModuleEntitlementServiceImpl implements ModuleEntitlementService {
     private final ModuleConfigurationService moduleConfigurationService;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
+    private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
 
     @Override
     @Transactional(readOnly = true)
@@ -94,7 +96,7 @@ public class ModuleEntitlementServiceImpl implements ModuleEntitlementService {
         if (plan == null || moduleCode == null) {
             return false;
         }
-        return getEntitledModulesForPlan(plan).contains(moduleCode);
+        return subscriptionPlanEntitlementService.isModuleEntitled(plan, moduleCode.name());
     }
 
     @Override
@@ -103,8 +105,14 @@ public class ModuleEntitlementServiceImpl implements ModuleEntitlementService {
             return EnumSet.noneOf(ProductModuleCode.class);
         }
 
-        return switch (plan) {
-            case STARTER, PROFESSIONAL, BUSINESS, ENTERPRISE -> EnumSet.allOf(ProductModuleCode.class);
-        };
+        Set<String> entitledCodes = subscriptionPlanEntitlementService.getEntitledModules(plan);
+        Set<ProductModuleCode> result = EnumSet.noneOf(ProductModuleCode.class);
+        for (String code : entitledCodes) {
+            try {
+                result.add(ProductModuleCode.valueOf(code.toUpperCase()));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return result.isEmpty() ? EnumSet.allOf(ProductModuleCode.class) : result;
     }
 }

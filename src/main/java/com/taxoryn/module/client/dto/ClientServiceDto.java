@@ -34,6 +34,16 @@ public class ClientServiceDto {
     @Schema(description = "Service engagement type")
     private ClientServiceType serviceType;
 
+    @Schema(description = "Service code alias", example = "AUDIT_ASSURANCE")
+    public String getServiceCode() {
+        return serviceType != null ? serviceType.name() : null;
+    }
+
+    @Schema(description = "Service summary notes alias")
+    public String getSummary() {
+        return notes;
+    }
+
     @Schema(description = "Service display name")
     private String serviceName;
 
@@ -54,6 +64,18 @@ public class ClientServiceDto {
 
     @Schema(description = "Assigned lead practitioner name")
     private String assignedEmployeeName;
+
+    @Schema(description = "Responsible user ID")
+    private UUID responsibleUserId;
+
+    @Schema(description = "Responsible user full name")
+    private String responsibleUserName;
+
+    @Schema(description = "Location ID")
+    private UUID locationId;
+
+    @Schema(description = "Location name")
+    private String locationName;
 
     @Schema(description = "Billing frequency (e.g. MONTHLY, QUARTERLY, ANNUAL, ONE_TIME)")
     private String billingFrequency;

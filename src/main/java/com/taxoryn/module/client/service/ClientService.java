@@ -35,6 +35,8 @@ public interface ClientService {
 
     ClientOverviewDto getClientOverview(UUID clientId);
 
+    com.taxoryn.module.client.dto.Client360Dto getClient360(UUID clientId);
+
     ClientNoteDto addClientNote(UUID clientId, CreateClientNoteRequest request);
 
     List<ClientNoteDto> getClientNotes(UUID clientId);
@@ -42,4 +44,20 @@ public interface ClientService {
     void resendPortalInvitation(UUID clientId);
 
     com.taxoryn.module.client.dto.BulkImportResultDto bulkCreateClients(List<CreateClientRequest> requests);
+
+    com.taxoryn.module.client.dto.ClientLocationAssignmentDto assignClientLocation(UUID clientId, com.taxoryn.module.client.dto.AssignClientLocationRequest request);
+
+    void removeClientLocation(UUID clientId, UUID locationId);
+
+    List<com.taxoryn.module.client.dto.ClientLocationAssignmentDto> getClientLocations(UUID clientId);
+
+    com.taxoryn.module.client.dto.ClientLocationAssignmentDto setPrimaryLocation(UUID clientId, UUID locationId);
+
+    com.taxoryn.module.client.dto.ClientUserAssignmentDto assignClientUser(UUID clientId, com.taxoryn.module.client.dto.AssignClientUserRequest request);
+
+    void removeClientUser(UUID clientId, UUID userId);
+
+    List<com.taxoryn.module.client.dto.ClientUserAssignmentDto> getClientUsers(UUID clientId);
+
+    com.taxoryn.module.client.dto.ClientUserAssignmentDto setPrimaryResponsibleUser(UUID clientId, UUID userId);
 }

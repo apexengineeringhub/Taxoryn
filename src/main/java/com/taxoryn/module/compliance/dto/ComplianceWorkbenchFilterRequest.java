@@ -56,6 +56,12 @@ public class ComplianceWorkbenchFilterRequest extends PageRequestDto {
     @Schema(description = "Filter by Assigned Practitioner Employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Filter by Assigned User ID")
+    private UUID assignedUserId;
+
+    @Schema(description = "Filter by Location ID")
+    private UUID locationId;
+
     @Schema(description = "Filter by Reviewer Employee ID")
     private UUID reviewerEmployeeId;
 

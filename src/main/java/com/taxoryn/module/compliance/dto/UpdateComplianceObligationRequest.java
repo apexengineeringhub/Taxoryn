@@ -29,5 +29,7 @@ public class UpdateComplianceObligationRequest {
     private LocalDate internalTargetDate;
     private TaskPriority priority;
     private UUID assignedEmployeeId;
+    private UUID assignedUserId;
+    private UUID locationId;
     private String notes;
 }

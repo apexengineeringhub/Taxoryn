@@ -28,6 +28,8 @@ public interface DocumentService {
 
     List<DocumentDto> getClientDocuments(UUID clientId);
 
+    List<DocumentDto> getWorkflowDocuments(UUID workflowId);
+
     void deleteDocument(UUID id);
 
     DocumentDto updateDocumentMetadata(UUID id, UpdateDocumentRequest request);

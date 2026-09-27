@@ -93,7 +93,7 @@ public class RateLimitingService {
         }
     }
 
-    private static class TokenBucket {
+    public static class TokenBucket {
         private final AtomicInteger tokens;
         private final AtomicLong lastRefillTime;
 

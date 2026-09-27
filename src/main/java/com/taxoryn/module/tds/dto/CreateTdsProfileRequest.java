@@ -24,6 +24,9 @@ public class CreateTdsProfileRequest {
     @Schema(description = "Client ID (optional, auto-resolved if not provided)")
     private UUID clientId;
 
+    @Schema(description = "Operating Location / Branch ID (optional)")
+    private UUID locationId;
+
     @Schema(description = "Client Display Name / Legal Name for Auto-Onboarding", example = "Acme Corporation Pvt Ltd")
     private String displayName;
 
@@ -34,10 +37,13 @@ public class CreateTdsProfileRequest {
     @Schema(description = "Client PAN", example = "AABCA1234K")
     private String pan;
 
-    @NotBlank(message = "TAN is required")
-    @Pattern(regexp = "^[A-Z]{4}[0-9]{5}[A-Z]{1}$", message = "TAN must be a valid 10-character alphanumeric code (e.g., BLRP12345A)")
-    @Schema(description = "Tax Deduction and Collection Account Number", example = "BLRP12345A", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Pattern(regexp = "^$|^[A-Z]{4}[0-9]{5}[A-Z]{1}$", message = "TAN must be a valid 10-character alphanumeric code (e.g., BLRP12345A)")
+    @Schema(description = "Tax Deduction and Collection Account Number", example = "BLRP12345A")
     private String tan;
+
+    @Builder.Default
+    @Schema(description = "Whether profile is active", example = "true")
+    private Boolean active = true;
 
     @Builder.Default
     @Schema(description = "Constitution of Deductor", example = "COMPANY")

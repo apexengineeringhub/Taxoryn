@@ -61,6 +61,24 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;
 
+    @Column(name = "assigned_user_id")
+    private UUID assignedUserId;
+
+    @Column(name = "location_id")
+    private UUID locationId;
+
+    @Column(name = "gst_registration_id")
+    private UUID gstRegistrationId;
+
+    @Column(name = "itr_profile_id")
+    private UUID itrProfileId;
+
+    @Column(name = "tds_profile_id")
+    private UUID tdsProfileId;
+
+    @Column(name = "workflow_type", length = 50)
+    private String workflowType;
+
     @Column(name = "reviewer_employee_id")
     private UUID reviewerEmployeeId;
 
@@ -174,7 +192,7 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
         }
 
         boolean valid = switch (this.workflowStatus) {
-            case CREATED -> targetStatus == ComplianceWorkflowStatus.READY
+            case NOT_STARTED, CREATED -> targetStatus == ComplianceWorkflowStatus.READY
                     || targetStatus == ComplianceWorkflowStatus.IN_PROGRESS
                     || targetStatus == ComplianceWorkflowStatus.CANCELLED;
             case READY -> targetStatus == ComplianceWorkflowStatus.IN_PROGRESS
@@ -188,6 +206,7 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
                     || targetStatus == ComplianceWorkflowStatus.CANCELLED;
             case WAITING_FOR_CLIENT -> targetStatus == ComplianceWorkflowStatus.IN_PROGRESS
                     || targetStatus == ComplianceWorkflowStatus.READY
+                    || targetStatus == ComplianceWorkflowStatus.NOT_STARTED
                     || targetStatus == ComplianceWorkflowStatus.CANCELLED;
             case UNDER_REVIEW -> targetStatus == ComplianceWorkflowStatus.CHANGES_REQUIRED
                     || targetStatus == ComplianceWorkflowStatus.READY_FOR_FILING

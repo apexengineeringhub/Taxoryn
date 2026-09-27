@@ -76,6 +76,7 @@ import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import com.taxoryn.module.notification.service.NotificationService;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationType;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.portal.entity.ClientPortalMessageEntity;
 import com.taxoryn.module.portal.mapper.ClientPortalMapper;
@@ -188,6 +189,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
     @Mock private EmployeeRepository employeeRepository;
     @Mock private UserRepository userRepository;
     @Mock private OrganizationRepository organizationRepository;
+    @Mock private LocationRepository locationRepository;
     @Mock private TaskRepository taskRepository;
     @Mock private AuditService auditService;
     @Mock private PracticeSecurityScopeEvaluator securityScopeEvaluator;
@@ -369,7 +371,11 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
                 mock(com.taxoryn.module.docrequest.repository.DocumentRequestRepository.class),
                 mock(com.taxoryn.module.billing.repository.InvoiceRepository.class),
                 mock(com.taxoryn.module.audit.repository.AuditLogRepository.class),
+                mock(com.taxoryn.module.client.repository.ClientLocationAssignmentRepository.class),
+                mock(com.taxoryn.module.client.repository.ClientUserAssignmentRepository.class),
                 mock(com.taxoryn.module.client.repository.ClientServiceRepository.class),
+                mock(com.taxoryn.module.organization.repository.LocationRepository.class),
+                mock(com.taxoryn.module.user.repository.UserLocationRepository.class),
                 clientMapper, taskMapper, auditService
         );
 
@@ -391,7 +397,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
 
         itrService = new ItrServiceImpl(
                 itrProfileRepository, itrReturnRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 null, documentRepository, documentMapper,
@@ -401,7 +407,7 @@ class EndToEndSecurityAndAuthorizationVerificationTest {
         tdsService = new TdsServiceImpl(
                 tdsProfileRepository, tdsReturnRepository, tdsChallanRepository,
                 tdsDeducteeEntryRepository, tdsCertificateRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 null, documentRepository, documentMapper,

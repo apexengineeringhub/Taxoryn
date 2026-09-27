@@ -160,12 +160,20 @@ public class ClientController {
         return ResponseEntity.ok(ApiResponse.success("Client archived successfully", null));
     }
 
-    @GetMapping({ "/{clientId}/overview", "/{clientId}/360" })
+    @GetMapping("/{clientId}/overview")
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "Client 360-Degree Overview", description = "Aggregates all modules related to a client into a single dashboard: Profile, Statutory, Active Services, Tasks, Compliance (GST/ITR/TDS), Documents, Document Requests, Billing, Notices, and Activity Timeline.")
     public ResponseEntity<ApiResponse<ClientOverviewDto>> getClientOverview(@PathVariable UUID clientId) {
         ClientOverviewDto overview = clientService.getClientOverview(clientId);
         return ResponseEntity.ok(ApiResponse.success("Client 360 overview retrieved successfully", overview));
+    }
+
+    @GetMapping("/{clientId}/360")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Client 360 Foundation Read Model", description = "Retrieves unified client foundation: profile, identifiers, primary/assigned locations, assigned user portfolio, and configured services.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.Client360Dto>> getClient360(@PathVariable UUID clientId) {
+        com.taxoryn.module.client.dto.Client360Dto client360 = clientService.getClient360(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client 360 retrieved successfully", client360));
     }
 
     @PostMapping("/{clientId}/notes")
@@ -178,10 +186,88 @@ public class ClientController {
     }
 
     @GetMapping("/{clientId}/notes")
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
-    @Operation(summary = "List communication notes", description = "Retrieves all interaction notes and communication history for the client.")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get client notes", description = "Retrieves communication notes and internal interaction history for a client.")
     public ResponseEntity<ApiResponse<List<ClientNoteDto>>> getClientNotes(@PathVariable UUID clientId) {
         List<ClientNoteDto> notes = clientService.getClientNotes(clientId);
         return ResponseEntity.ok(ApiResponse.success("Client notes retrieved successfully", notes));
+    }
+
+    @GetMapping("/{clientId}/locations")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get client location assignments", description = "Retrieves all locations assigned to the client.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.client.dto.ClientLocationAssignmentDto>>> getClientLocations(@PathVariable UUID clientId) {
+        List<com.taxoryn.module.client.dto.ClientLocationAssignmentDto> list = clientService.getClientLocations(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client locations retrieved successfully", list));
+    }
+
+    @PostMapping("/{clientId}/locations")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Assign location to client", description = "Assigns an operating/branch location to a client.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.ClientLocationAssignmentDto>> assignClientLocation(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody com.taxoryn.module.client.dto.AssignClientLocationRequest request) {
+        com.taxoryn.module.client.dto.ClientLocationAssignmentDto dto = clientService.assignClientLocation(clientId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Location assigned to client successfully", dto));
+    }
+
+    @DeleteMapping("/{clientId}/locations/{locationId}")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Remove location from client", description = "Removes a location assignment from a client.")
+    public ResponseEntity<ApiResponse<Void>> removeClientLocation(
+            @PathVariable UUID clientId,
+            @PathVariable UUID locationId) {
+        clientService.removeClientLocation(clientId, locationId);
+        return ResponseEntity.ok(ApiResponse.success("Location removed from client successfully", null));
+    }
+
+    @PutMapping("/{clientId}/locations/{locationId}/primary")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Set primary location for client", description = "Designates a specific assigned location as the client's primary servicing location.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.ClientLocationAssignmentDto>> setPrimaryLocation(
+            @PathVariable UUID clientId,
+            @PathVariable UUID locationId) {
+        com.taxoryn.module.client.dto.ClientLocationAssignmentDto dto = clientService.setPrimaryLocation(clientId, locationId);
+        return ResponseEntity.ok(ApiResponse.success("Primary location updated successfully", dto));
+    }
+
+    @GetMapping("/{clientId}/users")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get client user portfolio assignments", description = "Retrieves all staff users assigned to the client portfolio.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.client.dto.ClientUserAssignmentDto>>> getClientUsers(@PathVariable UUID clientId) {
+        List<com.taxoryn.module.client.dto.ClientUserAssignmentDto> list = clientService.getClientUsers(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client user assignments retrieved successfully", list));
+    }
+
+    @PostMapping("/{clientId}/users")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Assign user to client portfolio", description = "Assigns a practice user (Primary/Supporting/Reviewer/Partner) to the client portfolio.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.ClientUserAssignmentDto>> assignClientUser(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody com.taxoryn.module.client.dto.AssignClientUserRequest request) {
+        com.taxoryn.module.client.dto.ClientUserAssignmentDto dto = clientService.assignClientUser(clientId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("User assigned to client portfolio successfully", dto));
+    }
+
+    @DeleteMapping("/{clientId}/users/{userId}")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Remove user from client portfolio", description = "Removes a user from the client portfolio assignment.")
+    public ResponseEntity<ApiResponse<Void>> removeClientUser(
+            @PathVariable UUID clientId,
+            @PathVariable UUID userId) {
+        clientService.removeClientUser(clientId, userId);
+        return ResponseEntity.ok(ApiResponse.success("User removed from client portfolio successfully", null));
+    }
+
+    @PutMapping("/{clientId}/users/{userId}/primary")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Set primary responsible user for client", description = "Designates an assigned user as the primary responsible practitioner for the client.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.ClientUserAssignmentDto>> setPrimaryResponsibleUser(
+            @PathVariable UUID clientId,
+            @PathVariable UUID userId) {
+        com.taxoryn.module.client.dto.ClientUserAssignmentDto dto = clientService.setPrimaryResponsibleUser(clientId, userId);
+        return ResponseEntity.ok(ApiResponse.success("Primary responsible user updated successfully", dto));
     }
 }

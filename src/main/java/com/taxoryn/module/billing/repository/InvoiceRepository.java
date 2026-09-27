@@ -28,6 +28,8 @@ public interface InvoiceRepository extends JpaRepository<InvoiceEntity, UUID>, J
 
     long countByOrganizationIdAndStatus(UUID organizationId, InvoiceStatus status);
 
+    long countByOrganizationIdAndClientIdAndStatusNot(UUID organizationId, UUID clientId, InvoiceStatus status);
+
     @Query("SELECT COUNT(i) FROM InvoiceEntity i WHERE i.organizationId = :organizationId AND i.dueDate < :currentDate AND i.status IN ('ISSUED', 'PARTIALLY_PAID')")
     long countOverdueInvoices(@Param("organizationId") UUID organizationId, @Param("currentDate") LocalDate currentDate);
 

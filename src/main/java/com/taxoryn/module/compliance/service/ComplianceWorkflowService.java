@@ -23,9 +23,15 @@ import java.util.UUID;
  */
 public interface ComplianceWorkflowService {
 
+    ComplianceWorkflowDto createWorkflow(com.taxoryn.module.compliance.dto.CreateComplianceWorkflowRequest request);
+
     ComplianceWorkflowDto getOrCreateWorkflowForObligation(UUID obligationId);
 
     ComplianceWorkflowDetailDto getWorkflowById(UUID workflowId);
+
+    java.util.List<ComplianceWorkflowChecklistItemDto> getWorkflowChecklist(UUID workflowId);
+
+    ComplianceWorkflowDto updateWorkflowStatus(UUID workflowId, com.taxoryn.module.compliance.dto.UpdateComplianceWorkflowStatusRequest request);
 
     PagedResponse<ComplianceWorkflowDto> getWorkbenchWorkflows(ComplianceWorkbenchFilterRequest filter);
 

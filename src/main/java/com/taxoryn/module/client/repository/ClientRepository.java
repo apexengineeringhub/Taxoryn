@@ -26,6 +26,13 @@ public interface ClientRepository extends JpaRepository<ClientEntity, UUID>, Jpa
 
     boolean existsByOrganizationIdAndGstin(UUID organizationId, String gstin);
 
+    boolean existsByOrganizationIdAndClientCode(UUID organizationId, String clientCode);
+
+    Optional<ClientEntity> findByOrganizationIdAndClientCode(UUID organizationId, String clientCode);
+
+    @Query("SELECT c.id FROM ClientEntity c WHERE c.organizationId = :organizationId AND c.locationId IN :locationIds")
+    List<UUID> findIdsByOrganizationIdAndLocationIdIn(@Param("organizationId") UUID organizationId, @Param("locationIds") java.util.Collection<UUID> locationIds);
+
     Page<ClientEntity> findAllByOrganizationId(UUID organizationId, Pageable pageable);
 
     List<ClientEntity> findAllByOrganizationId(UUID organizationId);

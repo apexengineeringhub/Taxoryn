@@ -6,6 +6,7 @@ import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.exception.TenantAccessDeniedException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.core.security.TenantContext;
 import com.taxoryn.module.organization.dto.CreateOrganizationRequest;
 import com.taxoryn.module.organization.dto.OrganizationDto;
 import com.taxoryn.module.organization.dto.OrganizationSettingsDto;
@@ -33,6 +34,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationSettingsRepository settingsRepository;
     private final OrganizationMapper organizationMapper;
+    private final PracticeProfileService practiceProfileService;
+    private final LocationService locationService;
     private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
@@ -64,10 +67,25 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         OrganizationEntity saved = organizationRepository.save(organization);
 
-        // Auto-provision default settings for new organization
-        OrganizationSettingsEntity defaultSettings = OrganizationSettingsEntity.createDefault(saved.getId());
-        OrganizationSettingsEntity savedSettings = settingsRepository.save(defaultSettings);
-        saved.setSettings(savedSettings);
+        UUID previousTenant = TenantContext.getTenantId();
+        try {
+            TenantContext.setTenantId(saved.getId());
+
+            // Auto-provision default settings for new organization
+            OrganizationSettingsEntity defaultSettings = OrganizationSettingsEntity.createDefault(saved.getId());
+            OrganizationSettingsEntity savedSettings = settingsRepository.save(defaultSettings);
+            saved.setSettings(savedSettings);
+
+            // Auto-provision default practice profile and head office location
+            practiceProfileService.initializeDefaultProfile(saved.getId(), saved.getOrganizationType());
+            locationService.initializeDefaultHeadOffice(saved.getId(), saved.getName(), saved.getAddress(), saved.getCity(), saved.getState(), saved.getPincode());
+        } finally {
+            if (previousTenant != null) {
+                TenantContext.setTenantId(previousTenant);
+            } else {
+                TenantContext.clear();
+            }
+        }
 
         log.info("Created organization: id={}, name={}", saved.getId(), saved.getName());
         return organizationMapper.toDto(saved);

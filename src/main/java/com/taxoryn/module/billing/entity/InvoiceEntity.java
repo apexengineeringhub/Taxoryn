@@ -34,8 +34,18 @@ public class InvoiceEntity extends TenantAuditableEntity {
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
 
+    @Column(name = "location_id")
+    private UUID locationId;
+
+    @Column(name = "engagement_id")
+    private UUID engagementId;
+
     @Column(name = "invoice_number", nullable = false, length = 100)
     private String invoiceNumber;
+
+    @Column(name = "currency", length = 10)
+    @Builder.Default
+    private String currency = "INR";
 
     @Column(name = "invoice_date", nullable = false)
     private LocalDate invoiceDate;
@@ -46,6 +56,10 @@ public class InvoiceEntity extends TenantAuditableEntity {
     @Column(name = "subtotal", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal subtotal = BigDecimal.ZERO;
+
+    @Column(name = "discount", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal discount = BigDecimal.ZERO;
 
     @Column(name = "tax", nullable = false, precision = 15, scale = 2)
     @Builder.Default
@@ -96,6 +110,7 @@ public class InvoiceEntity extends TenantAuditableEntity {
     public enum InvoiceStatus {
         DRAFT,
         ISSUED,
+        SENT,
         PARTIALLY_PAID,
         PAID,
         OVERDUE,

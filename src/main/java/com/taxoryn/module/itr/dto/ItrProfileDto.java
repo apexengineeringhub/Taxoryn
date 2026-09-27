@@ -32,6 +32,12 @@ public class ItrProfileDto {
     @Schema(description = "Client display name", example = "Anand Ramesh Joshi")
     private String clientName;
 
+    @Schema(description = "Location ID")
+    private UUID locationId;
+
+    @Schema(description = "Location name", example = "Mumbai Main Branch")
+    private String locationName;
+
     @Schema(description = "Permanent Account Number (PAN)", example = "ABCPJ9876M")
     private String pan;
 
@@ -41,6 +47,15 @@ public class ItrProfileDto {
     @Schema(description = "Default ITR form type", example = "ITR_1")
     private ItrType defaultItrType;
 
+    @Schema(description = "Applicable return form type", example = "ITR_1")
+    private ItrType applicableReturnType;
+
+    @Schema(description = "Default Assessment Year", example = "2026-27")
+    private String defaultAssessmentYear;
+
+    @Schema(description = "Assessment category/type", example = "REGULAR")
+    private String assessmentCategory;
+
     @Schema(description = "Residential status under Income Tax Act", example = "RESIDENT")
     private ResidentialStatus residentialStatus;
 
@@ -49,6 +64,10 @@ public class ItrProfileDto {
 
     @Schema(description = "Assigned practitioner name", example = "Vikram Sharma")
     private String assignedEmployeeName;
+
+    @Schema(description = "Active flag")
+    @Builder.Default
+    private boolean active = true;
 
     @Schema(description = "Profile active status", example = "ACTIVE")
     private ItrProfileStatus status;

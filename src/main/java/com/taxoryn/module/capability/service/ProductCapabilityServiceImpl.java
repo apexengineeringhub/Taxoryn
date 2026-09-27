@@ -296,7 +296,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
 
     private List<OnboardingStepDto> resolveOnboardingChecklist(OrganizationType orgType) {
         return switch (orgType) {
-            case SOLO_PRACTITIONER -> List.of(
+            case SOLO, SOLO_PRACTITIONER -> List.of(
                     OnboardingStepDto.builder()
                             .stepKey("PRACTICE_PROFILE")
                             .title("Complete Practice Profile")
@@ -352,7 +352,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                             .targetCapability(ProductCapability.BILLING_INVOICING)
                             .build()
             );
-            case SMALL_TAX_FIRM -> List.of(
+            case FIRM, SMALL_TAX_FIRM -> List.of(
                     OnboardingStepDto.builder()
                             .stepKey("FIRM_PROFILE")
                             .title("Firm Profile & Letterhead")
@@ -491,7 +491,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                             .targetCapability(ProductCapability.ADVANCED_ANALYTICS)
                             .build()
             );
-            case BUSINESS -> List.of(
+            case ENTERPRISE, BUSINESS -> List.of(
                     OnboardingStepDto.builder()
                             .stepKey("CORPORATE_PROFILE")
                             .title("Corporate Profile & Registrations")
@@ -599,7 +599,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
 
     private DashboardProfileDto resolveDashboardProfile(OrganizationType orgType) {
         return switch (orgType) {
-            case SOLO_PRACTITIONER -> DashboardProfileDto.builder()
+            case SOLO, SOLO_PRACTITIONER -> DashboardProfileDto.builder()
                     .profileKey("SOLO_WORKLIST")
                     .title("Solo Practitioner Worklist")
                     .description("Single-user task, client compliance, and invoicing command center.")
@@ -608,7 +608,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                     .quickActions(List.of("ADD_CLIENT", "NEW_TASK", "NEW_INVOICE", "FILE_RETURN"))
                     .recommendedWidgets(List.of("MY_WORKLIST", "UPCOMING_COMPLIANCE_CALENDAR", "RECENT_CLIENT_VAULT", "INVOICING_SUMMARY"))
                     .build();
-            case SMALL_TAX_FIRM -> DashboardProfileDto.builder()
+            case FIRM, SMALL_TAX_FIRM -> DashboardProfileDto.builder()
                     .profileKey("TEAM_PRACTICE")
                     .title("Small Firm Practice Dashboard")
                     .description("Multi-staff workload distribution, client portfolio tracking, and firm compliance overview.")
@@ -626,7 +626,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                     .quickActions(List.of("DISPATCH_TASK_BATCH", "ALLOCATE_PORTFOLIO", "LOG_ASSESSMENT_NOTICE", "EXPORT_PRACTICE_AUDIT"))
                     .recommendedWidgets(List.of("EXECUTIVE_PRACTICE_KPI", "MANAGER_PORTFOLIO_HEALTH", "NOTICE_DISPUTE_TRACKER", "REALIZATION_ANALYTICS", "TEAM_CAPACITY_HEATMAP"))
                     .build();
-            case BUSINESS -> DashboardProfileDto.builder()
+            case ENTERPRISE, BUSINESS -> DashboardProfileDto.builder()
                     .profileKey("IN_HOUSE_COMPLIANCE")
                     .title("Corporate In-House Tax Dashboard")
                     .description("Internal statutory filings, tax notice dispute tracking, and corporate document archive.")
@@ -649,30 +649,30 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
 
     private List<String> resolveRecommendedModules(OrganizationType orgType) {
         return switch (orgType) {
-            case SOLO_PRACTITIONER -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "BILLING");
-            case SMALL_TAX_FIRM -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "TEAM", "BILLING", "PORTAL", "REPORTS");
+            case SOLO, SOLO_PRACTITIONER -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "BILLING");
+            case FIRM, SMALL_TAX_FIRM -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "TEAM", "BILLING", "PORTAL", "REPORTS");
             case GROWING_PRACTICE -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "TEAM", "BILLING", "PORTAL", "REPORTS");
-            case BUSINESS -> List.of("GST", "ITR", "TDS", "NOTICES", "COMPLIANCE_CALENDAR", "DOCUMENTS", "TASKS", "TEAM");
+            case ENTERPRISE, BUSINESS -> List.of("GST", "ITR", "TDS", "NOTICES", "COMPLIANCE_CALENDAR", "DOCUMENTS", "TASKS", "TEAM");
             case UNKNOWN -> List.of("CLIENTS", "GST", "ITR", "TDS", "NOTICES", "TASKS", "DOCUMENTS", "BILLING", "REPORTS");
         };
     }
 
     private String resolveDefaultDashboardView(OrganizationType orgType) {
         return switch (orgType) {
-            case SOLO_PRACTITIONER -> "SOLO_WORKLIST";
-            case SMALL_TAX_FIRM -> "TEAM_PRACTICE";
+            case SOLO, SOLO_PRACTITIONER -> "SOLO_WORKLIST";
+            case FIRM, SMALL_TAX_FIRM -> "TEAM_PRACTICE";
             case GROWING_PRACTICE -> "GROWING_PRACTICE";
-            case BUSINESS -> "IN_HOUSE_COMPLIANCE";
+            case ENTERPRISE, BUSINESS -> "IN_HOUSE_COMPLIANCE";
             case UNKNOWN -> "STANDARD_PRACTICE";
         };
     }
 
     private String resolveOnboardingProfile(OrganizationType orgType) {
         return switch (orgType) {
-            case SOLO_PRACTITIONER -> "SOLO_CONSULTANT_PROFILE";
-            case SMALL_TAX_FIRM -> "SMALL_FIRM_PROFILE";
+            case SOLO, SOLO_PRACTITIONER -> "SOLO_CONSULTANT_PROFILE";
+            case FIRM, SMALL_TAX_FIRM -> "SMALL_FIRM_PROFILE";
             case GROWING_PRACTICE -> "MULTI_DISCIPLINARY_PRACTICE";
-            case BUSINESS -> "IN_HOUSE_TAX_TEAM";
+            case ENTERPRISE, BUSINESS -> "IN_HOUSE_TAX_TEAM";
             case UNKNOWN -> "GENERAL_PRACTICE";
         };
     }

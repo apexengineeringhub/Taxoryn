@@ -2,7 +2,7 @@ spring:
   application:
     name: taxoryn
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:prod}
   config:
     import:
       - "optional:classpath:application-local.yml"
@@ -15,6 +15,12 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+  datasource:
+    hikari:
+      connection-timeout: 30000
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
   flyway:
     enabled: true
     baseline-on-migrate: true

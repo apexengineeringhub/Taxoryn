@@ -35,6 +35,12 @@ public class InvoicePaymentEntity extends TenantAuditableEntity {
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
 
+    @Column(name = "location_id")
+    private UUID locationId;
+
+    @Column(name = "receipt_number", length = 100)
+    private String receiptNumber;
+
     @Column(name = "payment_date", nullable = false)
     private LocalDate paymentDate;
 

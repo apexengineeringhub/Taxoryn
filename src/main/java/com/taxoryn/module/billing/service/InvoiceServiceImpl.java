@@ -47,10 +47,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
@@ -63,6 +63,64 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+    private final com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository;
+    private final com.taxoryn.module.timetracking.repository.TimeEntryRepository timeEntryRepository;
+    private final com.taxoryn.module.user.repository.UserRepository userRepository;
+    private final PromotionService promotionService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InvoiceServiceImpl(
+            InvoiceRepository invoiceRepository,
+            InvoiceItemRepository invoiceItemRepository,
+            InvoicePaymentRepository invoicePaymentRepository,
+            ClientRepository clientRepository,
+            ClientNotificationRepository notificationRepository,
+            InvoiceMapper invoiceMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.timetracking.repository.TimeEntryRepository timeEntryRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.user.repository.UserRepository userRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) PromotionService promotionService
+    ) {
+        this.invoiceRepository = invoiceRepository;
+        this.invoiceItemRepository = invoiceItemRepository;
+        this.invoicePaymentRepository = invoicePaymentRepository;
+        this.clientRepository = clientRepository;
+        this.notificationRepository = notificationRepository;
+        this.invoiceMapper = invoiceMapper;
+        this.auditService = auditService;
+        this.eventPublisher = eventPublisher;
+        this.securityScopeEvaluator = securityScopeEvaluator;
+        this.organizationRepository = organizationRepository;
+        this.locationRepository = locationRepository;
+        this.engagementRepository = engagementRepository;
+        this.timeEntryRepository = timeEntryRepository;
+        this.userRepository = userRepository;
+        this.promotionService = promotionService;
+    }
+
+    public InvoiceServiceImpl(
+            InvoiceRepository invoiceRepository,
+            InvoiceItemRepository invoiceItemRepository,
+            InvoicePaymentRepository invoicePaymentRepository,
+            ClientRepository clientRepository,
+            ClientNotificationRepository notificationRepository,
+            InvoiceMapper invoiceMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository
+    ) {
+        this(invoiceRepository, invoiceItemRepository, invoicePaymentRepository,
+                clientRepository, notificationRepository, invoiceMapper,
+                auditService, eventPublisher, securityScopeEvaluator, organizationRepository,
+                null, null, null, null, null);
+    }
 
     @Override
     @Transactional
@@ -74,6 +132,8 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         validateClientAccess(client.getId());
 
+        UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
+
         String invoiceNumber = request.getInvoiceNumber();
         if (StringUtils.hasText(invoiceNumber)) {
             invoiceNumber = invoiceNumber.trim().toUpperCase();
@@ -84,14 +144,20 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceNumber = generateInvoiceNumber(organizationId);
         }
 
+        InvoiceEntity.InvoiceStatus initialStatus = request.getStatus() != null ? request.getStatus() : InvoiceStatus.DRAFT;
+
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .clientId(client.getId())
+                .locationId(locationId)
+                .engagementId(request.getEngagementId())
                 .invoiceNumber(invoiceNumber)
+                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().trim() : "INR")
                 .invoiceDate(request.getInvoiceDate())
                 .dueDate(request.getDueDate())
-                .status(InvoiceStatus.DRAFT)
+                .status(initialStatus)
                 .notes(request.getNotes())
                 .terms(request.getTerms())
+                .discount(request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO)
                 .build();
         invoice.setOrganizationId(organizationId);
 
@@ -100,9 +166,18 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         for (CreateInvoiceItemRequest itemReq : request.getItems()) {
             BigDecimal qty = itemReq.getQuantity() != null ? itemReq.getQuantity() : BigDecimal.ONE;
-            BigDecimal price = itemReq.getUnitPrice() != null ? itemReq.getUnitPrice() : BigDecimal.ZERO;
             BigDecimal taxRate = itemReq.getTaxRate() != null ? itemReq.getTaxRate() : new BigDecimal("18.00");
+            InvoiceItemEntity.BillingServiceType svc = itemReq.getService() != null ? itemReq.getService() : InvoiceItemEntity.BillingServiceType.CONSULTING;
 
+            BigDecimal manualPrice = (itemReq.getUnitPrice() != null || itemReq.getUnitRate() != null)
+                    ? itemReq.getEffectiveUnitPrice() : null;
+
+            com.taxoryn.module.billing.dto.PriceResolutionResultDto resolution = null;
+            if (promotionService != null) {
+                resolution = promotionService.resolvePrice(organizationId, client.getId(), svc, manualPrice, null, request.getInvoiceDate());
+            }
+
+            BigDecimal price = resolution != null ? resolution.getUnitPrice() : itemReq.getEffectiveUnitPrice();
             BigDecimal lineSubtotal = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
             BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
             BigDecimal lineAmount = lineSubtotal.add(lineTax);
@@ -111,21 +186,41 @@ public class InvoiceServiceImpl implements InvoiceService {
             totalTax = totalTax.add(lineTax);
 
             InvoiceItemEntity item = InvoiceItemEntity.builder()
-                    .service(itemReq.getService())
+                    .service(svc)
+                    .serviceId(itemReq.getServiceId())
+                    .workItemId(itemReq.getWorkItemId())
+                    .timeEntryId(itemReq.getTimeEntryId())
                     .description(itemReq.getDescription())
                     .quantity(qty)
                     .unitPrice(price)
                     .taxRate(taxRate)
                     .tax(lineTax)
                     .amount(lineAmount)
+                    .promotionId(resolution != null ? resolution.getPromotionId() : null)
+                    .promotionName(resolution != null ? resolution.getPromotionName() : null)
+                    .pricingType(resolution != null && resolution.getPricingType() != null ? resolution.getPricingType() : com.taxoryn.module.billing.model.PricingType.STANDARD)
+                    .standardUnitPrice(resolution != null ? resolution.getStandardUnitPrice() : price)
+                    .discountType(resolution != null ? resolution.getDiscountType() : null)
+                    .discountValue(resolution != null ? resolution.getDiscountValue() : null)
+                    .discountAmount(resolution != null && resolution.getDiscountAmount() != null ? resolution.getDiscountAmount() : BigDecimal.ZERO)
                     .build();
 
             invoice.addItem(item);
+
+            if (resolution != null && resolution.getPromotionId() != null) {
+                promotionService.incrementPromotionUse(resolution.getPromotionId());
+            }
         }
 
-        BigDecimal total = subtotal.add(totalTax);
+        BigDecimal discount = request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO;
+        BigDecimal total = subtotal.add(totalTax).subtract(discount);
+        if (total.compareTo(BigDecimal.ZERO) < 0) {
+            total = BigDecimal.ZERO;
+        }
+
         invoice.setSubtotal(subtotal);
         invoice.setTax(totalTax);
+        invoice.setDiscount(discount);
         invoice.setTotal(total);
         invoice.setPaidAmount(BigDecimal.ZERO);
         invoice.setBalanceDue(total);
@@ -165,7 +260,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 predicates.add(cb.equal(root.get("clientId"), currentClientId));
             } else {
                 PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-                if (!scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+                if (!scope.isFirmAdmin()) {
                     Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
                     if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
                         predicates.add(cb.disjunction());
@@ -369,9 +464,18 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new BadRequestException("Payment amount must be greater than zero");
         }
 
+        BigDecimal currentBalance = invoice.getBalanceDue() != null ? invoice.getBalanceDue() : invoice.getTotal().subtract(invoice.getPaidAmount());
+        if (request.getAmount().compareTo(currentBalance) > 0) {
+            throw new BadRequestException("Payment amount (" + request.getAmount() + ") exceeds invoice balance due (" + currentBalance + ")");
+        }
+
+        String receiptNumber = generateReceiptNumber(organizationId);
+
         InvoicePaymentEntity payment = InvoicePaymentEntity.builder()
                 .invoice(invoice)
                 .clientId(invoice.getClientId())
+                .locationId(invoice.getLocationId())
+                .receiptNumber(receiptNumber)
                 .paymentDate(request.getPaymentDate())
                 .amount(request.getAmount().setScale(2, RoundingMode.HALF_UP))
                 .paymentMethod(request.getPaymentMethod())
@@ -804,6 +908,356 @@ public class InvoiceServiceImpl implements InvoiceService {
         return seeded;
     }
 
+    @Override
+    @Transactional
+    public InvoiceDto updateInvoiceStatus(UUID id, com.taxoryn.module.billing.dto.UpdateInvoiceStatusRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        InvoiceEntity invoice = invoiceRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice", "id", id));
+
+        validateInvoiceAccess(invoice);
+
+        invoice.setStatus(request.getStatus());
+        if (request.getNotes() != null) {
+            invoice.setNotes(request.getNotes());
+        }
+
+        invoice = invoiceRepository.save(invoice);
+        log.info("Updated status for Invoice: id={}, status={}", invoice.getId(), invoice.getStatus());
+
+        InvoiceDto result = enrichDto(invoice);
+        auditService.logEvent("INVOICE_STATUS_UPDATED", "INVOICE", invoice.getId().toString(), null, result);
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InvoiceDto> getInvoicesByClientId(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client.getId());
+
+        List<InvoiceEntity> invoices = invoiceRepository.findAllByOrganizationIdAndClientIdOrderByInvoiceDateDesc(organizationId, clientId);
+        return invoices.stream().map(this::enrichDto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public InvoiceDto generateInvoiceFromTimeEntries(com.taxoryn.module.billing.dto.GenerateInvoiceFromTimeEntriesRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+
+        validateClientAccess(client.getId());
+
+        if (request.getTimeEntryIds() == null || request.getTimeEntryIds().isEmpty()) {
+            throw new BadRequestException("At least one time entry must be selected for invoicing");
+        }
+
+        List<com.taxoryn.module.timetracking.entity.TimeEntryEntity> timeEntries =
+                timeEntryRepository.findAllByOrganizationIdAndIdIn(organizationId, request.getTimeEntryIds());
+
+        if (timeEntries.size() != request.getTimeEntryIds().size()) {
+            throw new BadRequestException("One or more time entries were not found in the current organization");
+        }
+
+        for (com.taxoryn.module.timetracking.entity.TimeEntryEntity entry : timeEntries) {
+            if (!entry.getClientId().equals(client.getId())) {
+                throw new BadRequestException("Time entry " + entry.getId() + " does not belong to client " + client.getDisplayName());
+            }
+            if (Boolean.FALSE.equals(entry.getBillable())) {
+                throw new BadRequestException("Time entry " + entry.getId() + " is marked as non-billable");
+            }
+            if (entry.getStatus() == com.taxoryn.module.timetracking.model.TimeEntryStatus.BILLED) {
+                throw new BadRequestException("Time entry " + entry.getId() + " has already been billed");
+            }
+        }
+
+        UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
+        String invoiceNumber = generateInvoiceNumber(organizationId);
+
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .clientId(client.getId())
+                .locationId(locationId)
+                .engagementId(request.getEngagementId())
+                .invoiceNumber(invoiceNumber)
+                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().trim() : "INR")
+                .invoiceDate(request.getInvoiceDate())
+                .dueDate(request.getDueDate())
+                .status(InvoiceStatus.DRAFT)
+                .notes(request.getNotes())
+                .terms(request.getTerms())
+                .discount(request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO)
+                .build();
+        invoice.setOrganizationId(organizationId);
+
+        BigDecimal subtotal = BigDecimal.ZERO;
+        BigDecimal totalTax = BigDecimal.ZERO;
+        BigDecimal taxRate = request.getTaxRate() != null ? request.getTaxRate() : new BigDecimal("18.00");
+
+        for (com.taxoryn.module.timetracking.entity.TimeEntryEntity entry : timeEntries) {
+            BigDecimal hours = BigDecimal.valueOf(entry.getDurationMinutes())
+                    .divide(new BigDecimal("60"), 2, RoundingMode.HALF_UP);
+            BigDecimal rate = entry.getBillingRate() != null ? entry.getBillingRate() : BigDecimal.ZERO;
+
+            BigDecimal lineSubtotal = hours.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            BigDecimal lineAmount = lineSubtotal.add(lineTax);
+
+            subtotal = subtotal.add(lineSubtotal);
+            totalTax = totalTax.add(lineTax);
+
+            String desc = StringUtils.hasText(entry.getDescription())
+                    ? entry.getDescription()
+                    : "Professional time on " + entry.getEntryDate() + " (" + hours + " hrs)";
+
+            InvoiceItemEntity item = InvoiceItemEntity.builder()
+                    .service(InvoiceItemEntity.BillingServiceType.CONSULTING)
+                    .timeEntryId(entry.getId())
+                    .workItemId(entry.getWorkItemId())
+                    .description(desc)
+                    .quantity(hours)
+                    .unitPrice(rate)
+                    .taxRate(taxRate)
+                    .tax(lineTax)
+                    .amount(lineAmount)
+                    .build();
+
+            invoice.addItem(item);
+            entry.setStatus(com.taxoryn.module.timetracking.model.TimeEntryStatus.BILLED);
+        }
+
+        BigDecimal discount = request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO;
+        BigDecimal total = subtotal.add(totalTax).subtract(discount);
+        if (total.compareTo(BigDecimal.ZERO) < 0) {
+            total = BigDecimal.ZERO;
+        }
+
+        invoice.setSubtotal(subtotal);
+        invoice.setTax(totalTax);
+        invoice.setDiscount(discount);
+        invoice.setTotal(total);
+        invoice.setPaidAmount(BigDecimal.ZERO);
+        invoice.setBalanceDue(total);
+
+        timeEntryRepository.saveAll(timeEntries);
+        InvoiceEntity saved = invoiceRepository.save(invoice);
+        log.info("Generated invoice {} from {} time entries for client {}", saved.getInvoiceNumber(), timeEntries.size(), client.getId());
+
+        InvoiceDto result = enrichDto(saved);
+        auditService.logEvent("INVOICE_GENERATED_FROM_TIME", "INVOICE", saved.getId().toString(), null, result);
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.billing.dto.UnbilledTimeEntryDto> getUnbilledTimeEntries(UUID clientId, UUID engagementId, LocalDate startDate, LocalDate endDate) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        if (clientId != null) {
+            validateClientAccess(clientId);
+        }
+
+        List<com.taxoryn.module.timetracking.entity.TimeEntryEntity> entries =
+                timeEntryRepository.findUnbilledEntries(organizationId, clientId, engagementId, startDate, endDate);
+
+        if (clientId == null && securityScopeEvaluator != null && !SecurityUtils.isClientPortalUser()) {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin()) {
+                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
+                if (accessibleClientIds == null || accessibleClientIds.isEmpty()) {
+                    return List.of();
+                }
+                entries = entries.stream()
+                        .filter(e -> accessibleClientIds.contains(e.getClientId()))
+                        .toList();
+            }
+        }
+
+        Map<UUID, String> clientNameMap = new HashMap<>();
+        Map<UUID, String> userNameMap = new HashMap<>();
+        Map<UUID, String> engTitleMap = new HashMap<>();
+
+        return entries.stream().map(entry -> {
+            String cName = clientNameMap.computeIfAbsent(entry.getClientId(), cid ->
+                    clientRepository.findByIdAndOrganizationId(cid, organizationId)
+                            .map(ClientEntity::getDisplayName).orElse("Unknown Client"));
+
+            String uName = userNameMap.computeIfAbsent(entry.getUserId(), uid ->
+                    userRepository != null ? userRepository.findById(uid).map(com.taxoryn.module.user.entity.UserEntity::getFullName).orElse("Staff") : "Staff");
+
+            String engTitle = null;
+            if (entry.getEngagementId() != null && engagementRepository != null) {
+                engTitle = engTitleMap.computeIfAbsent(entry.getEngagementId(), eid ->
+                        engagementRepository.findByIdAndOrganizationId(eid, organizationId)
+                                .map(com.taxoryn.module.engagement.entity.EngagementEntity::getName).orElse(null));
+            }
+
+            BigDecimal hours = BigDecimal.valueOf(entry.getDurationMinutes())
+                    .divide(new BigDecimal("60"), 2, RoundingMode.HALF_UP);
+            BigDecimal rate = entry.getBillingRate() != null ? entry.getBillingRate() : BigDecimal.ZERO;
+            BigDecimal billableAmount = hours.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+
+            return com.taxoryn.module.billing.dto.UnbilledTimeEntryDto.builder()
+                    .id(entry.getId())
+                    .clientId(entry.getClientId())
+                    .clientName(cName)
+                    .engagementId(entry.getEngagementId())
+                    .engagementTitle(engTitle)
+                    .workItemId(entry.getWorkItemId())
+                    .taskId(entry.getTaskId())
+                    .userId(entry.getUserId())
+                    .userName(uName)
+                    .entryDate(entry.getEntryDate())
+                    .durationMinutes(entry.getDurationMinutes())
+                    .durationHours(hours)
+                    .description(entry.getDescription())
+                    .billingRate(rate)
+                    .billableAmount(billableAmount)
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.billing.dto.ReceivablesSummaryDto getReceivablesSummary(UUID locationId, UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        if (clientId != null) {
+            validateClientAccess(clientId);
+        }
+
+        List<InvoiceEntity> invoices = invoiceRepository.findAllByOrganizationId(organizationId);
+
+        PracticeSecurityScope scope = securityScopeEvaluator != null ? securityScopeEvaluator.evaluateCurrentScope() : null;
+        Set<UUID> accessibleClientIds = (scope != null && !scope.isFirmAdmin()) ? securityScopeEvaluator.getAccessibleClientIds(scope) : null;
+        Set<UUID> accessibleLocIds = (scope != null && !scope.isFirmAdmin()) ? scope.getAccessibleLocationIds() : null;
+
+        LocalDate today = LocalDate.now();
+
+        BigDecimal totalInvoiced = BigDecimal.ZERO;
+        BigDecimal totalCollected = BigDecimal.ZERO;
+        BigDecimal totalOutstanding = BigDecimal.ZERO;
+        BigDecimal totalOverdue = BigDecimal.ZERO;
+
+        long totalCount = 0;
+        long draftCount = 0;
+        long issuedCount = 0;
+        long partiallyPaidCount = 0;
+        long paidCount = 0;
+        long overdueCount = 0;
+
+        BigDecimal currentOutstanding = BigDecimal.ZERO;
+        BigDecimal overdue1To30 = BigDecimal.ZERO;
+        BigDecimal overdue31To60 = BigDecimal.ZERO;
+        BigDecimal overdue60Plus = BigDecimal.ZERO;
+
+        Map<UUID, com.taxoryn.module.billing.dto.ReceivablesSummaryDto.ClientAgingSummaryDto> clientMap = new HashMap<>();
+
+        for (InvoiceEntity inv : invoices) {
+            if (locationId != null && !locationId.equals(inv.getLocationId())) {
+                continue;
+            }
+            if (clientId != null && !clientId.equals(inv.getClientId())) {
+                continue;
+            }
+            if (accessibleClientIds != null && !accessibleClientIds.contains(inv.getClientId())) {
+                continue;
+            }
+            if (accessibleLocIds != null && !accessibleLocIds.isEmpty() && inv.getLocationId() != null && !accessibleLocIds.contains(inv.getLocationId())) {
+                continue;
+            }
+
+            totalCount++;
+
+            if (inv.getStatus() == InvoiceStatus.DRAFT) {
+                draftCount++;
+                continue;
+            }
+            if (inv.getStatus() == InvoiceStatus.CANCELLED) {
+                continue;
+            }
+
+            totalInvoiced = totalInvoiced.add(inv.getTotal());
+            totalCollected = totalCollected.add(inv.getPaidAmount());
+            totalOutstanding = totalOutstanding.add(inv.getBalanceDue());
+
+            boolean isOverdue = false;
+            long daysOverdue = 0;
+            if (inv.getBalanceDue().compareTo(BigDecimal.ZERO) > 0 && inv.getDueDate() != null && inv.getDueDate().isBefore(today)) {
+                isOverdue = true;
+                daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(inv.getDueDate(), today);
+                totalOverdue = totalOverdue.add(inv.getBalanceDue());
+                overdueCount++;
+            }
+
+            if (inv.getStatus() == InvoiceStatus.PAID) {
+                paidCount++;
+            } else if (inv.getStatus() == InvoiceStatus.ISSUED) {
+                issuedCount++;
+            } else if (inv.getStatus() == InvoiceStatus.PARTIALLY_PAID) {
+                partiallyPaidCount++;
+            }
+
+            if (inv.getBalanceDue().compareTo(BigDecimal.ZERO) > 0) {
+                if (!isOverdue) {
+                    currentOutstanding = currentOutstanding.add(inv.getBalanceDue());
+                } else if (daysOverdue <= 30) {
+                    overdue1To30 = overdue1To30.add(inv.getBalanceDue());
+                } else if (daysOverdue <= 60) {
+                    overdue31To60 = overdue31To60.add(inv.getBalanceDue());
+                } else {
+                    overdue60Plus = overdue60Plus.add(inv.getBalanceDue());
+                }
+            }
+
+            com.taxoryn.module.billing.dto.ReceivablesSummaryDto.ClientAgingSummaryDto clientSummary = clientMap.computeIfAbsent(inv.getClientId(), cid -> {
+                String clientName = clientRepository.findByIdAndOrganizationId(cid, organizationId)
+                        .map(ClientEntity::getDisplayName).orElse("Client");
+                return com.taxoryn.module.billing.dto.ReceivablesSummaryDto.ClientAgingSummaryDto.builder()
+                        .clientId(cid)
+                        .clientName(clientName)
+                        .totalInvoiced(BigDecimal.ZERO)
+                        .totalCollected(BigDecimal.ZERO)
+                        .totalOutstanding(BigDecimal.ZERO)
+                        .overdueAmount(BigDecimal.ZERO)
+                        .invoiceCount(0)
+                        .overdueCount(0)
+                        .build();
+            });
+
+            clientSummary.setInvoiceCount(clientSummary.getInvoiceCount() + 1);
+            clientSummary.setTotalInvoiced(clientSummary.getTotalInvoiced().add(inv.getTotal()));
+            clientSummary.setTotalCollected(clientSummary.getTotalCollected().add(inv.getPaidAmount()));
+            clientSummary.setTotalOutstanding(clientSummary.getTotalOutstanding().add(inv.getBalanceDue()));
+            if (isOverdue) {
+                clientSummary.setOverdueAmount(clientSummary.getOverdueAmount().add(inv.getBalanceDue()));
+                clientSummary.setOverdueCount(clientSummary.getOverdueCount() + 1);
+            }
+        }
+
+        return com.taxoryn.module.billing.dto.ReceivablesSummaryDto.builder()
+                .totalInvoiced(totalInvoiced)
+                .totalCollected(totalCollected)
+                .totalOutstanding(totalOutstanding)
+                .totalOverdue(totalOverdue)
+                .totalInvoicesCount(totalCount)
+                .draftInvoicesCount(draftCount)
+                .issuedInvoicesCount(issuedCount)
+                .partiallyPaidInvoicesCount(partiallyPaidCount)
+                .paidInvoicesCount(paidCount)
+                .overdueInvoicesCount(overdueCount)
+                .currentOutstanding(currentOutstanding)
+                .overdue1To30Days(overdue1To30)
+                .overdue31To60Days(overdue31To60)
+                .overdue60PlusDays(overdue60Plus)
+                .clientBreakdown(new ArrayList<>(clientMap.values()))
+                .build();
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================
@@ -818,6 +1272,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                     dto.setClientGstin(client.getGstin());
                     dto.setClientPan(client.getPan());
                 });
+
+        if (entity.getLocationId() != null && locationRepository != null) {
+            locationRepository.findByIdAndOrganizationId(entity.getLocationId(), entity.getOrganizationId())
+                    .ifPresent(loc -> dto.setLocationName(loc.getName()));
+        }
+        if (entity.getEngagementId() != null && engagementRepository != null) {
+            engagementRepository.findByIdAndOrganizationId(entity.getEngagementId(), entity.getOrganizationId())
+                    .ifPresent(eng -> dto.setEngagementName(eng.getName()));
+        }
 
         if (entity.getItems() != null) {
             dto.setItems(invoiceMapper.toItemDtoList(entity.getItems()));
@@ -839,11 +1302,34 @@ public class InvoiceServiceImpl implements InvoiceService {
         return number;
     }
 
+    private String generateReceiptNumber(UUID organizationId) {
+        int year = LocalDate.now().getYear();
+        long count = invoicePaymentRepository.countByOrganizationId(organizationId) + 1;
+        String number;
+        do {
+            number = String.format("REC-%d-%04d", year, count++);
+        } while (invoicePaymentRepository.existsByOrganizationIdAndReceiptNumber(organizationId, number));
+        return number;
+    }
+
     private void validateInvoiceAccess(InvoiceEntity invoice) {
-        if (invoice == null || invoice.getClientId() == null) {
+        if (invoice == null) {
             return;
         }
-        validateClientAccess(invoice.getClientId());
+
+        if (invoice.getLocationId() != null && securityScopeEvaluator != null) {
+            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+            if (scope != null && !scope.isFirmAdmin()) {
+                Set<UUID> accessibleLocs = scope.getAccessibleLocationIds();
+                if (accessibleLocs != null && !accessibleLocs.isEmpty() && !accessibleLocs.contains(invoice.getLocationId())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission for this location.");
+                }
+            }
+        }
+
+        if (invoice.getClientId() != null) {
+            validateClientAccess(invoice.getClientId());
+        }
     }
 
     private void validateClientAccess(UUID clientId) {
@@ -860,12 +1346,12 @@ public class InvoiceServiceImpl implements InvoiceService {
             return;
         }
 
-        // 2. ABAC Portfolio Scoping for Practice Staff without broad billing privileges
+        // 2. ABAC Portfolio Scoping for Practice Staff
         if (securityScopeEvaluator != null) {
             PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-            if (scope != null && !scope.isFirmAdmin() && !securityScopeEvaluator.hasBillingAccess(scope)) {
+            if (scope != null && !scope.isFirmAdmin()) {
                 Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-                if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
+                if (accessibleClientIds != null && !accessibleClientIds.contains(clientId)) {
                     throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to view or manage invoices for this client.");
                 }
             }

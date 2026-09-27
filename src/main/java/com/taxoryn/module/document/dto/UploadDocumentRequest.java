@@ -42,6 +42,15 @@ public class UploadDocumentRequest {
     @Schema(description = "Associated Task ID (optional)")
     private UUID taskId;
 
+    @Schema(description = "Associated Compliance Workflow ID (optional)")
+    private UUID workflowId;
+
+    @Schema(description = "Associated Document Request ID (optional)")
+    private UUID requestId;
+
+    @Schema(description = "Associated Practice Location ID (optional)")
+    private UUID locationId;
+
     @Schema(description = "Associated Tax Notice ID (optional)")
     private UUID noticeId;
 

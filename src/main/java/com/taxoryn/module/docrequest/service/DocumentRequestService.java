@@ -21,6 +21,8 @@ public interface DocumentRequestService {
 
     List<DocumentRequestDto> getClientRequests(UUID clientId);
 
+    List<DocumentRequestDto> getWorkflowRequests(UUID workflowId);
+
     DocumentRequestSummaryDto getSummaryStats();
 
     DocumentRequestDto acceptItem(UUID itemId);

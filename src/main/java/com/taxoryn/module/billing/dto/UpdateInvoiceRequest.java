@@ -17,6 +17,18 @@ import java.util.List;
 @Schema(description = "Update Invoice Payload")
 public class UpdateInvoiceRequest {
 
+    @Schema(description = "Operating Location ID")
+    private java.util.UUID locationId;
+
+    @Schema(description = "Engagement ID")
+    private java.util.UUID engagementId;
+
+    @Schema(description = "Currency code", example = "INR")
+    private String currency;
+
+    @Schema(description = "Invoice issue date")
+    private LocalDate invoiceDate;
+
     @Schema(description = "Payment due date")
     private LocalDate dueDate;
 

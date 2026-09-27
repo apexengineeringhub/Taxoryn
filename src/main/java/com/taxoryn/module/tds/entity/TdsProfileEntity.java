@@ -26,8 +26,15 @@ public class TdsProfileEntity extends TenantAuditableEntity {
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
 
+    @Column(name = "location_id")
+    private UUID locationId;
+
     @Column(name = "tan", nullable = false, length = 10)
     private String tan;
+
+    @Column(name = "active", nullable = false)
+    @Builder.Default
+    private boolean active = true;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "deductor_type", nullable = false, length = 50)

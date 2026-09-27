@@ -29,6 +29,9 @@ public class ClientEntity extends TenantAuditableEntity {
     @Builder.Default
     private ClientType clientType = ClientType.INDIVIDUAL;
 
+    @Column(name = "client_code", length = 50)
+    private String clientCode;
+
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
@@ -90,6 +93,9 @@ public class ClientEntity extends TenantAuditableEntity {
     @Column(name = "pincode", length = 20)
     private String pincode;
 
+    @Column(name = "location_id")
+    private UUID locationId;
+
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;
 
@@ -103,7 +109,9 @@ public class ClientEntity extends TenantAuditableEntity {
 
     public enum ClientType {
         INDIVIDUAL,
+        PROPRIETOR,
         PROPRIETORSHIP,
+        COMPANY,
         PARTNERSHIP,
         LLP,
         PRIVATE_LIMITED,

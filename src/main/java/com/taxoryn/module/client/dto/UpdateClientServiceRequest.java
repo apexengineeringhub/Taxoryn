@@ -29,6 +29,12 @@ public class UpdateClientServiceRequest {
     @Schema(description = "Assigned lead practitioner employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Responsible user ID within practice")
+    private UUID responsibleUserId;
+
+    @Schema(description = "Associated location ID")
+    private UUID locationId;
+
     @Schema(description = "Billing frequency")
     private String billingFrequency;
 

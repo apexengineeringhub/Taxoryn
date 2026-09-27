@@ -5,6 +5,7 @@ import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.PracticeSecurityScope;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
 import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
@@ -54,7 +55,6 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
@@ -67,6 +67,52 @@ public class TaskServiceImpl implements TaskService {
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final TaskMapper taskMapper;
     private final NotificationService notificationService;
+    private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+
+    public TaskServiceImpl(
+            TaskRepository taskRepository,
+            ClientRepository clientRepository,
+            EmployeeRepository employeeRepository,
+            UserRepository userRepository,
+            ComplianceObligationRepository complianceObligationRepository,
+            DocumentRequestRepository documentRequestRepository,
+            DocumentRequestItemRepository documentRequestItemRepository,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            TaskMapper taskMapper,
+            NotificationService notificationService
+    ) {
+        this(taskRepository, clientRepository, employeeRepository, userRepository,
+                complianceObligationRepository, documentRequestRepository, documentRequestItemRepository,
+                securityScopeEvaluator, taskMapper, notificationService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public TaskServiceImpl(
+            TaskRepository taskRepository,
+            ClientRepository clientRepository,
+            EmployeeRepository employeeRepository,
+            UserRepository userRepository,
+            ComplianceObligationRepository complianceObligationRepository,
+            DocumentRequestRepository documentRequestRepository,
+            DocumentRequestItemRepository documentRequestItemRepository,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            TaskMapper taskMapper,
+            NotificationService notificationService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository
+    ) {
+        this.taskRepository = taskRepository;
+        this.clientRepository = clientRepository;
+        this.employeeRepository = employeeRepository;
+        this.userRepository = userRepository;
+        this.complianceObligationRepository = complianceObligationRepository;
+        this.documentRequestRepository = documentRequestRepository;
+        this.documentRequestItemRepository = documentRequestItemRepository;
+        this.securityScopeEvaluator = securityScopeEvaluator;
+        this.taskMapper = taskMapper;
+        this.notificationService = notificationService;
+        this.locationRepository = locationRepository;
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -143,6 +189,18 @@ public class TaskServiceImpl implements TaskService {
 
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
+            }
+
+            if (filterRequest.getWorkItemId() != null) {
+                predicates.add(cb.equal(root.get("workItemId"), filterRequest.getWorkItemId()));
+            }
+
+            if (filterRequest.getLocationId() != null) {
+                predicates.add(cb.equal(root.get("locationId"), filterRequest.getLocationId()));
+            }
+
+            if (filterRequest.getComplianceId() != null) {
+                predicates.add(cb.equal(root.get("complianceId"), filterRequest.getComplianceId()));
             }
 
             if (filterRequest.getStatus() != null) {
@@ -252,8 +310,17 @@ public class TaskServiceImpl implements TaskService {
                     .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
         }
 
+        UUID locationId = request.getLocationId();
+        if (locationId == null && request.getClientId() != null) {
+            locationId = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
+                    .map(ClientEntity::getLocationId)
+                    .orElse(null);
+        }
+
         TaskEntity task = TaskEntity.builder()
                 .clientId(request.getClientId())
+                .locationId(locationId)
+                .workItemId(request.getWorkItemId())
                 .assignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId))
                 .title(request.getTitle().trim())
                 .description(request.getDescription())
@@ -264,6 +331,7 @@ public class TaskServiceImpl implements TaskService {
                 .complianceId(request.getComplianceId())
                 .documentRequestId(request.getDocumentRequestId())
                 .blockedReason(request.getBlockedReason())
+                .notes(request.getNotes())
                 .build();
         task.setOrganizationId(organizationId);
 
@@ -336,6 +404,9 @@ public class TaskServiceImpl implements TaskService {
         } else if (request.getAssignedTo() != null) {
             task.setAssignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId));
         }
+        if (request.getWorkItemId() != null) task.setWorkItemId(request.getWorkItemId());
+        if (request.getLocationId() != null) task.setLocationId(request.getLocationId());
+        if (request.getNotes() != null) task.setNotes(request.getNotes());
         if (request.getTitle() != null) task.setTitle(request.getTitle().trim());
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getTaskCategory() != null) task.setTaskCategory(request.getTaskCategory());
@@ -676,6 +747,16 @@ public class TaskServiceImpl implements TaskService {
             dto.setIsOverdue(false);
             dto.setIsDueToday(false);
             dto.setIsDueThisWeek(false);
+        }
+
+        dto.setWorkItemId(entity.getWorkItemId());
+        dto.setLocationId(entity.getLocationId());
+        dto.setNotes(entity.getNotes());
+        dto.setAssignedUserId(entity.getAssignedTo());
+
+        if (entity.getLocationId() != null && locationRepository != null) {
+            locationRepository.findByIdAndOrganizationId(entity.getLocationId(), entity.getOrganizationId())
+                    .ifPresent(loc -> dto.setLocationName(loc.getName()));
         }
 
         if (entity.getClientId() != null) {

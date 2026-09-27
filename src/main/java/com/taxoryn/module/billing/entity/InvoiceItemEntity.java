@@ -30,6 +30,15 @@ public class InvoiceItemEntity extends BaseEntity {
     @JoinColumn(name = "invoice_id", nullable = false)
     private InvoiceEntity invoice;
 
+    @Column(name = "work_item_id")
+    private java.util.UUID workItemId;
+
+    @Column(name = "time_entry_id")
+    private java.util.UUID timeEntryId;
+
+    @Column(name = "service_id")
+    private java.util.UUID serviceId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "service", nullable = false, length = 50)
     @Builder.Default
@@ -57,6 +66,31 @@ public class InvoiceItemEntity extends BaseEntity {
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal amount = BigDecimal.ZERO;
+
+    @Column(name = "promotion_id")
+    private java.util.UUID promotionId;
+
+    @Column(name = "promotion_name")
+    private String promotionName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pricing_type", length = 50)
+    @Builder.Default
+    private com.taxoryn.module.billing.model.PricingType pricingType = com.taxoryn.module.billing.model.PricingType.STANDARD;
+
+    @Column(name = "standard_unit_price", precision = 15, scale = 2)
+    private BigDecimal standardUnitPrice;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_type", length = 50)
+    private com.taxoryn.module.billing.model.PromotionDiscountType discountType;
+
+    @Column(name = "discount_value", precision = 15, scale = 2)
+    private BigDecimal discountValue;
+
+    @Column(name = "discount_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal discountAmount = BigDecimal.ZERO;
 
     public enum BillingServiceType {
         GST_FILING,

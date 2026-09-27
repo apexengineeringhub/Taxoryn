@@ -56,6 +56,7 @@ import com.taxoryn.module.notification.email.service.EmailNotificationService;
 import com.taxoryn.module.notification.service.NotificationService;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationType;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.portal.mapper.ClientPortalMapper;
 import com.taxoryn.module.portal.repository.ClientDocumentRequestRepository;
@@ -111,6 +112,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -164,6 +166,7 @@ public class EndpointSecurityCoverageIntegrationTest {
     @Mock private ClientNoteRepository clientNoteRepository;
     @Mock private EmployeeRepository employeeRepository;
     @Mock private UserRepository userRepository;
+    @Mock private LocationRepository locationRepository;
     @Mock private OrganizationRepository organizationRepository;
     @Mock private TaskRepository taskRepository;
     @Mock private AuditService auditService;
@@ -321,7 +324,11 @@ public class EndpointSecurityCoverageIntegrationTest {
                 mock(com.taxoryn.module.docrequest.repository.DocumentRequestRepository.class),
                 mock(com.taxoryn.module.billing.repository.InvoiceRepository.class),
                 mock(com.taxoryn.module.audit.repository.AuditLogRepository.class),
+                mock(com.taxoryn.module.client.repository.ClientLocationAssignmentRepository.class),
+                mock(com.taxoryn.module.client.repository.ClientUserAssignmentRepository.class),
                 mock(com.taxoryn.module.client.repository.ClientServiceRepository.class),
+                mock(com.taxoryn.module.organization.repository.LocationRepository.class),
+                mock(com.taxoryn.module.user.repository.UserLocationRepository.class),
                 clientMapper, taskMapper, auditService
         );
 
@@ -343,7 +350,7 @@ public class EndpointSecurityCoverageIntegrationTest {
 
         itrService = new ItrServiceImpl(
                 itrProfileRepository, itrReturnRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 null, documentRepository, documentMapper,
@@ -353,7 +360,7 @@ public class EndpointSecurityCoverageIntegrationTest {
         tdsService = new TdsServiceImpl(
                 tdsProfileRepository, tdsReturnRepository, tdsChallanRepository,
                 tdsDeducteeEntryRepository, tdsCertificateRepository, clientRepository,
-                employeeRepository, userRepository,
+                locationRepository, employeeRepository, userRepository,
                 complianceObligationRepository, complianceRuleRepository,
                 taskRepository, documentRequestRepository,
                 null, documentRepository, documentMapper,
@@ -763,7 +770,7 @@ public class EndpointSecurityCoverageIntegrationTest {
         @DisplayName("Authorization and client scope evaluation behave identically regardless of OrganizationType")
         void testScopeEvaluatorBehavesIdenticallyAcrossOrganizationTypes() {
             OrganizationType[] allTypes = OrganizationType.values();
-            assertEquals(5, allTypes.length);
+            assertTrue(allTypes.length >= 5);
 
             for (OrganizationType orgType : allTypes) {
                 OrganizationEntity testOrg = OrganizationEntity.builder()

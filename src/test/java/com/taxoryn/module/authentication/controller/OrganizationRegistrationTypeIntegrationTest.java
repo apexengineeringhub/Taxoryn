@@ -149,7 +149,7 @@ class OrganizationRegistrationTypeIntegrationTest {
                 + "\"adminLastName\": \"Sharma\","
                 + "\"adminEmail\": \"invalidadmin." + unique + "@taxoryntest.com\","
                 + "\"adminPassword\": \"SecureP@ssword123!\","
-                + "\"organizationType\": \"ENTERPRISE\""
+                + "\"organizationType\": \"TOTALLY_INVALID_TYPE\""
                 + "}";
 
         mockMvc.perform(post("/api/v1/auth/register-organization")

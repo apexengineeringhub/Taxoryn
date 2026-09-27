@@ -8,6 +8,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "Compliance Workflow Operational Status")
 public enum ComplianceWorkflowStatus {
+    @Schema(description = "Workflow created or not started yet")
+    NOT_STARTED,
+
     @Schema(description = "Workflow created for obligation, not yet ready or assigned")
     CREATED,
 

@@ -39,6 +39,7 @@ import com.taxoryn.module.task.entity.TaskEntity.TaskCategory;
 import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
 import com.taxoryn.module.task.entity.TaskEntity.TaskStatus;
 import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.repository.UserRepository;
 import com.taxoryn.core.security.PracticeSecurityScope;
@@ -67,6 +68,7 @@ public class TdsServiceImpl implements TdsService {
     private final TdsDeducteeEntryRepository tdsDeducteeEntryRepository;
     private final TdsCertificateRepository tdsCertificateRepository;
     private final ClientRepository clientRepository;
+    private final LocationRepository locationRepository;
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final ComplianceObligationRepository complianceObligationRepository;
@@ -90,15 +92,10 @@ public class TdsServiceImpl implements TdsService {
     @Transactional
     public TdsProfileDto createProfile(CreateTdsProfileRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        String formattedTan = request.getTan().toUpperCase().trim();
-
-        if (tdsProfileRepository.findByOrganizationIdAndTan(organizationId, formattedTan).isPresent()) {
-            throw new DuplicateResourceException("TDS Profile", "tan", formattedTan);
-        }
 
         ClientEntity client = resolveOrCreateClientForTds(
                 request.getClientId(),
-                formattedTan,
+                request.getTan(),
                 request.getPan(),
                 request.getDisplayName(),
                 request.getLegalName(),
@@ -108,7 +105,18 @@ public class TdsServiceImpl implements TdsService {
                 organizationId
         );
 
-        validateClientAccess(client.getId());
+        String rawTan = StringUtils.hasText(request.getTan()) ? request.getTan() : client.getTan();
+        if (!StringUtils.hasText(rawTan)) {
+            throw new IllegalArgumentException("TAN is required for TDS profile registration");
+        }
+        String formattedTan = rawTan.toUpperCase().trim();
+
+        if (tdsProfileRepository.findByOrganizationIdAndTan(organizationId, formattedTan).isPresent()) {
+            throw new DuplicateResourceException("TDS Profile", "tan", formattedTan);
+        }
+
+        UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
+        validateAccess(client.getId(), locationId);
 
         if (StringUtils.hasText(client.getTan()) && !client.getTan().equalsIgnoreCase(formattedTan)) {
             client.setTan(formattedTan);
@@ -124,6 +132,7 @@ public class TdsServiceImpl implements TdsService {
 
         TdsProfileEntity entity = TdsProfileEntity.builder()
                 .clientId(client.getId())
+                .locationId(locationId)
                 .tan(formattedTan)
                 .deductorType(request.getDeductorType() != null ? request.getDeductorType() : TdsProfileEntity.DeductorType.COMPANY)
                 .branchDivisionName(request.getBranchDivisionName())
@@ -138,6 +147,7 @@ public class TdsServiceImpl implements TdsService {
                 .responsiblePersonMobile(request.getResponsiblePersonMobile() != null ? request.getResponsiblePersonMobile() : client.getPhone())
                 .responsiblePersonAddress(request.getResponsiblePersonAddress())
                 .assignedEmployeeId(request.getAssignedEmployeeId())
+                .active(request.getActive() != null ? request.getActive() : true)
                 .status(request.getStatus() != null ? request.getStatus() : TdsProfileEntity.TdsProfileStatus.ACTIVE)
                 .tracesUsername(request.getTracesUsername())
                 .tracesStatus(request.getTracesStatus() != null ? request.getTracesStatus() : TdsProfileEntity.TracesStatus.NOT_REGISTERED)
@@ -148,7 +158,7 @@ public class TdsServiceImpl implements TdsService {
         log.info("Created TDS Profile ID: {} for TAN: {} in Organization: {}", saved.getId(), formattedTan, organizationId);
         auditService.logEvent("TDS_PROFILE_CREATED", "TDS_PROFILE", saved.getId().toString(), null, "TDS Profile registered for TAN " + formattedTan);
 
-        return enrichProfileDto(tdsMapper.toProfileDto(saved), client, null);
+        return enrichProfileEntity(saved);
     }
 
     @Override
@@ -190,7 +200,7 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsProfileEntity entity = tdsProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", id));
-        validateClientAccess(entity.getClientId());
+        validateAccess(entity.getClientId(), entity.getLocationId());
         return enrichProfileEntity(entity);
     }
 
@@ -198,7 +208,9 @@ public class TdsServiceImpl implements TdsService {
     @Transactional(readOnly = true)
     public TdsProfileDto getProfileByClientId(UUID clientId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        validateClientAccess(clientId);
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+        validateAccess(client.getId(), client.getLocationId());
         TdsProfileEntity entity = tdsProfileRepository.findByOrganizationIdAndClientId(organizationId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "clientId", clientId));
         return enrichProfileEntity(entity);
@@ -210,8 +222,10 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         TdsProfileEntity entity = tdsProfileRepository.findByIdAndOrganizationId(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", id));
-        validateClientAccess(entity.getClientId());
+        validateAccess(entity.getClientId(), entity.getLocationId());
 
+        if (request.getLocationId() != null) entity.setLocationId(request.getLocationId());
+        if (request.getActive() != null) entity.setActive(request.getActive());
         if (request.getDeductorType() != null) entity.setDeductorType(request.getDeductorType());
         if (request.getBranchDivisionName() != null) entity.setBranchDivisionName(request.getBranchDivisionName());
         if (request.getPaCode() != null) entity.setPaCode(request.getPaCode());
@@ -1341,9 +1355,18 @@ public class TdsServiceImpl implements TdsService {
     }
 
     private TdsProfileDto enrichProfileEntity(TdsProfileEntity entity) {
+        if (entity == null) return null;
         TdsProfileDto dto = tdsMapper.toProfileDto(entity);
+        if (dto == null) return null;
+        dto.setActive(entity.isActive());
+        dto.setLocationId(entity.getLocationId());
         ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), entity.getOrganizationId()).orElse(null);
         EmployeeEntity emp = entity.getAssignedEmployeeId() != null ? employeeRepository.findByIdAndOrganizationId(entity.getAssignedEmployeeId(), entity.getOrganizationId()).orElse(null) : null;
+        if (entity.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(entity.getLocationId(), entity.getOrganizationId()).ifPresent(loc -> {
+                dto.setLocationName(loc.getName());
+            });
+        }
         return enrichProfileDto(dto, client, emp);
     }
 
@@ -1602,12 +1625,27 @@ public class TdsServiceImpl implements TdsService {
     }
 
     private void validateClientAccess(UUID clientId) {
-        if (clientId == null || securityScopeEvaluator == null) return;
+        validateAccess(clientId, null);
+    }
+
+    private void validateAccess(UUID clientId, UUID locationId) {
+        if (securityScopeEvaluator == null) return;
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-        if (scope != null && !scope.isFirmAdmin()) {
+        if (scope == null || scope.isFirmAdmin()) {
+            return;
+        }
+
+        if (locationId != null) {
+            Set<UUID> accessibleLocs = scope.getAccessibleLocationIds();
+            if (accessibleLocs != null && !accessibleLocs.isEmpty() && !accessibleLocs.contains(locationId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission for this location");
+            }
+        }
+
+        if (clientId != null) {
             Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-            if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
-                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission to access TDS data for this client.");
+            if (accessibleClientIds != null && !accessibleClientIds.contains(clientId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You do not have permission for this client");
             }
         }
     }

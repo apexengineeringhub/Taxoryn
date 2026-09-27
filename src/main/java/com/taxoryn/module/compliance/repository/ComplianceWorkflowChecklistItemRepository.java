@@ -12,6 +12,7 @@ import java.util.UUID;
 public interface ComplianceWorkflowChecklistItemRepository extends JpaRepository<ComplianceWorkflowChecklistItemEntity, UUID> {
 
     List<ComplianceWorkflowChecklistItemEntity> findByWorkflowIdAndOrganizationIdOrderBySequenceOrderAsc(UUID workflowId, UUID organizationId);
+    List<ComplianceWorkflowChecklistItemEntity> findAllByWorkflowIdAndOrganizationIdOrderBySequenceOrderAsc(UUID workflowId, UUID organizationId);
 
     Optional<ComplianceWorkflowChecklistItemEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
 

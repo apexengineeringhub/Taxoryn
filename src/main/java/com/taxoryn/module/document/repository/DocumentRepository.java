@@ -27,6 +27,10 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID>,
 
     List<DocumentEntity> findAllByOrganizationIdAndTaskIdAndStatus(UUID organizationId, UUID taskId, DocumentStatus status);
 
+    List<DocumentEntity> findAllByOrganizationIdAndWorkflowIdAndStatus(UUID organizationId, UUID workflowId, DocumentStatus status);
+
+    long countByOrganizationIdAndWorkflowIdAndStatus(UUID organizationId, UUID workflowId, DocumentStatus status);
+
     List<DocumentEntity> findAllByOrganizationIdAndNoticeIdAndStatus(UUID organizationId, UUID noticeId, DocumentStatus status);
 
     long countByOrganizationIdAndNoticeIdAndStatus(UUID organizationId, UUID noticeId, DocumentStatus status);

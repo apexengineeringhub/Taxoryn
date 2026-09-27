@@ -99,8 +99,16 @@ public class UserController {
                 .body(avatar.getData());
     }
 
+    @GetMapping("/me/context")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get aggregated current user context", description = "Retrieves current user details, tenant organization, practice profile, role, location access scope, and effective module configuration.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.user.dto.UserContextDto>> getCurrentUserContext() {
+        com.taxoryn.module.user.dto.UserContextDto context = userService.getCurrentUserContext();
+        return ResponseEntity.ok(ApiResponse.success("User context retrieved successfully", context));
+    }
+
     @GetMapping
-    @PreAuthorize("hasAuthority('USER_VIEW') or hasAuthority('USER_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('USER_VIEW') or hasAuthority('USER_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
     @Operation(summary = "List users with pagination", description = "Retrieves paginated list of users for the authenticated tenant organization.")
     public ResponseEntity<ApiResponse<PagedResponse<UserDto>>> getUsers(@Valid @ModelAttribute PageRequestDto pageRequest) {
         PagedResponse<UserDto> response = userService.getUsers(pageRequest);
@@ -108,7 +116,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    @PreAuthorize("hasAuthority('USER_VIEW') or hasAuthority('USER_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('USER_VIEW') or hasAuthority('USER_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
     @Operation(summary = "Get user by ID", description = "Retrieves specific user details within the authenticated tenant.")
     public ResponseEntity<ApiResponse<UserDto>> getUserById(@PathVariable UUID userId) {
         UserDto dto = userService.getUserById(userId);
@@ -116,7 +124,7 @@ public class UserController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('USER_CREATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('USER_CREATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
     @Operation(summary = "Create user", description = "Creates a new team member within the authenticated tenant organization.")
     public ResponseEntity<ApiResponse<UserDto>> createUser(@Valid @RequestBody CreateUserRequest request) {
         UserDto created = userService.createUser(request);
@@ -125,7 +133,7 @@ public class UserController {
     }
 
     @PutMapping("/{userId}")
-    @PreAuthorize("hasAuthority('USER_UPDATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('USER_UPDATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
     @Operation(summary = "Update user", description = "Updates details of a team member within the authenticated tenant.")
     public ResponseEntity<ApiResponse<UserDto>> updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest request) {
         UserDto updated = userService.updateUser(userId, request);
@@ -133,10 +141,58 @@ public class UserController {
     }
 
     @DeleteMapping("/{userId}")
-    @PreAuthorize("hasAuthority('USER_DELETE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('USER_DELETE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
     @Operation(summary = "Deactivate user", description = "Deactivates a user within the authenticated tenant.")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID userId) {
         userService.deleteUser(userId);
         return ResponseEntity.ok(ApiResponse.success("User deactivated successfully", null));
+    }
+
+    @GetMapping("/{userId}/locations")
+    @PreAuthorize("hasAuthority('USER_VIEW') or hasAuthority('USER_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Get user's accessible locations", description = "Retrieves all locations assigned to or accessible by a user in the practice.")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.organization.dto.LocationDto>>> getUserLocations(@PathVariable UUID userId) {
+        java.util.List<com.taxoryn.module.organization.dto.LocationDto> locations = userService.getUserLocations(userId);
+        return ResponseEntity.ok(ApiResponse.success("User locations retrieved successfully", locations));
+    }
+
+    @PutMapping("/{userId}/locations")
+    @PreAuthorize("hasAuthority('USER_UPDATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Assign locations to user", description = "Updates the location access roster assigned to a user.")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.organization.dto.LocationDto>>> assignUserLocations(
+            @PathVariable UUID userId,
+            @Valid @RequestBody com.taxoryn.module.user.dto.AssignUserLocationsRequest request) {
+        java.util.List<com.taxoryn.module.organization.dto.LocationDto> locations = userService.assignUserLocations(userId, request.getLocationIds());
+        return ResponseEntity.ok(ApiResponse.success("User locations assigned successfully", locations));
+    }
+
+    @PostMapping("/{userId}/locations/{locationId}")
+    @PreAuthorize("hasAuthority('USER_UPDATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Assign single location to user", description = "Adds a single location to the user's assigned location scope.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.organization.dto.LocationDto>> assignUserLocation(
+            @PathVariable UUID userId,
+            @PathVariable UUID locationId) {
+        com.taxoryn.module.organization.dto.LocationDto location = userService.assignUserLocation(userId, locationId);
+        return ResponseEntity.ok(ApiResponse.success("Location assigned to user successfully", location));
+    }
+
+    @DeleteMapping("/{userId}/locations/{locationId}")
+    @PreAuthorize("hasAuthority('USER_UPDATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Remove location from user", description = "Removes a location from the user's assigned location scope.")
+    public ResponseEntity<ApiResponse<Void>> removeUserLocation(
+            @PathVariable UUID userId,
+            @PathVariable UUID locationId) {
+        userService.removeUserLocation(userId, locationId);
+        return ResponseEntity.ok(ApiResponse.success("Location removed from user successfully", null));
+    }
+
+    @PutMapping("/{userId}/status")
+    @PreAuthorize("hasAuthority('USER_UPDATE') or hasAuthority('USER_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTICE_OWNER')")
+    @Operation(summary = "Update user lifecycle status", description = "Activates or deactivates a user account within the tenant.")
+    public ResponseEntity<ApiResponse<UserDto>> updateUserStatus(
+            @PathVariable UUID userId,
+            @Valid @RequestBody com.taxoryn.module.user.dto.UpdateUserStatusRequest request) {
+        UserDto updated = userService.updateUserStatus(userId, request.getStatus());
+        return ResponseEntity.ok(ApiResponse.success("User status updated successfully", updated));
     }
 }

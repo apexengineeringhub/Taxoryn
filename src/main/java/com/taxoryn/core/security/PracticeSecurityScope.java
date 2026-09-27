@@ -25,6 +25,7 @@ public class PracticeSecurityScope {
     private final String department;
     private final EmployeeEntity employee;
     private final Set<UUID> accessibleAssigneeIds;
+    private final Set<UUID> accessibleLocationIds;
     private final boolean isFirmAdmin;
     private final boolean isDepartmentManager;
     private final boolean isStaff;
@@ -41,11 +42,26 @@ public class PracticeSecurityScope {
         return isStaff;
     }
 
+    public Set<UUID> getAccessibleLocationIds() {
+        return accessibleLocationIds;
+    }
+
+    public boolean canAccessLocation(UUID locationId) {
+        if (locationId == null) {
+            return true;
+        }
+        if (isFirmAdmin) {
+            return true;
+        }
+        return accessibleLocationIds != null && accessibleLocationIds.contains(locationId);
+    }
+
     public static PracticeSecurityScope firmAdmin(UUID userId) {
         return PracticeSecurityScope.builder()
                 .roleTier(RoleTier.FIRM_ADMIN)
                 .userId(userId)
                 .isFirmAdmin(true)
+                .accessibleLocationIds(null) // Unrestricted
                 .build();
     }
 

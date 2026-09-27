@@ -20,6 +20,9 @@ import java.util.UUID;
 public class InvoiceItemDto {
 
     private UUID id;
+    private UUID workItemId;
+    private UUID timeEntryId;
+    private UUID serviceId;
     private BillingServiceType service;
     private String description;
     private BigDecimal quantity;
@@ -27,4 +30,26 @@ public class InvoiceItemDto {
     private BigDecimal taxRate;
     private BigDecimal tax;
     private BigDecimal amount;
+    private UUID promotionId;
+    private String promotionName;
+    private com.taxoryn.module.billing.model.PricingType pricingType;
+    private BigDecimal standardUnitPrice;
+    private com.taxoryn.module.billing.model.PromotionDiscountType discountType;
+    private BigDecimal discountValue;
+    private BigDecimal discountAmount;
+
+    public BigDecimal getUnitRate() {
+        return unitPrice;
+    }
+
+    public BigDecimal getTaxAmount() {
+        return tax;
+    }
+
+    public BigDecimal getTotalAmount() {
+        if (amount != null && tax != null) {
+            return amount.add(tax);
+        }
+        return amount != null ? amount : BigDecimal.ZERO;
+    }
 }

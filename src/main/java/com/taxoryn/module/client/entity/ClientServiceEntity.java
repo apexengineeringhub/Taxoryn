@@ -48,6 +48,12 @@ public class ClientServiceEntity extends TenantAuditableEntity {
     @Column(name = "assigned_employee_id")
     private UUID assignedEmployeeId;
 
+    @Column(name = "responsible_user_id")
+    private UUID responsibleUserId;
+
+    @Column(name = "location_id")
+    private UUID locationId;
+
     @Column(name = "billing_frequency", length = 50)
     @Builder.Default
     private String billingFrequency = "MONTHLY";

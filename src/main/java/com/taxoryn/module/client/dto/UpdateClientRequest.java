@@ -27,6 +27,10 @@ public class UpdateClientRequest {
     @Schema(description = "Constitution / Legal Type", example = "PRIVATE_LIMITED")
     private ClientType clientType;
 
+    @Size(max = 50, message = "Client code cannot exceed 50 characters")
+    @Schema(description = "Unique client alphanumeric code within practice", example = "CLI-001")
+    private String clientCode;
+
     @NotBlank(message = "Display name is required")
     @Size(min = 2, max = 255, message = "Display name must be between 2 and 255 characters")
     @Schema(description = "Client primary display name", example = "Zenith Infotech Pvt Ltd")
@@ -96,6 +100,9 @@ public class UpdateClientRequest {
     @Schema(description = "Postal pincode", example = "400093")
     private String pincode;
 
+    @Schema(description = "Practice branch / Location ID")
+    private UUID locationId;
+
     @Schema(description = "Assigned practitioner / Account manager employee ID")
     private UUID assignedEmployeeId;
 
@@ -104,4 +111,34 @@ public class UpdateClientRequest {
 
     @Schema(description = "Internal practitioner notes")
     private String notes;
+
+    public String getPrimaryPhone() {
+        return phone;
+    }
+
+    public void setPrimaryPhone(String primaryPhone) {
+        if (primaryPhone != null) {
+            this.phone = primaryPhone;
+        }
+    }
+
+    public String getAlternatePhone() {
+        return altPhone;
+    }
+
+    public void setAlternatePhone(String alternatePhone) {
+        if (alternatePhone != null) {
+            this.altPhone = alternatePhone;
+        }
+    }
+
+    public String getPostalCode() {
+        return pincode;
+    }
+
+    public void setPostalCode(String postalCode) {
+        if (postalCode != null) {
+            this.pincode = postalCode;
+        }
+    }
 }
