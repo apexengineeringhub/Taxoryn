@@ -127,7 +127,6 @@ class ClientEngagementSecurityIntegrationTest {
         employeeRepository.deleteAll();
         userRepository.deleteAll();
         organizationModuleRepository.deleteAll();
-        productModuleRepository.deleteAll();
         organizationRepository.deleteAll();
         roleRepository.deleteAll();
 

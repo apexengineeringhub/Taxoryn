@@ -395,8 +395,7 @@ public class TimeEntryServiceImpl implements TimeEntryService {
                 .collect(Collectors.toMap(LocationEntity::getId, LocationEntity::getName, (a, b) -> a));
         Map<UUID, String> userNames = userRepository.findAllByOrganizationId(orgId).stream()
                 .collect(Collectors.toMap(UserEntity::getId, UserEntity::getFullName, (a, b) -> a));
-        Map<UUID, String> engagementNames = engagementRepository.findAll().stream()
-                .filter(e -> orgId.equals(e.getOrganizationId()))
+        Map<UUID, String> engagementNames = engagementRepository.findAllByOrganizationId(orgId).stream()
                 .collect(Collectors.toMap(EngagementEntity::getId, EngagementEntity::getName, (a, b) -> a));
 
         return entities.stream().map(e -> TimeEntryDto.builder()

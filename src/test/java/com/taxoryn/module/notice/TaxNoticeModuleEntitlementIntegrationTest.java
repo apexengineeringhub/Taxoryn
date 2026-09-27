@@ -76,6 +76,9 @@ public class TaxNoticeModuleEntitlementIntegrationTest {
     private ModuleConfigurationService moduleConfigurationService;
 
     @Autowired
+    private com.taxoryn.module.moduleconfig.repository.ProductModuleRepository productModuleRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -90,6 +93,18 @@ public class TaxNoticeModuleEntitlementIntegrationTest {
     @BeforeEach
     void setUp() {
         cleanDb();
+
+        if (productModuleRepository.findByCode(ProductModuleCode.TAX_NOTICES).isEmpty()) {
+            productModuleRepository.save(com.taxoryn.module.moduleconfig.entity.ProductModuleEntity.builder()
+                    .code(ProductModuleCode.TAX_NOTICES)
+                    .name("Tax Notice Management")
+                    .description("Assessment notices, hearing schedules, and response drafting.")
+                    .category(com.taxoryn.module.moduleconfig.model.ProductModuleCategory.TAX)
+                    .status("ACTIVE")
+                    .enabledByDefault(true)
+                    .displayOrder(11)
+                    .build());
+        }
 
         organization = organizationRepository.save(OrganizationEntity.builder()
                 .name("Entitlement Test Firm")

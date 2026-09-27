@@ -105,8 +105,7 @@ public class BillingProfileServiceImpl implements BillingProfileService {
         UUID organizationId = resolveOrganizationId();
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
-        List<BillingProfileEntity> list = billingProfileRepository.findAll().stream()
-                .filter(p -> organizationId.equals(p.getOrganizationId()))
+        List<BillingProfileEntity> list = billingProfileRepository.findAllByOrganizationId(organizationId).stream()
                 .filter(p -> {
                     if (scope.isFirmAdmin()) return true;
                     Set<UUID> accessibleClients = securityScopeEvaluator.getAccessibleClientIds(scope);
@@ -246,8 +245,7 @@ public class BillingProfileServiceImpl implements BillingProfileService {
         UUID orgId = entities.get(0).getOrganizationId();
         Map<UUID, String> clientNames = clientRepository.findAllByOrganizationId(orgId).stream()
                 .collect(Collectors.toMap(ClientEntity::getId, ClientEntity::getDisplayName, (a, b) -> a));
-        Map<UUID, String> engagementNames = engagementRepository.findAll().stream()
-                .filter(e -> orgId.equals(e.getOrganizationId()))
+        Map<UUID, String> engagementNames = engagementRepository.findAllByOrganizationId(orgId).stream()
                 .collect(Collectors.toMap(EngagementEntity::getId, EngagementEntity::getName, (a, b) -> a));
 
         return entities.stream().map(e -> BillingProfileDto.builder()

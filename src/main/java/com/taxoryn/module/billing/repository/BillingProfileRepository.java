@@ -18,5 +18,7 @@ public interface BillingProfileRepository extends JpaRepository<BillingProfileEn
 
     Optional<BillingProfileEntity> findByOrganizationIdAndClientIdAndEngagementId(UUID organizationId, UUID clientId, UUID engagementId);
 
+    List<BillingProfileEntity> findAllByOrganizationId(UUID organizationId);
+
     Optional<BillingProfileEntity> findFirstByOrganizationIdAndClientIdAndEngagementIdIsNullAndActiveTrue(UUID organizationId, UUID clientId);
 }

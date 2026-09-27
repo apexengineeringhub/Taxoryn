@@ -19,5 +19,7 @@ public interface EngagementRepository extends JpaRepository<EngagementEntity, UU
 
     List<EngagementEntity> findAllByOrganizationIdAndStatus(UUID organizationId, EngagementStatus status);
 
+    List<EngagementEntity> findAllByOrganizationId(UUID organizationId);
+
     long countByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 }

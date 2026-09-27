@@ -141,41 +141,29 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate endDate = safeFilter.resolveEndDate();
 
         // 1. Clients
-        List<ClientEntity> clients = clientRepository.findAll(createClientSpec(ctx, safeFilter));
-        long totalClients = clients.size();
-        long activeClients = clients.stream().filter(c -> c.getStatus() == ClientStatus.ACTIVE).count();
+        long totalClients = clientRepository.count(createClientSpec(ctx, safeFilter));
+        long activeClients = clientRepository.count(createActiveClientSpec(ctx, safeFilter));
 
         // 2. Active Engagements
         long activeEngagements = engagementRepository.count(createEngagementSpec(ctx, safeFilter, EngagementStatus.ACTIVE));
 
         // 3. Compliance Obligations
-        List<ComplianceObligationEntity> obligations = complianceObligationRepository.findAll(createComplianceSpec(ctx, safeFilter));
-        long openCompliance = obligations.stream().filter(o -> o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED).count();
-        long overdueCompliance = obligations.stream().filter(o -> {
-            if (o.getStatus() == ComplianceObligationStatus.OVERDUE) return true;
-            return o.getStatus() != ComplianceObligationStatus.COMPLETED && o.getStatus() != ComplianceObligationStatus.CANCELLED
-                    && o.getStatutoryDueDate() != null && o.getStatutoryDueDate().isBefore(today);
-        }).count();
+        long openCompliance = complianceObligationRepository.count(createOpenComplianceSpec(ctx, safeFilter));
+        long overdueCompliance = complianceObligationRepository.count(createOverdueComplianceSpec(ctx, safeFilter, today));
 
         // 4. Work Items
-        List<WorkItemEntity> workItems = workItemRepository.findAll(createWorkItemSpec(ctx, safeFilter));
-        long openWorkItems = workItems.stream().filter(w -> w.getStatus() == WorkItemStatus.TODO || w.getStatus() == WorkItemStatus.IN_PROGRESS || w.getStatus() == WorkItemStatus.BLOCKED).count();
-        long overdueWorkItems = workItems.stream().filter(w -> (w.getStatus() == WorkItemStatus.TODO || w.getStatus() == WorkItemStatus.IN_PROGRESS || w.getStatus() == WorkItemStatus.BLOCKED)
-                && w.getDueDate() != null && w.getDueDate().isBefore(today)).count();
+        long openWorkItems = workItemRepository.count(createOpenWorkItemSpec(ctx, safeFilter));
+        long overdueWorkItems = workItemRepository.count(createOverdueWorkItemSpec(ctx, safeFilter, today));
 
         // 5. Tasks
-        List<TaskEntity> tasks = taskRepository.findAll(createTaskSpec(ctx, safeFilter));
-        long pendingTasks = tasks.stream().filter(t -> t.getStatus() == TaskStatus.TODO || t.getStatus() == TaskStatus.IN_PROGRESS || t.getStatus() == TaskStatus.UNDER_REVIEW).count();
-        long overdueTasks = tasks.stream().filter(t -> (t.getStatus() == TaskStatus.TODO || t.getStatus() == TaskStatus.IN_PROGRESS || t.getStatus() == TaskStatus.UNDER_REVIEW)
-                && t.getDueDate() != null && t.getDueDate().isBefore(today)).count();
+        long pendingTasks = taskRepository.count(createPendingTaskSpec(ctx, safeFilter));
+        long overdueTasks = taskRepository.count(createOverdueTaskSpec(ctx, safeFilter, today));
 
         // 6. Document Requests
-        List<DocumentRequestEntity> docRequests = documentRequestRepository.findAll(createDocRequestSpec(ctx, safeFilter));
-        long pendingDocRequests = docRequests.stream().filter(r -> r.getStatus() != RequestStatus.COMPLETED && r.getStatus() != RequestStatus.CANCELLED && r.getStatus() != RequestStatus.DECLINED).count();
+        long pendingDocRequests = documentRequestRepository.count(createPendingDocRequestSpec(ctx, safeFilter));
 
         // 7. Tax Notices
-        List<TaxNoticeEntity> notices = taxNoticeRepository.findAll(createNoticeSpec(ctx, safeFilter));
-        long openNotices = notices.stream().filter(n -> !CLOSED_NOTICE_STATUSES.contains(n.getStatus())).count();
+        long openNotices = taxNoticeRepository.count(createOpenNoticeSpec(ctx, safeFilter));
 
         // 8. Billing Metrics (Restricted to users with billing access)
         BigDecimal outstandingBilling = BigDecimal.ZERO;
@@ -1094,6 +1082,64 @@ public class DashboardServiceImpl implements DashboardService {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private Specification<ClientEntity> createActiveClientSpec(ScopingContext ctx, DashboardFilterRequest filter) {
+        return Specification.where(createClientSpec(ctx, filter))
+                .and((root, query, cb) -> cb.equal(root.get("status"), ClientStatus.ACTIVE));
+    }
+
+    private Specification<ComplianceObligationEntity> createOpenComplianceSpec(ScopingContext ctx, DashboardFilterRequest filter) {
+        return Specification.where(createComplianceSpec(ctx, filter))
+                .and((root, query, cb) -> cb.not(root.get("status").in(ComplianceObligationStatus.COMPLETED, ComplianceObligationStatus.CANCELLED)));
+    }
+
+    private Specification<ComplianceObligationEntity> createOverdueComplianceSpec(ScopingContext ctx, DashboardFilterRequest filter, LocalDate today) {
+        return Specification.where(createComplianceSpec(ctx, filter))
+                .and((root, query, cb) -> cb.or(
+                        cb.equal(root.get("status"), ComplianceObligationStatus.OVERDUE),
+                        cb.and(
+                                cb.not(root.get("status").in(ComplianceObligationStatus.COMPLETED, ComplianceObligationStatus.CANCELLED)),
+                                cb.isNotNull(root.get("statutoryDueDate")),
+                                cb.lessThan(root.get("statutoryDueDate"), today)
+                        )
+                ));
+    }
+
+    private Specification<WorkItemEntity> createOpenWorkItemSpec(ScopingContext ctx, DashboardFilterRequest filter) {
+        return Specification.where(createWorkItemSpec(ctx, filter))
+                .and((root, query, cb) -> root.get("status").in(WorkItemStatus.TODO, WorkItemStatus.IN_PROGRESS, WorkItemStatus.BLOCKED));
+    }
+
+    private Specification<WorkItemEntity> createOverdueWorkItemSpec(ScopingContext ctx, DashboardFilterRequest filter, LocalDate today) {
+        return Specification.where(createOpenWorkItemSpec(ctx, filter))
+                .and((root, query, cb) -> cb.and(
+                        cb.isNotNull(root.get("dueDate")),
+                        cb.lessThan(root.get("dueDate"), today)
+                ));
+    }
+
+    private Specification<TaskEntity> createPendingTaskSpec(ScopingContext ctx, DashboardFilterRequest filter) {
+        return Specification.where(createTaskSpec(ctx, filter))
+                .and((root, query, cb) -> root.get("status").in(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.UNDER_REVIEW));
+    }
+
+    private Specification<TaskEntity> createOverdueTaskSpec(ScopingContext ctx, DashboardFilterRequest filter, LocalDate today) {
+        return Specification.where(createPendingTaskSpec(ctx, filter))
+                .and((root, query, cb) -> cb.and(
+                        cb.isNotNull(root.get("dueDate")),
+                        cb.lessThan(root.get("dueDate"), today)
+                ));
+    }
+
+    private Specification<DocumentRequestEntity> createPendingDocRequestSpec(ScopingContext ctx, DashboardFilterRequest filter) {
+        return Specification.where(createDocRequestSpec(ctx, filter))
+                .and((root, query, cb) -> cb.not(root.get("status").in(RequestStatus.COMPLETED, RequestStatus.CANCELLED, RequestStatus.DECLINED)));
+    }
+
+    private Specification<TaxNoticeEntity> createOpenNoticeSpec(ScopingContext ctx, DashboardFilterRequest filter) {
+        return Specification.where(createNoticeSpec(ctx, filter))
+                .and((root, query, cb) -> cb.not(root.get("status").in(CLOSED_NOTICE_STATUSES)));
     }
 
     private List<EmployeeEntity> resolveAccessibleEmployees(ScopingContext ctx) {
