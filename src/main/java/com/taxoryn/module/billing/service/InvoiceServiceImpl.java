@@ -67,6 +67,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository;
     private final com.taxoryn.module.timetracking.repository.TimeEntryRepository timeEntryRepository;
     private final com.taxoryn.module.user.repository.UserRepository userRepository;
+    private final PromotionService promotionService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public InvoiceServiceImpl(
@@ -83,7 +84,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.organization.repository.LocationRepository locationRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.timetracking.repository.TimeEntryRepository timeEntryRepository,
-            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.user.repository.UserRepository userRepository
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.user.repository.UserRepository userRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) PromotionService promotionService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceItemRepository = invoiceItemRepository;
@@ -99,6 +101,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.engagementRepository = engagementRepository;
         this.timeEntryRepository = timeEntryRepository;
         this.userRepository = userRepository;
+        this.promotionService = promotionService;
     }
 
     public InvoiceServiceImpl(
@@ -116,7 +119,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this(invoiceRepository, invoiceItemRepository, invoicePaymentRepository,
                 clientRepository, notificationRepository, invoiceMapper,
                 auditService, eventPublisher, securityScopeEvaluator, organizationRepository,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 
     @Override
@@ -163,9 +166,18 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         for (CreateInvoiceItemRequest itemReq : request.getItems()) {
             BigDecimal qty = itemReq.getQuantity() != null ? itemReq.getQuantity() : BigDecimal.ONE;
-            BigDecimal price = itemReq.getEffectiveUnitPrice();
             BigDecimal taxRate = itemReq.getTaxRate() != null ? itemReq.getTaxRate() : new BigDecimal("18.00");
+            InvoiceItemEntity.BillingServiceType svc = itemReq.getService() != null ? itemReq.getService() : InvoiceItemEntity.BillingServiceType.CONSULTING;
 
+            BigDecimal manualPrice = (itemReq.getUnitPrice() != null || itemReq.getUnitRate() != null)
+                    ? itemReq.getEffectiveUnitPrice() : null;
+
+            com.taxoryn.module.billing.dto.PriceResolutionResultDto resolution = null;
+            if (promotionService != null) {
+                resolution = promotionService.resolvePrice(organizationId, client.getId(), svc, manualPrice, null, request.getInvoiceDate());
+            }
+
+            BigDecimal price = resolution != null ? resolution.getUnitPrice() : itemReq.getEffectiveUnitPrice();
             BigDecimal lineSubtotal = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
             BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
             BigDecimal lineAmount = lineSubtotal.add(lineTax);
@@ -174,7 +186,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             totalTax = totalTax.add(lineTax);
 
             InvoiceItemEntity item = InvoiceItemEntity.builder()
-                    .service(itemReq.getService() != null ? itemReq.getService() : InvoiceItemEntity.BillingServiceType.CONSULTING)
+                    .service(svc)
                     .serviceId(itemReq.getServiceId())
                     .workItemId(itemReq.getWorkItemId())
                     .timeEntryId(itemReq.getTimeEntryId())
@@ -184,9 +196,20 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .taxRate(taxRate)
                     .tax(lineTax)
                     .amount(lineAmount)
+                    .promotionId(resolution != null ? resolution.getPromotionId() : null)
+                    .promotionName(resolution != null ? resolution.getPromotionName() : null)
+                    .pricingType(resolution != null && resolution.getPricingType() != null ? resolution.getPricingType() : com.taxoryn.module.billing.model.PricingType.STANDARD)
+                    .standardUnitPrice(resolution != null ? resolution.getStandardUnitPrice() : price)
+                    .discountType(resolution != null ? resolution.getDiscountType() : null)
+                    .discountValue(resolution != null ? resolution.getDiscountValue() : null)
+                    .discountAmount(resolution != null && resolution.getDiscountAmount() != null ? resolution.getDiscountAmount() : BigDecimal.ZERO)
                     .build();
 
             invoice.addItem(item);
+
+            if (resolution != null && resolution.getPromotionId() != null) {
+                promotionService.incrementPromotionUse(resolution.getPromotionId());
+            }
         }
 
         BigDecimal discount = request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO;

@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(99);
+        assertThat(allMigrations.length).isEqualTo(100);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -314,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(99);
+        assertThat(all).hasSize(100);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -477,5 +477,25 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS location_id UUID");
         assertThat(sql).contains("ALTER TABLE invoice_items");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS service_id UUID");
+    }
+
+    @Test
+    @DisplayName("Verify V100 migration script contents for practice promotional pricing")
+    void testV100MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v100Resource = resolver.getResource("classpath:db/migration/V100__practice_promotional_pricing.sql");
+
+        assertThat(v100Resource.exists()).isTrue();
+        String sql = new String(v100Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS promotions");
+        assertThat(sql).contains("ALTER TABLE invoice_items");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS promotion_id UUID");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS promotion_name VARCHAR(255)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS pricing_type VARCHAR(50)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS standard_unit_price NUMERIC(15, 2)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_value NUMERIC(15, 2)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(15, 2)");
     }
 }

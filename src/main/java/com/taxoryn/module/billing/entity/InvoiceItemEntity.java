@@ -67,6 +67,31 @@ public class InvoiceItemEntity extends BaseEntity {
     @Builder.Default
     private BigDecimal amount = BigDecimal.ZERO;
 
+    @Column(name = "promotion_id")
+    private java.util.UUID promotionId;
+
+    @Column(name = "promotion_name")
+    private String promotionName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pricing_type", length = 50)
+    @Builder.Default
+    private com.taxoryn.module.billing.model.PricingType pricingType = com.taxoryn.module.billing.model.PricingType.STANDARD;
+
+    @Column(name = "standard_unit_price", precision = 15, scale = 2)
+    private BigDecimal standardUnitPrice;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_type", length = 50)
+    private com.taxoryn.module.billing.model.PromotionDiscountType discountType;
+
+    @Column(name = "discount_value", precision = 15, scale = 2)
+    private BigDecimal discountValue;
+
+    @Column(name = "discount_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
     public enum BillingServiceType {
         GST_FILING,
         ITR_FILING,

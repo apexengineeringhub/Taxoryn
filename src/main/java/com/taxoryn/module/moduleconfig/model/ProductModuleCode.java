@@ -22,5 +22,7 @@ public enum ProductModuleCode {
     BILLING,
     BILLING_PRACTICE_OPERATIONS,
     REPORTS,
+    DASHBOARD,
+    PRACTICE_DASHBOARD,
     MARKETPLACE
 }

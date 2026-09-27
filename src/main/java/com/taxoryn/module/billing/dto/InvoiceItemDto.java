@@ -30,6 +30,13 @@ public class InvoiceItemDto {
     private BigDecimal taxRate;
     private BigDecimal tax;
     private BigDecimal amount;
+    private UUID promotionId;
+    private String promotionName;
+    private com.taxoryn.module.billing.model.PricingType pricingType;
+    private BigDecimal standardUnitPrice;
+    private com.taxoryn.module.billing.model.PromotionDiscountType discountType;
+    private BigDecimal discountValue;
+    private BigDecimal discountAmount;
 
     public BigDecimal getUnitRate() {
         return unitPrice;
