@@ -176,4 +176,99 @@ public class GmailSyncServiceTest {
         // Verify sync history record
         verify(syncHistoryRepository).save(any(GmailSyncHistoryEntity.class));
     }
+
+    @Test
+    @DisplayName("Verify incremental sync uses Gmail History API when lastHistoryId is present")
+    void testSyncAccountIncrementalWithHistoryApi() {
+        GmailAccountEntity account = GmailAccountEntity.builder()
+                .emailAddress("practice@taxfirm.com")
+                .status(GmailAccountStatus.CONNECTED)
+                .encryptedAccessToken("enc_token")
+                .lastHistoryId("123450")
+                .accountType(GmailAccountType.PRACTICE_SHARED)
+                .build();
+        account.setId(accountId);
+        account.setOrganizationId(orgId);
+
+        when(oAuthService.getValidAuthenticatedAccount(orgId, accountId)).thenReturn(account);
+        when(encryptionService.decrypt("enc_token")).thenReturn("ya29.access_token");
+
+        // History response
+        GmailThreadModels.MessageAdded added = new GmailThreadModels.MessageAdded(
+                GmailThreadModels.MessageMetadata.builder().id("msg_inc").threadId("th_inc_1").build()
+        );
+        GmailThreadModels.HistoryRecord record = new GmailThreadModels.HistoryRecord("123455", List.of(added));
+        GmailThreadModels.HistoryResponse historyResponse = new GmailThreadModels.HistoryResponse(List.of(record), "123456", null);
+
+        when(apiClient.listHistory("ya29.access_token", "123450", null)).thenReturn(historyResponse);
+
+        // Thread detail
+        GmailThreadModels.HeaderEntry hSub = new GmailThreadModels.HeaderEntry("Subject", "GST Query");
+        GmailThreadModels.HeaderEntry hFrom = new GmailThreadModels.HeaderEntry("From", "client@corp.com");
+        GmailThreadModels.HeaderEntry hTo = new GmailThreadModels.HeaderEntry("To", "practice@taxfirm.com");
+        GmailThreadModels.MessagePayload payload = new GmailThreadModels.MessagePayload(List.of(hSub, hFrom, hTo));
+
+        GmailThreadModels.MessageMetadata msg = GmailThreadModels.MessageMetadata.builder()
+                .id("msg_inc")
+                .threadId("th_inc_1")
+                .snippet("GST Query snippet")
+                .internalDate(Instant.now().toEpochMilli())
+                .labelIds(List.of("INBOX"))
+                .payload(payload)
+                .build();
+
+        GmailThreadModels.ThreadDetail detail = GmailThreadModels.ThreadDetail.builder()
+                .id("th_inc_1")
+                .historyId("123456")
+                .messages(List.of(msg))
+                .build();
+
+        when(apiClient.getThreadMetadata("ya29.access_token", "th_inc_1")).thenReturn(detail);
+        when(conversationRepository.findByOrganizationIdAndThreadId(orgId, "th_inc_1")).thenReturn(Optional.empty());
+        when(clientRepository.findAllByOrganizationId(orgId)).thenReturn(List.of());
+
+        GmailSyncService.GmailSyncResult result = syncService.syncAccount(orgId, accountId, GmailSyncType.INCREMENTAL);
+
+        assertThat(result.getStatus()).isEqualTo(GmailSyncStatus.SUCCESS);
+        assertThat(result.getThreadsSynced()).isEqualTo(1);
+        verify(apiClient, never()).listThreads(any(), any(), any(), anyInt());
+        verify(accountRepository).save(argThat(acc -> "123456".equals(acc.getLastHistoryId())));
+    }
+
+    @Test
+    @DisplayName("Verify syncAccount records failure when OAuth fails to resolve account")
+    void testSyncAccountOAuthFailure() {
+        when(oAuthService.getValidAuthenticatedAccount(orgId, accountId))
+                .thenThrow(new RuntimeException("OAuth token revoked by Google"));
+
+        GmailSyncService.GmailSyncResult result = syncService.syncAccount(orgId, accountId, GmailSyncType.INCREMENTAL);
+
+        assertThat(result.getStatus()).isEqualTo(GmailSyncStatus.FAILED);
+        assertThat(result.getErrorMessage()).contains("OAuth token revoked by Google");
+        verify(syncHistoryRepository).save(argThat(h -> h.getStatus() == GmailSyncStatus.FAILED));
+    }
+
+    @Test
+    @DisplayName("Verify syncAllActiveAccounts iterates all connected mailboxes with tenant isolation")
+    void testSyncAllActiveAccounts() {
+        GmailAccountEntity acc = GmailAccountEntity.builder()
+                .emailAddress("active@firm.com")
+                .status(GmailAccountStatus.CONNECTED)
+                .encryptedAccessToken("enc")
+                .build();
+        acc.setId(accountId);
+        acc.setOrganizationId(orgId);
+
+        when(accountRepository.findAll()).thenReturn(List.of(acc));
+        when(oAuthService.getValidAuthenticatedAccount(orgId, accountId)).thenReturn(acc);
+        when(encryptionService.decrypt("enc")).thenReturn("token");
+        when(apiClient.listThreads(any(), any(), any(), anyInt()))
+                .thenReturn(GmailThreadModels.ThreadListResponse.builder().threads(List.of()).build());
+
+        int total = syncService.syncAllActiveAccounts();
+
+        assertThat(total).isEqualTo(0);
+        assertThat(TenantContext.getTenantId()).isNull();
+    }
 }
+

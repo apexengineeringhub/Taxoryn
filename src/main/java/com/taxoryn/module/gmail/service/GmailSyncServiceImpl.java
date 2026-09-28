@@ -170,10 +170,13 @@ public class GmailSyncServiceImpl implements GmailSyncService {
         int totalSynced = 0;
         for (GmailAccountEntity acc : activeAccounts) {
             try {
+                com.taxoryn.core.security.TenantContext.setTenantId(acc.getOrganizationId());
                 GmailSyncResult result = syncAccount(acc.getOrganizationId(), acc.getId(), GmailSyncType.INCREMENTAL);
                 totalSynced += result.getThreadsSynced();
             } catch (Exception ex) {
                 log.error("Failed batch sync for account {}: {}", acc.getEmailAddress(), ex.getMessage());
+            } finally {
+                com.taxoryn.core.security.TenantContext.clear();
             }
         }
         return totalSynced;
