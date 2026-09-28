@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(101);
+        assertThat(allMigrations.length).isEqualTo(102);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -314,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(101);
+        assertThat(all).hasSize(102);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -515,6 +515,25 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ALTER TABLE client_user_assignments");
         assertThat(sql).contains("ALTER TABLE gst_registrations");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0");
+    }
+
+    @Test
+    @DisplayName("Verify V102 migration script contents for Gmail conversation management")
+    void testV102MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v102Resource = resolver.getResource("classpath:db/migration/V102__gmail_conversation_management.sql");
+
+        assertThat(v102Resource.exists()).isTrue();
+        String sql = new String(v102Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gmail_accounts");
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gmail_conversations");
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gmail_sync_history");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_conv_org_status_last_msg");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_conv_org_assignee_status");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_conv_org_client_status");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_conv_org_thread");
+        assertThat(sql).contains("uq_gmail_conversations_org_thread");
     }
 }
 
