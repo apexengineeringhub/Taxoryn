@@ -60,7 +60,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
-  const { user, logout, practiceName, practiceInitials, subscriptionPlan, isLoading } = useAuth();
+  const { user, logout, practiceName, practiceInitials, subscriptionPlan, isLoading, organization } = useAuth();
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
   const { isModuleAvailable } = useModuleEntitlement();
   const location = useLocation();
@@ -82,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   const isFirmAdmin = !isSuperAdmin && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
   const isStaff = !isSuperAdmin && !isFirmAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
+  const isSolo = organization?.organizationType === 'SOLO' || organization?.organizationType === 'SOLO_PRACTITIONER';
 
   // Dynamic Workspace Definition
   const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
@@ -112,19 +113,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'my-tax',
       sectionTitle: 'MY TAX',
       items: [
-        { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard },
-        { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2 },
-        { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet },
-        { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent },
-        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt },
-        { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock },
+        { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard, moduleCode: 'CLIENT_PORTAL' },
+        { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2, moduleCode: 'GST' },
+        { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet, moduleCode: 'ITR' },
+        { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent, moduleCode: 'TDS' },
+        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, moduleCode: 'BILLING' },
+        { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, moduleCode: 'DOCUMENTS' },
       ],
     },
     {
       id: 'explore',
       sectionTitle: 'EXPLORE',
       items: [
-        { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store },
+        { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store, moduleCode: 'MARKETPLACE' },
       ],
     },
   ];
@@ -136,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'WORK',
       items: [
         { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-        { label: 'Team Chat', path: '/chat', icon: MessageSquare },
+        { label: 'Team Chat', path: '/chat', icon: MessageSquare, visible: !isSolo },
         { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
         { label: isStaff ? 'My Compliance Work' : 'Compliance Worklist', path: '/compliance-work', icon: Briefcase, requiredPermissions: ['TASK_VIEW', 'CLIENT_VIEW'], moduleCode: 'TASKS' },
@@ -177,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'ADMINISTRATION',
       isCollapsible: true,
       items: [
-        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], visible: !isSolo },
         { label: 'Modules & Features', path: '/settings/modules', icon: Layers, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Notice Operations', path: '/settings/tax-notices', icon: Scale, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'TAX_NOTICES' },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'], moduleCode: 'BILLING' },
@@ -230,7 +231,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     }))
     .filter((section) => section.items.length > 0);
   const platformFilteredItems = filterRoleNavigationItems(platformNavItems, user);
-  const visibleClientSections = filterNavigationSections(clientNavSections, user);
+  const visibleClientSections = filterNavigationSections(clientNavSections, user)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => isModuleAvailable(item.moduleCode)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(
     currentTheme.sidebarHeaderBg.toUpperCase()
@@ -338,6 +344,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
             {isSuperAdmin ? (
               <>
                 <Server className="w-3 h-3 text-purple-600" /> Platform Multi-Tenant
+              </>
+            ) : isClientUser ? (
+              <>
+                <Globe className="w-3 h-3 text-emerald-600" /> Client Portal
               </>
             ) : isLoading ? (
               <span className="text-[10px] text-slate-400 italic">Loading plan...</span>

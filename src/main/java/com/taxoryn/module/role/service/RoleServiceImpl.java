@@ -31,6 +31,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.taxoryn.module.capability.model.ProductCapability;
+import com.taxoryn.module.capability.service.PracticeCapabilityResolver;
 
 @Slf4j
 @Service
@@ -42,6 +44,7 @@ public class RoleServiceImpl implements RoleService {
     private final UserRepository userRepository;
     private final RoleMapper roleMapper;
     private final com.taxoryn.module.audit.service.AuditService auditService;
+    private final PracticeCapabilityResolver practiceCapabilityResolver;
 
     @Override
     @Transactional(readOnly = true)
@@ -92,6 +95,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleDto createCustomRole(CreateRoleRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_RBAC, "Team RBAC administration is not available for SOLO practices.");
         if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.isTenantAdmin()) {
             throw new ForbiddenException("Access denied: Only organization administrators can manage custom roles");
         }
@@ -137,6 +141,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleDto updateCustomRole(UUID roleId, UpdateRoleRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_RBAC, "Team RBAC administration is not available for SOLO practices.");
         if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.isTenantAdmin()) {
             throw new ForbiddenException("Access denied: Only organization administrators can manage custom roles");
         }
@@ -176,6 +181,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public void deleteCustomRole(UUID roleId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_RBAC, "Team RBAC administration is not available for SOLO practices.");
         if (!SecurityUtils.isTaxorynSuperAdmin() && !SecurityUtils.isTenantAdmin()) {
             throw new ForbiddenException("Access denied: Only organization administrators can manage custom roles");
         }
@@ -198,6 +204,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public UserRolesResponse assignRolesToUser(UUID userId, AssignUserRolesRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_RBAC, "Team RBAC administration is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
@@ -243,6 +250,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public UserRolesResponse removeRoleFromUser(UUID userId, UUID roleId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_RBAC, "Team RBAC administration is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UserEntity user = userRepository.findByIdAndOrganizationId(userId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));

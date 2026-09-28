@@ -36,6 +36,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
     private final OrganizationRepository organizationRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final ModuleConfigurationService moduleConfigurationService;
+    private final com.taxoryn.module.organization.repository.PracticeProfileRepository practiceProfileRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -55,6 +56,19 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
 
         OrganizationType orgType = org.getOrganizationType() != null ? org.getOrganizationType() : OrganizationType.UNKNOWN;
 
+        if (practiceProfileRepository != null) {
+            com.taxoryn.module.organization.entity.PracticeType pType = practiceProfileRepository.findByOrganizationId(organizationId)
+                    .map(com.taxoryn.module.organization.entity.PracticeProfileEntity::getPracticeType)
+                    .orElse(null);
+            if (pType == com.taxoryn.module.organization.entity.PracticeType.SOLO) {
+                orgType = OrganizationType.SOLO;
+            } else if (pType == com.taxoryn.module.organization.entity.PracticeType.FIRM && (orgType == OrganizationType.UNKNOWN || orgType == OrganizationType.SOLO || orgType == OrganizationType.SOLO_PRACTITIONER)) {
+                orgType = OrganizationType.SMALL_TAX_FIRM;
+            } else if (pType == com.taxoryn.module.organization.entity.PracticeType.ENTERPRISE && (orgType == OrganizationType.UNKNOWN || orgType == OrganizationType.SOLO || orgType == OrganizationType.SOLO_PRACTITIONER)) {
+                orgType = OrganizationType.ENTERPRISE;
+            }
+        }
+
         SubscriptionPlan plan = subscriptionRepository.findByOrganizationId(organizationId)
                 .map(SubscriptionEntity::getPlan)
                 .orElse(SubscriptionPlan.STARTER);
@@ -71,7 +85,7 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
         String onboardingProfile = resolveOnboardingProfile(orgType);
         List<OnboardingStepDto> onboardingChecklist = resolveOnboardingChecklist(orgType);
 
-        boolean multiUser = orgType != OrganizationType.SOLO_PRACTITIONER;
+        boolean multiUser = orgType != OrganizationType.SOLO && orgType != OrganizationType.SOLO_PRACTITIONER;
         boolean clientPortal = capabilities.contains(ProductCapability.CLIENT_PORTAL);
         boolean noticeCenter = capabilities.contains(ProductCapability.TAX_NOTICE_MANAGEMENT);
         boolean customInvoicing = capabilities.contains(ProductCapability.BILLING_INVOICING);
@@ -118,8 +132,10 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
         Set<ProductCapability> set = EnumSet.noneOf(ProductCapability.class);
 
         switch (orgType) {
-            case SOLO_PRACTITIONER -> {
+            case SOLO, SOLO_PRACTITIONER -> {
                 set.add(ProductCapability.CLIENT_MANAGEMENT);
+                set.add(ProductCapability.CLIENT_MESSAGING);
+                set.add(ProductCapability.COMPLIANCE_WORK);
                 set.add(ProductCapability.GST_COMPLIANCE);
                 set.add(ProductCapability.ITR_COMPLIANCE);
                 set.add(ProductCapability.TDS_COMPLIANCE);
@@ -131,8 +147,10 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.BILLING_INVOICING);
                 set.add(ProductCapability.CLIENT_PORTAL);
             }
-            case SMALL_TAX_FIRM -> {
+            case FIRM, SMALL_TAX_FIRM -> {
                 set.add(ProductCapability.CLIENT_MANAGEMENT);
+                set.add(ProductCapability.CLIENT_MESSAGING);
+                set.add(ProductCapability.COMPLIANCE_WORK);
                 set.add(ProductCapability.GST_COMPLIANCE);
                 set.add(ProductCapability.ITR_COMPLIANCE);
                 set.add(ProductCapability.TDS_COMPLIANCE);
@@ -144,10 +162,16 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.BILLING_INVOICING);
                 set.add(ProductCapability.CENTRAL_REPORTING);
                 set.add(ProductCapability.TEAM_MANAGEMENT);
+                set.add(ProductCapability.TEAM_CHAT);
+                set.add(ProductCapability.EMPLOYEE_MANAGEMENT);
+                set.add(ProductCapability.STAFF_ASSIGNMENT);
+                set.add(ProductCapability.TEAM_RBAC);
                 set.add(ProductCapability.CLIENT_PORTAL);
             }
             case GROWING_PRACTICE -> {
                 set.add(ProductCapability.CLIENT_MANAGEMENT);
+                set.add(ProductCapability.CLIENT_MESSAGING);
+                set.add(ProductCapability.COMPLIANCE_WORK);
                 set.add(ProductCapability.GST_COMPLIANCE);
                 set.add(ProductCapability.ITR_COMPLIANCE);
                 set.add(ProductCapability.TDS_COMPLIANCE);
@@ -159,12 +183,16 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.BILLING_INVOICING);
                 set.add(ProductCapability.CENTRAL_REPORTING);
                 set.add(ProductCapability.TEAM_MANAGEMENT);
+                set.add(ProductCapability.TEAM_CHAT);
+                set.add(ProductCapability.EMPLOYEE_MANAGEMENT);
+                set.add(ProductCapability.STAFF_ASSIGNMENT);
+                set.add(ProductCapability.TEAM_RBAC);
                 set.add(ProductCapability.CLIENT_PORTAL);
                 if (plan != SubscriptionPlan.STARTER) {
                     set.add(ProductCapability.ADVANCED_ANALYTICS);
                 }
             }
-            case BUSINESS -> {
+            case ENTERPRISE, BUSINESS -> {
                 set.add(ProductCapability.GST_COMPLIANCE);
                 set.add(ProductCapability.ITR_COMPLIANCE);
                 set.add(ProductCapability.TDS_COMPLIANCE);
@@ -173,9 +201,16 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.DOCUMENT_MANAGEMENT);
                 set.add(ProductCapability.TAX_NOTICE_MANAGEMENT);
                 set.add(ProductCapability.TEAM_MANAGEMENT);
+                set.add(ProductCapability.TEAM_CHAT);
+                set.add(ProductCapability.EMPLOYEE_MANAGEMENT);
+                set.add(ProductCapability.STAFF_ASSIGNMENT);
+                set.add(ProductCapability.TEAM_RBAC);
+                set.add(ProductCapability.COMPLIANCE_WORK);
             }
             case UNKNOWN -> {
                 set.add(ProductCapability.CLIENT_MANAGEMENT);
+                set.add(ProductCapability.CLIENT_MESSAGING);
+                set.add(ProductCapability.COMPLIANCE_WORK);
                 set.add(ProductCapability.GST_COMPLIANCE);
                 set.add(ProductCapability.ITR_COMPLIANCE);
                 set.add(ProductCapability.TDS_COMPLIANCE);
@@ -187,6 +222,10 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 set.add(ProductCapability.BILLING_INVOICING);
                 set.add(ProductCapability.CENTRAL_REPORTING);
                 set.add(ProductCapability.TEAM_MANAGEMENT);
+                set.add(ProductCapability.TEAM_CHAT);
+                set.add(ProductCapability.EMPLOYEE_MANAGEMENT);
+                set.add(ProductCapability.STAFF_ASSIGNMENT);
+                set.add(ProductCapability.TEAM_RBAC);
                 set.add(ProductCapability.CLIENT_PORTAL);
                 if (plan == SubscriptionPlan.BUSINESS || plan == SubscriptionPlan.ENTERPRISE) {
                     set.add(ProductCapability.ADVANCED_ANALYTICS);
@@ -202,8 +241,10 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
         Map<ProductCapability, ModuleRecommendationStatus> map = new EnumMap<>(ProductCapability.class);
 
         switch (orgType) {
-            case SOLO_PRACTITIONER -> {
+            case SOLO, SOLO_PRACTITIONER -> {
                 map.put(ProductCapability.CLIENT_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.CLIENT_MESSAGING, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.COMPLIANCE_WORK, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.GST_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.ITR_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TDS_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
@@ -216,11 +257,17 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 map.put(ProductCapability.CENTRAL_REPORTING, ModuleRecommendationStatus.RECOMMENDED);
                 map.put(ProductCapability.TAX_NOTICE_MANAGEMENT, ModuleRecommendationStatus.RECOMMENDED);
                 map.put(ProductCapability.TEAM_MANAGEMENT, ModuleRecommendationStatus.NOT_RECOMMENDED);
+                map.put(ProductCapability.TEAM_CHAT, ModuleRecommendationStatus.NOT_RECOMMENDED);
+                map.put(ProductCapability.EMPLOYEE_MANAGEMENT, ModuleRecommendationStatus.NOT_RECOMMENDED);
+                map.put(ProductCapability.STAFF_ASSIGNMENT, ModuleRecommendationStatus.NOT_RECOMMENDED);
+                map.put(ProductCapability.TEAM_RBAC, ModuleRecommendationStatus.NOT_RECOMMENDED);
                 map.put(ProductCapability.ADVANCED_ANALYTICS,
                         plan == SubscriptionPlan.STARTER ? ModuleRecommendationStatus.UPGRADE_REQUIRED : ModuleRecommendationStatus.RECOMMENDED);
             }
-            case SMALL_TAX_FIRM -> {
+            case FIRM, SMALL_TAX_FIRM -> {
                 map.put(ProductCapability.CLIENT_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.CLIENT_MESSAGING, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.COMPLIANCE_WORK, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.GST_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.ITR_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TDS_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
@@ -231,6 +278,10 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 map.put(ProductCapability.BILLING_INVOICING, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.CENTRAL_REPORTING, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TEAM_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_CHAT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.EMPLOYEE_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.STAFF_ASSIGNMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_RBAC, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.CLIENT_PORTAL, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TAX_NOTICE_MANAGEMENT, ModuleRecommendationStatus.RECOMMENDED);
                 map.put(ProductCapability.ADVANCED_ANALYTICS,
@@ -238,6 +289,8 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
             }
             case GROWING_PRACTICE -> {
                 map.put(ProductCapability.CLIENT_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.CLIENT_MESSAGING, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.COMPLIANCE_WORK, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.GST_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.ITR_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TDS_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
@@ -249,11 +302,15 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 map.put(ProductCapability.BILLING_INVOICING, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.CENTRAL_REPORTING, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TEAM_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_CHAT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.EMPLOYEE_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.STAFF_ASSIGNMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_RBAC, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.CLIENT_PORTAL, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.ADVANCED_ANALYTICS,
                         plan == SubscriptionPlan.STARTER ? ModuleRecommendationStatus.UPGRADE_REQUIRED : ModuleRecommendationStatus.ACTIVE);
             }
-            case BUSINESS -> {
+            case ENTERPRISE, BUSINESS -> {
                 map.put(ProductCapability.GST_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.ITR_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TDS_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
@@ -261,6 +318,11 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 map.put(ProductCapability.TASK_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.DOCUMENT_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TEAM_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_CHAT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.EMPLOYEE_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.STAFF_ASSIGNMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_RBAC, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.COMPLIANCE_WORK, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TAX_NOTICE_MANAGEMENT, ModuleRecommendationStatus.RECOMMENDED);
                 map.put(ProductCapability.CENTRAL_REPORTING, ModuleRecommendationStatus.RECOMMENDED);
                 map.put(ProductCapability.CLIENT_MANAGEMENT, ModuleRecommendationStatus.NOT_RECOMMENDED);
@@ -272,6 +334,8 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
             }
             case UNKNOWN -> {
                 map.put(ProductCapability.CLIENT_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.CLIENT_MESSAGING, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.COMPLIANCE_WORK, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.GST_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.ITR_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TDS_COMPLIANCE, ModuleRecommendationStatus.ACTIVE);
@@ -283,6 +347,10 @@ public class ProductCapabilityServiceImpl implements ProductCapabilityService {
                 map.put(ProductCapability.BILLING_INVOICING, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.CENTRAL_REPORTING, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.TEAM_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_CHAT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.EMPLOYEE_MANAGEMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.STAFF_ASSIGNMENT, ModuleRecommendationStatus.ACTIVE);
+                map.put(ProductCapability.TEAM_RBAC, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.CLIENT_PORTAL, ModuleRecommendationStatus.ACTIVE);
                 map.put(ProductCapability.ADVANCED_ANALYTICS,
                         (plan == SubscriptionPlan.BUSINESS || plan == SubscriptionPlan.ENTERPRISE)

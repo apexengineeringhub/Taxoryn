@@ -276,6 +276,7 @@ export const CLIENT_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: [],
     allowedRoles: CLIENT_ROLES,
     targetPath: '/portal?tab=documents',
+    moduleCode: 'DOCUMENTS',
     supportsClientContext: false,
   },
   {
@@ -288,6 +289,7 @@ export const CLIENT_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: [],
     allowedRoles: CLIENT_ROLES,
     targetPath: '/portal?tab=messages',
+    moduleCode: 'CLIENT_PORTAL',
     supportsClientContext: false,
   },
   {
@@ -300,6 +302,7 @@ export const CLIENT_ACTION_DEFINITIONS: ActionDefinition[] = [
     requiredPermissions: [],
     allowedRoles: CLIENT_ROLES,
     targetPath: '/marketplace/customer/requirements/new',
+    moduleCode: 'MARKETPLACE',
     supportsClientContext: false,
   },
   {

@@ -33,9 +33,12 @@ import clsx from 'clsx';
 
 export const ORGANIZATION_TYPE_LABELS: Record<OrganizationType, string> = {
   UNKNOWN: 'Not Configured',
+  SOLO: 'Solo Practitioner',
   SOLO_PRACTITIONER: 'Solo Practitioner',
+  FIRM: 'Tax Firm',
   SMALL_TAX_FIRM: 'Small Tax Firm',
   GROWING_PRACTICE: 'Growing Practice',
+  ENTERPRISE: 'Enterprise',
   BUSINESS: 'Business',
 };
 

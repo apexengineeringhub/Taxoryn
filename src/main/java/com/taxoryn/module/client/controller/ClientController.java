@@ -60,7 +60,7 @@ public class ClientController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Create client", description = "Onboards a new client with constitution type, tax numbers, contact details, address, and optional assigned practitioner.")
     public ResponseEntity<ApiResponse<ClientDto>> createClient(@Valid @RequestBody CreateClientRequest request) {
         ClientDto created = clientService.createClient(request);
@@ -69,7 +69,7 @@ public class ClientController {
     }
 
     @PostMapping("/bulk")
-    @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Bulk import clients", description = "Imports a batch of client records from CSV or Excel migrations with validation and duplicate skipping.")
     public ResponseEntity<ApiResponse<com.taxoryn.module.client.dto.BulkImportResultDto>> bulkCreateClients(@RequestBody List<CreateClientRequest> requests) {
         com.taxoryn.module.client.dto.BulkImportResultDto result = clientService.bulkCreateClients(requests);
@@ -78,7 +78,7 @@ public class ClientController {
     }
 
     @PutMapping("/{clientId}")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Update client", description = "Updates client profile, statutory numbers, address, and assignment within the authenticated tenant.")
     public ResponseEntity<ApiResponse<ClientDto>> updateClient(@PathVariable UUID clientId, @Valid @RequestBody UpdateClientRequest request) {
         ClientDto updated = clientService.updateClient(clientId, request);
@@ -86,7 +86,7 @@ public class ClientController {
     }
 
     @PatchMapping("/{clientId}/status")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Update client status", description = "Transitions client status (ACTIVE, INACTIVE, PROSPECT, ARCHIVED).")
     public ResponseEntity<ApiResponse<ClientDto>> updateClientStatus(@PathVariable UUID clientId, @Valid @RequestBody UpdateClientStatusRequest request) {
         ClientDto updated = clientService.updateClientStatus(clientId, request);
@@ -94,7 +94,7 @@ public class ClientController {
     }
 
     @PutMapping("/{clientId}/assigned-employee")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Assign or reassign employee", description = "Assigns an internal practitioner / account manager employee to the client.")
     public ResponseEntity<ApiResponse<ClientDto>> assignEmployee(@PathVariable UUID clientId, @Valid @RequestBody AssignClientEmployeeRequest request) {
         ClientDto updated = clientService.assignEmployee(clientId, request);
@@ -102,7 +102,7 @@ public class ClientController {
     }
 
     @PatchMapping("/{clientId}/portal-status")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Update client portal access status", description = "Updates the client's portal access lifecycle (ACTIVE, SUSPENDED, INACTIVE). Revokes sessions and dispatches access notifications.")
     public ResponseEntity<ApiResponse<ClientDto>> updateClientPortalStatus(
             @PathVariable UUID clientId,
@@ -112,7 +112,7 @@ public class ClientController {
     }
 
     @PostMapping("/{clientId}/portal-status/suspend")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Suspend client portal access", description = "Temporarily blocks client portal login and access while retaining all historical documents and records.")
     public ResponseEntity<ApiResponse<ClientDto>> suspendClientPortal(@PathVariable UUID clientId) {
         ClientDto updated = clientService.updateClientPortalStatus(clientId,
@@ -123,7 +123,7 @@ public class ClientController {
     }
 
     @PostMapping("/{clientId}/portal-status/restore")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Restore client portal access", description = "Restores client portal login access for suspended or inactive accounts.")
     public ResponseEntity<ApiResponse<ClientDto>> restoreClientPortal(@PathVariable UUID clientId) {
         ClientDto updated = clientService.updateClientPortalStatus(clientId,
@@ -134,7 +134,7 @@ public class ClientController {
     }
 
     @PostMapping("/{clientId}/portal-status/deactivate")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Deactivate client portal access", description = "Permanently disables client portal access while keeping all data intact.")
     public ResponseEntity<ApiResponse<ClientDto>> deactivateClientPortal(@PathVariable UUID clientId) {
         ClientDto updated = clientService.updateClientPortalStatus(clientId,
@@ -145,7 +145,7 @@ public class ClientController {
     }
 
     @PostMapping("/{clientId}/portal-invitation/resend")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Resend client portal invitation email", description = "Invalidates previous activation tokens and dispatches a fresh client portal setup invitation.")
     public ResponseEntity<ApiResponse<Void>> resendPortalInvitation(@PathVariable UUID clientId) {
         clientService.resendPortalInvitation(clientId);
@@ -153,7 +153,7 @@ public class ClientController {
     }
 
     @DeleteMapping("/{clientId}")
-    @PreAuthorize("hasAuthority('CLIENT_DELETE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_DELETE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
     @Operation(summary = "Archive client", description = "Archives client record within the authenticated tenant.")
     public ResponseEntity<ApiResponse<Void>> deleteClient(@PathVariable UUID clientId) {
         clientService.deleteClient(clientId);

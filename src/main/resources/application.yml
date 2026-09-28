@@ -158,6 +158,42 @@ taxoryn:
       account-id: ${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}
       path-style-access: ${STORAGE_PATH_STYLE_ACCESS:true}
       chunked-encoding-enabled: ${STORAGE_CHUNKED_ENCODING_ENABLED:false}
+  gmail:
+    enabled: ${GMAIL_ENABLED:true}
+    client-id: ${GMAIL_CLIENT_ID:${GOOGLE_CLIENT_ID:}}
+    client-secret: ${GMAIL_CLIENT_SECRET:${GOOGLE_CLIENT_SECRET:}}
+    redirect-uri: ${GMAIL_REDIRECT_URI:}
+    default-sla-hours: ${GMAIL_DEFAULT_SLA_HOURS:24}
+    sync:
+      enabled: ${GMAIL_SYNC_ENABLED:true}
+      cron: ${GMAIL_SYNC_CRON:0 */15 * * * ?}
+      batch-size: ${GMAIL_SYNC_BATCH_SIZE:50}
+    api:
+      base-url: ${GMAIL_API_BASE_URL:https://gmail.googleapis.com/gmail/v1}
+      connect-timeout-ms: ${GMAIL_API_CONNECT_TIMEOUT_MS:8000}
+      read-timeout-ms: ${GMAIL_API_READ_TIMEOUT_MS:15000}
+      max-results: ${GMAIL_API_MAX_RESULTS:50}
+    oauth:
+      auth-url: ${GMAIL_OAUTH_AUTH_URL:https://accounts.google.com/o/oauth2/v2/auth}
+      token-url: ${GMAIL_OAUTH_TOKEN_URL:https://oauth2.googleapis.com/token}
+      user-info-url: ${GMAIL_OAUTH_USER_INFO_URL:https://www.googleapis.com/oauth2/v2/userinfo}
+      scope: ${GMAIL_OAUTH_SCOPE:https://www.googleapis.com/auth/gmail.metadata https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile}
+    retry:
+      enabled: ${GMAIL_RETRY_ENABLED:true}
+      max-attempts: ${GMAIL_RETRY_MAX_ATTEMPTS:3}
+      backoff-ms: ${GMAIL_RETRY_BACKOFF_MS:1000}
+    health:
+      enabled: ${GMAIL_HEALTH_ENABLED:true}
+    channels:
+      info:
+        enabled: ${GMAIL_CHANNEL_INFO_ENABLED:true}
+        email: ${GMAIL_CHANNEL_INFO_EMAIL:info@taxoryn.com}
+      support:
+        enabled: ${GMAIL_CHANNEL_SUPPORT_ENABLED:true}
+        email: ${GMAIL_CHANNEL_SUPPORT_EMAIL:support@taxoryn.com}
+      admin:
+        enabled: ${GMAIL_CHANNEL_ADMIN_ENABLED:true}
+        email: ${GMAIL_CHANNEL_ADMIN_EMAIL:admin@taxoryn.com}
 
 # OpenAPI / Swagger
 springdoc:

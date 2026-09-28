@@ -38,6 +38,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.taxoryn.module.capability.model.ProductCapability;
+import com.taxoryn.module.capability.service.PracticeCapabilityResolver;
 
 @Slf4j
 @Service
@@ -50,10 +52,12 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
     private final UserRepository userRepository;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final EmployeeChatWebSocketHandler webSocketHandler;
+    private final PracticeCapabilityResolver practiceCapabilityResolver;
 
     @Override
     @Transactional(readOnly = true)
     public List<EmployeeChatContactDto> getEligibleContacts() {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_CHAT, "Team chat is not available for SOLO practices.");
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         UUID organizationId = scope.getOrganizationId();
         if (organizationId == null) {
@@ -132,6 +136,7 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
     @Override
     @Transactional
     public List<EmployeeChatChannelDto> getAccessibleChannels() {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_CHAT, "Team chat is not available for SOLO practices.");
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         UUID organizationId = scope.getOrganizationId();
         if (organizationId == null) {
@@ -183,6 +188,7 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
     @Override
     @Transactional(readOnly = true)
     public List<EmployeeChatMessageDto> getDirectMessages(UUID recipientEmployeeId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_CHAT, "Team chat is not available for SOLO practices.");
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         UUID organizationId = scope.getOrganizationId();
         EmployeeEntity currentEmployee = resolveCurrentEmployee(scope);
@@ -215,6 +221,7 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
     @Override
     @Transactional
     public EmployeeChatMessageDto sendDirectMessage(UUID recipientEmployeeId, SendEmployeeChatMessageRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_CHAT, "Team chat is not available for SOLO practices.");
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         UUID organizationId = scope.getOrganizationId();
         EmployeeEntity currentEmployee = resolveCurrentEmployee(scope);
@@ -268,6 +275,7 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
     @Override
     @Transactional
     public void markDirectMessagesRead(UUID senderEmployeeId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_CHAT, "Team chat is not available for SOLO practices.");
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         UUID organizationId = scope.getOrganizationId();
         EmployeeEntity currentEmployee = resolveCurrentEmployee(scope);
@@ -282,12 +290,12 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
         if (updated > 0) {
             // Notify sender in real-time that their messages were read
             EmployeeChatWebSocketMessage readEvent = EmployeeChatWebSocketMessage.builder()
-                    .type(EmployeeChatWebSocketMessage.Type.MESSAGES_READ)
-                    .organizationId(organizationId)
-                    .senderEmployeeId(senderEmployeeId)
-                    .recipientEmployeeId(currentEmployee.getId())
-                    .timestamp(now.toString())
-                    .build();
+                .type(EmployeeChatWebSocketMessage.Type.MESSAGES_READ)
+                .organizationId(organizationId)
+                .senderEmployeeId(senderEmployeeId)
+                .recipientEmployeeId(currentEmployee.getId())
+                .timestamp(now.toString())
+                .build();
             webSocketHandler.sendToEmployee(organizationId, senderEmployeeId, readEvent);
         }
     }
@@ -295,6 +303,7 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
     @Override
     @Transactional(readOnly = true)
     public List<EmployeeChatMessageDto> getChannelMessages(UUID channelId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_CHAT, "Team chat is not available for SOLO practices.");
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         UUID organizationId = scope.getOrganizationId();
         EmployeeEntity currentEmployee = resolveCurrentEmployee(scope);
@@ -325,6 +334,7 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
     @Override
     @Transactional
     public EmployeeChatMessageDto sendChannelMessage(UUID channelId, SendEmployeeChatMessageRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.TEAM_CHAT, "Team chat is not available for SOLO practices.");
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
         UUID organizationId = scope.getOrganizationId();
         EmployeeEntity currentEmployee = resolveCurrentEmployee(scope);

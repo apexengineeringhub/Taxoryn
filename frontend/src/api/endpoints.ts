@@ -50,6 +50,7 @@ import {
   BillingDashboardStats,
   SubscriptionPlan,
   SubscriptionInfo,
+  OrganizationCapabilities,
   Employee,
   Role,
   AuditLog,
@@ -2960,6 +2961,14 @@ export const complianceWorkflowApi = {
     return res.data.data;
   },
 };
+
+export const capabilitiesApi = {
+  getCapabilities: async (): Promise<OrganizationCapabilities> => {
+    const res = await apiClient.get<ApiResponse<OrganizationCapabilities>>('/api/v1/capabilities');
+    return res.data.data;
+  },
+};
+
 
 
 

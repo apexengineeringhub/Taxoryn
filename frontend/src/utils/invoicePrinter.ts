@@ -71,6 +71,31 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
     </tr>
   `).join('');
 
+  const getTaxRateLabels = (inv: Invoice) => {
+    if (!inv.subtotal || inv.subtotal <= 0 || !inv.tax || inv.tax <= 0) {
+      return { cgst: 'Central GST (CGST)', sgst: 'State GST (SGST)' };
+    }
+    if (inv.items && inv.items.length > 0) {
+      const rates = inv.items.map((it) => Number(it.taxRate || 0));
+      const allSame = rates.every((r) => r === rates[0]);
+      if (allSame && rates[0] > 0) {
+        const half = Number((rates[0] / 2).toFixed(2));
+        return {
+          cgst: `Central GST (CGST @ ${half}%)`,
+          sgst: `State GST (SGST @ ${half}%)`,
+        };
+      }
+    }
+    const effectiveTotal = Math.round((Number(inv.tax) / Number(inv.subtotal)) * 1000) / 10;
+    const half = Number((effectiveTotal / 2).toFixed(2));
+    return {
+      cgst: `Central GST (CGST @ ${half}%)`,
+      sgst: `State GST (SGST @ ${half}%)`,
+    };
+  };
+
+  const taxLabels = getTaxRateLabels(invoice);
+
   const paymentsHtml = invoice.payments && invoice.payments.length > 0 ? `
     <div style="margin-top: 16px; padding: 10px 14px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
       <div style="font-weight: 700; font-size: 11px; color: #166534; margin-bottom: 4px;">RECORDED PAYMENT RECEIPTS:</div>
@@ -287,13 +312,19 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
                     <td style="text-align: right; font-family: monospace; font-weight: 700; color: #0f172a;">${currencyFmt(invoice.subtotal)}</td>
                   </tr>
                   <tr>
-                    <td style="color: #475569;">Central GST (CGST @ 9%):</td>
+                    <td style="color: #475569;">${taxLabels.cgst}:</td>
                     <td style="text-align: right; font-family: monospace; color: #334155;">${currencyFmt(Number(invoice.tax || 0) / 2)}</td>
                   </tr>
                   <tr>
-                    <td style="color: #475569;">State GST (SGST @ 9%):</td>
+                    <td style="color: #475569;">${taxLabels.sgst}:</td>
                     <td style="text-align: right; font-family: monospace; color: #334155;">${currencyFmt(Number(invoice.tax || 0) / 2)}</td>
                   </tr>
+                  ${Number(invoice.discount || 0) > 0 ? `
+                  <tr style="background-color: #fffbeb; color: #b45309; font-weight: 600;">
+                    <td>Discount / Concession:</td>
+                    <td style="text-align: right; font-family: monospace; color: #b45309;">- ${currencyFmt(invoice.discount)}</td>
+                  </tr>
+                  ` : ''}
                   <tr style="background-color: #f1f5f9; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a;">
                     <td style="font-size: 12px; font-weight: 900; color: #0f172a;">Total Invoice Value:</td>
                     <td style="text-align: right; font-family: monospace; font-size: 13px; font-weight: 900; color: #0f172a;">${currencyFmt(invoice.total)}</td>

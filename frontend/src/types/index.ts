@@ -24,6 +24,9 @@ export interface PagedResponse<T> {
 // 1. Auth & User
 export type OrganizationType =
   | 'UNKNOWN'
+  | 'SOLO'
+  | 'FIRM'
+  | 'ENTERPRISE'
   | 'SOLO_PRACTITIONER'
   | 'SMALL_TAX_FIRM'
   | 'GROWING_PRACTICE'
@@ -43,7 +46,13 @@ export type ProductCapability =
   | 'CENTRAL_REPORTING'
   | 'TEAM_MANAGEMENT'
   | 'CLIENT_PORTAL'
-  | 'ADVANCED_ANALYTICS';
+  | 'ADVANCED_ANALYTICS'
+  | 'TEAM_CHAT'
+  | 'EMPLOYEE_MANAGEMENT'
+  | 'STAFF_ASSIGNMENT'
+  | 'TEAM_RBAC'
+  | 'CLIENT_MESSAGING'
+  | 'COMPLIANCE_WORK';
 
 export type ModuleRecommendationStatus =
   | 'ACTIVE'
@@ -986,6 +995,7 @@ export interface Invoice {
   dueDate: string;
   subtotal: number;
   tax: number;
+  discount?: number;
   total: number;
   totalAmount?: number;
   paidAmount: number;

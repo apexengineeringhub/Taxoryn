@@ -61,6 +61,9 @@ class RoleServiceTest {
     @Mock
     private com.taxoryn.module.audit.service.AuditService auditService;
 
+    @Mock
+    private com.taxoryn.module.capability.service.PracticeCapabilityResolver practiceCapabilityResolver;
+
     @InjectMocks
     private RoleServiceImpl roleService;
 

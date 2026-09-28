@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, ArrowRight, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
+import { useModuleEntitlement } from '../../context/ModuleEntitlementContext';
 import { resolveRoleWorkspace } from '../../config/roleWorkspaceConfig';
 import {
   filterNavigationSections,
@@ -20,7 +21,8 @@ interface CommandPaletteProps {
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
+  const { user, organization } = useAuth();
+  const { isModuleAvailable } = useModuleEntitlement();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -35,6 +37,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r)
   );
   const isStaff = !isSuperAdmin && !userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r)) && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
+  const isSolo = organization?.organizationType === 'SOLO' || organization?.organizationType === 'SOLO_PRACTITIONER';
 
   // Build searchable items based on persona
   const getSearchableSections = (): { section: string; item: NavigationItem }[] => {
@@ -42,23 +45,27 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
       const items = platformWorkspace?.navigation || [];
       const accessible = filterNavigationByPermissions(items, user);
-      return accessible.map((item) => ({ section: 'PLATFORM', item }));
+      return accessible
+        .filter((item) => isModuleAvailable(item.moduleCode))
+        .map((item) => ({ section: 'PLATFORM', item }));
     }
 
     if (isClientUser) {
       const clientItems: NavigationItem[] = [
-        { label: 'Portal Dashboard', path: '/portal' },
-        { label: 'GST Returns', path: '/portal?tab=gst' },
-        { label: 'ITR Returns', path: '/portal?tab=itr' },
-        { label: 'TDS Statements', path: '/portal?tab=tds' },
-        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices' },
-        { label: 'Document Vault', path: '/portal?tab=documents' },
-        { label: 'Find a Tax Professional', path: '/marketplace/explore' },
+        { label: 'Portal Dashboard', path: '/portal', moduleCode: 'CLIENT_PORTAL' },
+        { label: 'GST Returns', path: '/portal?tab=gst', moduleCode: 'GST' },
+        { label: 'ITR Returns', path: '/portal?tab=itr', moduleCode: 'ITR' },
+        { label: 'TDS Statements', path: '/portal?tab=tds', moduleCode: 'TDS' },
+        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', moduleCode: 'BILLING' },
+        { label: 'Document Vault', path: '/portal?tab=documents', moduleCode: 'DOCUMENTS' },
+        { label: 'Find a Tax Professional', path: '/marketplace/explore', moduleCode: 'MARKETPLACE' },
         { label: 'Security & Password', path: '/settings/security' },
         { label: 'Give Feedback', path: '/feedback' },
       ];
       const accessible = filterNavigationByPermissions(clientItems, user);
-      return accessible.map((item) => ({ section: 'PORTAL', item }));
+      return accessible
+        .filter((item) => isModuleAvailable(item.moduleCode))
+        .map((item) => ({ section: 'PORTAL', item }));
     }
 
     // Practice Sections
@@ -68,18 +75,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         sectionTitle: 'WORK',
         items: [
           { label: 'Dashboard', path: '/dashboard' },
-          { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', requiredPermissions: ['CLIENT_VIEW'] },
-          { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', requiredPermissions: ['TASK_VIEW'] },
+          { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
+          { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
         ],
       },
       {
         id: 'compliance',
         sectionTitle: 'COMPLIANCE',
         items: [
-          { label: 'GST Compliance', path: '/gst', requiredPermissions: ['GST_VIEW'] },
-          { label: 'ITR Compliance', path: '/itr', requiredPermissions: ['ITR_VIEW'] },
-          { label: 'TDS Compliance', path: '/tds', requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'] },
-          { label: 'Notice Center', path: '/notices', requiredPermissions: ['NOTICE_VIEW'] },
+          { label: 'GST Compliance', path: '/gst', requiredPermissions: ['GST_VIEW'], moduleCode: 'GST' },
+          { label: 'ITR Compliance', path: '/itr', requiredPermissions: ['ITR_VIEW'], moduleCode: 'ITR' },
+          { label: 'TDS Compliance', path: '/tds', requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'], moduleCode: 'TDS' },
+          { label: 'Notice Center', path: '/tax-notices', requiredPermissions: ['NOTICE_VIEW'], moduleCode: 'TAX_NOTICES' },
           { label: 'Tax Calendar', path: '/calendar', requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
         ],
       },
@@ -87,37 +94,39 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         id: 'documents',
         sectionTitle: 'DOCUMENTS',
         items: [
-          { label: 'Document Vault', path: '/documents', requiredPermissions: ['DOCUMENT_VIEW'] },
+          { label: 'Document Vault', path: '/documents', requiredPermissions: ['DOCUMENT_VIEW'], moduleCode: 'DOCUMENTS' },
         ],
       },
       {
         id: 'practice',
         sectionTitle: 'PRACTICE',
         items: [
-          { label: 'Client Portal Hub', path: '/portal', requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'Reports', path: '/reports', requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'] },
-          { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'Client Onboarding', path: '/marketplace/onboarding', requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'Notification Center', path: '/notifications', requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES },
+          { label: 'Client Portal Hub', path: '/portal', requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'CLIENT_PORTAL' },
+          { label: 'Reports', path: '/reports', requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'], moduleCode: 'REPORTS' },
+          { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'MARKETPLACE' },
+          { label: 'Client Onboarding', path: '/marketplace/onboarding', requiredPermissions: ['MARKETPLACE_ONBOARDING_MANAGE', 'CLIENT_CREATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'MARKETPLACE' },
+          { label: 'Notification Center', path: '/notifications', requiredPermissions: NOTIFICATION_PERMISSIONS, allowedRoles: NOTIFICATION_ADMIN_ROLES, moduleCode: 'NOTIFICATIONS' },
         ],
       },
       {
         id: 'administration',
         sectionTitle: 'ADMINISTRATION',
         items: [
-          { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'Billing & Invoices', path: '/billing', requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'] },
-          { label: 'Activity & Audit', path: '/audit-logs', requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'] },
+          { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], visible: !isSolo },
+          { label: 'Modules & Features', path: '/settings/modules', requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+          { label: 'Notice Operations', path: '/settings/tax-notices', requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'TAX_NOTICES' },
+          { label: 'Billing & Invoices', path: '/billing', requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'], moduleCode: 'BILLING' },
+          { label: 'Activity & Audit', path: '/audit-logs', requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'], moduleCode: 'AUDIT' },
           { label: 'Branding & Themes', path: '/settings/branding', requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
           { label: 'Subscription', path: '/settings/subscription', requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
-          { label: 'WhatsApp Alerts', path: '/settings/whatsapp', requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+          { label: 'WhatsApp Alerts', path: '/settings/whatsapp', requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'NOTIFICATIONS' },
         ],
       },
       {
         id: 'growth',
         sectionTitle: 'GROWTH',
         items: [
-          { label: 'Marketplace', path: '/settings/marketplace', requiredPermissions: ['MARKETPLACE_MANAGE', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+          { label: 'Marketplace', path: '/settings/marketplace', requiredPermissions: ['MARKETPLACE_MANAGE', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'MARKETPLACE' },
         ],
       },
       {
@@ -134,7 +143,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     const flatResults: { section: string; item: NavigationItem }[] = [];
     filteredSections.forEach((sec) => {
       sec.items.forEach((item) => {
-        flatResults.push({ section: sec.sectionTitle || 'MENU', item });
+        if (isModuleAvailable(item.moduleCode)) {
+          flatResults.push({ section: sec.sectionTitle || 'MENU', item });
+        }
       });
     });
     return flatResults;
