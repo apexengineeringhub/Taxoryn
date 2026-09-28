@@ -114,13 +114,15 @@ export function getDefaultDashboardRoute(
 export function resolveFallbackCapabilities(
   orgType: OrganizationType = 'UNKNOWN'
 ): OrganizationCapabilities {
-  const isSolo = orgType === 'SOLO_PRACTITIONER';
-  const isBusiness = orgType === 'BUSINESS';
+  const isSolo = orgType === 'SOLO' || orgType === 'SOLO_PRACTITIONER';
+  const isBusiness = orgType === 'BUSINESS' || orgType === 'ENTERPRISE';
   const isGrowing = orgType === 'GROWING_PRACTICE';
-  const isSmall = orgType === 'SMALL_TAX_FIRM';
+  const isSmall = orgType === 'SMALL_TAX_FIRM' || orgType === 'FIRM';
 
   let capabilities: ProductCapability[] = [
     'CLIENT_MANAGEMENT',
+    'CLIENT_MESSAGING',
+    'COMPLIANCE_WORK',
     'GST_COMPLIANCE',
     'ITR_COMPLIANCE',
     'TDS_COMPLIANCE',
@@ -143,9 +145,21 @@ export function resolveFallbackCapabilities(
       'DOCUMENT_MANAGEMENT',
       'TAX_NOTICE_MANAGEMENT',
       'TEAM_MANAGEMENT',
+      'TEAM_CHAT',
+      'EMPLOYEE_MANAGEMENT',
+      'STAFF_ASSIGNMENT',
+      'TEAM_RBAC',
+      'COMPLIANCE_WORK',
     ];
   } else if (!isSolo) {
-    capabilities.push('TEAM_MANAGEMENT', 'CENTRAL_REPORTING');
+    capabilities.push(
+      'TEAM_MANAGEMENT',
+      'CENTRAL_REPORTING',
+      'TEAM_CHAT',
+      'EMPLOYEE_MANAGEMENT',
+      'STAFF_ASSIGNMENT',
+      'TEAM_RBAC'
+    );
     if (isGrowing) {
       capabilities.push('ADVANCED_ANALYTICS');
     }
@@ -195,6 +209,8 @@ export function resolveFallbackCapabilities(
 
   const moduleStatuses: Record<ProductCapability, ModuleRecommendationStatus> = {
     CLIENT_MANAGEMENT: isBusiness ? 'NOT_RECOMMENDED' : 'ACTIVE',
+    CLIENT_MESSAGING: 'ACTIVE',
+    COMPLIANCE_WORK: 'ACTIVE',
     GST_COMPLIANCE: 'ACTIVE',
     ITR_COMPLIANCE: 'ACTIVE',
     TDS_COMPLIANCE: 'ACTIVE',
@@ -206,6 +222,10 @@ export function resolveFallbackCapabilities(
     BILLING_INVOICING: isBusiness ? 'NOT_RECOMMENDED' : 'ACTIVE',
     CENTRAL_REPORTING: isSolo ? 'RECOMMENDED' : isBusiness ? 'RECOMMENDED' : 'ACTIVE',
     TEAM_MANAGEMENT: isSolo ? 'NOT_RECOMMENDED' : 'ACTIVE',
+    TEAM_CHAT: isSolo ? 'NOT_RECOMMENDED' : 'ACTIVE',
+    EMPLOYEE_MANAGEMENT: isSolo ? 'NOT_RECOMMENDED' : 'ACTIVE',
+    STAFF_ASSIGNMENT: isSolo ? 'NOT_RECOMMENDED' : 'ACTIVE',
+    TEAM_RBAC: isSolo ? 'NOT_RECOMMENDED' : 'ACTIVE',
     CLIENT_PORTAL: isBusiness ? 'NOT_RECOMMENDED' : 'ACTIVE',
     ADVANCED_ANALYTICS: isGrowing ? 'ACTIVE' : 'UPGRADE_REQUIRED',
   };

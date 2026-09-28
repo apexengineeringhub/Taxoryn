@@ -41,14 +41,18 @@ export const TeamManagementPage: React.FC = () => {
   const [resendingEmployeeId, setResendingEmployeeId] = useState<string | null>(null);
   const [feedbackBanner, setFeedbackBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const { user } = useAuth();
+  const { user, organization } = useAuth();
+  const orgType = (organization?.organizationType || '').toUpperCase();
+  const isSolo = orgType === 'SOLO' || orgType === 'SOLO_PRACTITIONER';
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
   const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER', 'PRACTICE_OWNER', 'PRACTICE_ADMIN'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!isSolo) {
+      loadData();
+    }
+  }, [isSolo]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'add' || searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
@@ -431,6 +435,30 @@ export const TeamManagementPage: React.FC = () => {
       },
     },
   ];
+
+  if (isSolo) {
+    return (
+      <div className="max-w-3xl mx-auto py-16 px-4 text-center space-y-6">
+        <div className="w-16 h-16 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center mx-auto border border-brand-200/80 shadow-xs">
+          <Shield className="w-8 h-8 text-brand-600" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-slate-900">Solo Practice Mode Active</h2>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">
+            Team and staff management features are designed for multi-user firms. As an independent practitioner, your client portfolio, tax filings, and document vault are fully available directly from your workspace.
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Link to="/clients">
+            <Button variant="primary">Go to Clients</Button>
+          </Link>
+          <Link to="/dashboard">
+            <Button variant="outline">Back to Dashboard</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

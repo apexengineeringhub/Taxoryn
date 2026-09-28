@@ -38,7 +38,7 @@ export {
 type MenuView = 'MAIN' | 'COMPLIANCE';
 
 export const NewActionMenu: React.FC = () => {
-  const { user } = useAuth();
+  const { user, organization } = useAuth();
   const { currentTheme } = useBranding();
   const { isModuleAvailable } = useModuleEntitlement();
   const navigate = useNavigate();
@@ -53,6 +53,10 @@ export const NewActionMenu: React.FC = () => {
   const isPlatform = useMemo(() => isPlatformUser(user), [user]);
   const isClient = useMemo(() => isClientUser(user), [user]);
   const isPractice = useMemo(() => isPracticeUser(user), [user]);
+  const isSolo = useMemo(
+    () => organization?.organizationType === 'SOLO' || organization?.organizationType === 'SOLO_PRACTITIONER',
+    [organization]
+  );
 
   // Extract current client context if present in current URL
   const currentClientId = useMemo(() => {
@@ -85,6 +89,9 @@ export const NewActionMenu: React.FC = () => {
   // Authorized top-level actions
   const authorizedMainActions = useMemo(() => {
     return candidateActionDefinitions.filter((action) => {
+      if (isSolo && action.id === 'add-employee') {
+        return false;
+      }
       if (action.id === 'start-compliance') {
         // Parent appears if and only if at least 1 child is authorized
         return authorizedComplianceActions.length > 0;
@@ -92,7 +99,7 @@ export const NewActionMenu: React.FC = () => {
       return hasPermission(user, action.requiredPermissions, action.allowedRoles) &&
         isModuleAvailable(action.moduleCode);
     });
-  }, [candidateActionDefinitions, user, authorizedComplianceActions, isModuleAvailable]);
+  }, [candidateActionDefinitions, user, authorizedComplianceActions, isModuleAvailable, isSolo]);
 
   // Current items based on active view
   const currentItems = useMemo(() => {

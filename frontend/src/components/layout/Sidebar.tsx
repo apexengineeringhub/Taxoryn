@@ -60,7 +60,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
-  const { user, logout, practiceName, practiceInitials, subscriptionPlan, isLoading } = useAuth();
+  const { user, logout, practiceName, practiceInitials, subscriptionPlan, isLoading, organization } = useAuth();
   const { currentTheme, practiceLogo, getEmployeeAvatar } = useBranding();
   const { isModuleAvailable } = useModuleEntitlement();
   const location = useLocation();
@@ -82,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   const isFirmAdmin = !isSuperAdmin && userRoleCodes.some((r: string) => ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'].includes(r));
   const isStaff = !isSuperAdmin && !isFirmAdmin && userRoleCodes.some((r: string) => ['PRACTICE_EMPLOYEE', 'ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE', 'ACCOUNTANT'].includes(r));
   const isClientUser = userRoleCodes.some((r: string) => ['CLIENT_USER', 'PRACTICE_CLIENT', 'CLIENT_ADMIN', 'MARKETPLACE_CUSTOMER'].includes(r));
+  const isSolo = organization?.organizationType === 'SOLO' || organization?.organizationType === 'SOLO_PRACTITIONER';
 
   // Dynamic Workspace Definition
   const platformWorkspace = resolveRoleWorkspace(userRoleCodes);
@@ -136,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'WORK',
       items: [
         { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-        { label: 'Team Chat', path: '/chat', icon: MessageSquare },
+        { label: 'Team Chat', path: '/chat', icon: MessageSquare, visible: !isSolo },
         { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
         { label: isStaff ? 'My Compliance Work' : 'Compliance Worklist', path: '/compliance-work', icon: Briefcase, requiredPermissions: ['TASK_VIEW', 'CLIENT_VIEW'], moduleCode: 'TASKS' },
@@ -177,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       sectionTitle: 'ADMINISTRATION',
       isCollapsible: true,
       items: [
-        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], visible: !isSolo },
         { label: 'Modules & Features', path: '/settings/modules', icon: Layers, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Notice Operations', path: '/settings/tax-notices', icon: Scale, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'TAX_NOTICES' },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'], moduleCode: 'BILLING' },

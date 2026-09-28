@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { Button } from '../components/common/Button';
 import {
   MessageSquare,
   Hash,
@@ -33,7 +35,9 @@ import { useEmployeeChat } from '../hooks/useEmployeeChat';
 type ChatMode = 'CHANNEL' | 'DIRECT';
 
 export const TeamChatPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, organization } = useAuth();
+  const orgType = (organization?.organizationType || '').toUpperCase();
+  const isSolo = orgType === 'SOLO' || orgType === 'SOLO_PRACTITIONER';
 
   // Navigation State
   const [mode, setMode] = useState<ChatMode>('CHANNEL');
@@ -159,11 +163,14 @@ export const TeamChatPage: React.FC = () => {
   }, [selectedChannelId, selectedContactId]);
 
   useEffect(() => {
-    loadSidebarData();
-  }, [loadSidebarData]);
+    if (!isSolo) {
+      loadSidebarData();
+    }
+  }, [loadSidebarData, isSolo]);
 
   // Load messages when selected channel or contact changes
   const loadMessages = useCallback(async (isSilent = false) => {
+    if (isSolo) return;
     if (!isSilent) setIsLoadingMessages(true);
     try {
       if (mode === 'CHANNEL' && selectedChannelId) {
@@ -184,20 +191,23 @@ export const TeamChatPage: React.FC = () => {
     } finally {
       if (!isSilent) setIsLoadingMessages(false);
     }
-  }, [mode, selectedChannelId, selectedContactId]);
+  }, [mode, selectedChannelId, selectedContactId, isSolo]);
 
   useEffect(() => {
-    loadMessages(false);
-  }, [loadMessages]);
+    if (!isSolo) {
+      loadMessages(false);
+    }
+  }, [loadMessages, isSolo]);
 
   // Periodic 3-second background auto-sync heartbeat
   useEffect(() => {
+    if (isSolo) return;
     const interval = setInterval(() => {
       loadMessages(true);
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [loadMessages]);
+  }, [loadMessages, isSolo]);
 
   // Scroll to bottom on message update
   useEffect(() => {
@@ -289,6 +299,30 @@ export const TeamChatPage: React.FC = () => {
   );
 
   const isOtherTyping = selectedContactId ? Boolean(typingMap[selectedContactId]) : false;
+
+  if (isSolo) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] p-6 text-center space-y-6">
+        <div className="w-16 h-16 bg-slate-900 border border-slate-800 text-emerald-400 rounded-2xl flex items-center justify-center shadow-lg">
+          <MessageSquare className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-white">Team Chat is Not Available in Solo Practice</h2>
+          <p className="text-sm text-slate-400 max-w-md mx-auto">
+            Internal team chat channels and direct staff messaging are only enabled for multi-user firm accounts. You can communicate with clients directly via client messaging and portal requests.
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Link to="/clients">
+            <Button variant="primary">Manage Clients</Button>
+          </Link>
+          <Link to="/dashboard">
+            <Button variant="outline">Go to Dashboard</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-950 text-slate-100 overflow-hidden">

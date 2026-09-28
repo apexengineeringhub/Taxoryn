@@ -53,6 +53,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.taxoryn.module.capability.model.ProductCapability;
+import com.taxoryn.module.capability.service.PracticeCapabilityResolver;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -72,6 +75,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final com.taxoryn.module.audit.service.AuditService auditService;
     private final OrganizationEmployeeNumberGenerator employeeNumberGenerator;
     private final com.taxoryn.module.user.service.ProfileImageService profileImageService;
+    private final PracticeCapabilityResolver practiceCapabilityResolver;
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
@@ -237,6 +241,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeDto createEmployee(CreateEmployeeRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         String code = request.getEmployeeCode() != null ? request.getEmployeeCode().trim() : null;
         if (!StringUtils.hasText(code)) {
@@ -389,6 +394,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeDto updateEmployee(UUID employeeId, UpdateEmployeeRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
@@ -451,6 +457,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeDto updateEmployeeRole(UUID employeeId, com.taxoryn.module.employee.dto.UpdateEmployeeRoleRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         if (request == null || (!StringUtils.hasText(request.getRoleCode()) && request.getRoleId() == null)) {
             throw new BusinessValidationException("Target role code or role ID must be provided");
         }
@@ -473,6 +480,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional(readOnly = true)
     public EmployeeDto getEmployeeById(UUID employeeId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
@@ -483,6 +491,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional(readOnly = true)
     public PagedResponse<EmployeeDto> getEmployees(EmployeeFilterRequest filterRequest) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
@@ -533,6 +542,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeDto updateEmployeeStatus(UUID employeeId, UpdateEmployeeStatusRequest request) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         if (request == null || request.getStatus() == null) {
             throw new BusinessValidationException("Target employment status is required");
         }
@@ -617,6 +627,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public void deleteEmployee(UUID employeeId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         UUID currentUserId = SecurityUtils.getCurrentUserId();
 
@@ -663,6 +674,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional(readOnly = true)
     public EmployeeWorkloadDto getEmployeeWorkload(UUID employeeId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
@@ -839,6 +851,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto bulkCreateEmployees(java.util.List<CreateEmployeeRequest> requests) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto result = com.taxoryn.module.employee.dto.BulkEmployeeImportResultDto.builder()
                 .totalProcessed(requests != null ? requests.size() : 0)
@@ -938,6 +951,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public void resendInvitation(UUID employeeId) {
+        practiceCapabilityResolver.requireCapability(ProductCapability.EMPLOYEE_MANAGEMENT, "Team management is not available for SOLO practices.");
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         EmployeeEntity employee = employeeRepository.findByIdAndOrganizationId(employeeId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId));
