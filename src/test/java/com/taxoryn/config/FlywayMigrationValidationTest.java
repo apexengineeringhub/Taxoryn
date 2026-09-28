@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(102);
+        assertThat(allMigrations.length).isEqualTo(103);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -314,7 +314,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(102);
+        assertThat(all).hasSize(103);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -534,6 +534,59 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_conv_org_client_status");
         assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_conv_org_thread");
         assertThat(sql).contains("uq_gmail_conversations_org_thread");
+    }
+
+    @Test
+    @DisplayName("Verify V103 migration script contents for fix missing gmail_accounts table")
+    void testV103MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v103Resource = resolver.getResource("classpath:db/migration/V103__fix_missing_gmail_accounts_table.sql");
+
+        assertThat(v103Resource.exists()).isTrue();
+        String sql = new String(v103Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gmail_accounts");
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gmail_conversations");
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS gmail_sync_history");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_acc_org_status");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_gmail_acc_org_user");
+        assertThat(sql).contains("uq_gmail_accounts_org_email");
+    }
+
+    @Test
+    @DisplayName("Verify V103 SQL creates gmail_accounts and related tables with exact entity schema")
+    void testV103SqlExecutionCreatesAllGmailTables() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v103Resource = resolver.getResource("classpath:db/migration/V103__fix_missing_gmail_accounts_table.sql");
+        assertThat(v103Resource.exists()).isTrue();
+
+        try (java.sql.Connection conn = java.sql.DriverManager.getConnection("jdbc:h2:mem:gmail_schema_test_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL", "sa", "");
+             java.sql.Statement stmt = conn.createStatement()) {
+
+            // Create stub parent tables organizations, users, clients, locations for foreign key integrity
+            stmt.execute("CREATE TABLE IF NOT EXISTS organizations (id UUID PRIMARY KEY, name VARCHAR(255));");
+            stmt.execute("CREATE TABLE IF NOT EXISTS users (id UUID PRIMARY KEY, email VARCHAR(255));");
+            stmt.execute("CREATE TABLE IF NOT EXISTS clients (id UUID PRIMARY KEY, display_name VARCHAR(255));");
+            stmt.execute("CREATE TABLE IF NOT EXISTS locations (id UUID PRIMARY KEY, name VARCHAR(255));");
+
+            // Execute V103 migration script cleanly with ScriptUtils
+            org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(conn, v103Resource);
+
+            // Check gmail_accounts columns
+            try (java.sql.ResultSet rs = stmt.executeQuery("SELECT id, organization_id, user_id, email_address, account_type, status, encrypted_access_token, encrypted_refresh_token, token_expires_at, last_history_id, last_synced_at, sync_error_message, created_at, updated_at, created_by, updated_by, version FROM gmail_accounts WHERE 1=0")) {
+                assertThat(rs).isNotNull();
+            }
+
+            // Check gmail_conversations columns
+            try (java.sql.ResultSet rs = stmt.executeQuery("SELECT id, organization_id, gmail_account_id, thread_id, client_id, location_id, assigned_user_id, status, priority, subject, snippet, sender_email, sender_name, recipient_emails, message_count, last_message_at, first_response_at, resolved_at, is_unread, is_starred, gmail_labels, web_link, created_at, updated_at, created_by, updated_by, version FROM gmail_conversations WHERE 1=0")) {
+                assertThat(rs).isNotNull();
+            }
+
+            // Check gmail_sync_history columns
+            try (java.sql.ResultSet rs = stmt.executeQuery("SELECT id, organization_id, gmail_account_id, sync_type, threads_synced, status, started_at, completed_at, error_details, created_at, updated_at, created_by, updated_by, version FROM gmail_sync_history WHERE 1=0")) {
+                assertThat(rs).isNotNull();
+            }
+        }
     }
 }
 
