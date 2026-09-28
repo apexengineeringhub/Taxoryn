@@ -27,6 +27,8 @@ import {
   LifeBuoy,
   BadgeAlert,
   Layers,
+  Inbox,
+  Mail,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -58,6 +60,7 @@ export const ROLE_WORKSPACE_CONFIGS: Record<string, RoleWorkspaceDefinition> = {
     badgeStyle: 'bg-purple-100 text-purple-800 border-purple-200',
     navigation: [
       { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
+      { label: 'Enquiries & Email', path: '/admin/enquiries', icon: Inbox },
       { label: 'Practice Tenants', path: '/admin/practices', icon: Building2 },
       { label: 'Platform Users', path: '/admin/users', icon: Users },
       { label: 'Marketplace Ops', path: '/admin/marketplace', icon: Store },
@@ -75,6 +78,7 @@ export const ROLE_WORKSPACE_CONFIGS: Record<string, RoleWorkspaceDefinition> = {
     badgeStyle: 'bg-purple-100 text-purple-800 border-purple-200',
     navigation: [
       { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
+      { label: 'Enquiries & Email', path: '/admin/enquiries', icon: Inbox },
       { label: 'Practice Tenants', path: '/admin/practices', icon: Building2 },
       { label: 'Platform Users', path: '/admin/users', icon: Users },
       { label: 'Marketplace Ops', path: '/admin/marketplace', icon: Store },
@@ -95,6 +99,7 @@ export const ROLE_WORKSPACE_CONFIGS: Record<string, RoleWorkspaceDefinition> = {
     badgeStyle: 'bg-blue-100 text-blue-800 border-blue-200',
     navigation: [
       { label: 'Support Workspace', path: '/admin/overview', icon: Headphones },
+      { label: 'Enquiries & Email', path: '/admin/enquiries', icon: Inbox },
       { label: 'Customer & Practice Lookup', path: '/admin/practices', icon: Search },
       { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck },
       { label: 'Support Cases', path: '/admin/feedback', icon: LifeBuoy },
@@ -112,6 +117,7 @@ export const ROLE_WORKSPACE_CONFIGS: Record<string, RoleWorkspaceDefinition> = {
     badgeStyle: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     navigation: [
       { label: 'Platform Overview', path: '/admin/overview', icon: LayoutDashboard },
+      { label: 'Enquiries & Email', path: '/admin/enquiries', icon: Inbox },
       { label: 'Practice Tenants', path: '/admin/practices', icon: Building2 },
       { label: 'Platform Users', path: '/admin/users', icon: Users },
       { label: 'Feedback Ops', path: '/admin/feedback', icon: ShieldCheck },

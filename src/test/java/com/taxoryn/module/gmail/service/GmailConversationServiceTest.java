@@ -7,13 +7,16 @@ import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
 import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
+import com.taxoryn.module.gmail.client.GmailApiClient;
 import com.taxoryn.module.gmail.dto.GmailConversationDto;
 import com.taxoryn.module.gmail.dto.GmailConversationFilterRequest;
 import com.taxoryn.module.gmail.dto.GmailConversationUpdateDto;
 import com.taxoryn.module.gmail.entity.GmailConversationEntity;
 import com.taxoryn.module.gmail.entity.GmailConversationPriority;
 import com.taxoryn.module.gmail.entity.GmailConversationStatus;
+import com.taxoryn.module.gmail.repository.GmailAccountRepository;
 import com.taxoryn.module.gmail.repository.GmailConversationRepository;
+import com.taxoryn.module.gmail.util.TokenEncryptionService;
 import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.repository.UserRepository;
@@ -43,6 +46,18 @@ public class GmailConversationServiceTest {
 
     @Mock
     private GmailConversationRepository conversationRepository;
+
+    @Mock
+    private GmailAccountRepository accountRepository;
+
+    @Mock
+    private GmailOAuthService gmailOAuthService;
+
+    @Mock
+    private GmailApiClient apiClient;
+
+    @Mock
+    private TokenEncryptionService encryptionService;
 
     @Mock
     private ClientRepository clientRepository;
@@ -86,6 +101,10 @@ public class GmailConversationServiceTest {
 
         conversationService = new GmailConversationServiceImpl(
                 conversationRepository,
+                accountRepository,
+                gmailOAuthService,
+                apiClient,
+                encryptionService,
                 clientRepository,
                 userRepository,
                 locationRepository,

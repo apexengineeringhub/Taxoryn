@@ -19,9 +19,11 @@ import {
   Zap,
   Activity,
   Check,
+  Inbox,
+  Mail,
 } from 'lucide-react';
-import { platformDashboardApi } from '../api/endpoints';
-import { PlatformDashboardSummary, RecentPlatformActivity } from '../types';
+import { platformDashboardApi, gmailApi } from '../api/endpoints';
+import { PlatformDashboardSummary, RecentPlatformActivity, GmailConversation } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { SupportOverviewPage } from './SupportOverviewPage';
 import { getWorkspaceShortName } from '../config/roleWorkspaceConfig';
@@ -37,6 +39,7 @@ export const PlatformOverviewPage: React.FC = () => {
   }
 
   const [data, setData] = useState<PlatformDashboardSummary | null>(null);
+  const [enquiries, setEnquiries] = useState<GmailConversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -46,8 +49,17 @@ export const PlatformOverviewPage: React.FC = () => {
   const loadPlatformOverview = async () => {
     try {
       setIsLoading(true);
-      const summary = await platformDashboardApi.getOverview();
-      setData(summary);
+      const [summaryRes, enquiriesRes] = await Promise.allSettled([
+        platformDashboardApi.getOverview(),
+        gmailApi.getConversations({ size: 100 }),
+      ]);
+
+      if (summaryRes.status === 'fulfilled') {
+        setData(summaryRes.value);
+      }
+      if (enquiriesRes.status === 'fulfilled' && enquiriesRes.value) {
+        setEnquiries(enquiriesRes.value.content || []);
+      }
     } catch (err) {
       console.error('Failed to load platform overview dashboard', err);
     } finally {
@@ -339,6 +351,74 @@ export const PlatformOverviewPage: React.FC = () => {
             </span>
           </div>
         </Link>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* C. EMAIL & ENQUIRIES OVERVIEW                                             */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-card">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-2xs">
+              <Inbox className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Email & Inbound Enquiries</h3>
+              <p className="text-xs text-slate-500">Live Gmail synchronized practitioner leads, support requests & inbound communications</p>
+            </div>
+          </div>
+          <Link
+            to="/admin/enquiries"
+            className="text-xs font-bold text-purple-700 hover:text-purple-800 inline-flex items-center gap-1 group"
+          >
+            <span>Open Enquiries Center</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Link
+            to="/admin/enquiries"
+            className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-purple-50/50 hover:border-purple-200 transition-all block group"
+          >
+            <p className="text-xs font-semibold text-slate-500 group-hover:text-purple-700">Total Enquiries</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{isLoading ? '...' : enquiries.length}</p>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">Synced from Gmail</span>
+          </Link>
+
+          <Link
+            to="/admin/enquiries"
+            className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/70 hover:bg-amber-100/60 transition-all block"
+          >
+            <p className="text-xs font-semibold text-amber-700">Pending Replies</p>
+            <p className="text-2xl font-black text-amber-900 mt-1">
+              {isLoading ? '...' : enquiries.filter((e) => e.status !== 'REPLIED' && e.status !== 'RESOLVED' && e.status !== 'CLOSED').length}
+            </p>
+            <span className="text-[11px] text-amber-600 mt-0.5 block">Awaiting response</span>
+          </Link>
+
+          <Link
+            to="/admin/enquiries"
+            className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/70 hover:bg-blue-100/60 transition-all block"
+          >
+            <p className="text-xs font-semibold text-blue-700">Practitioner Leads</p>
+            <p className="text-2xl font-black text-blue-900 mt-1">
+              {isLoading ? '...' : enquiries.filter((e) => e.category === 'PRACTITIONER_ENQUIRY').length}
+            </p>
+            <span className="text-[11px] text-blue-600 mt-0.5 block">Onboarding & Demos</span>
+          </Link>
+
+          <Link
+            to="/admin/enquiries"
+            className="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-200/70 hover:bg-indigo-100/60 transition-all block"
+          >
+            <p className="text-xs font-semibold text-indigo-700">Support Requests</p>
+            <p className="text-2xl font-black text-indigo-900 mt-1">
+              {isLoading ? '...' : enquiries.filter((e) => e.category === 'SUPPORT_REQUEST').length}
+            </p>
+            <span className="text-[11px] text-indigo-600 mt-0.5 block">Help & technical queries</span>
+          </Link>
+        </div>
       </div>
 
       {/* ========================================================================= */}

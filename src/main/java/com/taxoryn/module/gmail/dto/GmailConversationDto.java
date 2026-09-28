@@ -38,6 +38,8 @@ public class GmailConversationDto {
     // Workflow & Metadata
     private GmailConversationStatus status;
     private GmailConversationPriority priority;
+    private String category;
+    private String mailboxEmail;
     private String subject;
     private String snippet;
     private String senderEmail;

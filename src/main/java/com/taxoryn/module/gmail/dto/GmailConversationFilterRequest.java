@@ -27,6 +27,9 @@ public class GmailConversationFilterRequest extends PageRequestDto {
     @Schema(description = "Filter by workflow status")
     private GmailConversationStatus status;
 
+    @Schema(description = "Filter by category (e.g. PRACTITIONER_ENQUIRY, SUPPORT_REQUEST, GENERAL_ENQUIRY)")
+    private String category;
+
     @Schema(description = "Filter by priority level")
     private GmailConversationPriority priority;
 

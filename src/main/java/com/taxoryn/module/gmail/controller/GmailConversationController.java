@@ -74,6 +74,25 @@ public class GmailConversationController {
         return ResponseEntity.ok(ApiResponse.success(dto));
     }
 
+    @GetMapping("/{conversationId}/messages")
+    @Operation(summary = "Get live thread messages on-demand directly from Gmail API")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.gmail.dto.GmailMessageViewDto>>> getMessages(@PathVariable UUID conversationId) {
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        java.util.List<com.taxoryn.module.gmail.dto.GmailMessageViewDto> messages = conversationService.getConversationMessages(conversationId, scope);
+        return ResponseEntity.ok(ApiResponse.success(messages));
+    }
+
+    @PostMapping("/{conversationId}/reply")
+    @Operation(summary = "Send an email reply to a Gmail conversation thread")
+    public ResponseEntity<ApiResponse<GmailConversationDto>> sendReply(
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody com.taxoryn.module.gmail.dto.GmailReplyRequest request
+    ) {
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        GmailConversationDto updated = conversationService.sendReply(conversationId, request, scope);
+        return ResponseEntity.ok(ApiResponse.success("Reply sent successfully", updated));
+    }
+
     @PatchMapping("/{conversationId}")
     @Operation(summary = "Update conversation status, priority, assignment, or read/star flags")
     public ResponseEntity<ApiResponse<GmailConversationDto>> updateConversation(

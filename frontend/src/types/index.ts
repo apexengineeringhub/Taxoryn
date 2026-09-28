@@ -4719,5 +4719,102 @@ export interface CreateWorkflowTaskRequest {
   assignedTo?: string;
 }
 
+// --- Gmail & Enquiries Types ---
+export type GmailConversationStatus =
+  | 'OPEN'
+  | 'PENDING_CLIENT'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'REPLIED'
+  | 'CLOSED'
+  | 'ARCHIVED';
+
+export type GmailConversationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export interface GmailConversation {
+  id: string;
+  organizationId: string;
+  gmailAccountId?: string;
+  threadId: string;
+  clientId?: string;
+  clientDisplayName?: string;
+  clientPan?: string;
+  clientGstin?: string;
+  locationId?: string;
+  locationName?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  status: GmailConversationStatus;
+  priority: GmailConversationPriority;
+  category?: 'PRACTITIONER_ENQUIRY' | 'SUPPORT_REQUEST' | 'GENERAL_ENQUIRY' | string;
+  mailboxEmail?: string;
+  subject: string;
+  snippet?: string;
+  senderEmail: string;
+  senderName?: string;
+  recipientEmails?: string;
+  messageCount: number;
+  lastMessageAt?: string;
+  firstResponseAt?: string;
+  resolvedAt?: string;
+  isUnread?: boolean;
+  isStarred?: boolean;
+  gmailLabels?: string;
+  webLink?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface GmailMessageView {
+  id: string;
+  threadId: string;
+  from: string;
+  to?: string;
+  cc?: string;
+  subject?: string;
+  snippet?: string;
+  bodyPlain?: string;
+  bodyHtml?: string;
+  date?: string;
+  labelIds: string[];
+  isDraft?: boolean;
+  isStarred?: boolean;
+}
+
+export interface GmailReplyRequest {
+  replyAccountId?: string;
+  to: string;
+  subject?: string;
+  body: string;
+  inReplyToMessageId?: string;
+}
+
+export interface GmailAccount {
+  id: string;
+  organizationId: string;
+  userId?: string;
+  userFullName?: string;
+  emailAddress: string;
+  accountType: 'PRACTICE_SHARED' | 'INDIVIDUAL_PRACTITIONER';
+  status: 'CONNECTED' | 'DISCONNECTED' | 'AUTH_EXPIRED' | 'SYNC_ERROR';
+  lastSyncedAt?: string;
+  syncErrorMessage?: string;
+  totalConversations?: number;
+  unreadConversations?: number;
+  openConversations?: number;
+  createdAt: string;
+}
+
+export interface GmailMetrics {
+  totalConversations: number;
+  openConversations: number;
+  unreadConversations: number;
+  resolvedTodayCount: number;
+  avgFirstResponseMinutes?: number;
+  avgResolutionMinutes?: number;
+  slaBreachCount: number;
+}
+
+
 
 

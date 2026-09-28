@@ -53,6 +53,7 @@ const CustomerTaxRequirementsListPage = React.lazy(() => import('./pages/Custome
 const ApplicationFeedbackPage = React.lazy(() => import('./pages/ApplicationFeedbackPage').then(m => ({ default: m.ApplicationFeedbackPage })));
 const AdminFeedbackPage = React.lazy(() => import('./pages/AdminFeedbackPage').then(m => ({ default: m.AdminFeedbackPage })));
 const PlatformOverviewPage = React.lazy(() => import('./pages/PlatformOverviewPage').then(m => ({ default: m.PlatformOverviewPage })));
+const PlatformEnquiriesPage = React.lazy(() => import('./pages/PlatformEnquiriesPage').then(m => ({ default: m.PlatformEnquiriesPage })));
 const PlatformPracticesPage = React.lazy(() => import('./pages/PlatformPracticesPage').then(m => ({ default: m.PlatformPracticesPage })));
 const PlatformUsersPage = React.lazy(() => import('./pages/PlatformUsersPage').then(m => ({ default: m.PlatformUsersPage })));
 const PlatformSubscriptionsPage = React.lazy(() => import('./pages/PlatformSubscriptionsPage').then(m => ({ default: m.PlatformSubscriptionsPage })));
@@ -490,6 +491,14 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN', 'TAXORYN_FINANCE_ADMIN', 'TAXORYN_MARKETPLACE_ADMIN', 'TAXORYN_CONTENT_ADMIN', 'TAXORYN_SECURITY_ADMIN', 'TAXORYN_ENGINEERING_ADMIN']}>
                     <PlatformOverviewPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/admin/enquiries"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'TAXORYN_OPERATIONS_ADMIN', 'TAXORYN_SUPPORT_ADMIN']}>
+                    <PlatformEnquiriesPage />
                   </RoleRouteGuard>
                 }
               />
