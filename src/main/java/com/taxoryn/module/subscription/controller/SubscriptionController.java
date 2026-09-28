@@ -31,6 +31,7 @@ import java.util.UUID;
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+    private final com.taxoryn.module.subscription.service.SubscriptionEntitlementService subscriptionEntitlementService;
 
     @GetMapping("/current")
     @PreAuthorize("hasAuthority('ORGANIZATION_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
@@ -38,6 +39,24 @@ public class SubscriptionController {
     public ResponseEntity<ApiResponse<SubscriptionDto>> getCurrentSubscription() {
         SubscriptionDto subscription = subscriptionService.getCurrentSubscription();
         return ResponseEntity.ok(ApiResponse.success("Subscription retrieved successfully", subscription));
+    }
+
+    @GetMapping("/entitlements")
+    @PreAuthorize("hasAuthority('ORGANIZATION_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get subscription entitlements & resource quotas", description = "Retrieves centralized resource quota entitlements, percentage usages, warning states (80%+), and limit block flags.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.subscription.dto.SubscriptionEntitlementsResponse>> getEntitlements() {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.subscription.dto.SubscriptionEntitlementsResponse response = subscriptionEntitlementService.getAllEntitlements(organizationId);
+        return ResponseEntity.ok(ApiResponse.success("Subscription entitlements retrieved successfully", response));
+    }
+
+    @GetMapping("/entitlements/{resourceType}")
+    @PreAuthorize("hasAuthority('ORGANIZATION_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get single resource entitlement", description = "Retrieves entitlement details for a specific resource type (TEAM_MEMBER, CLIENT, STORAGE, LOCATION).")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.subscription.dto.EntitlementResult>> getResourceEntitlement(@org.springframework.web.bind.annotation.PathVariable com.taxoryn.module.subscription.entity.SubscriptionResourceType resourceType) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        com.taxoryn.module.subscription.dto.EntitlementResult response = subscriptionEntitlementService.getEntitlement(organizationId, resourceType);
+        return ResponseEntity.ok(ApiResponse.success("Resource entitlement retrieved successfully", response));
     }
 
     @GetMapping("/usage")

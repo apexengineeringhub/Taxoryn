@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -49,6 +50,8 @@ class SubscriptionServiceTest {
     private ClientRepository clientRepository;
     @Mock
     private DocumentRepository documentRepository;
+    @Mock
+    private SubscriptionEntitlementService subscriptionEntitlementService;
     @Mock
     private SubscriptionMapper subscriptionMapper;
 
@@ -108,43 +111,28 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    @DisplayName("checkUserLimit passes when below quota")
-    void testCheckUserLimit_Passes() {
-        when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(4L);
-
+    @DisplayName("checkUserLimit delegates to subscriptionEntitlementService")
+    void testCheckUserLimit_Delegates() {
         subscriptionService.checkUserLimit(organizationId);
+        org.mockito.Mockito.verify(subscriptionEntitlementService)
+                .checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.TEAM_MEMBER);
     }
 
     @Test
-    @DisplayName("checkUserLimit throws SubscriptionLimitExceededException when quota reached (MAX_USERS)")
-    void testCheckUserLimit_ThrowsExceptionWhenExceeded() {
-        when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(5L);
-
-        assertThrows(SubscriptionLimitExceededException.class, () -> subscriptionService.checkUserLimit(organizationId));
+    @DisplayName("checkClientLimit delegates to subscriptionEntitlementService")
+    void testCheckClientLimit_Delegates() {
+        subscriptionService.checkClientLimit(organizationId);
+        org.mockito.Mockito.verify(subscriptionEntitlementService)
+                .checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.CLIENT);
     }
 
     @Test
-    @DisplayName("checkClientLimit throws SubscriptionLimitExceededException when quota reached (MAX_CLIENTS)")
-    void testCheckClientLimit_ThrowsExceptionWhenExceeded() {
-        when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        when(clientRepository.countByOrganizationId(organizationId)).thenReturn(25L);
-
-        assertThrows(SubscriptionLimitExceededException.class, () -> subscriptionService.checkClientLimit(organizationId));
-    }
-
-    @Test
-    @DisplayName("checkStorageLimit throws SubscriptionLimitExceededException when quota exceeded (MAX_STORAGE)")
-    void testCheckStorageLimit_ThrowsExceptionWhenExceeded() {
-        when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        // Current storage is 4.8 GB, uploading 500 MB exceeds 5 GB limit
-        long currentStorage = (long) (4.8 * 1024 * 1024 * 1024);
+    @DisplayName("checkStorageLimit delegates to subscriptionEntitlementService")
+    void testCheckStorageLimit_Delegates() {
         long newFile = 500L * 1024 * 1024;
-        when(documentRepository.getTotalStorageBytesByOrganizationId(organizationId)).thenReturn(currentStorage);
-
-        assertThrows(SubscriptionLimitExceededException.class,
-                () -> subscriptionService.checkStorageLimit(organizationId, newFile));
+        subscriptionService.checkStorageLimit(organizationId, newFile);
+        org.mockito.Mockito.verify(subscriptionEntitlementService)
+                .checkCanStore(organizationId, newFile);
     }
 
     @Test
@@ -154,9 +142,6 @@ class SubscriptionServiceTest {
         org.setId(organizationId);
 
         when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(4L);
-        when(clientRepository.countByOrganizationId(organizationId)).thenReturn(20L);
-        when(documentRepository.getTotalStorageBytesByOrganizationId(organizationId)).thenReturn(1000L);
         when(subscriptionRepository.save(any(SubscriptionEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(org));
         when(subscriptionMapper.toDto(any(SubscriptionEntity.class))).thenReturn(SubscriptionDto.builder()
@@ -179,10 +164,11 @@ class SubscriptionServiceTest {
         assertEquals(SubscriptionPlan.PROFESSIONAL, result.getPlan());
         assertEquals(15, result.getMaxUsers());
         assertEquals(100, result.getMaxClients());
+        Mockito.verify(subscriptionEntitlementService).validateDowngrade(organizationId, SubscriptionPlan.PROFESSIONAL);
     }
 
     @Test
-    @DisplayName("changePlan throws SubscriptionLimitExceededException when downgrading exceeds new plan quota")
+    @DisplayName("changePlan throws SubscriptionLimitExceededException when validateDowngrade fails")
     void testChangePlan_DowngradeWhenCurrentUsageExceedsLimit() {
         SubscriptionEntity businessSub = SubscriptionEntity.builder()
                 .organizationId(organizationId)
@@ -192,8 +178,8 @@ class SubscriptionServiceTest {
                 .build();
 
         when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(businessSub));
-        // Organization currently has 10 team members, downgrading to STARTER (limit 5) must fail
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(10L);
+        Mockito.doThrow(new SubscriptionLimitExceededException("Limit exceeded"))
+                .when(subscriptionEntitlementService).validateDowngrade(organizationId, SubscriptionPlan.STARTER);
 
         ChangePlanRequest request = ChangePlanRequest.builder()
                 .plan(SubscriptionPlan.STARTER)

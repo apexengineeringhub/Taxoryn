@@ -1091,6 +1091,34 @@ export interface SubscriptionPlan {
   popular?: boolean;
 }
 
+export type SubscriptionResourceType = 'TEAM_MEMBER' | 'CLIENT' | 'STORAGE' | 'LOCATION';
+
+export interface EntitlementResult {
+  resourceType: SubscriptionResourceType;
+  currentUsage: number;
+  limit: number;
+  remaining: number;
+  percentageUsed: number;
+  allowed: boolean;
+  warning: boolean;
+  unlimited: boolean;
+  formattedUsage: string;
+  message: string;
+}
+
+export interface SubscriptionEntitlementsResponse {
+  organizationId: string;
+  organizationName: string;
+  plan: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
+  status: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELLED' | 'CANCELED' | 'EXPIRED';
+  billingInterval: 'MONTHLY' | 'ANNUAL' | 'YEARLY';
+  startDate?: string;
+  renewalDate?: string;
+  anyLimitReached: boolean;
+  anyWarning: boolean;
+  entitlements: EntitlementResult[];
+}
+
 export interface SubscriptionInfo {
   id: string;
   organizationId: string;

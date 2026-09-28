@@ -50,6 +50,8 @@ import {
   BillingDashboardStats,
   SubscriptionPlan,
   SubscriptionInfo,
+  SubscriptionEntitlementsResponse,
+  EntitlementResult,
   OrganizationCapabilities,
   Employee,
   Role,
@@ -1188,6 +1190,10 @@ export const subscriptionApi = {
   },
   getCurrent: async () => {
     const res = await apiClient.get<ApiResponse<SubscriptionInfo>>('/v1/subscriptions/current');
+    return res.data.data;
+  },
+  getEntitlements: async () => {
+    const res = await apiClient.get<ApiResponse<SubscriptionEntitlementsResponse>>('/v1/subscriptions/entitlements');
     return res.data.data;
   },
   changePlan: async (payload: { plan: string; interval: string }) => {

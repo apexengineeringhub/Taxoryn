@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Check, Sparkles, ShieldCheck, Zap } from 'lucide-react';
+import { CreditCard, Check, Sparkles, ShieldCheck, Zap, Users, UserCheck, HardDrive, MapPin, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { subscriptionApi } from '../api/endpoints';
-import { SubscriptionPlan, SubscriptionInfo } from '../types';
+import { SubscriptionPlan, SubscriptionInfo, SubscriptionEntitlementsResponse, EntitlementResult } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { formatPlanDisplayName, formatPlanShortName } from '../utils/planUtils';
 import clsx from 'clsx';
@@ -97,6 +97,7 @@ const DEFAULT_PLAN_CATALOG: SubscriptionPlan[] = [
 export const SubscriptionsPage: React.FC = () => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_PLAN_CATALOG);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [entitlements, setEntitlements] = useState<SubscriptionEntitlementsResponse | null>(null);
   const [interval, setInterval] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -109,14 +110,16 @@ export const SubscriptionsPage: React.FC = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [plansRes, currentRes] = await Promise.all([
-        subscriptionApi.getPlans(),
-        subscriptionApi.getCurrent(),
+      const [plansRes, currentRes, entitlementsRes] = await Promise.all([
+        subscriptionApi.getPlans().catch(() => DEFAULT_PLAN_CATALOG),
+        subscriptionApi.getCurrent().catch(() => null),
+        subscriptionApi.getEntitlements().catch(() => null),
       ]);
       if (plansRes && plansRes.length > 0) {
         setPlans(plansRes);
       }
       setSubscription(currentRes || null);
+      setEntitlements(entitlementsRes || null);
     } catch (err) {
       console.error('Failed to load subscription info', err);
     } finally {
@@ -146,6 +149,21 @@ export const SubscriptionsPage: React.FC = () => {
   };
 
   const displayPlans = plans.length > 0 ? plans : DEFAULT_PLAN_CATALOG;
+
+  const getResourceIcon = (type: string) => {
+    switch (type) {
+      case 'TEAM_MEMBER':
+        return Users;
+      case 'CLIENT':
+        return UserCheck;
+      case 'STORAGE':
+        return HardDrive;
+      case 'LOCATION':
+        return MapPin;
+      default:
+        return Zap;
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto animate-fade-in pb-12">
@@ -179,6 +197,109 @@ export const SubscriptionsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Live Entitlements & Usage Quotas Dashboard */}
+      {entitlements && entitlements.entitlements && (
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-card space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">Current Plan Usage & Quotas</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-brand-50 text-brand-700 border border-brand-200">
+                  {formatPlanDisplayName(entitlements.plan)}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Real-time resource consumption against your subscribed tier limits
+              </p>
+            </div>
+
+            {entitlements.anyLimitReached ? (
+              <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Limit Reached — Upgrade to add more resources</span>
+              </div>
+            ) : entitlements.anyWarning ? (
+              <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Approaching Limit (80%+)</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {entitlements.entitlements.map((res) => {
+              const Icon = getResourceIcon(res.resourceType);
+              const isBlocked = !res.allowed;
+              const isWarn = res.warning && !isBlocked;
+
+              return (
+                <div
+                  key={res.resourceType}
+                  className={clsx(
+                    'rounded-xl border p-4 transition-all flex flex-col justify-between space-y-3',
+                    isBlocked
+                      ? 'bg-rose-50/40 border-rose-200 ring-1 ring-rose-300/40'
+                      : isWarn
+                      ? 'bg-amber-50/30 border-amber-200 ring-1 ring-amber-300/40'
+                      : 'bg-slate-50/50 border-slate-200/80'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={clsx(
+                        'p-2 rounded-lg',
+                        isBlocked ? 'bg-rose-100 text-rose-700' : isWarn ? 'bg-amber-100 text-amber-700' : 'bg-slate-200/80 text-slate-700'
+                      )}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-900">
+                        {res.resourceType === 'TEAM_MEMBER' ? 'Team Members' :
+                         res.resourceType === 'CLIENT' ? 'Active Clients' :
+                         res.resourceType === 'STORAGE' ? 'Document Vault' : 'Branch Locations'}
+                      </span>
+                    </div>
+
+                    <span className={clsx(
+                      'text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase',
+                      isBlocked ? 'bg-rose-100 text-rose-800' : isWarn ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                    )}>
+                      {isBlocked ? '100% Full' : `${Math.round(res.percentageUsed)}%`}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="font-extrabold text-slate-900">{res.formattedUsage}</span>
+                      <span className="text-[11px] text-slate-400">
+                        {res.unlimited ? 'Unlimited' : `${res.limit} allowed`}
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={clsx(
+                          'h-full rounded-full transition-all duration-500',
+                          isBlocked ? 'bg-rose-600' : isWarn ? 'bg-amber-500' : 'bg-emerald-500'
+                        )}
+                        style={{ width: `${Math.min(100, Math.max(0, res.percentageUsed))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <p className={clsx(
+                    'text-[11px] font-medium leading-tight',
+                    isBlocked ? 'text-rose-700 font-semibold' : isWarn ? 'text-amber-700 font-semibold' : 'text-slate-500'
+                  )}>
+                    {res.message}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Plan Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

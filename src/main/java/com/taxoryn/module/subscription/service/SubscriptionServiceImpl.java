@@ -43,6 +43,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final DocumentRepository documentRepository;
     private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
+    private final SubscriptionEntitlementService subscriptionEntitlementService;
     private final SubscriptionMapper subscriptionMapper;
 
     @Override
@@ -107,31 +108,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionPlan newPlan = request.getPlan();
         BillingInterval interval = request.getBillingInterval() != null ? request.getBillingInterval() : sub.getBillingInterval();
 
+        // Validate Downgrade Thresholds using centralized Entitlement Service
+        subscriptionEntitlementService.validateDowngrade(organizationId, newPlan);
+
         int newMaxUsers = SubscriptionPlanDefaults.getDefaultMaxUsers(newPlan);
         int newMaxClients = SubscriptionPlanDefaults.getDefaultMaxClients(newPlan);
         long newMaxStorage = SubscriptionPlanDefaults.getDefaultMaxStorageBytes(newPlan);
-
-        // Validate Downgrade Thresholds
-        long currentUsers = userRepository.countByOrganizationIdAndClientIdIsNull(organizationId);
-        if (currentUsers > newMaxUsers) {
-            throw new SubscriptionLimitExceededException(
-                    String.format("Cannot change to %s plan: Organization currently has %d active users, which exceeds the new plan limit of %d. Please remove team members before downgrading.",
-                            newPlan.name(), currentUsers, newMaxUsers));
-        }
-
-        long currentClients = clientRepository.countByOrganizationId(organizationId);
-        if (currentClients > newMaxClients) {
-            throw new SubscriptionLimitExceededException(
-                    String.format("Cannot change to %s plan: Organization currently has %d active clients, which exceeds the new plan limit of %d. Please archive clients before downgrading.",
-                            newPlan.name(), currentClients, newMaxClients));
-        }
-
-        long currentStorage = documentRepository.getTotalStorageBytesByOrganizationId(organizationId);
-        if (currentStorage > newMaxStorage) {
-            throw new SubscriptionLimitExceededException(
-                    String.format("Cannot change to %s plan: Organization current storage (%.2f MB) exceeds the new plan limit of %.2f MB. Please free storage before downgrading.",
-                            newPlan.name(), currentStorage / (1024.0 * 1024.0), newMaxStorage / (1024.0 * 1024.0)));
-        }
 
         BigDecimal price = interval == BillingInterval.YEARLY ?
                 SubscriptionPlanDefaults.getDefaultYearlyPrice(newPlan) :
@@ -222,58 +204,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     @Transactional(readOnly = true)
     public void checkUserLimit(UUID organizationId) {
-        SubscriptionEntity sub = getOrCreateSubscriptionEntity(organizationId);
-        validateSubscriptionActive(sub);
-
-        long currentUsers = userRepository.countByOrganizationIdAndClientIdIsNull(organizationId);
-        if (currentUsers >= sub.getMaxUsers()) {
-            throw new SubscriptionLimitExceededException("MAX_USERS", currentUsers, sub.getMaxUsers(), sub.getPlan().name());
-        }
+        subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.TEAM_MEMBER);
     }
 
     @Override
     @Transactional(readOnly = true)
     public void checkClientLimit(UUID organizationId) {
-        SubscriptionEntity sub = getOrCreateSubscriptionEntity(organizationId);
-        validateSubscriptionActive(sub);
-
-        long currentClients = clientRepository.countByOrganizationId(organizationId);
-        if (currentClients >= sub.getMaxClients()) {
-            throw new SubscriptionLimitExceededException("MAX_CLIENTS", currentClients, sub.getMaxClients(), sub.getPlan().name());
-        }
+        subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.CLIENT);
     }
 
     @Override
     @Transactional(readOnly = true)
     public void checkLocationLimit(UUID organizationId) {
-        SubscriptionEntity sub = getOrCreateSubscriptionEntity(organizationId);
-        validateSubscriptionActive(sub);
-
-        long currentLocations = locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId);
-        if (currentLocations >= 1) {
-            boolean multiLocationEnabled = subscriptionPlanEntitlementService.isMultiLocationEnabled(sub.getPlan());
-            if (!multiLocationEnabled) {
-                throw new SubscriptionLimitExceededException("Multi-location management is not enabled for your subscription plan (" +
-                        sub.getPlan().name() + "). Please upgrade to Professional, Business, or Enterprise tier.");
-            }
-
-            int maxLocations = subscriptionPlanEntitlementService.getMaxLocations(sub.getPlan());
-            if (currentLocations >= maxLocations) {
-                throw new SubscriptionLimitExceededException("MAX_LOCATIONS", currentLocations, maxLocations, sub.getPlan().name());
-            }
-        }
+        subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.LOCATION);
     }
 
     @Override
     @Transactional(readOnly = true)
     public void checkStorageLimit(UUID organizationId, long additionalBytes) {
-        SubscriptionEntity sub = getOrCreateSubscriptionEntity(organizationId);
-        validateSubscriptionActive(sub);
-
-        long currentStorage = documentRepository.getTotalStorageBytesByOrganizationId(organizationId);
-        if ((currentStorage + additionalBytes) > sub.getMaxStorageBytes()) {
-            throw new SubscriptionLimitExceededException("MAX_STORAGE", currentStorage + additionalBytes, sub.getMaxStorageBytes(), sub.getPlan().name());
-        }
+        subscriptionEntitlementService.checkCanStore(organizationId, additionalBytes);
     }
 
     // =========================================================================
