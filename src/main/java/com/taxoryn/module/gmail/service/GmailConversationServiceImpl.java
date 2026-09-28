@@ -1,0 +1,412 @@
+package com.taxoryn.module.gmail.service;
+
+import com.taxoryn.core.exception.ForbiddenException;
+import com.taxoryn.core.exception.ResourceNotFoundException;
+import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.core.security.PracticeSecurityScope;
+import com.taxoryn.core.security.PracticeSecurityScopeEvaluator;
+import com.taxoryn.module.audit.service.AuditService;
+import com.taxoryn.module.client.entity.ClientEntity;
+import com.taxoryn.module.client.repository.ClientRepository;
+import com.taxoryn.module.gmail.dto.GmailConversationDto;
+import com.taxoryn.module.gmail.dto.GmailConversationFilterRequest;
+import com.taxoryn.module.gmail.dto.GmailConversationUpdateDto;
+import com.taxoryn.module.gmail.entity.GmailConversationEntity;
+import com.taxoryn.module.gmail.entity.GmailConversationStatus;
+import com.taxoryn.module.gmail.repository.GmailConversationRepository;
+import com.taxoryn.module.organization.entity.LocationEntity;
+import com.taxoryn.module.organization.repository.LocationRepository;
+import com.taxoryn.module.user.entity.UserEntity;
+import com.taxoryn.module.user.repository.UserRepository;
+import jakarta.persistence.criteria.Predicate;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class GmailConversationServiceImpl implements GmailConversationService {
+
+    private final GmailConversationRepository conversationRepository;
+    private final ClientRepository clientRepository;
+    private final UserRepository userRepository;
+    private final LocationRepository locationRepository;
+    private final PracticeSecurityScopeEvaluator scopeEvaluator;
+    private final AuditService auditService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<GmailConversationDto> getConversations(GmailConversationFilterRequest filterRequest, PracticeSecurityScope scope) {
+        UUID organizationId = scope.getOrganizationId();
+
+        Specification<GmailConversationEntity> spec = buildSpecification(filterRequest, scope);
+
+        String sortBy = StringUtils.hasText(filterRequest.getSortBy()) ? filterRequest.getSortBy() : "lastMessageAt";
+        Sort.Direction direction = "ASC".equalsIgnoreCase(filterRequest.getSortDirection()) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        PageRequest pageRequest = PageRequest.of(Math.max(0, filterRequest.getPage()), Math.max(1, filterRequest.getSize()), Sort.by(direction, sortBy));
+
+        Page<GmailConversationEntity> page = conversationRepository.findAll(spec, pageRequest);
+
+        return PagedResponse.of(page, this::mapToDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GmailConversationDto getConversation(UUID conversationId, PracticeSecurityScope scope) {
+        GmailConversationEntity conv = conversationRepository.findByIdAndOrganizationId(conversationId, scope.getOrganizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Gmail conversation not found with ID: " + conversationId));
+
+        validateScopeAccess(conv, scope);
+
+        return mapToDto(conv);
+    }
+
+    @Override
+    @Transactional
+    public GmailConversationDto updateConversation(UUID conversationId, GmailConversationUpdateDto request, PracticeSecurityScope scope) {
+        GmailConversationEntity conv = conversationRepository.findByIdAndOrganizationId(conversationId, scope.getOrganizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Gmail conversation not found with ID: " + conversationId));
+
+        validateScopeAccess(conv, scope);
+
+        if (request.getStatus() != null) {
+            GmailConversationStatus oldStatus = conv.getStatus();
+            conv.setStatus(request.getStatus());
+            if (request.getStatus() == GmailConversationStatus.RESOLVED || request.getStatus() == GmailConversationStatus.CLOSED) {
+                if (conv.getResolvedAt() == null) {
+                    conv.setResolvedAt(Instant.now());
+                }
+            }
+            auditService.logEvent(
+                    scope.getOrganizationId(),
+                    scope.getUserId(),
+                    "GMAIL_CONVERSATION_STATUS_CHANGED",
+                    "GMAIL_CONVERSATION",
+                    conversationId.toString(),
+                    oldStatus != null ? oldStatus.name() : null,
+                    request.getStatus().name()
+            );
+        }
+
+        if (request.getPriority() != null) {
+            conv.setPriority(request.getPriority());
+        }
+
+        if (request.getAssignedUserId() != null) {
+            if (Objects.equals(request.getAssignedUserId(), UUID.fromString("00000000-0000-0000-0000-000000000000"))) {
+                conv.setAssignedUserId(null);
+            } else {
+                validateAssigneeBelongsToOrg(request.getAssignedUserId(), scope.getOrganizationId());
+                conv.setAssignedUserId(request.getAssignedUserId());
+            }
+        }
+
+        if (request.getLocationId() != null) {
+            conv.setLocationId(request.getLocationId());
+        }
+
+        if (request.getIsUnread() != null) {
+            conv.setIsUnread(request.getIsUnread());
+        }
+
+        if (request.getIsStarred() != null) {
+            conv.setIsStarred(request.getIsStarred());
+        }
+
+        GmailConversationEntity saved = conversationRepository.save(conv);
+        return mapToDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public GmailConversationDto assignConversation(UUID conversationId, UUID assignedUserId, PracticeSecurityScope scope) {
+        GmailConversationEntity conv = conversationRepository.findByIdAndOrganizationId(conversationId, scope.getOrganizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Gmail conversation not found with ID: " + conversationId));
+
+        validateScopeAccess(conv, scope);
+
+        if (assignedUserId != null) {
+            validateAssigneeBelongsToOrg(assignedUserId, scope.getOrganizationId());
+        }
+
+        UUID oldAssignee = conv.getAssignedUserId();
+        conv.setAssignedUserId(assignedUserId);
+        GmailConversationEntity saved = conversationRepository.save(conv);
+
+        auditService.logEvent(
+                scope.getOrganizationId(),
+                scope.getUserId(),
+                "GMAIL_CONVERSATION_ASSIGNED",
+                "GMAIL_CONVERSATION",
+                conversationId.toString(),
+                oldAssignee != null ? oldAssignee.toString() : "UNASSIGNED",
+                assignedUserId != null ? assignedUserId.toString() : "UNASSIGNED"
+        );
+
+        return mapToDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public GmailConversationDto linkClient(UUID conversationId, UUID clientId, PracticeSecurityScope scope) {
+        GmailConversationEntity conv = conversationRepository.findByIdAndOrganizationId(conversationId, scope.getOrganizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Gmail conversation not found with ID: " + conversationId));
+
+        validateScopeAccess(conv, scope);
+
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, scope.getOrganizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Client not found with ID: " + clientId));
+
+        conv.setClientId(client.getId());
+        if (client.getLocationId() != null && conv.getLocationId() == null) {
+            conv.setLocationId(client.getLocationId());
+        }
+
+        GmailConversationEntity saved = conversationRepository.save(conv);
+
+        auditService.logEvent(
+                scope.getOrganizationId(),
+                scope.getUserId(),
+                "GMAIL_CONVERSATION_CLIENT_LINKED",
+                "GMAIL_CONVERSATION",
+                conversationId.toString(),
+                null,
+                clientId.toString()
+        );
+
+        return mapToDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public GmailConversationDto unlinkClient(UUID conversationId, PracticeSecurityScope scope) {
+        GmailConversationEntity conv = conversationRepository.findByIdAndOrganizationId(conversationId, scope.getOrganizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Gmail conversation not found with ID: " + conversationId));
+
+        validateScopeAccess(conv, scope);
+
+        UUID oldClient = conv.getClientId();
+        conv.setClientId(null);
+        GmailConversationEntity saved = conversationRepository.save(conv);
+
+        auditService.logEvent(
+                scope.getOrganizationId(),
+                scope.getUserId(),
+                "GMAIL_CONVERSATION_CLIENT_UNLINKED",
+                "GMAIL_CONVERSATION",
+                conversationId.toString(),
+                oldClient != null ? oldClient.toString() : null,
+                null
+        );
+
+        return mapToDto(saved);
+    }
+
+    private Specification<GmailConversationEntity> buildSpecification(GmailConversationFilterRequest filter, PracticeSecurityScope scope) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // 1. Mandatory Organization ID Isolation
+            predicates.add(cb.equal(root.get("organizationId"), scope.getOrganizationId()));
+
+            // 2. Practice Security Scoping
+            if (!scope.isFirmAdmin()) {
+                Set<UUID> accessibleClients = scopeEvaluator.getAccessibleClientIds(scope);
+                Set<UUID> accessibleAssignees = scope.getAccessibleAssigneeIds();
+                Set<UUID> accessibleLocations = scope.getAccessibleLocationIds();
+
+                List<Predicate> scopePredicates = new ArrayList<>();
+
+                if (accessibleAssignees != null && !accessibleAssignees.isEmpty()) {
+                    scopePredicates.add(root.get("assignedUserId").in(accessibleAssignees));
+                }
+                if (accessibleClients != null && !accessibleClients.isEmpty()) {
+                    scopePredicates.add(root.get("clientId").in(accessibleClients));
+                }
+                if (accessibleLocations != null && !accessibleLocations.isEmpty()) {
+                    scopePredicates.add(root.get("locationId").in(accessibleLocations));
+                }
+
+                // If no specific assignments yet, allow viewing unassigned conversations within organization
+                scopePredicates.add(cb.isNull(root.get("assignedUserId")));
+
+                predicates.add(cb.or(scopePredicates.toArray(new Predicate[0])));
+            }
+
+            // 3. User Filter Criteria
+            if (filter != null) {
+                if (StringUtils.hasText(filter.getSearch())) {
+                    String pattern = "%" + filter.getSearch().toLowerCase().trim() + "%";
+                    Predicate searchPred = cb.or(
+                            cb.like(cb.lower(root.get("subject")), pattern),
+                            cb.like(cb.lower(root.get("snippet")), pattern),
+                            cb.like(cb.lower(root.get("senderName")), pattern),
+                            cb.like(cb.lower(root.get("senderEmail")), pattern)
+                    );
+                    predicates.add(searchPred);
+                }
+
+                if (filter.getStatus() != null) {
+                    predicates.add(cb.equal(root.get("status"), filter.getStatus()));
+                }
+
+                if (filter.getPriority() != null) {
+                    predicates.add(cb.equal(root.get("priority"), filter.getPriority()));
+                }
+
+                if (filter.getClientId() != null) {
+                    predicates.add(cb.equal(root.get("clientId"), filter.getClientId()));
+                }
+
+                if (filter.getLocationId() != null) {
+                    predicates.add(cb.equal(root.get("locationId"), filter.getLocationId()));
+                }
+
+                if (filter.getAssignedUserId() != null) {
+                    predicates.add(cb.equal(root.get("assignedUserId"), filter.getAssignedUserId()));
+                }
+
+                if (Boolean.TRUE.equals(filter.getUnassignedOnly())) {
+                    predicates.add(cb.isNull(root.get("assignedUserId")));
+                }
+
+                if (Boolean.TRUE.equals(filter.getUnlinkedClientOnly())) {
+                    predicates.add(cb.isNull(root.get("clientId")));
+                }
+
+                if (Boolean.TRUE.equals(filter.getUnreadOnly())) {
+                    predicates.add(cb.isTrue(root.get("isUnread")));
+                }
+
+                if (filter.getGmailAccountId() != null) {
+                    predicates.add(cb.equal(root.get("gmailAccountId"), filter.getGmailAccountId()));
+                }
+
+                if (filter.getFromDate() != null) {
+                    predicates.add(cb.greaterThanOrEqualTo(root.get("lastMessageAt"), filter.getFromDate()));
+                }
+
+                if (filter.getToDate() != null) {
+                    predicates.add(cb.lessThanOrEqualTo(root.get("lastMessageAt"), filter.getToDate()));
+                }
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    private void validateScopeAccess(GmailConversationEntity conv, PracticeSecurityScope scope) {
+        if (scope.isFirmAdmin()) {
+            return;
+        }
+
+        if (conv.getAssignedUserId() != null && scope.getAccessibleAssigneeIds() != null
+                && scope.getAccessibleAssigneeIds().contains(conv.getAssignedUserId())) {
+            return;
+        }
+
+        if (conv.getClientId() != null) {
+            Set<UUID> accessibleClients = scopeEvaluator.getAccessibleClientIds(scope);
+            if (accessibleClients != null && accessibleClients.contains(conv.getClientId())) {
+                return;
+            }
+        }
+
+        if (conv.getLocationId() != null && scope.getAccessibleLocationIds() != null
+                && scope.getAccessibleLocationIds().contains(conv.getLocationId())) {
+            return;
+        }
+
+        if (conv.getAssignedUserId() == null) {
+            return; // Unassigned conversations visible for assignment
+        }
+
+        throw new ForbiddenException("Access denied: You do not have permission to view or modify this conversation.");
+    }
+
+    private void validateAssigneeBelongsToOrg(UUID userId, UUID organizationId) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+        if (!organizationId.equals(user.getOrganizationId())) {
+            throw new ForbiddenException("Assigned user does not belong to the active practice organization");
+        }
+    }
+
+    private GmailConversationDto mapToDto(GmailConversationEntity entity) {
+        String clientName = null;
+        String clientPan = null;
+        String clientGstin = null;
+        if (entity.getClientId() != null) {
+            Optional<ClientEntity> clientOpt = clientRepository.findById(entity.getClientId());
+            if (clientOpt.isPresent()) {
+                ClientEntity client = clientOpt.get();
+                clientName = client.getDisplayName();
+                clientPan = client.getPan();
+                clientGstin = client.getGstin();
+            }
+        }
+
+        String locationName = null;
+        if (entity.getLocationId() != null) {
+            locationName = locationRepository.findById(entity.getLocationId())
+                    .map(LocationEntity::getName)
+                    .orElse(null);
+        }
+
+        String assigneeName = null;
+        if (entity.getAssignedUserId() != null) {
+            assigneeName = userRepository.findById(entity.getAssignedUserId())
+                    .map(UserEntity::getFullName)
+                    .orElse(null);
+        }
+
+        return GmailConversationDto.builder()
+                .id(entity.getId())
+                .organizationId(entity.getOrganizationId())
+                .gmailAccountId(entity.getGmailAccountId())
+                .threadId(entity.getThreadId())
+                .clientId(entity.getClientId())
+                .clientDisplayName(clientName)
+                .clientPan(clientPan)
+                .clientGstin(clientGstin)
+                .locationId(entity.getLocationId())
+                .locationName(locationName)
+                .assignedUserId(entity.getAssignedUserId())
+                .assignedUserName(assigneeName)
+                .status(entity.getStatus())
+                .priority(entity.getPriority())
+                .subject(entity.getSubject())
+                .snippet(entity.getSnippet())
+                .senderEmail(entity.getSenderEmail())
+                .senderName(entity.getSenderName())
+                .recipientEmails(entity.getRecipientEmails())
+                .messageCount(entity.getMessageCount())
+                .lastMessageAt(entity.getLastMessageAt())
+                .firstResponseAt(entity.getFirstResponseAt())
+                .resolvedAt(entity.getResolvedAt())
+                .isUnread(entity.getIsUnread())
+                .isStarred(entity.getIsStarred())
+                .gmailLabels(entity.getGmailLabels())
+                .webLink(entity.getWebLink())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
+    }
+}
