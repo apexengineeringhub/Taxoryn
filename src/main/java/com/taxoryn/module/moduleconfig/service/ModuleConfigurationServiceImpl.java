@@ -80,15 +80,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         return moduleCode;
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public boolean isModuleEnabled(UUID organizationId, ProductModuleCode moduleCode) {
-        if (organizationId == null || moduleCode == null) {
-            return false;
-        }
-
-        ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
-
+    private boolean isModuleDirectlyEnabled(UUID organizationId, ProductModuleCode effectiveCode) {
         // 1. Check Subscription Plan Entitlement Gate
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
         if (subscription != null) {
@@ -109,6 +101,30 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         return productModuleRepository.findByCode(effectiveCode)
                 .map(ProductModuleEntity::isEnabledByDefault)
                 .orElse(true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isModuleEnabled(UUID organizationId, ProductModuleCode moduleCode) {
+        if (organizationId == null || moduleCode == null) {
+            return false;
+        }
+
+        ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
+
+        // 1. Direct Module Check
+        if (!isModuleDirectlyEnabled(organizationId, effectiveCode)) {
+            return false;
+        }
+
+        // 2. Hierarchy / Parent Dependency Gate
+        if (effectiveCode == ProductModuleCode.CLIENT_PORTAL) {
+            return isModuleEnabled(organizationId, ProductModuleCode.CLIENTS);
+        } else if (effectiveCode == ProductModuleCode.DOCUMENT_REQUESTS) {
+            return isModuleEnabled(organizationId, ProductModuleCode.DOCUMENTS);
+        }
+
+        return true;
     }
 
     @Override
@@ -266,6 +282,14 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             effectiveModules.put(mod.getCode().name(), effective);
         }
 
+        // Apply module hierarchy dependency rules
+        if (Boolean.FALSE.equals(effectiveModules.get("CLIENTS"))) {
+            effectiveModules.put("CLIENT_PORTAL", false);
+        }
+        if (Boolean.FALSE.equals(effectiveModules.get("DOCUMENTS"))) {
+            effectiveModules.put("DOCUMENT_REQUESTS", false);
+        }
+
         List<ProductFeatureEntity> features = productFeatureRepository.findAllByOrderByDisplayOrderAsc();
         List<OrganizationFeatureEntity> orgFeatureConfigs = organizationFeatureRepository.findByOrganizationId(organizationId);
         Map<String, Boolean> orgFeatureMap = orgFeatureConfigs.stream()
@@ -285,15 +309,15 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         List<String> navigationItems = new ArrayList<>();
         navigationItems.add("DASHBOARD");
-        navigationItems.add("CLIENTS");
-
+        if (Boolean.TRUE.equals(effectiveModules.get("CLIENTS"))) navigationItems.add("CLIENTS");
         if (Boolean.TRUE.equals(effectiveModules.get("GST"))) navigationItems.add("GST");
         if (Boolean.TRUE.equals(effectiveModules.get("ITR"))) navigationItems.add("ITR");
         if (Boolean.TRUE.equals(effectiveModules.get("TDS"))) navigationItems.add("TDS");
         if (Boolean.TRUE.equals(effectiveModules.get("TAX_NOTICES"))) navigationItems.add("TAX_NOTICES");
         if (Boolean.TRUE.equals(effectiveModules.get("BILLING"))) navigationItems.add("BILLING");
-        if (Boolean.TRUE.equals(effectiveModules.get("DOCUMENT"))) navigationItems.add("DOCUMENTS");
-        if (Boolean.TRUE.equals(effectiveModules.get("COMMUNICATION"))) navigationItems.add("COMMUNICATION");
+        if (Boolean.TRUE.equals(effectiveModules.get("DOCUMENTS"))) navigationItems.add("DOCUMENTS");
+        if (Boolean.TRUE.equals(effectiveModules.get("NOTIFICATIONS"))) navigationItems.add("NOTIFICATIONS");
+        if (Boolean.TRUE.equals(effectiveModules.get("CLIENT_PORTAL"))) navigationItems.add("CLIENT_PORTAL");
         if (Boolean.TRUE.equals(effectiveModules.get("REPORTS"))) navigationItems.add("REPORTS");
 
         if (multiLoc || activeLocCount > 1) {
@@ -349,10 +373,26 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         boolean effectiveAccess = isEnabled && isStatusValid && isEntitled;
 
+        // Check parent module dependency
+        boolean parentDisabled = false;
+        String parentModuleName = null;
+        if (catalog.getCode() == ProductModuleCode.CLIENT_PORTAL && !isModuleDirectlyEnabled(organizationId, ProductModuleCode.CLIENTS)) {
+            effectiveAccess = false;
+            parentDisabled = true;
+            parentModuleName = "Client Management (CLIENTS)";
+        } else if (catalog.getCode() == ProductModuleCode.DOCUMENT_REQUESTS && !isModuleDirectlyEnabled(organizationId, ProductModuleCode.DOCUMENTS)) {
+            effectiveAccess = false;
+            parentDisabled = true;
+            parentModuleName = "Document Management (DOCUMENTS)";
+        }
+
         String accessStatus;
         String reason;
 
-        if (!isEntitled) {
+        if (parentDisabled) {
+            accessStatus = "MODULE_DISABLED";
+            reason = "Parent module " + parentModuleName + " is disabled for this organization.";
+        } else if (!isEntitled) {
             accessStatus = "UPGRADE_REQUIRED";
             reason = "Current subscription plan does not include " + catalog.getCode().name() + ". Please upgrade your subscription.";
         } else if (!isEnabled) {
