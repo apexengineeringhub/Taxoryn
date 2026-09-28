@@ -228,6 +228,8 @@ import {
   GmailReplyRequest,
   GmailMetrics,
   GmailAccount,
+  PracticeUserSummary,
+  AdminUserSummary,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -2302,6 +2304,21 @@ export const adminUserApi = {
   },
   updateStatus: async (userId: string, status: string) => {
     const res = await apiClient.patch<ApiResponse<User>>(`/v1/admin/users/${userId}/status`, null, { params: { status } });
+    return res.data.data;
+  },
+};
+
+// --- 23b. Platform Admin Practice-Centric User Governance API ---
+export const adminPracticeUserApi = {
+  getPracticeSummaries: async (params?: { search?: string; status?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<PracticeUserSummary>>>('/v1/admin/practices', { params });
+    return res.data.data;
+  },
+  getPracticeUsers: async (
+    organizationId: string,
+    params?: { search?: string; role?: string; status?: string; page?: number; size?: number }
+  ) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<User>>>(`/v1/admin/practices/${organizationId}/users`, { params });
     return res.data.data;
   },
 };

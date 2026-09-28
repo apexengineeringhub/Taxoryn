@@ -4815,6 +4815,45 @@ export interface GmailMetrics {
   slaBreachCount: number;
 }
 
+// =============================================================================
+// SuperAdmin Practice-Centric User Management
+// =============================================================================
+
+export interface AdminUserSummary {
+  id: string;
+  fullName: string;
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  roleCode: string;
+  roleDisplayName: string;
+  status: string;
+  avatarUrl?: string;
+}
+
+export interface PracticeUserSummary {
+  organizationId: string;
+  organizationName: string;
+  legalName?: string;
+  tradeName?: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  status: string;
+  organizationType?: string;
+  subscriptionPlan?: string;
+  admins: AdminUserSummary[];
+  adminCount: number;
+  totalUserCount: number;
+  activeUserCount: number;
+  createdAt?: string;
+}
+
+
 
 
 
