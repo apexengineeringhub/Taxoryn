@@ -344,10 +344,38 @@ export const App: React.FC = () => {
                   </ModuleRouteGuard>
                 }
               />
-              <Route path="/calendar" element={<ComplianceCalendarPage />} />
-              <Route path="/compliance/calendar" element={<ComplianceCalendarPage />} />
-              <Route path="/compliance/workbench" element={<ComplianceWorkbenchPage />} />
-              <Route path="/compliance/workflows/:id" element={<ComplianceWorkflowDetailPage />} />
+              <Route
+                path="/calendar"
+                element={
+                  <ModuleRouteGuard moduleCode="TASKS">
+                    <ComplianceCalendarPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/compliance/calendar"
+                element={
+                  <ModuleRouteGuard moduleCode="TASKS">
+                    <ComplianceCalendarPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/compliance/workbench"
+                element={
+                  <ModuleRouteGuard moduleCode="TASKS">
+                    <ComplianceWorkbenchPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/compliance/workflows/:id"
+                element={
+                  <ModuleRouteGuard moduleCode="TASKS">
+                    <ComplianceWorkflowDetailPage />
+                  </ModuleRouteGuard>
+                }
+              />
               <Route
                 path="/notices"
                 element={
@@ -645,9 +673,13 @@ export const App: React.FC = () => {
               <Route
                 path="/settings/tax-notices"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
+                  <ModuleRouteGuard
+                    moduleCode="TAX_NOTICES"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                    requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}
+                  >
                     <TaxNoticeSettingsPage />
-                  </RoleRouteGuard>
+                  </ModuleRouteGuard>
                 }
               />
               <Route path="/profile" element={<UserProfilePage />} />

@@ -113,19 +113,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'my-tax',
       sectionTitle: 'MY TAX',
       items: [
-        { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard },
-        { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2 },
-        { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet },
-        { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent },
-        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt },
-        { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock },
+        { label: 'Portal Dashboard', path: '/portal', icon: LayoutDashboard, moduleCode: 'CLIENT_PORTAL' },
+        { label: 'GST Returns', path: '/portal?tab=gst', icon: Building2, moduleCode: 'GST' },
+        { label: 'ITR Returns', path: '/portal?tab=itr', icon: FileSpreadsheet, moduleCode: 'ITR' },
+        { label: 'TDS Statements', path: '/portal?tab=tds', icon: Percent, moduleCode: 'TDS' },
+        { label: 'Invoices & Due Bills', path: '/portal?tab=invoices', icon: Receipt, moduleCode: 'BILLING' },
+        { label: 'Document Vault', path: '/portal?tab=documents', icon: FolderLock, moduleCode: 'DOCUMENTS' },
       ],
     },
     {
       id: 'explore',
       sectionTitle: 'EXPLORE',
       items: [
-        { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store },
+        { label: 'Find a Tax Professional', path: '/marketplace/explore', icon: Store, moduleCode: 'MARKETPLACE' },
       ],
     },
   ];
@@ -231,7 +231,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     }))
     .filter((section) => section.items.length > 0);
   const platformFilteredItems = filterRoleNavigationItems(platformNavItems, user);
-  const visibleClientSections = filterNavigationSections(clientNavSections, user);
+  const visibleClientSections = filterNavigationSections(clientNavSections, user)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => isModuleAvailable(item.moduleCode)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const isDarkHeader = !['#FFFFFF', '#F8FAFC', '#EEF2F6', '#DCFCE7', '#F1F5F9', '#F0FDF4'].includes(
     currentTheme.sidebarHeaderBg.toUpperCase()
@@ -339,6 +344,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
             {isSuperAdmin ? (
               <>
                 <Server className="w-3 h-3 text-purple-600" /> Platform Multi-Tenant
+              </>
+            ) : isClientUser ? (
+              <>
+                <Globe className="w-3 h-3 text-emerald-600" /> Client Portal
               </>
             ) : isLoading ? (
               <span className="text-[10px] text-slate-400 italic">Loading plan...</span>

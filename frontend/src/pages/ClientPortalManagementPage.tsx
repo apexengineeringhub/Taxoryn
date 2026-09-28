@@ -34,6 +34,7 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
+import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
 import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi } from '../api/endpoints';
 import { usePortalChat } from '../hooks/usePortalChat';
 import {
@@ -49,6 +50,7 @@ import {
   TdsReturn,
   DocumentRequest,
   ClientPortalMessage,
+  ProductModuleCode,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import { ClientContextBar } from '../components/common/ClientContextBar';
@@ -56,6 +58,7 @@ import clsx from 'clsx';
 
 export const ClientPortalManagementPage: React.FC = () => {
   const { user } = useAuth();
+  const { isModuleAvailable } = useModuleEntitlement();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Active Tab
@@ -672,37 +675,40 @@ export const ClientPortalManagementPage: React.FC = () => {
       <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200/90 pb-2 overflow-x-auto scrollbar-none select-none">
         {[
           { id: 'overview', label: 'Overview', icon: Globe },
-          { id: 'gst', label: `GST (${gstFilings.length})`, icon: Building2 },
-          { id: 'itr', label: `ITR (${itrReturns.length})`, icon: FileSpreadsheet },
-          { id: 'tds', label: `TDS (${tdsReturns.length})`, icon: Percent },
-          { id: 'invoices', label: `Bills (${invoices.length})`, icon: Receipt },
-          { id: 'documents', label: `Documents & Requests (${activeDocRequestsCount})`, icon: FolderLock },
+          { id: 'gst', label: `GST (${gstFilings.length})`, icon: Building2, moduleCode: 'GST' as ProductModuleCode },
+          { id: 'itr', label: `ITR (${itrReturns.length})`, icon: FileSpreadsheet, moduleCode: 'ITR' as ProductModuleCode },
+          { id: 'tds', label: `TDS (${tdsReturns.length})`, icon: Percent, moduleCode: 'TDS' as ProductModuleCode },
+          { id: 'invoices', label: `Bills (${invoices.length})`, icon: Receipt, moduleCode: 'BILLING' as ProductModuleCode },
+          { id: 'documents', label: `Documents & Requests (${activeDocRequestsCount})`, icon: FolderLock, moduleCode: 'DOCUMENTS' as ProductModuleCode },
           {
             id: 'messages',
             label: unreadMessagesCount > 0 ? `Messages (${unreadMessagesCount})` : 'Messages',
             icon: MessageSquare,
             badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
+            moduleCode: 'CLIENT_PORTAL' as ProductModuleCode,
           },
           ...(isPracticeUser ? [{ id: 'users', label: `Logins (${clientUsers.length})`, icon: KeyRound }] : []),
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={clsx(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 cursor-pointer',
-                isActive
-                  ? 'bg-brand-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+        ]
+          .filter((tab) => !tab.moduleCode || isModuleAvailable(tab.moduleCode))
+          .map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 cursor-pointer',
+                  isActive
+                    ? 'bg-brand-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
       </div>
 
       {/* TAB 1: Overview & Summary */}
@@ -710,32 +716,40 @@ export const ClientPortalManagementPage: React.FC = () => {
         <div className="space-y-6">
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase">GST Returns</span>
-              <p className="text-2xl font-black text-slate-900 mt-1">{gstFilings.length}</p>
-              <span className="text-[10px] text-slate-400">Total tracked periods</span>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase">ITR Returns</span>
-              <p className="text-2xl font-black text-slate-900 mt-1">{itrReturns.length}</p>
-              <span className="text-[10px] text-slate-400">Assessment years filed</span>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase">Pending Docs</span>
-              <p className="text-2xl font-black text-amber-600 mt-1">{totalPendingDocItems}</p>
-              <span className="text-[10px] text-slate-400">Action items for client</span>
-            </div>
-            <div
-              onClick={() => setActiveTab('invoices')}
-              className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-brand-300 transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase">Unpaid Invoices</span>
-                <span className="text-[10px] font-bold text-brand-600 group-hover:underline">View Bills →</span>
+            {isModuleAvailable('GST') && (
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">GST Returns</span>
+                <p className="text-2xl font-black text-slate-900 mt-1">{gstFilings.length}</p>
+                <span className="text-[10px] text-slate-400">Total tracked periods</span>
               </div>
-              <p className="text-2xl font-black text-rose-600 mt-1">{unpaidCount}</p>
-              <span className="text-[10px] text-slate-500 font-semibold">{formatCurrency(outstandingBalance)} balance due</span>
-            </div>
+            )}
+            {isModuleAvailable('ITR') && (
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">ITR Returns</span>
+                <p className="text-2xl font-black text-slate-900 mt-1">{itrReturns.length}</p>
+                <span className="text-[10px] text-slate-400">Assessment years filed</span>
+              </div>
+            )}
+            {isModuleAvailable('DOCUMENTS') && (
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Pending Docs</span>
+                <p className="text-2xl font-black text-amber-600 mt-1">{totalPendingDocItems}</p>
+                <span className="text-[10px] text-slate-400">Action items for client</span>
+              </div>
+            )}
+            {isModuleAvailable('BILLING') && (
+              <div
+                onClick={() => setActiveTab('invoices')}
+                className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-brand-300 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Unpaid Invoices</span>
+                  <span className="text-[10px] font-bold text-brand-600 group-hover:underline">View Bills →</span>
+                </div>
+                <p className="text-2xl font-black text-rose-600 mt-1">{unpaidCount}</p>
+                <span className="text-[10px] text-slate-500 font-semibold">{formatCurrency(outstandingBalance)} balance due</span>
+              </div>
+            )}
           </div>
 
           {/* Action Required: Multi-Item Document Requests & Legacy Requests */}
