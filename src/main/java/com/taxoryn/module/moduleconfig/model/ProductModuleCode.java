@@ -4,6 +4,13 @@ package com.taxoryn.module.moduleconfig.model;
  * Standard product module codes available within the Taxoryn SaaS platform.
  */
 public enum ProductModuleCode {
+    ORGANIZATION,
+    LOCATIONS,
+    USERS,
+    ROLES,
+    SECURITY,
+    SUBSCRIPTION,
+    MODULE_CONFIG,
     CLIENTS,
     TASKS,
     DOCUMENTS,
@@ -24,5 +31,7 @@ public enum ProductModuleCode {
     REPORTS,
     DASHBOARD,
     PRACTICE_DASHBOARD,
-    MARKETPLACE
+    MARKETPLACE,
+    GMAIL,
+    SELF_ITR
 }

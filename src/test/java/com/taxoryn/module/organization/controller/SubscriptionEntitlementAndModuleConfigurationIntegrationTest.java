@@ -120,16 +120,67 @@ public class SubscriptionEntitlementAndModuleConfigurationIntegrationTest {
 
     private void ensureProductModulesExist() {
         for (ProductModuleCode code : ProductModuleCode.values()) {
-            if (productModuleRepository.findByCode(code).isEmpty()) {
-                productModuleRepository.save(ProductModuleEntity.builder()
-                        .code(code)
-                        .name(code.name())
-                        .description(code.name() + " Module")
-                        .category(ProductModuleCategory.CORE)
-                        .enabledByDefault(true)
-                        .displayOrder(1)
-                        .build());
+            ProductModuleCategory category;
+            boolean mandatory;
+            boolean configurable;
+            boolean subscriptionControlled;
+
+            if (code == ProductModuleCode.NOTIFICATIONS || code == ProductModuleCode.AUDIT
+                    || code == ProductModuleCode.ORGANIZATION || code == ProductModuleCode.USERS) {
+                category = ProductModuleCategory.CORE;
+                mandatory = true;
+                configurable = false;
+                subscriptionControlled = false;
+            } else if (code == ProductModuleCode.CLIENTS || code == ProductModuleCode.TASKS
+                    || code == ProductModuleCode.DOCUMENTS || code == ProductModuleCode.BILLING
+                    || code == ProductModuleCode.REPORTS || code == ProductModuleCode.DASHBOARD) {
+                category = ProductModuleCategory.FOUNDATION;
+                mandatory = true;
+                configurable = false;
+                subscriptionControlled = false;
+            } else if (code == ProductModuleCode.GST || code == ProductModuleCode.GST_COMPLIANCE
+                    || code == ProductModuleCode.ITR || code == ProductModuleCode.ITR_COMPLIANCE
+                    || code == ProductModuleCode.TDS || code == ProductModuleCode.TDS_COMPLIANCE
+                    || code == ProductModuleCode.TAX_NOTICES || code == ProductModuleCode.TAX_NOTICE_MANAGEMENT) {
+                category = ProductModuleCategory.BUSINESS;
+                mandatory = false;
+                configurable = true;
+                subscriptionControlled = true;
+            } else {
+                category = ProductModuleCategory.OPTIONAL;
+                mandatory = false;
+                configurable = true;
+                subscriptionControlled = true;
             }
+
+            ProductModuleCategory finalCategory = category;
+            boolean finalMandatory = mandatory;
+            boolean finalConfigurable = configurable;
+            boolean finalSubscriptionControlled = subscriptionControlled;
+
+            productModuleRepository.findByCode(code).ifPresentOrElse(
+                    existing -> {
+                        existing.setCategory(finalCategory);
+                        existing.setMandatory(finalMandatory);
+                        existing.setConfigurable(finalConfigurable);
+                        existing.setSubscriptionControlled(finalSubscriptionControlled);
+                        productModuleRepository.save(existing);
+                    },
+                    () -> {
+                        productModuleRepository.save(ProductModuleEntity.builder()
+                                .code(code)
+                                .name(code.name())
+                                .description(code.name() + " Module")
+                                .category(finalCategory)
+                                .mandatory(finalMandatory)
+                                .configurable(finalConfigurable)
+                                .subscriptionControlled(finalSubscriptionControlled)
+                                .status("ACTIVE")
+                                .enabledByDefault(true)
+                                .displayOrder(1)
+                                .build());
+                    }
+            );
         }
 
         if (productFeatureRepository.findByModuleCodeAndCode("TAX_NOTICES", "NOTICE_CAPTURE").isEmpty()) {
@@ -185,18 +236,18 @@ public class SubscriptionEntitlementAndModuleConfigurationIntegrationTest {
     @Test
     @DisplayName("Should reject enabling a module not included in subscription plan entitlements")
     void testCannotEnableUnentitledModule() throws Exception {
-        // Explicitly set subscription plan module entitlement for STARTER where BILLING is excluded
+        // Explicitly set subscription plan module entitlement for STARTER where TAX_NOTICES is excluded
         subscriptionPlanModuleRepository.deleteAll();
         subscriptionPlanModuleRepository.save(SubscriptionPlanModuleEntity.builder()
                 .planCode("STARTER")
-                .moduleCode("BILLING")
+                .moduleCode("TAX_NOTICES")
                 .isIncluded(false)
                 .build());
 
         UpdateOrganizationModuleRequest request = new UpdateOrganizationModuleRequest();
         request.setEnabled(true);
 
-        mockMvc.perform(put("/api/v1/modules/BILLING")
+        mockMvc.perform(put("/api/v1/modules/TAX_NOTICES")
                         .header("Authorization", "Bearer " + orgAdminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

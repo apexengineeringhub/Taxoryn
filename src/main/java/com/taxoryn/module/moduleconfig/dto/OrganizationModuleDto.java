@@ -28,5 +28,9 @@ public class OrganizationModuleDto {
     private boolean effectiveAccess;
     private String accessStatus;
     private String reason;
+    private boolean mandatory;
+    private boolean configurable;
+    private boolean subscriptionControlled;
+    private boolean usageControlled;
     private Instant updatedAt;
 }

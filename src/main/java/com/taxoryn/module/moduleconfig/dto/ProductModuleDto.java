@@ -23,4 +23,8 @@ public class ProductModuleDto {
     private String status;
     private boolean enabledByDefault;
     private int displayOrder;
+    private boolean mandatory;
+    private boolean configurable;
+    private boolean subscriptionControlled;
+    private boolean usageControlled;
 }

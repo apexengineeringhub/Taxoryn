@@ -99,6 +99,13 @@ export interface OrganizationCapabilities {
 
 // 1.1 Product Module Catalog & Organization Module Configuration
 export type ProductModuleCode =
+  | 'ORGANIZATION'
+  | 'LOCATIONS'
+  | 'USERS'
+  | 'ROLES'
+  | 'SECURITY'
+  | 'SUBSCRIPTION'
+  | 'MODULE_CONFIG'
   | 'CLIENTS'
   | 'TASKS'
   | 'DOCUMENTS'
@@ -107,18 +114,27 @@ export type ProductModuleCode =
   | 'NOTIFICATIONS'
   | 'AUDIT'
   | 'GST'
+  | 'GST_COMPLIANCE'
   | 'ITR'
+  | 'ITR_COMPLIANCE'
   | 'TDS'
+  | 'TDS_COMPLIANCE'
   | 'TAX_NOTICES'
+  | 'TAX_NOTICE_MANAGEMENT'
   | 'BILLING'
+  | 'BILLING_PRACTICE_OPERATIONS'
   | 'REPORTS'
-  | 'MARKETPLACE';
+  | 'DASHBOARD'
+  | 'PRACTICE_DASHBOARD'
+  | 'MARKETPLACE'
+  | 'GMAIL'
+  | 'SELF_ITR';
 
 export type ProductModuleCategory =
   | 'CORE'
-  | 'TAX'
-  | 'PRACTICE_OPERATIONS'
-  | 'NETWORK_GROWTH';
+  | 'FOUNDATION'
+  | 'BUSINESS'
+  | 'OPTIONAL';
 
 export interface ProductModule {
   id: string;
@@ -129,6 +145,10 @@ export interface ProductModule {
   status: string;
   enabledByDefault: boolean;
   displayOrder: number;
+  mandatory?: boolean;
+  configurable?: boolean;
+  subscriptionControlled?: boolean;
+  usageControlled?: boolean;
 }
 
 export type ModuleAccessStatus =
@@ -153,6 +173,10 @@ export interface OrganizationModule {
   effectiveAccess?: boolean;
   accessStatus?: ModuleAccessStatus;
   reason?: string;
+  mandatory?: boolean;
+  configurable?: boolean;
+  subscriptionControlled?: boolean;
+  usageControlled?: boolean;
   updatedAt?: string;
 }
 

@@ -51,4 +51,20 @@ public class ProductModuleEntity extends AuditableEntity {
     @Column(name = "display_order", nullable = false)
     @Builder.Default
     private int displayOrder = 0;
+
+    @Column(name = "mandatory", nullable = false)
+    @Builder.Default
+    private boolean mandatory = false;
+
+    @Column(name = "configurable", nullable = false)
+    @Builder.Default
+    private boolean configurable = true;
+
+    @Column(name = "subscription_controlled", nullable = false)
+    @Builder.Default
+    private boolean subscriptionControlled = true;
+
+    @Column(name = "usage_controlled", nullable = false)
+    @Builder.Default
+    private boolean usageControlled = false;
 }

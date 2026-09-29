@@ -73,6 +73,10 @@ export const ModuleEntitlementProvider: React.FC<{ children: React.ReactNode }> 
         return true;
       }
 
+      if (mod.category === 'CORE' || mod.category === 'FOUNDATION' || mod.mandatory === true) {
+        return true;
+      }
+
       if (typeof mod.effectiveAccess === 'boolean') {
         return mod.effectiveAccess;
       }

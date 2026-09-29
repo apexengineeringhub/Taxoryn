@@ -1,6 +1,7 @@
 package com.taxoryn.module.moduleconfig;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.security.JwtTokenProvider;
 import com.taxoryn.core.security.SecurityUser;
 import com.taxoryn.core.security.TenantContext;
@@ -42,8 +43,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.is;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -95,12 +96,13 @@ public class GlobalModuleEntitlementIntegrationTest {
                 .maxClients(1000)
                 .build());
 
-        RoleEntity adminRole = roleRepository.save(RoleEntity.builder()
-                .code("ORG_ADMIN")
-                .name("Organization Admin")
-                .isSystemRole(true)
-                .permissions(new HashSet<>())
-                .build());
+        RoleEntity adminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("ORG_ADMIN")
+                        .name("Organization Admin")
+                        .isSystemRole(true)
+                        .permissions(new HashSet<>())
+                        .build()));
 
         adminUser = userRepository.save(UserEntity.builder()
                 .organizationId(organization.getId())
@@ -125,7 +127,7 @@ public class GlobalModuleEntitlementIntegrationTest {
                 organization.getId(),
                 adminUser.getEmail(),
                 Set.of("ORG_ADMIN", "ROLE_ORG_ADMIN"),
-                Set.of("CLIENT_VIEW", "CLIENT_WRITE", "DOCUMENT_VIEW", "DOCUMENT_WRITE", "DOC_REQUEST_VIEW", "DOC_REQUEST_CREATE", "AUDIT_VIEW", "NOTIFICATION_VIEW"));
+                Set.of("CLIENT_VIEW", "CLIENT_WRITE", "DOCUMENT_VIEW", "DOCUMENT_WRITE", "DOC_REQUEST_VIEW", "DOC_REQUEST_CREATE", "AUDIT_VIEW", "NOTIFICATION_VIEW", "GST_VIEW", "TAX_NOTICE_VIEW"));
     }
 
     @AfterEach
@@ -142,7 +144,7 @@ public class GlobalModuleEntitlementIntegrationTest {
                 .email(adminUser.getEmail())
                 .password("Secure123!")
                 .roles(Set.of("ORG_ADMIN", "ROLE_ORG_ADMIN"))
-                .permissions(Set.of("ORGANIZATION_UPDATE", "ORG_WRITE", "CLIENT_VIEW", "CLIENT_WRITE", "DOCUMENT_VIEW", "DOCUMENT_WRITE", "DOC_REQUEST_VIEW", "DOC_REQUEST_CREATE", "AUDIT_VIEW", "NOTIFICATION_VIEW", "MODULE_CONFIGURE"))
+                .permissions(Set.of("ORGANIZATION_UPDATE", "ORG_WRITE", "CLIENT_VIEW", "CLIENT_WRITE", "DOCUMENT_VIEW", "DOCUMENT_WRITE", "DOC_REQUEST_VIEW", "DOC_REQUEST_CREATE", "AUDIT_VIEW", "NOTIFICATION_VIEW", "MODULE_CONFIGURE", "GST_VIEW", "TAX_NOTICE_VIEW"))
                 .enabled(true)
                 .build();
         org.springframework.security.authentication.UsernamePasswordAuthenticationToken auth =
@@ -164,159 +166,138 @@ public class GlobalModuleEntitlementIntegrationTest {
 
     private void seedProductModulesIfMissing() {
         for (ProductModuleCode code : ProductModuleCode.values()) {
-            if (productModuleRepository.findByCode(code).isEmpty()) {
-                productModuleRepository.save(ProductModuleEntity.builder()
-                        .code(code)
-                        .name(code.name())
-                        .description(code.name() + " module")
-                        .category(ProductModuleCategory.CORE)
-                        .status("ACTIVE")
-                        .enabledByDefault(true)
-                        .displayOrder(1)
-                        .build());
+            ProductModuleCategory category;
+            boolean mandatory;
+            boolean configurable;
+            boolean subscriptionControlled;
+
+            if (code == ProductModuleCode.NOTIFICATIONS || code == ProductModuleCode.AUDIT
+                    || code == ProductModuleCode.ORGANIZATION || code == ProductModuleCode.USERS) {
+                category = ProductModuleCategory.CORE;
+                mandatory = true;
+                configurable = false;
+                subscriptionControlled = false;
+            } else if (code == ProductModuleCode.CLIENTS || code == ProductModuleCode.TASKS
+                    || code == ProductModuleCode.DOCUMENTS || code == ProductModuleCode.BILLING
+                    || code == ProductModuleCode.REPORTS || code == ProductModuleCode.DASHBOARD) {
+                category = ProductModuleCategory.FOUNDATION;
+                mandatory = true;
+                configurable = false;
+                subscriptionControlled = false;
+            } else if (code == ProductModuleCode.GST || code == ProductModuleCode.GST_COMPLIANCE
+                    || code == ProductModuleCode.ITR || code == ProductModuleCode.ITR_COMPLIANCE
+                    || code == ProductModuleCode.TDS || code == ProductModuleCode.TDS_COMPLIANCE
+                    || code == ProductModuleCode.TAX_NOTICES || code == ProductModuleCode.TAX_NOTICE_MANAGEMENT) {
+                category = ProductModuleCategory.BUSINESS;
+                mandatory = false;
+                configurable = true;
+                subscriptionControlled = true;
+            } else {
+                category = ProductModuleCategory.OPTIONAL;
+                mandatory = false;
+                configurable = true;
+                subscriptionControlled = true;
             }
+
+            ProductModuleCategory finalCategory = category;
+            boolean finalMandatory = mandatory;
+            boolean finalConfigurable = configurable;
+            boolean finalSubscriptionControlled = subscriptionControlled;
+
+            productModuleRepository.findByCode(code).ifPresentOrElse(
+                    existing -> {
+                        existing.setCategory(finalCategory);
+                        existing.setMandatory(finalMandatory);
+                        existing.setConfigurable(finalConfigurable);
+                        existing.setSubscriptionControlled(finalSubscriptionControlled);
+                        productModuleRepository.save(existing);
+                    },
+                    () -> {
+                        productModuleRepository.save(ProductModuleEntity.builder()
+                                .code(code)
+                                .name(code.name())
+                                .description(code.name() + " module")
+                                .category(finalCategory)
+                                .mandatory(finalMandatory)
+                                .configurable(finalConfigurable)
+                                .subscriptionControlled(finalSubscriptionControlled)
+                                .status("ACTIVE")
+                                .enabledByDefault(true)
+                                .displayOrder(1)
+                                .build());
+                    }
+            );
         }
     }
 
     @Test
-    @DisplayName("Gating: Disabling CLIENTS returns 403 on /api/v1/clients and cascades to CLIENT_PORTAL")
-    void shouldDenyClientAccessAndCascadeToClientPortalWhenClientsModuleDisabled() throws Exception {
+    @DisplayName("1. Architecture: FOUNDATION module CLIENTS cannot be disabled by organization")
+    void foundationModuleClientsCannotBeDisabled() throws Exception {
         // 1. Initial State: CLIENTS is enabled -> 200 OK
         mockMvc.perform(get("/api/v1/clients")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
-        // 2. Disable CLIENTS
+        // 2. Attempting to disable CLIENTS must throw BusinessValidationException
         setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.CLIENTS, false);
+        assertThatThrownBy(() -> moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.CLIENTS, false))
+                .isInstanceOf(BusinessValidationException.class)
+                .hasMessageContaining("mandatory FOUNDATION module and cannot be disabled");
 
-        // 3. /api/v1/clients must return 403 Forbidden
+        // 3. /api/v1/clients remains 200 OK
         mockMvc.perform(get("/api/v1/clients")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("CLIENTS is disabled")));
+                .andExpect(status().isOk());
+    }
 
-        // 4. /api/v1/portal must also return 403 Forbidden because CLIENT_PORTAL depends on CLIENTS
-        mockMvc.perform(get("/api/v1/portal/dashboard")
+    @Test
+    @DisplayName("2. Gating: Disabling BUSINESS module GST returns 403 on /api/v1/gst and re-enabling restores access")
+    void shouldDenyGstAccessWhenBusinessModuleDisabled() throws Exception {
+        // 1. Initial State: GST is enabled -> 200 OK
+        mockMvc.perform(get("/api/v1/gst/filings")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        // 5. Effective configuration should omit CLIENTS and CLIENT_PORTAL from navigation
+        // 2. Disable GST
+        setSecurityContext();
+        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.GST, false);
+
+        // 3. /api/v1/gst/filings must return 403 Forbidden
+        mockMvc.perform(get("/api/v1/gst/filings")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("GST is disabled")));
+
+        // 4. Effective configuration should omit GST from navigation
         setSecurityContext();
         var effectiveConfig = moduleConfigurationService.getEffectiveConfiguration(organization.getId());
-        org.junit.jupiter.api.Assertions.assertFalse(effectiveConfig.getModules().get("CLIENTS"));
-        org.junit.jupiter.api.Assertions.assertFalse(effectiveConfig.getModules().get("CLIENT_PORTAL"));
-        org.junit.jupiter.api.Assertions.assertFalse(effectiveConfig.getNavigationItems().contains("CLIENTS"));
-        org.junit.jupiter.api.Assertions.assertFalse(effectiveConfig.getNavigationItems().contains("CLIENT_PORTAL"));
+        org.junit.jupiter.api.Assertions.assertFalse(effectiveConfig.getModules().get("GST"));
+        org.junit.jupiter.api.Assertions.assertFalse(effectiveConfig.getNavigationItems().contains("GST"));
 
-        // 6. Re-enable CLIENTS -> 200 OK restored
+        // 5. Re-enable GST -> 200 OK restored
         setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.CLIENTS, true);
-        mockMvc.perform(get("/api/v1/clients")
+        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.GST, true);
+        mockMvc.perform(get("/api/v1/gst/filings")
                         .header("Authorization", adminToken)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("Gating: Disabling DOCUMENTS returns 403 on /api/v1/documents and cascades to DOCUMENT_REQUESTS")
-    void shouldDenyDocumentAccessAndCascadeToDocumentRequestsWhenDocumentsDisabled() throws Exception {
-        // 1. Initial State -> 200 OK
-        mockMvc.perform(get("/api/v1/documents")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
-
-        // 2. Disable DOCUMENTS
+    @DisplayName("3. Architecture: CORE modules AUDIT and NOTIFICATIONS cannot be disabled")
+    void coreModulesCannotBeDisabled() {
         setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.DOCUMENTS, false);
 
-        // 3. /api/v1/documents must return 403 Forbidden
-        mockMvc.perform(get("/api/v1/documents")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("DOCUMENTS is disabled")));
+        assertThatThrownBy(() -> moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.AUDIT, false))
+                .isInstanceOf(BusinessValidationException.class)
+                .hasMessageContaining("mandatory CORE module and cannot be disabled");
 
-        // 4. /api/v1/document-requests must return 403 Forbidden due to dependency
-        mockMvc.perform(get("/api/v1/document-requests")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
-
-        // 5. Re-enable DOCUMENTS -> 200 OK restored
-        setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.DOCUMENTS, true);
-        mockMvc.perform(get("/api/v1/documents")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("Gating: Disabling AUDIT returns 403 on /api/v1/audit-logs")
-    void shouldDenyAuditAccessWhenAuditModuleDisabled() throws Exception {
-        // 1. Initial State -> 200 OK
-        mockMvc.perform(get("/api/v1/audit-logs")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
-
-        // 2. Disable AUDIT
-        setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.AUDIT, false);
-
-        // 3. /api/v1/audit-logs must return 403 Forbidden
-        mockMvc.perform(get("/api/v1/audit-logs")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("AUDIT is disabled")));
-
-        // 4. Re-enable AUDIT -> 200 OK restored
-        setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.AUDIT, true);
-        mockMvc.perform(get("/api/v1/audit-logs")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("Gating: Disabling NOTIFICATIONS returns 403 on /api/v1/notifications and Gmail controllers")
-    void shouldDenyNotificationAndGmailAccessWhenNotificationsModuleDisabled() throws Exception {
-        // 1. Initial State -> 200 OK
-        mockMvc.perform(get("/api/v1/notifications")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
-
-        // 2. Disable NOTIFICATIONS
-        setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.NOTIFICATIONS, false);
-
-        // 3. /api/v1/notifications must return 403 Forbidden
-        mockMvc.perform(get("/api/v1/notifications")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("NOTIFICATIONS is disabled")));
-
-        // 4. /api/v1/gmail/conversations must also return 403 Forbidden
-        mockMvc.perform(get("/api/v1/gmail/conversations")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
-
-        // 5. Re-enable NOTIFICATIONS -> 200 OK restored
-        setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.NOTIFICATIONS, true);
-        mockMvc.perform(get("/api/v1/notifications")
-                        .header("Authorization", adminToken)
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
+        assertThatThrownBy(() -> moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.NOTIFICATIONS, false))
+                .isInstanceOf(BusinessValidationException.class)
+                .hasMessageContaining("mandatory CORE module and cannot be disabled");
     }
 }

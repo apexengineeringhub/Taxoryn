@@ -34,7 +34,7 @@ const createMockModule = (
   moduleCode: code,
   moduleName: name,
   moduleDescription: `${name} description`,
-  category: 'TAX',
+  category: 'BUSINESS',
   enabled,
   explicitlyConfigured: true,
   entitled,
