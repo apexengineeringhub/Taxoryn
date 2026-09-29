@@ -4,13 +4,14 @@ import com.taxoryn.module.user.entity.UserEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface UserRepository extends JpaRepository<UserEntity, UUID> {
+public interface UserRepository extends JpaRepository<UserEntity, UUID>, JpaSpecificationExecutor<UserEntity> {
 
     Optional<UserEntity> findByOrganizationIdAndEmailIgnoreCase(UUID organizationId, String email);
 
@@ -45,32 +46,4 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
             "WHERE u.organizationId IN :orgIds AND r.code IN ('ORG_ADMIN', 'PRACTICE_ADMIN', 'PRACTICE_OWNER', 'TAXORYN_SUPERADMIN', 'SUPER_ADMIN') " +
             "ORDER BY u.firstName ASC")
     java.util.List<UserEntity> findAdminsByOrganizationIds(@org.springframework.data.repository.query.Param("orgIds") java.util.List<UUID> orgIds);
-
-    @org.springframework.data.jpa.repository.Query(
-            value = "SELECT DISTINCT u FROM UserEntity u LEFT JOIN u.roles r WHERE u.organizationId = :organizationId " +
-                    "AND (:status IS NULL OR u.status = :status) " +
-                    "AND (:role IS NULL OR r.code = :role) " +
-                    "AND (:search IS NULL OR (" +
-                    "  LOWER(u.firstName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "  OR LOWER(u.lastName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "  OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "  OR (u.phone IS NOT NULL AND u.phone LIKE CONCAT('%', :search, '%'))" +
-                    "))",
-            countQuery = "SELECT COUNT(DISTINCT u) FROM UserEntity u LEFT JOIN u.roles r WHERE u.organizationId = :organizationId " +
-                    "AND (:status IS NULL OR u.status = :status) " +
-                    "AND (:role IS NULL OR r.code = :role) " +
-                    "AND (:search IS NULL OR (" +
-                    "  LOWER(u.firstName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "  OR LOWER(u.lastName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "  OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) " +
-                    "  OR (u.phone IS NOT NULL AND u.phone LIKE CONCAT('%', :search, '%'))" +
-                    "))"
-    )
-    Page<UserEntity> findUsersByOrganizationWithFilters(
-            @org.springframework.data.repository.query.Param("organizationId") UUID organizationId,
-            @org.springframework.data.repository.query.Param("search") String search,
-            @org.springframework.data.repository.query.Param("role") String role,
-            @org.springframework.data.repository.query.Param("status") UserEntity.UserStatus status,
-            Pageable pageable
-    );
 }

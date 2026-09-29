@@ -287,6 +287,83 @@ class AdminPracticeUserIntegrationTest {
     }
 
     @Test
+    @DisplayName("Search handles null, empty, whitespace, and special characters cleanly")
+    void testSearchWithEdgeCaseInputs() throws Exception {
+        // 1. Empty string search returns all
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(3)));
+
+        // 2. Whitespace-only search returns all
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "   ")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(3)));
+
+        // 3. One character search
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "I")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", not(empty())));
+
+        // 4. No result search
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "NonExistentOrgNameXYZ123")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(0)))
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    @Test
+    @DisplayName("Search matches case-insensitively across practice name, city, email, phone, and legal name")
+    void testSearchMatchesAcrossPracticeFields() throws Exception {
+        // 1. Practice Name (mixed case)
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "iSHNAI")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].organizationName").value("IshnAI InfoTech Practice"));
+
+        // 2. City
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "varanasi")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].city").value("Varanasi"));
+
+        // 3. Email
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "info@apextax.com")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].organizationName").value("Apex Tax Consultants"));
+
+        // 4. Legal Name
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "Solutions Pvt Ltd")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].legalName").value("Apex Tax Solutions Pvt Ltd"));
+    }
+
+    @Test
     @DisplayName("SuperAdmin can search practices by user email or user name")
     void testSearchPracticesByUserEmailOrName() throws Exception {
         // Search by user name 'Rahul' inside Practice A
@@ -306,11 +383,21 @@ class AdminPracticeUserIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content", hasSize(1)))
                 .andExpect(jsonPath("$.data.content[0].organizationName").value("Apex Tax Consultants"));
+
+        // Search by user last name 'Kumar'
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("search", "kumar")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].organizationName").value("IshnAI InfoTech Practice"));
     }
 
     @Test
-    @DisplayName("SuperAdmin can filter practices by status")
+    @DisplayName("SuperAdmin can filter practices by status and combine with search")
     void testFilterPracticesByStatus() throws Exception {
+        // Status filter alone
         mockMvc.perform(get("/api/v1/admin/practices")
                         .header("Authorization", superAdminToken)
                         .param("status", "INACTIVE")
@@ -318,6 +405,25 @@ class AdminPracticeUserIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content", hasSize(1)))
                 .andExpect(jsonPath("$.data.content[0].organizationName").value("Apex Tax Consultants"));
+
+        // Status filter combined with matching search
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("status", "ACTIVE")
+                        .param("search", "IshnAI")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].organizationName").value("IshnAI InfoTech Practice"));
+
+        // Status filter combined with non-matching status
+        mockMvc.perform(get("/api/v1/admin/practices")
+                        .header("Authorization", superAdminToken)
+                        .param("status", "ACTIVE")
+                        .param("search", "Apex")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(0)));
     }
 
     @Test
@@ -342,6 +448,15 @@ class AdminPracticeUserIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content", hasSize(1)))
                 .andExpect(jsonPath("$.data.content[0].email").value("neha@ishnai.com"));
+
+        // Filter practice users by role STAFF
+        mockMvc.perform(get("/api/v1/admin/practices/{organizationId}/users", practiceA.getId())
+                        .header("Authorization", superAdminToken)
+                        .param("role", "STAFF")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
+                .andExpect(jsonPath("$.data.content[*].email", containsInAnyOrder("rahul@ishnai.com", "neha@ishnai.com")));
 
         // Filter practice users by search
         mockMvc.perform(get("/api/v1/admin/practices/{organizationId}/users", practiceA.getId())
