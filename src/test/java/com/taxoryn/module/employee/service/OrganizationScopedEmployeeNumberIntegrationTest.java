@@ -91,6 +91,9 @@ class OrganizationScopedEmployeeNumberIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
     private OrganizationEntity orgA;
     private OrganizationEntity orgB;
     private UserEntity adminUserA;
@@ -106,6 +109,7 @@ class OrganizationScopedEmployeeNumberIntegrationTest {
         employeeRepository.deleteAll();
         counterRepository.deleteAll();
         userRepository.deleteAll();
+        subscriptionRepository.deleteAll();
         organizationRepository.deleteAll();
         roleRepository.deleteAll();
 
@@ -126,6 +130,16 @@ class OrganizationScopedEmployeeNumberIntegrationTest {
         orgA = organizationRepository.save(OrganizationEntity.builder()
                 .name("Verma & Co CPAs")
                 .email("contact@vermacpa.com")
+                .build());
+
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+                .organizationId(orgA.getId())
+                .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.ENTERPRISE)
+                .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+                .startDate(LocalDate.now().minusMonths(1))
+                .renewalDate(LocalDate.now().plusMonths(11))
+                .maxUsers(250)
+                .maxClients(1000)
                 .build());
 
         adminUserA = userRepository.save(UserEntity.builder()
@@ -150,6 +164,16 @@ class OrganizationScopedEmployeeNumberIntegrationTest {
         orgB = organizationRepository.save(OrganizationEntity.builder()
                 .name("Apex Tax Consultants")
                 .email("contact@apextax.com")
+                .build());
+
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+                .organizationId(orgB.getId())
+                .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.ENTERPRISE)
+                .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+                .startDate(LocalDate.now().minusMonths(1))
+                .renewalDate(LocalDate.now().plusMonths(11))
+                .maxUsers(250)
+                .maxClients(1000)
                 .build());
 
         adminUserB = userRepository.save(UserEntity.builder()

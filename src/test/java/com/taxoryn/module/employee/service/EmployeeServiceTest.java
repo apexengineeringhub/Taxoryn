@@ -81,6 +81,18 @@ class EmployeeServiceTest {
     @Mock
     private com.taxoryn.module.capability.service.PracticeCapabilityResolver practiceCapabilityResolver;
 
+    @Mock
+    private com.taxoryn.module.subscription.service.SubscriptionEntitlementService subscriptionEntitlementService;
+
+    @Mock
+    private OrganizationEmployeeNumberGenerator employeeNumberGenerator;
+
+    @Mock
+    private com.taxoryn.module.user.service.ProfileImageService profileImageService;
+
+    @Mock
+    private com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+
     @InjectMocks
     private EmployeeServiceImpl employeeService;
 
@@ -514,6 +526,32 @@ class EmployeeServiceTest {
         DuplicateResourceException ex = assertThrows(DuplicateResourceException.class,
                 () -> employeeService.createEmployee(request));
         assertEquals("A user with email 'internal@taxpractice.com' already exists in this organization. To create an employee for an existing user, specify userId explicitly.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Create employee fails safely when email belongs to existing internal user with null userId")
+    void testCreateEmployee_SameOrgInternalUserWithNullUserId_ThrowsDuplicateResourceException() {
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-004B")
+                .firstName("ExistingInternalNullId")
+                .email("internal_null_id@taxpractice.com")
+                .department("Taxation")
+                .designation("Associate")
+                .build();
+
+        com.taxoryn.module.user.entity.UserEntity internalUser = com.taxoryn.module.user.entity.UserEntity.builder()
+                .email("internal_null_id@taxpractice.com")
+                .organizationId(tenantId)
+                .build();
+        // internalUser.id is explicitly null
+
+        when(employeeRepository.existsByOrganizationIdAndEmployeeCode(tenantId, "EMP-004B")).thenReturn(false);
+        when(employeeRepository.existsByOrganizationIdAndEmail(tenantId, "internal_null_id@taxpractice.com")).thenReturn(false);
+        when(userRepository.findByEmailIgnoreCase("internal_null_id@taxpractice.com")).thenReturn(Optional.of(internalUser));
+
+        DuplicateResourceException ex = assertThrows(DuplicateResourceException.class,
+                () -> employeeService.createEmployee(request));
+        assertEquals("A user with email 'internal_null_id@taxpractice.com' already exists in this organization. To create an employee for an existing user, specify userId explicitly.", ex.getMessage());
     }
 
     @Test
