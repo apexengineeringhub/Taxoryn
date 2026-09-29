@@ -104,6 +104,8 @@ public class TdsModuleEntitlementIntegrationTest {
                 .status(OrganizationStatus.ACTIVE)
                 .build());
 
+        TenantContext.setTenantId(org.getId());
+
         LocationEntity l = LocationEntity.builder()
                 .name("Bengaluru HQ")
                 .code("BLR-" + UUID.randomUUID().toString().substring(0, 4))
@@ -156,6 +158,8 @@ public class TdsModuleEntitlementIntegrationTest {
                 .build();
         profile.setOrganizationId(org.getId());
         tdsProfile = tdsProfileRepository.save(profile);
+
+        TenantContext.clear();
     }
 
     @AfterEach
@@ -165,12 +169,14 @@ public class TdsModuleEntitlementIntegrationTest {
     }
 
     private void cleanUp() {
+        TenantContext.clear();
         organizationModuleRepository.deleteAll();
         tdsProfileRepository.deleteAll();
         clientRepository.deleteAll();
         locationRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
+        TenantContext.clear();
     }
 
     @Test

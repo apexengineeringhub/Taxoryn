@@ -12,6 +12,8 @@ import com.taxoryn.module.user.dto.UserDto;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.mapper.UserMapper;
 import com.taxoryn.module.user.repository.UserRepository;
+import com.taxoryn.module.organization.specification.PracticeSpecification;
+import com.taxoryn.module.user.specification.PracticeUserSpecification;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -62,7 +64,7 @@ public class AdminPracticeUserController {
 
         String cleanSearch = StringUtils.hasText(search) ? search.trim() : null;
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), Sort.by(Sort.Direction.ASC, "name"));
-        Page<OrganizationEntity> orgsPage = organizationRepository.findPracticesWithFilters(cleanSearch, parsedStatus, pageable);
+        Page<OrganizationEntity> orgsPage = organizationRepository.findAll(PracticeSpecification.withFilters(cleanSearch, parsedStatus), pageable);
 
         if (orgsPage.isEmpty()) {
             PagedResponse<PracticeUserSummaryDto> emptyResponse = PagedResponse.<PracticeUserSummaryDto>builder()
@@ -172,7 +174,7 @@ public class AdminPracticeUserController {
         String cleanSearch = StringUtils.hasText(search) ? search.trim() : null;
 
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<UserEntity> usersPage = userRepository.findUsersByOrganizationWithFilters(organizationId, cleanSearch, cleanRole, parsedStatus, pageable);
+        Page<UserEntity> usersPage = userRepository.findAll(PracticeUserSpecification.withFilters(organizationId, cleanSearch, cleanRole, parsedStatus), pageable);
 
         List<UserDto> dtos = userMapper.toDtoList(usersPage.getContent());
         PagedResponse<UserDto> response = PagedResponse.<UserDto>builder()

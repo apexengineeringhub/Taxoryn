@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   CreditCard,
   Palette,
+  MapPin,
   LogOut,
   Sparkles,
   Percent,
@@ -183,6 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'Notice Operations', path: '/settings/tax-notices', icon: Scale, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'TAX_NOTICES' },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'], moduleCode: 'BILLING' },
         { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'], moduleCode: 'AUDIT' },
+        { label: 'Practice Locations', path: '/settings/locations', icon: MapPin, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
@@ -198,7 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   ];
 
   // Check if current route is inside administration to auto-expand
-  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules', '/settings/tax-notices'];
+  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/locations', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules', '/settings/tax-notices'];
   const isAdminRouteActive = adminRoutes.some((p) => location.pathname.startsWith(p));
 
   const [isAdminExpanded, setIsAdminExpanded] = useState<boolean>(() => {

@@ -1,9 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Check, Sparkles, ShieldCheck, Zap, Users, UserCheck, HardDrive, MapPin, AlertTriangle, AlertCircle } from 'lucide-react';
+import {
+  CreditCard,
+  Check,
+  Sparkles,
+  ShieldCheck,
+  Zap,
+  Users,
+  UserCheck,
+  HardDrive,
+  MapPin,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2,
+  Building2,
+  Mail,
+  Phone,
+  ArrowRight,
+  X,
+  HelpCircle,
+} from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { subscriptionApi } from '../api/endpoints';
-import { SubscriptionPlan, SubscriptionInfo, SubscriptionEntitlementsResponse, EntitlementResult } from '../types';
+import { SubscriptionPlan, SubscriptionInfo, SubscriptionEntitlementsResponse, EntitlementResult, EnterpriseInquiryRequest } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { formatPlanDisplayName, formatPlanShortName } from '../utils/planUtils';
 import clsx from 'clsx';
@@ -23,6 +42,7 @@ const DEFAULT_PLAN_CATALOG: SubscriptionPlan[] = [
       'Up to 5 team members',
       'Up to 25 active clients',
       '5 GB document vault storage',
+      '1 Primary office location',
       'GST & ITR return tracking',
       'Compliance calendar & reminders',
       'Client portal self-service',
@@ -43,6 +63,7 @@ const DEFAULT_PLAN_CATALOG: SubscriptionPlan[] = [
       'Up to 15 team members',
       'Up to 100 active clients',
       '25 GB document vault storage',
+      'Up to 3 branch locations',
       'Full GST (GSTR-1, 3B, 9) & ITR lifecycle',
       'Client billing & payment receipts',
       'Granular RBAC role delegation',
@@ -64,6 +85,7 @@ const DEFAULT_PLAN_CATALOG: SubscriptionPlan[] = [
       'Up to 50 team members',
       'Up to 500 active clients',
       '100 GB document vault storage',
+      'Up to 10 branch locations',
       'Executive analytics & partner dashboards',
       'Automated batch compliance generator',
       'Custom role creation & audit logging',
@@ -85,6 +107,7 @@ const DEFAULT_PLAN_CATALOG: SubscriptionPlan[] = [
       'Up to 250 team members',
       'Up to 2,500 active clients',
       '500 GB document vault storage',
+      'Unlimited branch locations',
       'Unlimited bulk document processing',
       'Multi-branch organizational governance',
       'Custom API & ERP integrations',
@@ -94,6 +117,13 @@ const DEFAULT_PLAN_CATALOG: SubscriptionPlan[] = [
   },
 ];
 
+const PLAN_RANKS: Record<string, number> = {
+  STARTER: 1,
+  PROFESSIONAL: 2,
+  BUSINESS: 3,
+  ENTERPRISE: 4,
+};
+
 export const SubscriptionsPage: React.FC = () => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_PLAN_CATALOG);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
@@ -101,7 +131,26 @@ export const SubscriptionsPage: React.FC = () => {
   const [interval, setInterval] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  const { updateSubscriptionPlan, refreshOrganization } = useAuth();
+  
+  // Confirmation Modal state
+  const [targetPlanToChange, setTargetPlanToChange] = useState<SubscriptionPlan | null>(null);
+  const [downgradeError, setDowngradeError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
+  // Enterprise Inquiry Modal state
+  const [isEnterpriseModalOpen, setIsEnterpriseModalOpen] = useState(false);
+  const [enterpriseForm, setEnterpriseForm] = useState<EnterpriseInquiryRequest>({
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    firmName: '',
+    estimatedTeamSize: 50,
+    estimatedClientCount: 500,
+    requirements: '',
+  });
+  const [isSubmittingEnterprise, setIsSubmittingEnterprise] = useState(false);
+
+  const { user, organization, updateSubscriptionPlan, refreshOrganization } = useAuth();
 
   useEffect(() => {
     loadData();
@@ -127,28 +176,75 @@ export const SubscriptionsPage: React.FC = () => {
     }
   };
 
-  const handlePlanChange = async (planCode: string) => {
-    if (!planCode || isUpdating) return;
+  const handleOpenPlanModal = (plan: SubscriptionPlan) => {
+    const planCode = (plan.plan || plan.code || 'STARTER').toUpperCase();
+    if (planCode === 'ENTERPRISE') {
+      const contactFullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+      setEnterpriseForm({
+        contactName: contactFullName || '',
+        contactEmail: user?.email || '',
+        contactPhone: user?.phone || '',
+        firmName: organization?.name || '',
+        estimatedTeamSize: 50,
+        estimatedClientCount: 500,
+        requirements: '',
+      });
+      setIsEnterpriseModalOpen(true);
+      return;
+    }
+
+    setDowngradeError(null);
+    setTargetPlanToChange(plan);
+  };
+
+  const handleConfirmPlanChange = async () => {
+    if (!targetPlanToChange || isUpdating) return;
+    const planCode = (targetPlanToChange.plan || targetPlanToChange.code || 'STARTER').toUpperCase();
     setIsUpdating(true);
+    setDowngradeError(null);
+
     try {
       const billingInterval = interval === 'ANNUAL' ? 'YEARLY' : 'MONTHLY';
       const updated = await subscriptionApi.changePlan({ plan: planCode, interval: billingInterval });
-      
-      // Immediately synchronize global AuthContext and Sidebar state
+
       updateSubscriptionPlan(planCode);
       if (updated) {
         setSubscription(updated);
       }
-      alert(`Subscription successfully changed to ${formatPlanDisplayName(planCode)}!`);
+      setSuccessBanner(`Plan successfully updated to ${formatPlanDisplayName(planCode)}!`);
+      setTimeout(() => setSuccessBanner(null), 6000);
+      setTargetPlanToChange(null);
       await Promise.all([loadData(), refreshOrganization()]);
     } catch (err: any) {
-      alert(`Plan upgrade failed: ${err?.response?.data?.message || err.message || 'Please try again'}`);
+      const errorMsg = err?.response?.data?.message || err?.message || 'Plan update could not be completed.';
+      setDowngradeError(errorMsg);
     } finally {
       setIsUpdating(false);
     }
   };
 
+  const handleSubmitEnterpriseInquiry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!enterpriseForm.contactName.trim() || !enterpriseForm.contactEmail.trim()) {
+      return;
+    }
+
+    setIsSubmittingEnterprise(true);
+    try {
+      await subscriptionApi.submitEnterpriseInquiry(enterpriseForm);
+      setIsEnterpriseModalOpen(false);
+      setSuccessBanner('Enterprise inquiry submitted successfully! Our solutions team will contact you within 1 business day.');
+      setTimeout(() => setSuccessBanner(null), 7000);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to submit enterprise inquiry. Please try again.');
+    } finally {
+      setIsSubmittingEnterprise(false);
+    }
+  };
+
   const displayPlans = plans.length > 0 ? plans : DEFAULT_PLAN_CATALOG;
+  const currentPlanCode = (subscription?.plan || entitlements?.plan || 'STARTER').toUpperCase();
+  const currentRank = PLAN_RANKS[currentPlanCode] || 1;
 
   const getResourceIcon = (type: string) => {
     switch (type) {
@@ -171,7 +267,7 @@ export const SubscriptionsPage: React.FC = () => {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-black tracking-tight text-slate-900">SaaS Practice Subscriptions & Limits</h1>
         <p className="text-xs text-slate-500 max-w-xl mx-auto">
-          Scale your tax practice with transparent client quotas, multi-user CA staff accounts, and unlimited filing workflows.
+          Scale your tax practice with transparent client quotas, multi-user CA staff accounts, and regional branch management.
         </p>
 
         {/* Interval Switcher */}
@@ -198,6 +294,14 @@ export const SubscriptionsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Success Notification Banner */}
+      {successBanner && (
+        <div className="p-4 rounded-xl text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-2.5 shadow-xs animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{successBanner}</span>
+        </div>
+      )}
+
       {/* Live Entitlements & Usage Quotas Dashboard */}
       {entitlements && entitlements.entitlements && (
         <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-card space-y-5">
@@ -207,6 +311,9 @@ export const SubscriptionsPage: React.FC = () => {
                 <h2 className="text-lg font-bold text-slate-900">Current Plan Usage & Quotas</h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-brand-50 text-brand-700 border border-brand-200">
                   {formatPlanDisplayName(entitlements.plan)}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                  {entitlements.status || 'ACTIVE'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -304,8 +411,13 @@ export const SubscriptionsPage: React.FC = () => {
       {/* Plan Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {displayPlans.map((plan) => {
-          const planCode = (plan.plan || plan.code || 'STARTER') as string;
-          const isCurrent = (subscription?.plan || '').toUpperCase() === planCode.toUpperCase();
+          const planCode = (plan.plan || plan.code || 'STARTER').toUpperCase();
+          const targetRank = PLAN_RANKS[planCode] || 1;
+          const isCurrent = currentPlanCode === planCode;
+          const isUpgrade = targetRank > currentRank;
+          const isDowngrade = targetRank < currentRank;
+          const isEnterprise = planCode === 'ENTERPRISE';
+
           const baseMonthly = plan.monthlyPrice || 999;
           const baseYearly = plan.yearlyPrice || baseMonthly * 10;
           const displayPrice = interval === 'ANNUAL' ? Math.round(baseYearly / 12) : baseMonthly;
@@ -370,19 +482,247 @@ export const SubscriptionsPage: React.FC = () => {
 
               <div className="mt-6">
                 <Button
-                  variant={isCurrent ? 'outline' : isPopular ? 'primary' : 'secondary'}
+                  variant={isCurrent ? 'outline' : isEnterprise ? 'primary' : isUpgrade ? 'primary' : 'secondary'}
                   className="w-full"
                   disabled={isCurrent || isUpdating}
-                  isLoading={isUpdating && !isCurrent}
-                  onClick={() => handlePlanChange(planCode)}
+                  onClick={() => handleOpenPlanModal(plan)}
                 >
-                  {isCurrent ? 'Current Active Plan' : 'Switch to Plan'}
+                  {isCurrent
+                    ? 'Current Active Plan'
+                    : isEnterprise
+                    ? 'Contact Enterprise Sales'
+                    : isUpgrade
+                    ? 'Upgrade Plan'
+                    : 'Downgrade Plan'}
                 </Button>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Plan Upgrade / Downgrade Confirmation Modal */}
+      {targetPlanToChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-100 space-y-5 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className={clsx(
+                  'p-2 rounded-xl',
+                  (PLAN_RANKS[targetPlanToChange.code || ''] || 1) > currentRank
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-amber-50 text-amber-700'
+                )}>
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">
+                    {(PLAN_RANKS[targetPlanToChange.code || ''] || 1) > currentRank ? 'Confirm Plan Upgrade' : 'Confirm Plan Downgrade'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Switching to {targetPlanToChange.name} ({interval === 'ANNUAL' ? 'Annual' : 'Monthly'})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setTargetPlanToChange(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Downgrade Limit Error / Protection Alert */}
+            {downgradeError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1.5 animate-fade-in">
+                <div className="flex items-center gap-1.5 font-bold text-rose-900">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Downgrade Blocked (Usage Exceeds Quota)</span>
+                </div>
+                <p className="leading-relaxed">{downgradeError}</p>
+                <p className="text-[11px] text-rose-600 font-semibold pt-1 border-t border-rose-200/60">
+                  Taxoryn does not delete existing practice data. Please reduce active resources before switching.
+                </p>
+              </div>
+            )}
+
+            <div className="bg-slate-50 rounded-xl p-3.5 space-y-2 text-xs text-slate-600 border border-slate-100">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Target Plan:</span>
+                <span className="font-bold text-slate-900">{targetPlanToChange.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Billing Cadence:</span>
+                <span className="font-semibold text-slate-800">{interval === 'ANNUAL' ? 'Annual (20% Off)' : 'Monthly'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Staff Limit:</span>
+                <span className="font-semibold text-slate-800">{targetPlanToChange.maxUsers} Users</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Client Limit:</span>
+                <span className="font-semibold text-slate-800">{targetPlanToChange.maxClients} Active Clients</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Vault Storage:</span>
+                <span className="font-semibold text-slate-800">{targetPlanToChange.formattedStorage || '25 GB'}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTargetPlanToChange(null)}
+                disabled={isUpdating}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmPlanChange}
+                isLoading={isUpdating}
+              >
+                Confirm Plan Change
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enterprise Consultation Inquiry Modal */}
+      {isEnterpriseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 animate-scale-up">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-brand-50 text-brand-700 rounded-xl">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">Enterprise Consultation & Quota Scale</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Custom deployment, ERP integrations, and high-volume compliance pipelines
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsEnterpriseModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEnterpriseInquiry} className="p-5 space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Contact Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. CA Rajesh Sharma"
+                    value={enterpriseForm.contactName}
+                    onChange={(e) => setEnterpriseForm({ ...enterpriseForm, contactName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Work Email <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. rajesh@sharmaca.com"
+                    value={enterpriseForm.contactEmail}
+                    onChange={(e) => setEnterpriseForm({ ...enterpriseForm, contactEmail: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. +91 98765 43210"
+                    value={enterpriseForm.contactPhone || ''}
+                    onChange={(e) => setEnterpriseForm({ ...enterpriseForm, contactPhone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Firm / CA Practice Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sharma & Associates LLP"
+                    value={enterpriseForm.firmName || ''}
+                    onChange={(e) => setEnterpriseForm({ ...enterpriseForm, firmName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Estimated Team Size</label>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="e.g. 50"
+                    value={enterpriseForm.estimatedTeamSize || ''}
+                    onChange={(e) => setEnterpriseForm({ ...enterpriseForm, estimatedTeamSize: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Estimated Active Clients</label>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="e.g. 1000"
+                    value={enterpriseForm.estimatedClientCount || ''}
+                    onChange={(e) => setEnterpriseForm({ ...enterpriseForm, estimatedClientCount: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Custom Requirements / Workflows</label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Need Tally/SAP ERP integration, multi-branch audit workflows, custom role permissions, SSO."
+                  value={enterpriseForm.requirements || ''}
+                  onChange={(e) => setEnterpriseForm({ ...enterpriseForm, requirements: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEnterpriseModalOpen(false)}
+                  disabled={isSubmittingEnterprise}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" size="sm" isLoading={isSubmittingEnterprise}>
+                  Submit Enterprise Request
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

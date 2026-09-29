@@ -216,4 +216,63 @@ public class MultiLocationAndLimitEnforcementIntegrationTest {
                         .header("Authorization", "Bearer " + starterAdminToken))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("Should change primary head office location via PATCH /primary endpoint")
+    void testSetPrimaryLocation() throws Exception {
+        LocationEntity loc1 = LocationEntity.builder()
+                .name("Old HO")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .isHeadOffice(true)
+                .isActive(true)
+                .build();
+        loc1.setOrganizationId(orgBusiness.getId());
+        loc1 = locationRepository.save(loc1);
+
+        LocationEntity loc2 = LocationEntity.builder()
+                .name("New HO")
+                .city("Pune")
+                .state("Maharashtra")
+                .isHeadOffice(false)
+                .isActive(true)
+                .build();
+        loc2.setOrganizationId(orgBusiness.getId());
+        loc2 = locationRepository.save(loc2);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/locations/" + loc2.getId() + "/primary")
+                        .header("Authorization", "Bearer " + businessAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(loc2.getId().toString()))
+                .andExpect(jsonPath("$.data.isHeadOffice").value(true));
+
+        LocationEntity reloadedOld = locationRepository.findById(loc1.getId()).orElseThrow();
+        LocationEntity reloadedNew = locationRepository.findById(loc2.getId()).orElseThrow();
+
+        assertThat(reloadedOld.isHeadOffice()).isFalse();
+        assertThat(reloadedNew.isHeadOffice()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should soft-deactivate location via DELETE endpoint")
+    void testDeactivateLocation() throws Exception {
+        LocationEntity loc = LocationEntity.builder()
+                .name("Branch to deactivate")
+                .city("Ahmedabad")
+                .state("Gujarat")
+                .isHeadOffice(false)
+                .isActive(true)
+                .build();
+        loc.setOrganizationId(orgBusiness.getId());
+        loc = locationRepository.save(loc);
+
+        mockMvc.perform(delete("/api/v1/locations/" + loc.getId())
+                        .header("Authorization", "Bearer " + businessAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        LocationEntity deactivated = locationRepository.findById(loc.getId()).orElseThrow();
+        assertThat(deactivated.isActive()).isFalse();
+    }
 }

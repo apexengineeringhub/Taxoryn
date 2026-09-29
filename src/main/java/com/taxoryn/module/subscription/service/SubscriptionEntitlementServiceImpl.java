@@ -41,6 +41,7 @@ public class SubscriptionEntitlementServiceImpl implements SubscriptionEntitleme
     private final DocumentRepository documentRepository;
     private final LocationRepository locationRepository;
     private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -157,33 +158,57 @@ public class SubscriptionEntitlementServiceImpl implements SubscriptionEntitleme
         // 1. Check Active Users
         long currentUsers = userRepository.countByOrganizationIdAndClientIdIsNull(organizationId);
         if (currentUsers > targetMaxUsers) {
-            throw new SubscriptionLimitExceededException(
-                    String.format("Cannot change to %s plan: Organization currently has %d active team members, which exceeds the new plan limit of %d. Please remove or deactivate team members before downgrading.",
-                            targetPlan.name(), currentUsers, targetMaxUsers));
+            String errorMsg = String.format("Cannot change to %s plan: Organization currently has %d active team members, which exceeds the new plan limit of %d. Please remove or deactivate team members before downgrading.",
+                    targetPlan.name(), currentUsers, targetMaxUsers);
+            logDowngradeBlocked(organizationId, targetPlan, "TEAM_MEMBER", currentUsers, targetMaxUsers, errorMsg);
+            throw new SubscriptionLimitExceededException(errorMsg);
         }
 
         // 2. Check Active Clients
         long currentClients = clientRepository.countByOrganizationId(organizationId);
         if (currentClients > targetMaxClients) {
-            throw new SubscriptionLimitExceededException(
-                    String.format("Cannot change to %s plan: Organization currently has %d active clients, which exceeds the new plan limit of %d. Please archive clients before downgrading.",
-                            targetPlan.name(), currentClients, targetMaxClients));
+            String errorMsg = String.format("Cannot change to %s plan: Organization currently has %d active clients, which exceeds the new plan limit of %d. Please archive clients before downgrading.",
+                    targetPlan.name(), currentClients, targetMaxClients);
+            logDowngradeBlocked(organizationId, targetPlan, "CLIENT", currentClients, targetMaxClients, errorMsg);
+            throw new SubscriptionLimitExceededException(errorMsg);
         }
 
         // 3. Check Storage
         long currentStorage = documentRepository.getTotalStorageBytesByOrganizationId(organizationId);
         if (currentStorage > targetMaxStorage) {
-            throw new SubscriptionLimitExceededException(
-                    String.format("Cannot change to %s plan: Organization current storage (%s) exceeds the new plan limit of %s. Please free storage before downgrading.",
-                            targetPlan.name(), formatBytes(currentStorage), formatBytes(targetMaxStorage)));
+            String errorMsg = String.format("Cannot change to %s plan: Organization current storage (%s) exceeds the new plan limit of %s. Please free storage before downgrading.",
+                    targetPlan.name(), formatBytes(currentStorage), formatBytes(targetMaxStorage));
+            logDowngradeBlocked(organizationId, targetPlan, "STORAGE", currentStorage, targetMaxStorage, errorMsg);
+            throw new SubscriptionLimitExceededException(errorMsg);
         }
 
         // 4. Check Locations
         long currentLocations = locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId);
         if (currentLocations > targetMaxLocations || (currentLocations > 1 && !targetMultiLocation)) {
-            throw new SubscriptionLimitExceededException(
-                    String.format("Cannot change to %s plan: Organization currently has %d active locations, but the %s plan allows %d location(s). Please deactivate extra branch locations before downgrading.",
-                            targetPlan.name(), currentLocations, targetPlan.name(), targetMaxLocations));
+            String errorMsg = String.format("Cannot change to %s plan: Organization currently has %d active locations, but the %s plan allows %d location(s). Please deactivate extra branch locations before downgrading.",
+                    targetPlan.name(), currentLocations, targetPlan.name(), targetMaxLocations);
+            logDowngradeBlocked(organizationId, targetPlan, "LOCATION", currentLocations, targetMaxLocations, errorMsg);
+            throw new SubscriptionLimitExceededException(errorMsg);
+        }
+    }
+
+    private void logDowngradeBlocked(UUID organizationId, SubscriptionPlan targetPlan, String resource, long current, long limit, String reason) {
+        if (auditService != null) {
+            auditService.logEvent(
+                    organizationId,
+                    com.taxoryn.core.security.SecurityUtils.getCurrentUserId(),
+                    "SUBSCRIPTION_DOWNGRADE_BLOCKED",
+                    "SUBSCRIPTION",
+                    organizationId.toString(),
+                    null,
+                    java.util.Map.of(
+                            "targetPlan", targetPlan.name(),
+                            "limitingResource", resource,
+                            "currentUsage", current,
+                            "targetLimit", limit,
+                            "reason", reason
+                    )
+            );
         }
     }
 

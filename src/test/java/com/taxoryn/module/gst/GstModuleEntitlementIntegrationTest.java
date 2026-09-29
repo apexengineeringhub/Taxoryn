@@ -105,6 +105,8 @@ public class GstModuleEntitlementIntegrationTest {
                 .status(OrganizationStatus.ACTIVE)
                 .build());
 
+        TenantContext.setTenantId(org.getId());
+
         LocationEntity l = LocationEntity.builder()
                 .name("Pune HQ")
                 .code("PUN-" + UUID.randomUUID().toString().substring(0, 4))
@@ -158,6 +160,8 @@ public class GstModuleEntitlementIntegrationTest {
                 .build();
         reg.setOrganizationId(org.getId());
         gstReg = gstRegistrationRepository.save(reg);
+
+        TenantContext.clear();
     }
 
     @AfterEach
@@ -167,12 +171,14 @@ public class GstModuleEntitlementIntegrationTest {
     }
 
     private void cleanUp() {
+        TenantContext.clear();
         organizationModuleRepository.deleteAll();
         gstRegistrationRepository.deleteAll();
         clientRepository.deleteAll();
         locationRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
+        TenantContext.clear();
     }
 
     @Test

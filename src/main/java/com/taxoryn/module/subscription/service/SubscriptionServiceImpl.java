@@ -45,6 +45,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
     private final SubscriptionEntitlementService subscriptionEntitlementService;
     private final SubscriptionMapper subscriptionMapper;
+    private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -105,6 +106,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Transactional
     public SubscriptionDto changePlan(UUID organizationId, ChangePlanRequest request) {
         SubscriptionEntity sub = getOrCreateSubscriptionEntity(organizationId);
+        SubscriptionPlan oldPlan = sub.getPlan();
         SubscriptionPlan newPlan = request.getPlan();
         BillingInterval interval = request.getBillingInterval() != null ? request.getBillingInterval() : sub.getBillingInterval();
 
@@ -136,8 +138,28 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             organizationRepository.save(org);
         });
 
-        log.info("Changed subscription plan: organizationId={}, newPlan={}, interval={}, price={}",
-                organizationId, newPlan, interval, price);
+        String auditAction = newPlan.ordinal() > (oldPlan != null ? oldPlan.ordinal() : 0) ? "SUBSCRIPTION_UPGRADED" :
+                (newPlan.ordinal() < (oldPlan != null ? oldPlan.ordinal() : 0) ? "SUBSCRIPTION_DOWNGRADED" : "SUBSCRIPTION_UPDATED");
+
+        if (auditService != null) {
+            auditService.logEvent(
+                    organizationId,
+                    SecurityUtils.getCurrentUserId(),
+                    auditAction,
+                    "SUBSCRIPTION",
+                    saved.getId().toString(),
+                    null,
+                    java.util.Map.of(
+                            "oldPlan", oldPlan != null ? oldPlan.name() : "NONE",
+                            "newPlan", newPlan.name(),
+                            "interval", interval.name(),
+                            "price", price
+                    )
+            );
+        }
+
+        log.info("Changed subscription plan: organizationId={}, action={}, oldPlan={}, newPlan={}, interval={}, price={}",
+                organizationId, auditAction, oldPlan, newPlan, interval, price);
 
         return enrichDto(saved);
     }
@@ -151,6 +173,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         sub.setCancelledAt(Instant.now());
 
         SubscriptionEntity saved = subscriptionRepository.save(sub);
+
+        if (auditService != null) {
+            auditService.logEvent(
+                    organizationId,
+                    SecurityUtils.getCurrentUserId(),
+                    "SUBSCRIPTION_CANCELLED",
+                    "SUBSCRIPTION",
+                    saved.getId().toString(),
+                    null,
+                    java.util.Map.of("plan", sub.getPlan().name())
+            );
+        }
+
         log.info("Cancelled subscription for organizationId={}", organizationId);
         return enrichDto(saved);
     }
@@ -170,8 +205,51 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
 
         SubscriptionEntity saved = subscriptionRepository.save(sub);
+
+        if (auditService != null) {
+            auditService.logEvent(
+                    organizationId,
+                    SecurityUtils.getCurrentUserId(),
+                    "SUBSCRIPTION_RENEWED",
+                    "SUBSCRIPTION",
+                    saved.getId().toString(),
+                    null,
+                    java.util.Map.of("plan", sub.getPlan().name(), "renewalDate", saved.getRenewalDate().toString())
+            );
+        }
+
         log.info("Renewed subscription for organizationId={}, nextRenewalDate={}", organizationId, saved.getRenewalDate());
         return enrichDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public void submitEnterpriseInquiry(UUID organizationId, com.taxoryn.module.subscription.dto.EnterpriseInquiryRequest request) {
+        if (organizationId == null) {
+            organizationId = SecurityUtils.getCurrentOrganizationId();
+        }
+
+        if (auditService != null) {
+            auditService.logEvent(
+                    organizationId,
+                    SecurityUtils.getCurrentUserId(),
+                    "SUBSCRIPTION_ENTERPRISE_INQUIRY",
+                    "SUBSCRIPTION",
+                    organizationId != null ? organizationId.toString() : "GLOBAL",
+                    null,
+                    java.util.Map.of(
+                            "contactName", request.getContactName() != null ? request.getContactName() : "",
+                            "contactEmail", request.getContactEmail() != null ? request.getContactEmail() : "",
+                            "contactPhone", request.getContactPhone() != null ? request.getContactPhone() : "",
+                            "firmName", request.getFirmName() != null ? request.getFirmName() : "",
+                            "estimatedTeamSize", request.getEstimatedTeamSize() != null ? request.getEstimatedTeamSize() : 0,
+                            "estimatedClientCount", request.getEstimatedClientCount() != null ? request.getEstimatedClientCount() : 0
+                    )
+            );
+        }
+
+        log.info("Enterprise subscription inquiry submitted: orgId={}, firm={}, contact={}, email={}",
+                organizationId, request.getFirmName(), request.getContactName(), request.getContactEmail());
     }
 
     @Override

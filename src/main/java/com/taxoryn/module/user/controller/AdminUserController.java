@@ -67,7 +67,7 @@ public class AdminUserController {
     @GetMapping
     @PreAuthorize("hasRole('TAXORYN_SUPERADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_OPERATIONS_ADMIN') or hasRole('TAXORYN_SUPPORT_ADMIN') or hasRole('TAXORYN_SECURITY_ADMIN') or hasAuthority('PLATFORM_USER_VIEW')")
     @Transactional(readOnly = true)
-    @Operation(summary = "List platform users", description = "Retrieves paginated list of users across the platform with filtering by role category, status, and search query.")
+    @Operation(summary = "List platform users", description = "Retrieves paginated list of users across the platform with database-side filtering by role category, status, and search query.")
     public ResponseEntity<ApiResponse<PagedResponse<UserDto>>> getPlatformUsers(
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String status,
@@ -76,46 +76,12 @@ public class AdminUserController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<UserEntity> pageResult = userRepository.findAll(pageable);
+        Page<UserEntity> pageResult = userRepository.findAll(
+                com.taxoryn.module.user.specification.PlatformUserSpecification.withFilters(role, status, search),
+                pageable
+        );
 
-        List<UserEntity> filtered = pageResult.getContent().stream()
-                .filter(u -> {
-                    if (StringUtils.hasText(role) && !"ALL".equalsIgnoreCase(role)) {
-                        boolean hasMatchingRole = u.getRoles() != null && u.getRoles().stream().anyMatch(r -> {
-                            String code = r.getCode();
-                            if (role.equalsIgnoreCase(code)) return true;
-                            if ("SUPERADMIN".equalsIgnoreCase(role) && ("SUPER_ADMIN".equalsIgnoreCase(code) || "TAXORYN_SUPERADMIN".equalsIgnoreCase(code))) return true;
-                            if ("OPERATIONS".equalsIgnoreCase(role) && "TAXORYN_OPERATIONS_ADMIN".equalsIgnoreCase(code)) return true;
-                            if ("SUPPORT".equalsIgnoreCase(role) && "TAXORYN_SUPPORT_ADMIN".equalsIgnoreCase(code)) return true;
-                            if ("MARKETPLACE".equalsIgnoreCase(role) && "TAXORYN_MARKETPLACE_ADMIN".equalsIgnoreCase(code)) return true;
-                            if ("FINANCE".equalsIgnoreCase(role) && "TAXORYN_FINANCE_ADMIN".equalsIgnoreCase(code)) return true;
-                            if ("CONTENT".equalsIgnoreCase(role) && "TAXORYN_CONTENT_ADMIN".equalsIgnoreCase(code)) return true;
-                            if ("SECURITY".equalsIgnoreCase(role) && "TAXORYN_SECURITY_ADMIN".equalsIgnoreCase(code)) return true;
-                            if ("ENGINEERING".equalsIgnoreCase(role) && "TAXORYN_ENGINEERING_ADMIN".equalsIgnoreCase(code)) return true;
-                            if ("PRACTITIONERS".equalsIgnoreCase(role) && ("ORG_ADMIN".equalsIgnoreCase(code) || "PRACTICE_ADMIN".equalsIgnoreCase(code) || "PRACTICE_OWNER".equalsIgnoreCase(code) || "PRACTITIONER".equalsIgnoreCase(code))) return true;
-                            if ("STAFF".equalsIgnoreCase(role) && ("STAFF".equalsIgnoreCase(code) || "ARTICLE_ASSISTANT".equalsIgnoreCase(code) || "PRACTICE_EMPLOYEE".equalsIgnoreCase(code))) return true;
-                            if ("CUSTOMERS".equalsIgnoreCase(role) && ("CLIENT_USER".equalsIgnoreCase(code) || "CLIENT_ADMIN".equalsIgnoreCase(code) || "MARKETPLACE_CUSTOMER".equalsIgnoreCase(code))) return true;
-                            return false;
-                        });
-                        if (!hasMatchingRole) return false;
-                    }
-                    if (StringUtils.hasText(status) && !"ALL".equalsIgnoreCase(status)) {
-                        if (u.getStatus() == null || !u.getStatus().name().equalsIgnoreCase(status)) {
-                            return false;
-                        }
-                    }
-                    if (StringUtils.hasText(search)) {
-                        String q = search.toLowerCase().trim();
-                        boolean matchesEmail = u.getEmail() != null && u.getEmail().toLowerCase().contains(q);
-                        boolean matchesName = drillDownMatchesName(u, q);
-                        boolean matchesPhone = u.getPhone() != null && u.getPhone().contains(q);
-                        if (!matchesEmail && !matchesName && !matchesPhone) return false;
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
-
-        List<UserDto> dtos = userMapper.toDtoList(filtered);
+        List<UserDto> dtos = userMapper.toDtoList(pageResult.getContent());
         PagedResponse<UserDto> response = PagedResponse.<UserDto>builder()
                 .content(dtos)
                 .pageNumber(pageResult.getNumber())
@@ -129,11 +95,6 @@ public class AdminUserController {
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success("Platform users retrieved successfully", response));
-    }
-
-    private boolean drillDownMatchesName(UserEntity u, String q) {
-        return (u.getFirstName() != null && u.getFirstName().toLowerCase().contains(q))
-                || (u.getLastName() != null && u.getLastName().toLowerCase().contains(q));
     }
 
     @PostMapping

@@ -270,12 +270,14 @@ public class EmployeeServiceImpl implements EmployeeService {
             targetUserId = request.getUserId();
         } else {
             // Check Subscription Quota for TEAM_MEMBER
-            subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.TEAM_MEMBER);
+            if (subscriptionEntitlementService != null) {
+                subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.TEAM_MEMBER);
+            }
 
             UserEntity user = provisionUserForEmployee(organizationId, email, request.getFirstName().trim(),
                     request.getLastName() != null ? request.getLastName().trim() : null,
                     request.getPhone(), request.getDesignation(), request.getRoleCode(), request.getRoleId());
-            targetUserId = user.getId();
+            targetUserId = user != null ? user.getId() : null;
         }
 
         if (request.getManagerId() != null) {
@@ -301,9 +303,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Created employee record: id={}, code={} for tenant={}", saved.getId(), saved.getEmployeeCode(), organizationId);
 
-        UserEntity user = userRepository.findByIdAndOrganizationId(targetUserId, organizationId).orElse(null);
-        if (user != null) {
-            sendEmployeeInvitation(saved, user, organizationId);
+        if (targetUserId != null) {
+            UserEntity user = userRepository.findByIdAndOrganizationId(targetUserId, organizationId).orElse(null);
+            if (user != null) {
+                sendEmployeeInvitation(saved, user, organizationId);
+            }
         }
 
         EmployeeDto result = enrichDto(saved);
@@ -355,7 +359,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (existing.isPresent()) {
             UserEntity u = existing.get();
             // Tenant Isolation Rule 1: Never attach or reassign a user from another organization or platform
-            if (u.getOrganizationId() == null || !u.getOrganizationId().equals(organizationId)) {
+            if (!java.util.Objects.equals(u.getOrganizationId(), organizationId)) {
                 log.warn("Cross-tenant employee provisioning blocked: Email {} belongs to foreign organization/user {}", email, u.getOrganizationId());
                 throw new DuplicateResourceException("The email address is already registered and cannot be used for this employee account.");
             }
@@ -366,9 +370,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                 throw new DuplicateResourceException("The email address belongs to an existing client user and cannot be attached to an employee account.");
             }
 
-            if (employeeRepository.findByOrganizationIdAndUserId(organizationId, u.getId()).isPresent()) {
-                log.warn("Duplicate employee provisioning blocked: User {} ({}) is already linked to an employee in tenant {}", u.getId(), email, organizationId);
-                throw new DuplicateResourceException("An employee record already exists for this user account.");
+            if (u.getId() != null) {
+                Optional<EmployeeEntity> existingEmp = employeeRepository.findByOrganizationIdAndUserId(organizationId, u.getId());
+                if (existingEmp != null && existingEmp.isPresent()) {
+                    log.warn("Duplicate employee provisioning blocked: User {} ({}) is already linked to an employee in tenant {}", u.getId(), email, organizationId);
+                    throw new DuplicateResourceException("An employee record already exists for this user account.");
+                }
             }
 
             // EDGE CASE: If email belongs to an existing internal user in the same organization,

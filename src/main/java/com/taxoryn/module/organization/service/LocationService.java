@@ -24,4 +24,6 @@ public interface LocationService {
     LocationDto assignEmployees(UUID organizationId, UUID locationId, List<UUID> employeeIds);
 
     List<UUID> getLocationsForEmployee(UUID organizationId, UUID employeeId);
+
+    LocationDto setPrimaryLocation(UUID organizationId, UUID locationId);
 }

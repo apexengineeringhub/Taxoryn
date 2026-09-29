@@ -35,4 +35,6 @@ public interface SubscriptionService {
     void checkLocationLimit(UUID organizationId);
 
     void checkStorageLimit(UUID organizationId, long additionalBytes);
+
+    void submitEnterpriseInquiry(UUID organizationId, com.taxoryn.module.subscription.dto.EnterpriseInquiryRequest request);
 }
