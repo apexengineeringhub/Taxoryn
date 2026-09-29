@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.Map;
 import java.util.UUID;
@@ -31,6 +33,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/notifications", "/api/notifications"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.NOTIFICATIONS)
 @Tag(name = "Notifications", description = "In-app notification center: history, unread count, mark-as-read, and multi-channel dispatch")
 @SecurityRequirement(name = "BearerAuth")
 public class NotificationController {

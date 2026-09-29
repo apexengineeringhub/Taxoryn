@@ -63,18 +63,20 @@ export const ModuleEntitlementProvider: React.FC<{ children: React.ReactNode }> 
     fetchEntitlements();
   }, [fetchEntitlements]);
 
-  const isModuleAvailable = useCallback(
+  const isModuleDirectlyAvailable = useCallback(
     (code?: ProductModuleCode): boolean => {
       if (!code) return true;
       if (isSuperOrPlatform) return true;
 
       const mod = modules[code];
       if (!mod) {
-        // If not loaded yet, assume available if loading, or check default
         return true;
       }
 
-      // Check effective access if present, otherwise check enabled
+      if (mod.category === 'CORE' || mod.category === 'FOUNDATION' || mod.mandatory === true) {
+        return true;
+      }
+
       if (typeof mod.effectiveAccess === 'boolean') {
         return mod.effectiveAccess;
       }
@@ -84,6 +86,24 @@ export const ModuleEntitlementProvider: React.FC<{ children: React.ReactNode }> 
     [modules, isSuperOrPlatform]
   );
 
+  const isModuleAvailable = useCallback(
+    (code?: ProductModuleCode): boolean => {
+      if (!code) return true;
+      if (isSuperOrPlatform) return true;
+
+      // 1. Check parent module dependency
+      if (code === 'CLIENT_PORTAL' && !isModuleDirectlyAvailable('CLIENTS')) {
+        return false;
+      }
+      if (code === 'DOCUMENT_REQUESTS' && !isModuleDirectlyAvailable('DOCUMENTS')) {
+        return false;
+      }
+
+      return isModuleDirectlyAvailable(code);
+    },
+    [isModuleDirectlyAvailable, isSuperOrPlatform]
+  );
+
   const getModuleAccessStatus = useCallback(
     (code?: ProductModuleCode): ModuleAccessStatus => {
       if (!code) return 'AVAILABLE';
@@ -91,6 +111,14 @@ export const ModuleEntitlementProvider: React.FC<{ children: React.ReactNode }> 
 
       if (isLoading && Object.keys(modules).length === 0) {
         return 'LOADING';
+      }
+
+      // Check parent module dependency
+      if (code === 'CLIENT_PORTAL' && !isModuleDirectlyAvailable('CLIENTS')) {
+        return 'MODULE_DISABLED';
+      }
+      if (code === 'DOCUMENT_REQUESTS' && !isModuleDirectlyAvailable('DOCUMENTS')) {
+        return 'MODULE_DISABLED';
       }
 
       const mod = modules[code];
@@ -108,16 +136,24 @@ export const ModuleEntitlementProvider: React.FC<{ children: React.ReactNode }> 
 
       return 'AVAILABLE';
     },
-    [modules, isLoading, isSuperOrPlatform]
+    [modules, isLoading, isSuperOrPlatform, isModuleDirectlyAvailable]
   );
 
   const getModuleReason = useCallback(
     (code?: ProductModuleCode): string | undefined => {
       if (!code) return undefined;
+
+      if (code === 'CLIENT_PORTAL' && !isModuleDirectlyAvailable('CLIENTS')) {
+        return 'Parent module Client Management (CLIENTS) is disabled for this organization.';
+      }
+      if (code === 'DOCUMENT_REQUESTS' && !isModuleDirectlyAvailable('DOCUMENTS')) {
+        return 'Parent module Document Management (DOCUMENTS) is disabled for this organization.';
+      }
+
       const mod = modules[code];
       return mod?.reason;
     },
-    [modules]
+    [modules, isModuleDirectlyAvailable]
   );
 
   const getModule = useCallback(

@@ -29,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.UUID;
 
@@ -36,6 +38,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/gmail/conversations")
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.NOTIFICATIONS)
 @Tag(name = "Gmail Conversation Management", description = "Endpoints for tracking, filtering, assigning, and linking Gmail conversation metadata")
 @SecurityRequirement(name = "BearerAuth")
 @PreAuthorize("isAuthenticated()")
@@ -69,6 +72,25 @@ public class GmailConversationController {
         PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
         GmailConversationDto dto = conversationService.getConversation(conversationId, scope);
         return ResponseEntity.ok(ApiResponse.success(dto));
+    }
+
+    @GetMapping("/{conversationId}/messages")
+    @Operation(summary = "Get live thread messages on-demand directly from Gmail API")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.gmail.dto.GmailMessageViewDto>>> getMessages(@PathVariable UUID conversationId) {
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        java.util.List<com.taxoryn.module.gmail.dto.GmailMessageViewDto> messages = conversationService.getConversationMessages(conversationId, scope);
+        return ResponseEntity.ok(ApiResponse.success(messages));
+    }
+
+    @PostMapping("/{conversationId}/reply")
+    @Operation(summary = "Send an email reply to a Gmail conversation thread")
+    public ResponseEntity<ApiResponse<GmailConversationDto>> sendReply(
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody com.taxoryn.module.gmail.dto.GmailReplyRequest request
+    ) {
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        GmailConversationDto updated = conversationService.sendReply(conversationId, request, scope);
+        return ResponseEntity.ok(ApiResponse.success("Reply sent successfully", updated));
     }
 
     @PatchMapping("/{conversationId}")

@@ -5,6 +5,7 @@ public enum GmailConversationStatus {
     PENDING_CLIENT,
     IN_PROGRESS,
     RESOLVED,
+    REPLIED,
     CLOSED,
     ARCHIVED
 }

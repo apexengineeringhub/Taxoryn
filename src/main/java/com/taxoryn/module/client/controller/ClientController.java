@@ -30,6 +30,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +39,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/clients", "/api/clients"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.CLIENTS)
 @Tag(name = "Client Management (Central Hub)", description = "Central module for client onboarding, 360-degree overview, tax registrations, assigned practitioners, and communication history")
 @SecurityRequirement(name = "BearerAuth")
 public class ClientController {

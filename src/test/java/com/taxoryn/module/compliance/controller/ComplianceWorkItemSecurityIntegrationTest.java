@@ -161,7 +161,7 @@ class ComplianceWorkItemSecurityIntegrationTest {
                 productModuleRepository.save(ProductModuleEntity.builder()
                         .code(code)
                         .name(code.name())
-                        .category(ProductModuleCategory.TAX)
+                        .category(ProductModuleCategory.BUSINESS)
                         .status("ACTIVE")
                         .build());
             }

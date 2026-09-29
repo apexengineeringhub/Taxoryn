@@ -99,6 +99,13 @@ export interface OrganizationCapabilities {
 
 // 1.1 Product Module Catalog & Organization Module Configuration
 export type ProductModuleCode =
+  | 'ORGANIZATION'
+  | 'LOCATIONS'
+  | 'USERS'
+  | 'ROLES'
+  | 'SECURITY'
+  | 'SUBSCRIPTION'
+  | 'MODULE_CONFIG'
   | 'CLIENTS'
   | 'TASKS'
   | 'DOCUMENTS'
@@ -107,18 +114,27 @@ export type ProductModuleCode =
   | 'NOTIFICATIONS'
   | 'AUDIT'
   | 'GST'
+  | 'GST_COMPLIANCE'
   | 'ITR'
+  | 'ITR_COMPLIANCE'
   | 'TDS'
+  | 'TDS_COMPLIANCE'
   | 'TAX_NOTICES'
+  | 'TAX_NOTICE_MANAGEMENT'
   | 'BILLING'
+  | 'BILLING_PRACTICE_OPERATIONS'
   | 'REPORTS'
-  | 'MARKETPLACE';
+  | 'DASHBOARD'
+  | 'PRACTICE_DASHBOARD'
+  | 'MARKETPLACE'
+  | 'GMAIL'
+  | 'SELF_ITR';
 
 export type ProductModuleCategory =
   | 'CORE'
-  | 'TAX'
-  | 'PRACTICE_OPERATIONS'
-  | 'NETWORK_GROWTH';
+  | 'FOUNDATION'
+  | 'BUSINESS'
+  | 'OPTIONAL';
 
 export interface ProductModule {
   id: string;
@@ -129,6 +145,10 @@ export interface ProductModule {
   status: string;
   enabledByDefault: boolean;
   displayOrder: number;
+  mandatory?: boolean;
+  configurable?: boolean;
+  subscriptionControlled?: boolean;
+  usageControlled?: boolean;
 }
 
 export type ModuleAccessStatus =
@@ -153,6 +173,10 @@ export interface OrganizationModule {
   effectiveAccess?: boolean;
   accessStatus?: ModuleAccessStatus;
   reason?: string;
+  mandatory?: boolean;
+  configurable?: boolean;
+  subscriptionControlled?: boolean;
+  usageControlled?: boolean;
   updatedAt?: string;
 }
 
@@ -1089,6 +1113,34 @@ export interface SubscriptionPlan {
   features: string[];
   isPopular?: boolean;
   popular?: boolean;
+}
+
+export type SubscriptionResourceType = 'TEAM_MEMBER' | 'CLIENT' | 'STORAGE' | 'LOCATION';
+
+export interface EntitlementResult {
+  resourceType: SubscriptionResourceType;
+  currentUsage: number;
+  limit: number;
+  remaining: number;
+  percentageUsed: number;
+  allowed: boolean;
+  warning: boolean;
+  unlimited: boolean;
+  formattedUsage: string;
+  message: string;
+}
+
+export interface SubscriptionEntitlementsResponse {
+  organizationId: string;
+  organizationName: string;
+  plan: 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'ENTERPRISE';
+  status: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELLED' | 'CANCELED' | 'EXPIRED';
+  billingInterval: 'MONTHLY' | 'ANNUAL' | 'YEARLY';
+  startDate?: string;
+  renewalDate?: string;
+  anyLimitReached: boolean;
+  anyWarning: boolean;
+  entitlements: EntitlementResult[];
 }
 
 export interface SubscriptionInfo {
@@ -4718,6 +4770,142 @@ export interface CreateWorkflowTaskRequest {
   dueDate?: string;
   assignedTo?: string;
 }
+
+// --- Gmail & Enquiries Types ---
+export type GmailConversationStatus =
+  | 'OPEN'
+  | 'PENDING_CLIENT'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'REPLIED'
+  | 'CLOSED'
+  | 'ARCHIVED';
+
+export type GmailConversationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export interface GmailConversation {
+  id: string;
+  organizationId: string;
+  gmailAccountId?: string;
+  threadId: string;
+  clientId?: string;
+  clientDisplayName?: string;
+  clientPan?: string;
+  clientGstin?: string;
+  locationId?: string;
+  locationName?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  status: GmailConversationStatus;
+  priority: GmailConversationPriority;
+  category?: 'PRACTITIONER_ENQUIRY' | 'SUPPORT_REQUEST' | 'GENERAL_ENQUIRY' | string;
+  mailboxEmail?: string;
+  subject: string;
+  snippet?: string;
+  senderEmail: string;
+  senderName?: string;
+  recipientEmails?: string;
+  messageCount: number;
+  lastMessageAt?: string;
+  firstResponseAt?: string;
+  resolvedAt?: string;
+  isUnread?: boolean;
+  isStarred?: boolean;
+  gmailLabels?: string;
+  webLink?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface GmailMessageView {
+  id: string;
+  threadId: string;
+  from: string;
+  to?: string;
+  cc?: string;
+  subject?: string;
+  snippet?: string;
+  bodyPlain?: string;
+  bodyHtml?: string;
+  date?: string;
+  labelIds: string[];
+  isDraft?: boolean;
+  isStarred?: boolean;
+}
+
+export interface GmailReplyRequest {
+  replyAccountId?: string;
+  to: string;
+  subject?: string;
+  body: string;
+  inReplyToMessageId?: string;
+}
+
+export interface GmailAccount {
+  id: string;
+  organizationId: string;
+  userId?: string;
+  userFullName?: string;
+  emailAddress: string;
+  accountType: 'PRACTICE_SHARED' | 'INDIVIDUAL_PRACTITIONER';
+  status: 'CONNECTED' | 'DISCONNECTED' | 'AUTH_EXPIRED' | 'SYNC_ERROR';
+  lastSyncedAt?: string;
+  syncErrorMessage?: string;
+  totalConversations?: number;
+  unreadConversations?: number;
+  openConversations?: number;
+  createdAt: string;
+}
+
+export interface GmailMetrics {
+  totalConversations: number;
+  openConversations: number;
+  unreadConversations: number;
+  resolvedTodayCount: number;
+  avgFirstResponseMinutes?: number;
+  avgResolutionMinutes?: number;
+  slaBreachCount: number;
+}
+
+// =============================================================================
+// SuperAdmin Practice-Centric User Management
+// =============================================================================
+
+export interface AdminUserSummary {
+  id: string;
+  fullName: string;
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  roleCode: string;
+  roleDisplayName: string;
+  status: string;
+  avatarUrl?: string;
+}
+
+export interface PracticeUserSummary {
+  organizationId: string;
+  organizationName: string;
+  legalName?: string;
+  tradeName?: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  status: string;
+  organizationType?: string;
+  subscriptionPlan?: string;
+  admins: AdminUserSummary[];
+  adminCount: number;
+  totalUserCount: number;
+  activeUserCount: number;
+  createdAt?: string;
+}
+
+
 
 
 

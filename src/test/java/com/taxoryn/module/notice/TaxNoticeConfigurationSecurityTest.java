@@ -246,7 +246,7 @@ public class TaxNoticeConfigurationSecurityTest {
             productModuleRepository.save(ProductModuleEntity.builder()
                     .code(ProductModuleCode.TAX_NOTICES)
                     .name("Tax Notice Management")
-                    .category(ProductModuleCategory.TAX)
+                    .category(ProductModuleCategory.BUSINESS)
                     .status("ACTIVE")
                     .enabledByDefault(true)
                     .displayOrder(11)

@@ -16,10 +16,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 @RestController
 @RequestMapping({"/api/v1/audit-logs", "/api/audit-logs", "/api/v1/admin/audit-logs", "/api/admin/audit-logs"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.AUDIT)
 @Tag(name = "Audit Trail", description = "Endpoints for inspecting immutable tenant activity and enterprise security audit logs")
 @SecurityRequirement(name = "BearerAuth")
 public class AuditController {

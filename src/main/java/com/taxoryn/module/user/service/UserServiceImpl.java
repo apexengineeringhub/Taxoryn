@@ -46,6 +46,7 @@ public class UserServiceImpl implements UserService {
     private final com.taxoryn.module.organization.repository.OrganizationRepository organizationRepository;
     private final com.taxoryn.module.organization.repository.PracticeProfileRepository practiceProfileRepository;
     private final com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
+    private final com.taxoryn.module.subscription.service.SubscriptionEntitlementService subscriptionEntitlementService;
     private final com.taxoryn.module.audit.service.AuditService auditService;
 
     @Override
@@ -195,6 +196,9 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserDto createUser(CreateUserRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+
+        // Enforce Subscription Quota for TEAM_MEMBER
+        subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.TEAM_MEMBER);
 
         if (userRepository.existsByOrganizationIdAndEmailIgnoreCase(organizationId, request.getEmail())) {
             throw new DuplicateResourceException("User", "email", request.getEmail());

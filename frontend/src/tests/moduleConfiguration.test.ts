@@ -12,9 +12,9 @@ import type {
 export function groupModulesByCategory(modules: OrganizationModule[]): Record<ProductModuleCategory, OrganizationModule[]> {
   const groups: Record<ProductModuleCategory, OrganizationModule[]> = {
     CORE: [],
-    TAX: [],
-    PRACTICE_OPERATIONS: [],
-    NETWORK_GROWTH: [],
+    FOUNDATION: [],
+    BUSINESS: [],
+    OPTIONAL: [],
   };
 
   modules.forEach((mod) => {
@@ -28,22 +28,12 @@ export function groupModulesByCategory(modules: OrganizationModule[]): Record<Pr
   return groups;
 }
 
-export function isCoreModule(code: ProductModuleCode): boolean {
-  const coreCodes: ProductModuleCode[] = [
-    'CLIENTS',
-    'TASKS',
-    'DOCUMENTS',
-    'DOCUMENT_REQUESTS',
-    'CLIENT_PORTAL',
-    'NOTIFICATIONS',
-    'AUDIT',
-  ];
-  return coreCodes.includes(code);
+export function isNonConfigurableModule(module: OrganizationModule): boolean {
+  return module.mandatory === true || module.category === 'CORE' || module.category === 'FOUNDATION';
 }
 
 export function canToggleModule(module: OrganizationModule): boolean {
-  // Core modules cannot be disabled
-  if (isCoreModule(module.moduleCode)) {
+  if (isNonConfigurableModule(module)) {
     return false;
   }
   return true;
@@ -56,8 +46,8 @@ export function applyModuleToggle(
 ): OrganizationModule[] {
   return currentModules.map((m) => {
     if (m.moduleCode === moduleCode) {
-      if (isCoreModule(m.moduleCode) && !payload.enabled) {
-        // Cannot disable core modules
+      if (isNonConfigurableModule(m) && !payload.enabled) {
+        // Cannot disable core or foundation modules
         return m;
       }
       return {
@@ -71,16 +61,20 @@ export function applyModuleToggle(
   });
 }
 
-// Sample Catalog Mock
+// Sample Catalog Mock with 4-tier Classification
 export const MOCK_CATALOG: ProductModule[] = [
   {
     id: 'pm-1',
     code: 'CLIENTS',
     name: 'Client Management (360°)',
     description: 'Master client directory, contacts, PAN/GSTIN repository, and client profile management.',
-    category: 'CORE',
+    category: 'FOUNDATION',
     displayOrder: 1,
     enabledByDefault: true,
+    mandatory: true,
+    configurable: false,
+    subscriptionControlled: false,
+    usageControlled: true,
     status: 'ACTIVE',
   },
   {
@@ -88,9 +82,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'TASKS',
     name: 'Tasks & Workflow Management',
     description: 'Task assignments, workflow stages, recurring job generator, and dead-line tracking.',
-    category: 'CORE',
+    category: 'FOUNDATION',
     displayOrder: 2,
     enabledByDefault: true,
+    mandatory: true,
+    configurable: false,
+    subscriptionControlled: false,
+    usageControlled: true,
     status: 'ACTIVE',
   },
   {
@@ -98,9 +96,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'GST',
     name: 'GST Compliance Suite',
     description: 'GSTR-1, GSTR-3B, GSTR-9 filing tracker, 2B vs Purchase recon, and GST taxpayer hub.',
-    category: 'TAX',
+    category: 'BUSINESS',
     displayOrder: 10,
     enabledByDefault: true,
+    mandatory: false,
+    configurable: true,
+    subscriptionControlled: true,
+    usageControlled: false,
     status: 'ACTIVE',
   },
   {
@@ -108,9 +110,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'ITR',
     name: 'Income Tax (ITR) Compliance',
     description: 'ITR filing lifecycle, advance tax computations, AIS/TIS tracker, and refund monitoring.',
-    category: 'TAX',
+    category: 'BUSINESS',
     displayOrder: 11,
     enabledByDefault: true,
+    mandatory: false,
+    configurable: true,
+    subscriptionControlled: true,
+    usageControlled: false,
     status: 'ACTIVE',
   },
   {
@@ -118,9 +124,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'TDS',
     name: 'TDS & TCS Returns Suite',
     description: 'Form 24Q, 26Q, 27Q filing management, challan ITNS 281 verification, and 16A generation.',
-    category: 'TAX',
+    category: 'BUSINESS',
     displayOrder: 12,
     enabledByDefault: true,
+    mandatory: false,
+    configurable: true,
+    subscriptionControlled: true,
+    usageControlled: false,
     status: 'ACTIVE',
   },
   {
@@ -128,9 +138,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'TAX_NOTICES',
     name: 'Notice Management Center',
     description: 'Centralized IT/GST notice intake, hearing dates, response drafting, and order archives.',
-    category: 'TAX',
+    category: 'BUSINESS',
     displayOrder: 13,
     enabledByDefault: true,
+    mandatory: false,
+    configurable: true,
+    subscriptionControlled: true,
+    usageControlled: false,
     status: 'ACTIVE',
   },
   {
@@ -138,9 +152,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'BILLING',
     name: 'Practice Billing & Invoicing',
     description: 'Fee schedules, GST-compliant proforma & tax invoices, payment tracking, and receipts.',
-    category: 'PRACTICE_OPERATIONS',
+    category: 'FOUNDATION',
     displayOrder: 20,
     enabledByDefault: true,
+    mandatory: true,
+    configurable: false,
+    subscriptionControlled: false,
+    usageControlled: false,
     status: 'ACTIVE',
   },
   {
@@ -148,9 +166,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'REPORTS',
     name: 'Central Reports & BI Analytics',
     description: 'Aggregated compliance progress, partner utilization, revenue, and collection reports.',
-    category: 'PRACTICE_OPERATIONS',
+    category: 'FOUNDATION',
     displayOrder: 21,
     enabledByDefault: true,
+    mandatory: true,
+    configurable: false,
+    subscriptionControlled: false,
+    usageControlled: false,
     status: 'ACTIVE',
   },
   {
@@ -158,9 +180,13 @@ export const MOCK_CATALOG: ProductModule[] = [
     code: 'MARKETPLACE',
     name: 'Taxoryn Marketplace Presence',
     description: 'Public profile listing, inbound client leads, and direct client engagement channel.',
-    category: 'NETWORK_GROWTH',
+    category: 'OPTIONAL',
     displayOrder: 30,
     enabledByDefault: false,
+    mandatory: false,
+    configurable: true,
+    subscriptionControlled: true,
+    usageControlled: false,
     status: 'ACTIVE',
   },
 ];
@@ -173,19 +199,22 @@ export const MOCK_ORG_MODULES: OrganizationModule[] = MOCK_CATALOG.map((cat) => 
   category: cat.category,
   enabled: cat.enabledByDefault,
   explicitlyConfigured: false,
+  mandatory: cat.mandatory,
+  configurable: cat.configurable,
+  subscriptionControlled: cat.subscriptionControlled,
+  usageControlled: cat.usageControlled,
   updatedAt: '2026-09-22T00:00:00Z',
 }));
 
 describe('Product Module Catalog & Organization Configuration', () => {
   it('1. Module catalog contains expected taxonomy categories', () => {
     const categories = new Set(MOCK_CATALOG.map((m) => m.category));
-    assert.strictEqual(categories.has('CORE'), true);
-    assert.strictEqual(categories.has('TAX'), true);
-    assert.strictEqual(categories.has('PRACTICE_OPERATIONS'), true);
-    assert.strictEqual(categories.has('NETWORK_GROWTH'), true);
+    assert.strictEqual(categories.has('FOUNDATION'), true);
+    assert.strictEqual(categories.has('BUSINESS'), true);
+    assert.strictEqual(categories.has('OPTIONAL'), true);
   });
 
-  it('2. Safe defaults: core and tax modules default to enabled, marketplace defaults to false', () => {
+  it('2. Safe defaults: foundation and business modules default to enabled, marketplace defaults to false', () => {
     const clients = MOCK_CATALOG.find((m) => m.code === 'CLIENTS');
     const tasks = MOCK_CATALOG.find((m) => m.code === 'TASKS');
     const gst = MOCK_CATALOG.find((m) => m.code === 'GST');
@@ -204,35 +233,32 @@ describe('Product Module Catalog & Organization Configuration', () => {
   it('3. Grouping modules by category maintains correct grouping', () => {
     const grouped = groupModulesByCategory(MOCK_ORG_MODULES);
 
-    assert.strictEqual(grouped.CORE.length, 2);
-    assert.strictEqual(grouped.TAX.length, 4);
-    assert.strictEqual(grouped.PRACTICE_OPERATIONS.length, 2);
-    assert.strictEqual(grouped.NETWORK_GROWTH.length, 1);
+    assert.strictEqual(grouped.FOUNDATION.length, 4); // CLIENTS, TASKS, BILLING, REPORTS
+    assert.strictEqual(grouped.BUSINESS.length, 4);   // GST, ITR, TDS, TAX_NOTICES
+    assert.strictEqual(grouped.OPTIONAL.length, 1);   // MARKETPLACE
 
-    // Verify items in TAX
-    assert.strictEqual(grouped.TAX[0].moduleCode, 'GST');
-    assert.strictEqual(grouped.TAX[1].moduleCode, 'ITR');
-    assert.strictEqual(grouped.TAX[2].moduleCode, 'TDS');
-    assert.strictEqual(grouped.TAX[3].moduleCode, 'TAX_NOTICES');
+    // Verify items in BUSINESS
+    assert.strictEqual(grouped.BUSINESS[0].moduleCode, 'GST');
+    assert.strictEqual(grouped.BUSINESS[1].moduleCode, 'ITR');
+    assert.strictEqual(grouped.BUSINESS[2].moduleCode, 'TDS');
+    assert.strictEqual(grouped.BUSINESS[3].moduleCode, 'TAX_NOTICES');
   });
 
-  it('4. Core modules cannot be disabled (isCore check and canToggleModule)', () => {
+  it('4. Foundation modules cannot be disabled (canToggleModule)', () => {
     const clientsMod = MOCK_ORG_MODULES.find((m) => m.moduleCode === 'CLIENTS')!;
-    assert.strictEqual(isCoreModule(clientsMod.moduleCode), true);
     assert.strictEqual(canToggleModule(clientsMod), false);
 
     const gstMod = MOCK_ORG_MODULES.find((m) => m.moduleCode === 'GST')!;
-    assert.strictEqual(isCoreModule(gstMod.moduleCode), false);
     assert.strictEqual(canToggleModule(gstMod), true);
   });
 
-  it('5. Disabling a core module in applyModuleToggle is safely ignored', () => {
+  it('5. Disabling a foundation module in applyModuleToggle is safely ignored', () => {
     const result = applyModuleToggle(MOCK_ORG_MODULES, 'CLIENTS', { enabled: false });
     const updatedClients = result.find((m) => m.moduleCode === 'CLIENTS')!;
     assert.strictEqual(updatedClients.enabled, true); // Stays true
   });
 
-  it('6. Non-core module can be toggled on/off', () => {
+  it('6. Business / Optional module can be toggled on/off', () => {
     // Disable GST
     const afterGstDisable = applyModuleToggle(MOCK_ORG_MODULES, 'GST', {
       enabled: false,
@@ -250,11 +276,11 @@ describe('Product Module Catalog & Organization Configuration', () => {
     assert.strictEqual(mktMod.explicitlyConfigured, true);
   });
 
-  it('7. Handles empty or unknown category gracefully', () => {
+  it('7. Handles empty category grouping gracefully', () => {
     const grouped = groupModulesByCategory([]);
     assert.strictEqual(grouped.CORE.length, 0);
-    assert.strictEqual(grouped.TAX.length, 0);
-    assert.strictEqual(grouped.PRACTICE_OPERATIONS.length, 0);
-    assert.strictEqual(grouped.NETWORK_GROWTH.length, 0);
+    assert.strictEqual(grouped.FOUNDATION.length, 0);
+    assert.strictEqual(grouped.BUSINESS.length, 0);
+    assert.strictEqual(grouped.OPTIONAL.length, 0);
   });
 });

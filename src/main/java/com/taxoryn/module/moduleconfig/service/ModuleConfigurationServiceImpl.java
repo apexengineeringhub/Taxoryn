@@ -13,6 +13,7 @@ import com.taxoryn.module.moduleconfig.entity.OrganizationFeatureEntity;
 import com.taxoryn.module.moduleconfig.entity.OrganizationModuleEntity;
 import com.taxoryn.module.moduleconfig.entity.ProductFeatureEntity;
 import com.taxoryn.module.moduleconfig.entity.ProductModuleEntity;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCategory;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import com.taxoryn.module.moduleconfig.repository.OrganizationFeatureRepository;
 import com.taxoryn.module.moduleconfig.repository.OrganizationModuleRepository;
@@ -31,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,18 +66,48 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
     }
 
     private ProductModuleCode canonicalizeModuleCode(ProductModuleCode moduleCode) {
-        if (moduleCode == ProductModuleCode.GST_COMPLIANCE) {
-            return ProductModuleCode.GST;
-        } else if (moduleCode == ProductModuleCode.ITR_COMPLIANCE) {
-            return ProductModuleCode.ITR;
-        } else if (moduleCode == ProductModuleCode.TDS_COMPLIANCE) {
-            return ProductModuleCode.TDS;
-        } else if (moduleCode == ProductModuleCode.TAX_NOTICE_MANAGEMENT) {
-            return ProductModuleCode.TAX_NOTICES;
-        } else if (moduleCode == ProductModuleCode.BILLING_PRACTICE_OPERATIONS) {
-            return ProductModuleCode.BILLING;
+        if (moduleCode == null) {
+            return null;
         }
-        return moduleCode;
+        return switch (moduleCode) {
+            case GST_COMPLIANCE -> ProductModuleCode.GST;
+            case ITR_COMPLIANCE -> ProductModuleCode.ITR;
+            case TDS_COMPLIANCE -> ProductModuleCode.TDS;
+            case TAX_NOTICE_MANAGEMENT -> ProductModuleCode.TAX_NOTICES;
+            case BILLING_PRACTICE_OPERATIONS -> ProductModuleCode.BILLING;
+            case PRACTICE_DASHBOARD -> ProductModuleCode.DASHBOARD;
+            default -> moduleCode;
+        };
+    }
+
+    private boolean isModuleDirectlyEnabled(UUID organizationId, ProductModuleEntity catalogModule, ProductModuleCode effectiveCode) {
+        // 1. Core and Foundation modules can NEVER be disabled by organization configuration
+        if (catalogModule.isMandatory() || !catalogModule.isConfigurable()
+                || catalogModule.getCategory() == ProductModuleCategory.CORE
+                || catalogModule.getCategory() == ProductModuleCategory.FOUNDATION) {
+            return true;
+        }
+
+        // 2. Check Subscription Plan Entitlement Gate (for BUSINESS / OPTIONAL)
+        if (catalogModule.isSubscriptionControlled()) {
+            SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
+            if (subscription != null) {
+                if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), effectiveCode.name())) {
+                    return false;
+                }
+            }
+        }
+
+        // 3. Check explicit organization configuration
+        Optional<OrganizationModuleEntity> configOpt = organizationModuleRepository
+                .findByOrganizationIdAndModuleCode(organizationId, effectiveCode);
+
+        if (configOpt.isPresent()) {
+            return configOpt.get().isEnabled();
+        }
+
+        // 4. Fall back to catalog default
+        return catalogModule.isEnabledByDefault();
     }
 
     @Override
@@ -89,26 +119,28 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
 
-        // 1. Check Subscription Plan Entitlement Gate
-        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
-        if (subscription != null) {
-            if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), effectiveCode.name())) {
-                return false;
-            }
+        // Fetch catalog definition
+        Optional<ProductModuleEntity> catalogOpt = productModuleRepository.findByCode(effectiveCode);
+        if (catalogOpt.isEmpty()) {
+            // If not registered in catalog, default to enabled for core functionality
+            return true;
         }
 
-        // 2. Check if an explicit organization configuration exists
-        Optional<OrganizationModuleEntity> configOpt = organizationModuleRepository
-                .findByOrganizationIdAndModuleCode(organizationId, effectiveCode);
+        ProductModuleEntity catalogModule = catalogOpt.get();
 
-        if (configOpt.isPresent()) {
-            return configOpt.get().isEnabled();
+        // 1. Direct Module Check
+        if (!isModuleDirectlyEnabled(organizationId, catalogModule, effectiveCode)) {
+            return false;
         }
 
-        // 3. Fall back to catalog default
-        return productModuleRepository.findByCode(effectiveCode)
-                .map(ProductModuleEntity::isEnabledByDefault)
-                .orElse(true);
+        // 2. Hierarchy / Parent Dependency Gate
+        if (effectiveCode == ProductModuleCode.CLIENT_PORTAL) {
+            return isModuleEnabled(organizationId, ProductModuleCode.CLIENTS);
+        } else if (effectiveCode == ProductModuleCode.DOCUMENT_REQUESTS) {
+            return isModuleEnabled(organizationId, ProductModuleCode.DOCUMENTS);
+        }
+
+        return true;
     }
 
     @Override
@@ -142,7 +174,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
 
         Map<ProductModuleCode, OrganizationModuleEntity> configMap = orgConfigs.stream()
-                .collect(Collectors.toMap(OrganizationModuleEntity::getModuleCode, c -> c));
+                .collect(Collectors.toMap(OrganizationModuleEntity::getModuleCode, c -> c, (c1, c2) -> c1));
 
         return catalog.stream()
                 .map(cat -> mapToOrganizationDto(organizationId, cat, configMap.get(cat.getCode()), subscription))
@@ -183,10 +215,18 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         ProductModuleEntity catalogModule = productModuleRepository.findByCode(effectiveCode)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", effectiveCode));
 
+        // Enforce: CORE and FOUNDATION modules cannot be disabled
+        if (!enabled && (catalogModule.isMandatory() || !catalogModule.isConfigurable()
+                || catalogModule.getCategory() == ProductModuleCategory.CORE
+                || catalogModule.getCategory() == ProductModuleCategory.FOUNDATION)) {
+            throw new BusinessValidationException("Module " + effectiveCode.name() + " is a mandatory "
+                    + catalogModule.getCategory().name() + " module and cannot be disabled.");
+        }
+
         SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
 
         // Enforce: Organization cannot enable a module not included in its plan entitlement
-        if (enabled && subscription != null) {
+        if (enabled && catalogModule.isSubscriptionControlled() && subscription != null) {
             if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), effectiveCode.name())) {
                 throw new BusinessValidationException("Cannot enable module " + effectiveCode.name() +
                         " because it is not included in current subscription plan (" + subscription.getPlan().name() + "). Please upgrade your subscription first.");
@@ -206,7 +246,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         } else {
             previousEnabled = catalogModule.isEnabledByDefault();
             entity = OrganizationModuleEntity.builder()
-                    .moduleCode(moduleCode)
+                    .moduleCode(effectiveCode)
                     .enabled(enabled)
                     .build();
             entity.setOrganizationId(organizationId);
@@ -221,12 +261,12 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                     userId,
                     enabled ? "ORGANIZATION_MODULE_ENABLED" : "ORGANIZATION_MODULE_DISABLED",
                     "ORGANIZATION_MODULE",
-                    moduleCode.name(),
-                    Map.of("moduleCode", moduleCode.name(), "enabled", previousEnabled),
-                    Map.of("moduleCode", moduleCode.name(), "enabled", enabled)
+                    effectiveCode.name(),
+                    Map.of("moduleCode", effectiveCode.name(), "enabled", previousEnabled),
+                    Map.of("moduleCode", effectiveCode.name(), "enabled", enabled)
             );
             log.info("Organization module configuration updated: orgId={}, module={}, enabled={}, previous={}",
-                    organizationId, moduleCode, enabled, previousEnabled);
+                    organizationId, effectiveCode, enabled, previousEnabled);
         }
 
         return mapToOrganizationDto(organizationId, catalogModule, saved, subscription);
@@ -256,20 +296,35 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         List<ProductModuleEntity> modules = productModuleRepository.findAllByOrderByDisplayOrderAsc();
         List<OrganizationModuleEntity> orgModuleConfigs = organizationModuleRepository.findByOrganizationId(organizationId);
         Map<ProductModuleCode, Boolean> orgModuleMap = orgModuleConfigs.stream()
-                .collect(Collectors.toMap(OrganizationModuleEntity::getModuleCode, OrganizationModuleEntity::isEnabled));
+                .collect(Collectors.toMap(OrganizationModuleEntity::getModuleCode, OrganizationModuleEntity::isEnabled, (e1, e2) -> e1));
 
         Map<String, Boolean> effectiveModules = new LinkedHashMap<>();
         for (ProductModuleEntity mod : modules) {
-            boolean entitled = subscriptionPlanEntitlementService.isModuleEntitled(planCode, mod.getCode().name());
-            boolean configured = orgModuleMap.getOrDefault(mod.getCode(), mod.isEnabledByDefault());
-            boolean effective = entitled && configured;
+            boolean effective;
+            if (mod.isMandatory() || !mod.isConfigurable()
+                    || mod.getCategory() == ProductModuleCategory.CORE
+                    || mod.getCategory() == ProductModuleCategory.FOUNDATION) {
+                effective = true;
+            } else {
+                boolean entitled = !mod.isSubscriptionControlled() || subscriptionPlanEntitlementService.isModuleEntitled(planCode, mod.getCode().name());
+                boolean configured = orgModuleMap.getOrDefault(mod.getCode(), mod.isEnabledByDefault());
+                effective = entitled && configured;
+            }
             effectiveModules.put(mod.getCode().name(), effective);
+        }
+
+        // Apply module hierarchy dependency rules
+        if (Boolean.FALSE.equals(effectiveModules.get("CLIENTS"))) {
+            effectiveModules.put("CLIENT_PORTAL", false);
+        }
+        if (Boolean.FALSE.equals(effectiveModules.get("DOCUMENTS"))) {
+            effectiveModules.put("DOCUMENT_REQUESTS", false);
         }
 
         List<ProductFeatureEntity> features = productFeatureRepository.findAllByOrderByDisplayOrderAsc();
         List<OrganizationFeatureEntity> orgFeatureConfigs = organizationFeatureRepository.findByOrganizationId(organizationId);
         Map<String, Boolean> orgFeatureMap = orgFeatureConfigs.stream()
-                .collect(Collectors.toMap(f -> f.getModuleCode() + ":" + f.getFeatureCode(), OrganizationFeatureEntity::isEnabled));
+                .collect(Collectors.toMap(f -> f.getModuleCode() + ":" + f.getFeatureCode(), OrganizationFeatureEntity::isEnabled, (f1, f2) -> f1));
 
         Map<String, Map<String, Boolean>> effectiveFeatures = new LinkedHashMap<>();
         for (ProductFeatureEntity feat : features) {
@@ -285,15 +340,15 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         List<String> navigationItems = new ArrayList<>();
         navigationItems.add("DASHBOARD");
-        navigationItems.add("CLIENTS");
-
+        if (Boolean.TRUE.equals(effectiveModules.get("CLIENTS"))) navigationItems.add("CLIENTS");
         if (Boolean.TRUE.equals(effectiveModules.get("GST"))) navigationItems.add("GST");
         if (Boolean.TRUE.equals(effectiveModules.get("ITR"))) navigationItems.add("ITR");
         if (Boolean.TRUE.equals(effectiveModules.get("TDS"))) navigationItems.add("TDS");
         if (Boolean.TRUE.equals(effectiveModules.get("TAX_NOTICES"))) navigationItems.add("TAX_NOTICES");
         if (Boolean.TRUE.equals(effectiveModules.get("BILLING"))) navigationItems.add("BILLING");
-        if (Boolean.TRUE.equals(effectiveModules.get("DOCUMENT"))) navigationItems.add("DOCUMENTS");
-        if (Boolean.TRUE.equals(effectiveModules.get("COMMUNICATION"))) navigationItems.add("COMMUNICATION");
+        if (Boolean.TRUE.equals(effectiveModules.get("DOCUMENTS"))) navigationItems.add("DOCUMENTS");
+        if (Boolean.TRUE.equals(effectiveModules.get("NOTIFICATIONS"))) navigationItems.add("NOTIFICATIONS");
+        if (Boolean.TRUE.equals(effectiveModules.get("CLIENT_PORTAL"))) navigationItems.add("CLIENT_PORTAL");
         if (Boolean.TRUE.equals(effectiveModules.get("REPORTS"))) navigationItems.add("REPORTS");
 
         if (multiLoc || activeLocCount > 1) {
@@ -334,7 +389,11 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
             OrganizationModuleEntity config,
             SubscriptionEntity subscription) {
 
-        boolean isEnabled = config != null ? config.isEnabled() : catalog.isEnabledByDefault();
+        boolean isMandatory = catalog.isMandatory() || !catalog.isConfigurable()
+                || catalog.getCategory() == ProductModuleCategory.CORE
+                || catalog.getCategory() == ProductModuleCategory.FOUNDATION;
+
+        boolean isEnabled = isMandatory || (config != null ? config.isEnabled() : catalog.isEnabledByDefault());
         boolean isExplicit = config != null;
 
         String subStatusStr = subscription != null && subscription.getStatus() != null
@@ -345,14 +404,35 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                 || subscription.getStatus() == SubscriptionStatus.ACTIVE
                 || subscription.getStatus() == SubscriptionStatus.TRIALING;
 
-        boolean isEntitled = subscription == null || subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), catalog.getCode().name());
+        boolean isEntitled = isMandatory || !catalog.isSubscriptionControlled()
+                || subscription == null
+                || subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), catalog.getCode().name());
 
-        boolean effectiveAccess = isEnabled && isStatusValid && isEntitled;
+        boolean effectiveAccess = isMandatory || (isEnabled && isStatusValid && isEntitled);
+
+        // Check parent module dependency
+        boolean parentDisabled = false;
+        String parentModuleName = null;
+        if (catalog.getCode() == ProductModuleCode.CLIENT_PORTAL && !isModuleEnabled(organizationId, ProductModuleCode.CLIENTS)) {
+            effectiveAccess = false;
+            parentDisabled = true;
+            parentModuleName = "Client Management (CLIENTS)";
+        } else if (catalog.getCode() == ProductModuleCode.DOCUMENT_REQUESTS && !isModuleEnabled(organizationId, ProductModuleCode.DOCUMENTS)) {
+            effectiveAccess = false;
+            parentDisabled = true;
+            parentModuleName = "Document Management (DOCUMENTS)";
+        }
 
         String accessStatus;
         String reason;
 
-        if (!isEntitled) {
+        if (isMandatory) {
+            accessStatus = "AVAILABLE";
+            reason = "Mandatory " + catalog.getCategory().name() + " module.";
+        } else if (parentDisabled) {
+            accessStatus = "MODULE_DISABLED";
+            reason = "Parent module " + parentModuleName + " is disabled for this organization.";
+        } else if (!isEntitled) {
             accessStatus = "UPGRADE_REQUIRED";
             reason = "Current subscription plan does not include " + catalog.getCode().name() + ". Please upgrade your subscription.";
         } else if (!isEnabled) {
@@ -379,6 +459,10 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                 .effectiveAccess(effectiveAccess)
                 .accessStatus(accessStatus)
                 .reason(reason)
+                .mandatory(catalog.isMandatory())
+                .configurable(catalog.isConfigurable())
+                .subscriptionControlled(catalog.isSubscriptionControlled())
+                .usageControlled(catalog.isUsageControlled())
                 .updatedAt(config != null ? config.getUpdatedAt() : catalog.getUpdatedAt())
                 .build();
     }
@@ -393,6 +477,10 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
                 .status(entity.getStatus())
                 .enabledByDefault(entity.isEnabledByDefault())
                 .displayOrder(entity.getDisplayOrder())
+                .mandatory(entity.isMandatory())
+                .configurable(entity.isConfigurable())
+                .subscriptionControlled(entity.isSubscriptionControlled())
+                .usageControlled(entity.isUsageControlled())
                 .build();
     }
 }

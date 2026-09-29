@@ -68,8 +68,64 @@ public class GmailThreadModels {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MessagePayload {
+        private String mimeType;
+        private MessageBody body;
         @Builder.Default
         private List<HeaderEntry> headers = new ArrayList<>();
+        @Builder.Default
+        private List<MessagePart> parts = new ArrayList<>();
+
+        public MessagePayload(List<HeaderEntry> headers) {
+            this.headers = headers != null ? headers : new ArrayList<>();
+        }
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class MessagePart {
+        private String partId;
+        private String mimeType;
+        private String filename;
+        private MessageBody body;
+        @Builder.Default
+        private List<HeaderEntry> headers = new ArrayList<>();
+        @Builder.Default
+        private List<MessagePart> parts = new ArrayList<>();
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class MessageBody {
+        private Long size;
+        private String data;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SendMessageRequest {
+        private String raw;
+        private String threadId;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SendMessageResponse {
+        private String id;
+        private String threadId;
+        @Builder.Default
+        private List<String> labelIds = new ArrayList<>();
     }
 
     @Data

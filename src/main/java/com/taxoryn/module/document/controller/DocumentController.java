@@ -33,6 +33,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -40,6 +42,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/documents", "/api/documents"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.DOCUMENTS)
 @Tag(name = "Document Management", description = "Secure multi-tenant document vault: Upload, download, metadata management, and linking to Clients, GST returns, ITR returns, and Tasks")
 @SecurityRequirement(name = "BearerAuth")
 public class DocumentController {

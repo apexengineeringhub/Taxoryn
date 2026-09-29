@@ -76,6 +76,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final OrganizationEmployeeNumberGenerator employeeNumberGenerator;
     private final com.taxoryn.module.user.service.ProfileImageService profileImageService;
     private final PracticeCapabilityResolver practiceCapabilityResolver;
+    private final com.taxoryn.module.subscription.service.SubscriptionEntitlementService subscriptionEntitlementService;
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
@@ -268,6 +269,9 @@ public class EmployeeServiceImpl implements EmployeeService {
             }
             targetUserId = request.getUserId();
         } else {
+            // Check Subscription Quota for TEAM_MEMBER
+            subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.TEAM_MEMBER);
+
             UserEntity user = provisionUserForEmployee(organizationId, email, request.getFirstName().trim(),
                     request.getLastName() != null ? request.getLastName().trim() : null,
                     request.getPhone(), request.getDesignation(), request.getRoleCode(), request.getRoleId());

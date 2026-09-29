@@ -85,7 +85,11 @@ class ModuleConfigurationServiceTest {
         clientsModule = ProductModuleEntity.builder()
                 .code(ProductModuleCode.CLIENTS)
                 .name("Client Management")
-                .category(ProductModuleCategory.CORE)
+                .category(ProductModuleCategory.FOUNDATION)
+                .mandatory(true)
+                .configurable(false)
+                .subscriptionControlled(false)
+                .usageControlled(true)
                 .enabledByDefault(true)
                 .displayOrder(1)
                 .build();
@@ -94,7 +98,11 @@ class ModuleConfigurationServiceTest {
         tdsModule = ProductModuleEntity.builder()
                 .code(ProductModuleCode.TDS)
                 .name("TDS Compliance")
-                .category(ProductModuleCategory.TAX)
+                .category(ProductModuleCategory.BUSINESS)
+                .mandatory(false)
+                .configurable(true)
+                .subscriptionControlled(true)
+                .usageControlled(false)
                 .enabledByDefault(true)
                 .displayOrder(10)
                 .build();
@@ -103,7 +111,11 @@ class ModuleConfigurationServiceTest {
         marketplaceModule = ProductModuleEntity.builder()
                 .code(ProductModuleCode.MARKETPLACE)
                 .name("Practice Marketplace")
-                .category(ProductModuleCategory.NETWORK_GROWTH)
+                .category(ProductModuleCategory.OPTIONAL)
+                .mandatory(false)
+                .configurable(true)
+                .subscriptionControlled(true)
+                .usageControlled(false)
                 .enabledByDefault(false)
                 .displayOrder(14)
                 .build();
@@ -129,24 +141,22 @@ class ModuleConfigurationServiceTest {
         assertNotNull(modules);
         assertEquals(3, modules.size());
 
-        // CLIENTS is enabled by default
+        // CLIENTS is enabled by default (FOUNDATION)
         assertTrue(modules.get(0).isEnabled());
         assertFalse(modules.get(0).isExplicitlyConfigured());
 
-        // TDS is enabled by default
+        // TDS is enabled by default (BUSINESS)
         assertTrue(modules.get(1).isEnabled());
         assertFalse(modules.get(1).isExplicitlyConfigured());
 
-        // MARKETPLACE is disabled by default
+        // MARKETPLACE is disabled by default (OPTIONAL)
         assertFalse(modules.get(2).isEnabled());
         assertFalse(modules.get(2).isExplicitlyConfigured());
     }
 
     @Test
-    @DisplayName("2. isModuleEnabled returns true for default enabled module and false for default disabled module")
+    @DisplayName("2. isModuleEnabled returns true for foundation/default enabled module and false for default disabled module")
     void testIsModuleEnabledWithCatalogDefaults() {
-        when(organizationModuleRepository.findByOrganizationIdAndModuleCode(testOrgId, ProductModuleCode.CLIENTS))
-                .thenReturn(Optional.empty());
         when(productModuleRepository.findByCode(ProductModuleCode.CLIENTS))
                 .thenReturn(Optional.of(clientsModule));
 
@@ -160,8 +170,11 @@ class ModuleConfigurationServiceTest {
     }
 
     @Test
-    @DisplayName("3. Explicit organization configuration overrides default catalog behavior")
+    @DisplayName("3. Explicit organization configuration overrides default catalog behavior for BUSINESS modules")
     void testExplicitConfigurationOverridesDefaults() {
+        when(productModuleRepository.findByCode(ProductModuleCode.TDS))
+                .thenReturn(Optional.of(tdsModule));
+
         // TDS explicitly disabled for this organization
         OrganizationModuleEntity disabledTds = OrganizationModuleEntity.builder()
                 .moduleCode(ProductModuleCode.TDS)
@@ -211,7 +224,7 @@ class ModuleConfigurationServiceTest {
     }
 
     @Test
-    @DisplayName("5. Disabling a module creates an audit event and saves entity")
+    @DisplayName("5. Disabling a BUSINESS module creates an audit event and saves entity")
     void testUpdateModuleStatusDisablesModuleAndAudits() {
         when(organizationRepository.existsById(testOrgId)).thenReturn(true);
         when(productModuleRepository.findByCode(ProductModuleCode.TDS))

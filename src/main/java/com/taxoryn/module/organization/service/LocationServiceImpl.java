@@ -40,6 +40,7 @@ public class LocationServiceImpl implements LocationService {
     private final OrganizationRepository organizationRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionPlanEntitlementService subscriptionPlanEntitlementService;
+    private final com.taxoryn.module.subscription.service.SubscriptionEntitlementService subscriptionEntitlementService;
     private final AuditService auditService;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
 
@@ -52,28 +53,10 @@ public class LocationServiceImpl implements LocationService {
             throw new ResourceNotFoundException("Organization", "id", organizationId);
         }
 
-        // 1. Subscription Plan Limit Enforcement
-        SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
-        SubscriptionPlan plan = subscription != null ? subscription.getPlan() : SubscriptionPlan.STARTER;
+        // 1. Subscription Plan Limit Enforcement via centralized Entitlement Service
+        subscriptionEntitlementService.checkCanCreate(organizationId, com.taxoryn.module.subscription.entity.SubscriptionResourceType.LOCATION);
 
         long currentActiveLocations = locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId);
-
-        if (currentActiveLocations >= 1) {
-            boolean multiLocationAllowed = subscriptionPlanEntitlementService.isMultiLocationEnabled(plan);
-            if (!multiLocationAllowed) {
-                log.warn("Multi-location creation blocked: Org {} is on plan {} with multi-location disabled", organizationId, plan);
-                throw new SubscriptionLimitExceededException("Multi-location management is not enabled for your subscription plan (" +
-                        plan.name() + "). Please upgrade to Professional, Business, or Enterprise tier.");
-            }
-
-            int maxLocations = subscriptionPlanEntitlementService.getMaxLocations(plan);
-            if (currentActiveLocations >= maxLocations) {
-                log.warn("Location limit exceeded: Org {} has {} active locations, limit is {}",
-                        organizationId, currentActiveLocations, maxLocations);
-                throw new SubscriptionLimitExceededException("Location limit reached (" + maxLocations +
-                        " max locations for " + plan.name() + " plan). Please upgrade your subscription.");
-            }
-        }
 
         // If this is marked as head office, unset existing head office
         if (request.isHeadOffice()) {

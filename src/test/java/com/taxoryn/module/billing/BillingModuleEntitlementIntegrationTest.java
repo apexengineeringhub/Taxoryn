@@ -103,17 +103,29 @@ public class BillingModuleEntitlementIntegrationTest {
     void setUp() {
         cleanDb();
 
-        if (productModuleRepository.findByCode(ProductModuleCode.BILLING).isEmpty()) {
-            productModuleRepository.save(com.taxoryn.module.moduleconfig.entity.ProductModuleEntity.builder()
-                    .code(ProductModuleCode.BILLING)
-                    .name("Billing & Invoicing")
-                    .description("Professional fee invoicing, receipts, and payment tracking.")
-                    .category(com.taxoryn.module.moduleconfig.model.ProductModuleCategory.PRACTICE_OPERATIONS)
-                    .status("ACTIVE")
-                    .enabledByDefault(true)
-                    .displayOrder(12)
-                    .build());
-        }
+        productModuleRepository.findByCode(ProductModuleCode.BILLING).ifPresentOrElse(
+                existing -> {
+                    existing.setCategory(com.taxoryn.module.moduleconfig.model.ProductModuleCategory.FOUNDATION);
+                    existing.setMandatory(true);
+                    existing.setConfigurable(false);
+                    existing.setSubscriptionControlled(false);
+                    productModuleRepository.save(existing);
+                },
+                () -> {
+                    productModuleRepository.save(com.taxoryn.module.moduleconfig.entity.ProductModuleEntity.builder()
+                            .code(ProductModuleCode.BILLING)
+                            .name("Billing & Invoicing")
+                            .description("Professional fee invoicing, receipts, and payment tracking.")
+                            .category(com.taxoryn.module.moduleconfig.model.ProductModuleCategory.FOUNDATION)
+                            .mandatory(true)
+                            .configurable(false)
+                            .subscriptionControlled(false)
+                            .status("ACTIVE")
+                            .enabledByDefault(true)
+                            .displayOrder(12)
+                            .build());
+                }
+        );
 
         organization = organizationRepository.save(OrganizationEntity.builder()
                 .name("Billing Entitlement Firm - " + UUID.randomUUID())
@@ -213,43 +225,28 @@ public class BillingModuleEntitlementIntegrationTest {
     }
 
     @Test
-    @DisplayName("Module Entitlement: When BILLING is disabled, billing endpoints return 403 and Client360 suppresses billing data")
-    void testModuleDisabledReturns403AndSuppressesClient360() throws Exception {
-        // 1. Disable BILLING module
+    @DisplayName("Module Entitlement: BILLING is a mandatory FOUNDATION module that cannot be disabled")
+    void testFoundationBillingModuleCannotBeDisabled() throws Exception {
+        // 1. Attempt to disable BILLING module -> must throw BusinessValidationException
         setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.BILLING, false);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.BILLING, false))
+                .isInstanceOf(com.taxoryn.core.exception.BusinessValidationException.class)
+                .hasMessageContaining("mandatory FOUNDATION module and cannot be disabled");
 
-        // Billing / Invoices endpoints return 403 Forbidden
-        mockMvc.perform(get("/api/v1/invoices")
-                        .header("Authorization", adminToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-
-        mockMvc.perform(get("/api/v1/billing/receivables")
-                        .header("Authorization", adminToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-
-        mockMvc.perform(get("/api/v1/billing/unbilled-time")
-                        .header("Authorization", adminToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
-
-        // Client 360 suppresses billing field (returns null, no billing data leakage)
-        mockMvc.perform(get("/api/v1/clients/" + client.getId() + "/360")
-                        .header("Authorization", adminToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.billing").value(nullValue()));
-
-        // 2. Enable BILLING module
-        setSecurityContext();
-        moduleConfigurationService.updateModuleStatus(organization.getId(), ProductModuleCode.BILLING, true);
-
-        // Billing endpoints return 200 OK
+        // Billing endpoints remain 200 OK
         mockMvc.perform(get("/api/v1/invoices")
                         .header("Authorization", adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1));
+
+        mockMvc.perform(get("/api/v1/billing/receivables")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/billing/unbilled-time")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk());
 
         // Client 360 returns populated billing
         mockMvc.perform(get("/api/v1/clients/" + client.getId() + "/360")

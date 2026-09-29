@@ -168,6 +168,50 @@ public class GmailApiClient {
         }, "getThreadMetadata");
     }
 
+    public GmailThreadModels.ThreadDetail getThreadFull(String accessToken, String threadId) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+
+        String url = String.format("%s/users/me/threads/%s?format=full",
+                properties.getApiBaseUrl(),
+                threadId);
+
+        return executeWithRetry(() -> {
+            ResponseEntity<GmailThreadModels.ThreadDetail> response = getRestTemplate().exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    GmailThreadModels.ThreadDetail.class
+            );
+            return response.getBody();
+        }, "getThreadFull");
+    }
+
+    public GmailThreadModels.SendMessageResponse sendMessage(String accessToken, String rawBase64Url, String threadId) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        GmailThreadModels.SendMessageRequest sendRequest = GmailThreadModels.SendMessageRequest.builder()
+                .raw(rawBase64Url)
+                .threadId(threadId)
+                .build();
+
+        HttpEntity<GmailThreadModels.SendMessageRequest> entity = new HttpEntity<>(sendRequest, headers);
+        String url = String.format("%s/users/me/messages/send", properties.getApiBaseUrl());
+
+        return executeWithRetry(() -> {
+            ResponseEntity<GmailThreadModels.SendMessageResponse> response = getRestTemplate().exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    GmailThreadModels.SendMessageResponse.class
+            );
+            return response.getBody();
+        }, "sendMessage");
+    }
+
     public GmailThreadModels.HistoryResponse listHistory(String accessToken, String startHistoryId, String pageToken) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);

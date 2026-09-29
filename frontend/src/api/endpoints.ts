@@ -50,6 +50,8 @@ import {
   BillingDashboardStats,
   SubscriptionPlan,
   SubscriptionInfo,
+  SubscriptionEntitlementsResponse,
+  EntitlementResult,
   OrganizationCapabilities,
   Employee,
   Role,
@@ -220,9 +222,16 @@ import {
   GenerateWorkflowRequest,
   UpdateWorkflowStatusRequest,
   UpdateWorkflowStepStatusRequest,
-  AssignWorkflowRequest,
   UpdateWorkflowPriorityRequest,
+  AssignWorkflowRequest,
   WorkflowFilterRequest,
+  GmailConversation,
+  GmailMessageView,
+  GmailReplyRequest,
+  GmailMetrics,
+  GmailAccount,
+  PracticeUserSummary,
+  AdminUserSummary,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -1181,6 +1190,10 @@ export const subscriptionApi = {
   },
   getCurrent: async () => {
     const res = await apiClient.get<ApiResponse<SubscriptionInfo>>('/v1/subscriptions/current');
+    return res.data.data;
+  },
+  getEntitlements: async () => {
+    const res = await apiClient.get<ApiResponse<SubscriptionEntitlementsResponse>>('/v1/subscriptions/entitlements');
     return res.data.data;
   },
   changePlan: async (payload: { plan: string; interval: string }) => {
@@ -2301,6 +2314,21 @@ export const adminUserApi = {
   },
 };
 
+// --- 23b. Platform Admin Practice-Centric User Governance API ---
+export const adminPracticeUserApi = {
+  getPracticeSummaries: async (params?: { search?: string; status?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<PracticeUserSummary>>>('/v1/admin/practices', { params });
+    return res.data.data;
+  },
+  getPracticeUsers: async (
+    organizationId: string,
+    params?: { search?: string; role?: string; status?: string; page?: number; size?: number }
+  ) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<User>>>(`/v1/admin/practices/${organizationId}/users`, { params });
+    return res.data.data;
+  },
+};
+
 // --- 24. Taxoryn Learn Public Knowledge API ---
 export const publicLearnApi = {
   getContentList: async (params?: {
@@ -2968,6 +2996,79 @@ export const capabilitiesApi = {
     return res.data.data;
   },
 };
+
+// --- 14. Gmail & Live Conversation Enquiries ---
+export const gmailApi = {
+  getConversations: async (params?: {
+    search?: string;
+    status?: string;
+    category?: string;
+    priority?: string;
+    clientId?: string;
+    locationId?: string;
+    assignedUserId?: string;
+    unassignedOnly?: boolean;
+    unlinkedClientOnly?: boolean;
+    unreadOnly?: boolean;
+    gmailAccountId?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<GmailConversation>>>('/v1/gmail/conversations', { params });
+    return res.data.data;
+  },
+  getMetrics: async () => {
+    const res = await apiClient.get<ApiResponse<GmailMetrics>>('/v1/gmail/conversations/metrics');
+    return res.data.data;
+  },
+  getConversation: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<GmailConversation>>(`/v1/gmail/conversations/${id}`);
+    return res.data.data;
+  },
+  getConversationMessages: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<GmailMessageView[]>>(`/v1/gmail/conversations/${id}/messages`);
+    return res.data.data;
+  },
+  sendReply: async (id: string, payload: GmailReplyRequest) => {
+    const res = await apiClient.post<ApiResponse<GmailConversation>>(`/v1/gmail/conversations/${id}/reply`, payload);
+    return res.data.data;
+  },
+  updateConversation: async (
+    id: string,
+    payload: {
+      status?: string;
+      priority?: string;
+      assignedUserId?: string;
+      locationId?: string;
+      isUnread?: boolean;
+      isStarred?: boolean;
+    }
+  ) => {
+    const res = await apiClient.patch<ApiResponse<GmailConversation>>(`/v1/gmail/conversations/${id}`, payload);
+    return res.data.data;
+  },
+  assignConversation: async (id: string, userId?: string) => {
+    const res = await apiClient.post<ApiResponse<GmailConversation>>(`/v1/gmail/conversations/${id}/assign`, null, {
+      params: { userId: userId || undefined },
+    });
+    return res.data.data;
+  },
+  linkClient: async (id: string, clientId: string) => {
+    const res = await apiClient.post<ApiResponse<GmailConversation>>(`/v1/gmail/conversations/${id}/link-client`, { clientId });
+    return res.data.data;
+  },
+  unlinkClient: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<GmailConversation>>(`/v1/gmail/conversations/${id}/link-client`);
+    return res.data.data;
+  },
+  getAccounts: async () => {
+    const res = await apiClient.get<ApiResponse<GmailAccount[]>>('/v1/gmail/accounts');
+    return res.data.data;
+  },
+};
+
 
 
 

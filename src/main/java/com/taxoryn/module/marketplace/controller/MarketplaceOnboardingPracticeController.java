@@ -16,12 +16,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/practice/marketplace/onboarding")
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.MARKETPLACE)
 @Tag(name = "Practice Marketplace Onboarding Hub", description = "Endpoints for practice to manage proposals, KYC documents, and client promotion")
 public class MarketplaceOnboardingPracticeController {
 

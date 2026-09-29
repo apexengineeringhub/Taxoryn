@@ -99,7 +99,7 @@ public class TaxNoticeModuleEntitlementIntegrationTest {
                     .code(ProductModuleCode.TAX_NOTICES)
                     .name("Tax Notice Management")
                     .description("Assessment notices, hearing schedules, and response drafting.")
-                    .category(com.taxoryn.module.moduleconfig.model.ProductModuleCategory.TAX)
+                    .category(com.taxoryn.module.moduleconfig.model.ProductModuleCategory.BUSINESS)
                     .status("ACTIVE")
                     .enabledByDefault(true)
                     .displayOrder(11)
