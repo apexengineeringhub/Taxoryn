@@ -25,7 +25,7 @@ import { User, Employee, ClientPortalProfile } from '../types';
 import clsx from 'clsx';
 
 export const UserProfilePage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -127,6 +127,12 @@ export const UserProfilePage: React.FC = () => {
         });
       }
 
+      updateUser({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone.trim(),
+      });
+
       setSuccessMessage('Profile updated successfully.');
     } catch (err: any) {
       setErrorMessage(err.response?.data?.message || 'Failed to update profile.');
@@ -179,10 +185,12 @@ export const UserProfilePage: React.FC = () => {
 
       if (updatedAvatarUrl) {
         setAvatarUrl(updatedAvatarUrl);
+        updateUser({ avatarUrl: updatedAvatarUrl });
       } else {
         const previewUrl = URL.createObjectURL(file);
         previewBlobUrlRef.current = previewUrl;
         setAvatarUrl(previewUrl);
+        updateUser({ avatarUrl: previewUrl });
       }
       setSuccessMessage('Profile photo updated successfully.');
     } catch (err: any) {
@@ -207,6 +215,7 @@ export const UserProfilePage: React.FC = () => {
         await userApi.deleteMyAvatar();
       }
       setAvatarUrl(null);
+      updateUser({ avatarUrl: undefined });
       setSuccessMessage('Profile photo removed successfully.');
     } catch (err: any) {
       setErrorMessage(err.response?.data?.message || 'Failed to remove profile photo.');
@@ -473,7 +482,7 @@ export const UserProfilePage: React.FC = () => {
                 <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
                   <span className="text-[11px] font-semibold text-slate-500 block">Organization Name</span>
                   <span className="text-xs font-bold text-slate-800 mt-0.5 block">
-                    {user?.organizationName || 'Default Organization'}
+                    {employeeDetails?.organizationName || user?.organizationName || '—'}
                   </span>
                 </div>
 
@@ -482,7 +491,14 @@ export const UserProfilePage: React.FC = () => {
                     <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
                       <span className="text-[11px] font-semibold text-slate-500 block">Employee Code</span>
                       <span className="text-xs font-bold text-slate-800 mt-0.5 block font-mono">
-                        {employeeDetails.employeeCode || '—'}
+                        {employeeDetails.employeeNumber || employeeDetails.employeeCode || '—'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                      <span className="text-[11px] font-semibold text-slate-500 block">Designation</span>
+                      <span className="text-xs font-bold text-slate-800 mt-0.5 block">
+                        {employeeDetails.designation || 'Staff Associate'}
                       </span>
                     </div>
 
@@ -494,9 +510,20 @@ export const UserProfilePage: React.FC = () => {
                     </div>
 
                     <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
-                      <span className="text-[11px] font-semibold text-slate-500 block">Designation</span>
+                      <span className="text-[11px] font-semibold text-slate-500 block">Assigned Practice Location</span>
                       <span className="text-xs font-bold text-slate-800 mt-0.5 block">
-                        {employeeDetails.designation || 'Staff'}
+                        {employeeDetails.locationName ? (
+                          <span>{employeeDetails.locationName} {employeeDetails.locationCode ? `(${employeeDetails.locationCode})` : ''}</span>
+                        ) : (
+                          <span className="text-slate-500 italic">Head Office / Primary Branch</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                      <span className="text-[11px] font-semibold text-slate-500 block">Practice RBAC Role</span>
+                      <span className="text-xs font-bold text-slate-800 mt-0.5 block">
+                        {employeeDetails.roleName || employeeDetails.roleCode?.replace(/_/g, ' ') || 'Practitioner'}
                       </span>
                     </div>
                   </>

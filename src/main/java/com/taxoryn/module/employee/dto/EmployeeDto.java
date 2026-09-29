@@ -24,6 +24,9 @@ public class EmployeeDto {
     @Schema(description = "Organization ID")
     private UUID organizationId;
 
+    @Schema(description = "Organization name", example = "Apex CA Practice")
+    private String organizationName;
+
     @Schema(description = "Optional linked user account ID")
     private UUID userId;
 
@@ -84,6 +87,18 @@ public class EmployeeDto {
 
     @Schema(description = "Assigned role display name", example = "Senior Tax Professional")
     private String roleName;
+
+    @Schema(description = "Assigned primary location ID")
+    private UUID locationId;
+
+    @Schema(description = "Assigned primary location name", example = "Mumbai Branch")
+    private String locationName;
+
+    @Schema(description = "Assigned primary location code", example = "MUM-01")
+    private String locationCode;
+
+    @Schema(description = "All assigned location IDs")
+    private java.util.List<UUID> locationIds;
 
     @Schema(description = "Creation timestamp")
     private Instant createdAt;

@@ -294,6 +294,18 @@ export const TeamManagementPage: React.FC = () => {
       accessor: (row) => <span className="text-xs font-medium text-slate-700">{row.department || 'General Tax'}</span>,
     },
     {
+      header: 'Assigned Location',
+      accessor: (row) => (
+        <span className="text-xs text-slate-700">
+          {row.locationName ? (
+            <span className="font-medium text-slate-800">{row.locationName}</span>
+          ) : (
+            <span className="text-slate-400 italic">Head Office</span>
+          )}
+        </span>
+      ),
+    },
+    {
       header: 'Email Address',
       accessor: (row) => <span className="text-xs text-slate-700">{row.email}</span>,
     },

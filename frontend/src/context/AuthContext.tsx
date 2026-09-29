@@ -15,6 +15,7 @@ interface AuthContextType {
   logout: () => Promise<void> | void;
   setOrganization: (org: Organization | null) => void;
   setAuthSession: (accessToken: string, user: User, org?: Organization | null) => void;
+  updateUser: (updates: Partial<User>) => void;
   refreshOrganization: () => Promise<Organization | null>;
   updateSubscriptionPlan: (plan: string) => void;
 }
@@ -151,6 +152,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -165,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         setOrganization,
         setAuthSession,
+        updateUser,
         refreshOrganization,
         updateSubscriptionPlan,
       }}

@@ -459,6 +459,9 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
                     scope.getDepartment().trim().equalsIgnoreCase(target.getDepartment())) {
                 return true;
             }
+            if (!StringUtils.hasText(scope.getDepartment()) && !StringUtils.hasText(target.getDepartment())) {
+                return true;
+            }
         }
 
         // If current user is staff: can access same department peers and their direct manager
@@ -471,6 +474,15 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
                     scope.getDepartment().trim().equalsIgnoreCase(target.getDepartment())) {
                 return true;
             }
+            if (!StringUtils.hasText(scope.getDepartment()) && !StringUtils.hasText(target.getDepartment())) {
+                return true;
+            }
+        }
+
+        // General fallback for practice team members in general organization context
+        if (current != null && StringUtils.hasText(current.getDepartment()) &&
+                current.getDepartment().trim().equalsIgnoreCase(target.getDepartment())) {
+            return true;
         }
 
         return false;
@@ -503,24 +515,45 @@ public class EmployeeChatServiceImpl implements EmployeeChatService {
             if (emp.isPresent()) return emp.get();
         }
 
-        if (email != null) {
-            Optional<EmployeeEntity> emp = employeeRepository.findByOrganizationIdAndEmail(organizationId, email);
+        if (StringUtils.hasText(email)) {
+            String cleanEmail = email.toLowerCase().trim();
+            Optional<EmployeeEntity> emp = employeeRepository.findByOrganizationIdAndEmail(organizationId, cleanEmail);
             if (emp.isPresent()) return emp.get();
         }
 
-        // Fallback: If firm admin doesn't have an EmployeeEntity row, auto-create a linked profile
-        if (scope.isFirmAdmin() && userId != null) {
-            Optional<UserEntity> userOpt = userRepository.findById(userId);
+        // Fallback: If practice user in a multi-user firm doesn't have an EmployeeEntity row, auto-create a linked profile
+        if (userId != null) {
+            Optional<UserEntity> userOpt = userRepository.findByIdAndOrganizationId(userId, organizationId);
             if (userOpt.isPresent()) {
                 UserEntity u = userOpt.get();
+                if (u.getClientId() != null) {
+                    return null;
+                }
+                String roleCode = (u.getRoles() != null && !u.getRoles().isEmpty())
+                        ? u.getRoles().iterator().next().getCode()
+                        : "STAFF";
+
+                String dept = "Taxation";
+                String desig = "Tax Associate";
+                if (isFirmAdminRole(roleCode)) {
+                    dept = "Management";
+                    desig = "Firm Administrator";
+                } else if (isManagerOrAboveRole(roleCode)) {
+                    dept = "Taxation & Audit";
+                    desig = "Tax Manager";
+                }
+
+                String empCode = "EMP-" + (u.getId().toString().substring(0, 6).toUpperCase());
+
                 EmployeeEntity created = EmployeeEntity.builder()
                         .userId(u.getId())
-                        .employeeCode("EMP-ADM-01")
+                        .employeeCode(empCode)
                         .firstName(u.getFirstName() != null ? u.getFirstName() : "Practice")
-                        .lastName(u.getLastName() != null ? u.getLastName() : "Admin")
-                        .email(u.getEmail())
-                        .designation("Firm Administrator")
-                        .department("Management")
+                        .lastName(u.getLastName() != null ? u.getLastName() : "User")
+                        .email(u.getEmail() != null ? u.getEmail().toLowerCase().trim() : (email != null ? email.toLowerCase().trim() : null))
+                        .phone(u.getPhone())
+                        .designation(desig)
+                        .department(dept)
                         .status(EmployeeEntity.EmployeeStatus.ACTIVE)
                         .build();
                 created.setOrganizationId(organizationId);

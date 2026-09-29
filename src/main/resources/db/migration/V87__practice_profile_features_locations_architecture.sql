@@ -54,7 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_sub_plans_status ON subscription_plans(status);
 -- Seed Subscription Plans Master
 INSERT INTO subscription_plans (id, code, name, description, monthly_price, yearly_price, max_users, max_clients, max_locations, multi_location_enabled, max_storage_bytes, status, created_at, updated_at)
 VALUES
-    ('b0000000-0000-0000-0000-000000000001', 'STARTER', 'Starter Practice', 'Essential compliance and client management for solo practitioners', 999.00, 9990.00, 5, 25, 1, FALSE, 5368709120, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    ('b0000000-0000-0000-0000-000000000001', 'STARTER', 'Starter Practice', 'Essential compliance and client management for solo practitioners', 999.00, 9990.00, 1, 25, 1, FALSE, 5368709120, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('b0000000-0000-0000-0000-000000000002', 'PROFESSIONAL', 'Professional Practice', 'Comprehensive tax practice management with multi-service invoicing', 2499.00, 24990.00, 15, 100, 3, TRUE, 26843545600, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('b0000000-0000-0000-0000-000000000003', 'BUSINESS', 'Business Firm', 'High-volume operations for growing multi-partner CA firms', 4999.00, 49990.00, 50, 500, 10, TRUE, 107374182400, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('b0000000-0000-0000-0000-000000000004', 'ENTERPRISE', 'Enterprise / Network', 'Maximum scale, multi-branch practice networks, and integrations', 9999.00, 99990.00, 250, 2500, 50, TRUE, 536870912000, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

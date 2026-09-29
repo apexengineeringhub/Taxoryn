@@ -12,7 +12,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Button } from '../common/Button';
-import { teamApi } from '../../api/endpoints';
+import { teamApi, locationApi } from '../../api/endpoints';
+import { PracticeBranchLocation } from '../../types';
 
 interface AddTeamMemberModalProps {
   isOpen: boolean;
@@ -54,9 +55,29 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
   const [department, setDepartment] = useState('Taxation');
   const [designation, setDesignation] = useState('Tax Associate');
   const [roleCode, setRoleCode] = useState('TAX_ASSOCIATE');
+  const [locationId, setLocationId] = useState('');
+  const [locations, setLocations] = useState<PracticeBranchLocation[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      locationApi.getLocations().then((locs) => {
+        if (locs && Array.isArray(locs)) {
+          setLocations(locs);
+          const primary = locs.find((l) => l.isHeadOffice);
+          if (primary) {
+            setLocationId(primary.id);
+          } else if (locs.length > 0) {
+            setLocationId(locs[0].id);
+          }
+        }
+      }).catch((err) => {
+        console.warn('Could not load locations for team member modal', err);
+      });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -107,6 +128,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
         department: department.trim(),
         designation: designation.trim(),
         roleCode: roleCode,
+        locationId: locationId || undefined,
       });
 
       setSuccessMessage(`Successfully added ${firstName.trim()} to your practice team!`);
@@ -263,6 +285,27 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Assigned Location (Branch)
+            </label>
+            <select
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-hidden bg-white"
+            >
+              {locations.length === 0 && <option value="">Primary Head Office</option>}
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name} {loc.isHeadOffice ? '(Head Office)' : ''} {loc.city ? `- ${loc.city}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Assign this staff member to an office branch or leave default for Head Office.
+            </p>
           </div>
 
           <div>

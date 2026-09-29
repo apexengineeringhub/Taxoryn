@@ -40,7 +40,7 @@ public class SubscriptionPlanEntity extends AuditableEntity {
 
     @Column(name = "max_users", nullable = false)
     @Builder.Default
-    private int maxUsers = 5;
+    private int maxUsers = 1;
 
     @Column(name = "max_clients", nullable = false)
     @Builder.Default

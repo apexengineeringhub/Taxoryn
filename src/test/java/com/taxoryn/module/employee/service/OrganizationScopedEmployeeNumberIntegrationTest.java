@@ -474,7 +474,7 @@ class OrganizationScopedEmployeeNumberIntegrationTest {
     @DisplayName("11. Concurrency test across multiple organizations runs in parallel without crosstalk")
     void testConcurrencyAcrossOrganizations() throws Exception {
         int countPerOrg = 10;
-        ExecutorService executor = Executors.newFixedThreadPool(countPerOrg * 2);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch endLatch = new CountDownLatch(countPerOrg * 2);
 

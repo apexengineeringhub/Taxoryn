@@ -25,6 +25,10 @@ public interface EmployeeLocationRepository extends JpaRepository<EmployeeLocati
     void deleteByLocationId(@Param("locationId") UUID locationId);
 
     @Modifying
+    @Query("DELETE FROM EmployeeLocationEntity el WHERE el.id.employeeId = :employeeId")
+    void deleteByEmployeeId(@Param("employeeId") UUID employeeId);
+
+    @Modifying
     @Query("DELETE FROM EmployeeLocationEntity el WHERE el.id.employeeId = :employeeId AND el.id.locationId = :locationId")
     void deleteByEmployeeIdAndLocationId(@Param("employeeId") UUID employeeId, @Param("locationId") UUID locationId);
 

@@ -82,17 +82,17 @@ public class PracticeProfileServiceImpl implements PracticeProfileService {
         String billingInterval = sub != null && sub.getBillingInterval() != null ? sub.getBillingInterval().name() : "MONTHLY";
 
         long activeUsers = userRepository.countByOrganizationIdAndClientIdIsNull(organizationId);
-        int maxUsers = sub != null ? sub.getMaxUsers() : 5;
+        int maxUsers = sub != null ? sub.getMaxUsers() : com.taxoryn.module.subscription.entity.SubscriptionPlanDefaults.getDefaultMaxUsers(plan);
 
         long activeClients = clientRepository.countByOrganizationId(organizationId);
-        int maxClients = sub != null ? sub.getMaxClients() : 25;
+        int maxClients = sub != null ? sub.getMaxClients() : com.taxoryn.module.subscription.entity.SubscriptionPlanDefaults.getDefaultMaxClients(plan);
 
         long activeLocations = locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId);
         int maxLocations = subscriptionPlanEntitlementService.getMaxLocations(plan);
         boolean multiLocationEnabled = subscriptionPlanEntitlementService.isMultiLocationEnabled(plan);
 
         long storageBytes = documentRepository.getTotalStorageBytesByOrganizationId(organizationId);
-        long maxStorageBytes = sub != null ? sub.getMaxStorageBytes() : 5368709120L;
+        long maxStorageBytes = sub != null ? sub.getMaxStorageBytes() : com.taxoryn.module.subscription.entity.SubscriptionPlanDefaults.getDefaultMaxStorageBytes(plan);
 
         List<String> enabledModules = organizationModuleRepository.findByOrganizationId(organizationId).stream()
                 .filter(com.taxoryn.module.moduleconfig.entity.OrganizationModuleEntity::isEnabled)
