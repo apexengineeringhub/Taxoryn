@@ -81,15 +81,18 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
     }
 
     private boolean isModuleDirectlyEnabled(UUID organizationId, ProductModuleEntity catalogModule, ProductModuleCode effectiveCode) {
+        ProductModuleCategory category = catalogModule != null ? catalogModule.getCategory() : effectiveCode.getDefaultCategory();
+        boolean isMandatory = catalogModule != null ? catalogModule.isMandatory() : effectiveCode.isMandatory();
+        boolean isConfigurable = catalogModule != null ? catalogModule.isConfigurable() : effectiveCode.isConfigurable();
+        boolean isSubControlled = catalogModule != null ? catalogModule.isSubscriptionControlled() : effectiveCode.isSubscriptionControlled();
+
         // 1. Core and Foundation modules can NEVER be disabled by organization configuration
-        if (catalogModule.isMandatory() || !catalogModule.isConfigurable()
-                || catalogModule.getCategory() == ProductModuleCategory.CORE
-                || catalogModule.getCategory() == ProductModuleCategory.FOUNDATION) {
+        if (isMandatory || !isConfigurable || category == ProductModuleCategory.CORE || category == ProductModuleCategory.FOUNDATION) {
             return true;
         }
 
         // 2. Check Subscription Plan Entitlement Gate (for BUSINESS / OPTIONAL)
-        if (catalogModule.isSubscriptionControlled()) {
+        if (isSubControlled) {
             SubscriptionEntity subscription = subscriptionRepository.findByOrganizationId(organizationId).orElse(null);
             if (subscription != null) {
                 if (!subscriptionPlanEntitlementService.isModuleEntitled(subscription.getPlan(), effectiveCode.name())) {
@@ -107,7 +110,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         }
 
         // 4. Fall back to catalog default
-        return catalogModule.isEnabledByDefault();
+        return catalogModule != null ? catalogModule.isEnabledByDefault() : true;
     }
 
     @Override
@@ -120,13 +123,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
         ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
 
         // Fetch catalog definition
-        Optional<ProductModuleEntity> catalogOpt = productModuleRepository.findByCode(effectiveCode);
-        if (catalogOpt.isEmpty()) {
-            // If not registered in catalog, default to enabled for core functionality
-            return true;
-        }
-
-        ProductModuleEntity catalogModule = catalogOpt.get();
+        ProductModuleEntity catalogModule = productModuleRepository.findByCode(effectiveCode).orElse(null);
 
         // 1. Direct Module Check
         if (!isModuleDirectlyEnabled(organizationId, catalogModule, effectiveCode)) {
@@ -142,6 +139,7 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         return true;
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -192,7 +190,21 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
         ProductModuleEntity catalogModule = productModuleRepository.findByCode(effectiveCode)
-                .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", effectiveCode));
+                .orElseGet(() -> {
+                    ProductModuleEntity entity = ProductModuleEntity.builder()
+                            .code(effectiveCode)
+                            .name(effectiveCode.getDisplayName())
+                            .description(effectiveCode.getDisplayName())
+                            .category(effectiveCode.getDefaultCategory())
+                            .status("ACTIVE")
+                            .enabledByDefault(true)
+                            .mandatory(effectiveCode.isMandatory())
+                            .configurable(effectiveCode.isConfigurable())
+                            .subscriptionControlled(effectiveCode.isSubscriptionControlled())
+                            .usageControlled(effectiveCode.isUsageControlled())
+                            .build();
+                    return productModuleRepository.save(entity);
+                });
 
         Optional<OrganizationModuleEntity> configOpt = organizationModuleRepository
                 .findByOrganizationIdAndModuleCode(organizationId, effectiveCode);
@@ -213,7 +225,21 @@ public class ModuleConfigurationServiceImpl implements ModuleConfigurationServic
 
         ProductModuleCode effectiveCode = canonicalizeModuleCode(moduleCode);
         ProductModuleEntity catalogModule = productModuleRepository.findByCode(effectiveCode)
-                .orElseThrow(() -> new ResourceNotFoundException("ProductModule", "code", effectiveCode));
+                .orElseGet(() -> {
+                    ProductModuleEntity entity = ProductModuleEntity.builder()
+                            .code(effectiveCode)
+                            .name(effectiveCode.getDisplayName())
+                            .description(effectiveCode.getDisplayName())
+                            .category(effectiveCode.getDefaultCategory())
+                            .status("ACTIVE")
+                            .enabledByDefault(true)
+                            .mandatory(effectiveCode.isMandatory())
+                            .configurable(effectiveCode.isConfigurable())
+                            .subscriptionControlled(effectiveCode.isSubscriptionControlled())
+                            .usageControlled(effectiveCode.isUsageControlled())
+                            .build();
+                    return productModuleRepository.save(entity);
+                });
 
         // Enforce: CORE and FOUNDATION modules cannot be disabled
         if (!enabled && (catalogModule.isMandatory() || !catalogModule.isConfigurable()

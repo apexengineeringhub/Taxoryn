@@ -102,6 +102,8 @@ public class ItrModuleEntitlementIntegrationTest {
                 .status(OrganizationStatus.ACTIVE)
                 .build());
 
+        TenantContext.setTenantId(org.getId());
+
         LocationEntity l = LocationEntity.builder()
                 .name("Mumbai HQ")
                 .code("BOM-" + UUID.randomUUID().toString().substring(0, 4))
@@ -156,6 +158,8 @@ public class ItrModuleEntitlementIntegrationTest {
                 .build();
         profile.setOrganizationId(org.getId());
         itrProfile = itrProfileRepository.save(profile);
+
+        TenantContext.clear();
     }
 
     @AfterEach
@@ -165,12 +169,14 @@ public class ItrModuleEntitlementIntegrationTest {
     }
 
     private void cleanUp() {
+        TenantContext.clear();
         organizationModuleRepository.deleteAll();
         itrProfileRepository.deleteAll();
         clientRepository.deleteAll();
         locationRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
+        TenantContext.clear();
     }
 
     @Test

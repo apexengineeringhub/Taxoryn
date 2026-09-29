@@ -46,7 +46,10 @@ import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.springframework.http.MediaType;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -222,11 +225,15 @@ public class ModuleAndSubscriptionEntitlementSecurityTest {
             if (productModuleRepository.findByCode(code).isEmpty()) {
                 productModuleRepository.save(ProductModuleEntity.builder()
                         .code(code)
-                        .name(code.name())
-                        .category(ProductModuleCategory.CORE)
+                        .name(code.getDisplayName())
+                        .category(code.getDefaultCategory())
                         .status("ACTIVE")
                         .enabledByDefault(true)
                         .displayOrder(order++)
+                        .mandatory(code.isMandatory())
+                        .configurable(code.isConfigurable())
+                        .subscriptionControlled(code.isSubscriptionControlled())
+                        .usageControlled(code.isUsageControlled())
                         .build());
             }
         }
@@ -370,29 +377,39 @@ public class ModuleAndSubscriptionEntitlementSecurityTest {
     }
 
     @Test
-    @DisplayName("Scenario B4: Disabled BILLING module blocks billing endpoints with 403 Forbidden")
+    @DisplayName("Scenario B4: Disabling mandatory BILLING module is rejected and BILLING endpoints remain accessible")
     void testB4_disabledBillingModuleForbidden() throws Exception {
-        TenantContext.setTenantId(org.getId());
-        moduleConfigurationService.updateModuleStatus(org.getId(), ProductModuleCode.BILLING, false);
-        TenantContext.clear();
+        com.taxoryn.module.moduleconfig.dto.UpdateOrganizationModuleRequest disableReq =
+                new com.taxoryn.module.moduleconfig.dto.UpdateOrganizationModuleRequest(false);
+
+        mockMvc.perform(put("/api/v1/modules/BILLING")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(disableReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Module BILLING is a mandatory FOUNDATION module and cannot be disabled."));
 
         mockMvc.perform(get("/api/v1/invoices")
                         .header("Authorization", adminToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Product module BILLING is disabled for this organization"));
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("Scenario B5: Disabled REPORTS module blocks reporting endpoints with 403 Forbidden")
+    @DisplayName("Scenario B5: Disabling mandatory REPORTS module is rejected and REPORTS endpoints remain accessible")
     void testB5_disabledReportsModuleForbidden() throws Exception {
-        TenantContext.setTenantId(org.getId());
-        moduleConfigurationService.updateModuleStatus(org.getId(), ProductModuleCode.REPORTS, false);
-        TenantContext.clear();
+        com.taxoryn.module.moduleconfig.dto.UpdateOrganizationModuleRequest disableReq =
+                new com.taxoryn.module.moduleconfig.dto.UpdateOrganizationModuleRequest(false);
+
+        mockMvc.perform(put("/api/v1/modules/REPORTS")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(disableReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Module REPORTS is a mandatory FOUNDATION module and cannot be disabled."));
 
         mockMvc.perform(get("/api/v1/reports/overview")
                         .header("Authorization", adminToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Product module REPORTS is disabled for this organization"));
+                .andExpect(status().isOk());
     }
 
     @Test
