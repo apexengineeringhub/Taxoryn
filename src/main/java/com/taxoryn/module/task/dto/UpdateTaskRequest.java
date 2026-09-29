@@ -22,6 +22,7 @@ import java.util.UUID;
 public class UpdateTaskRequest {
 
     private UUID clientId;
+    private UUID engagementId;
 
     @JsonAlias({"assignedUserId", "assignedTo"})
     private UUID assignedTo;
@@ -37,6 +38,7 @@ public class UpdateTaskRequest {
     private TaskCategory taskCategory;
     private TaskStatus status;
     private TaskPriority priority;
+    private LocalDate startDate;
     private LocalDate dueDate;
     private UUID complianceId;
     private UUID documentRequestId;
@@ -44,6 +46,8 @@ public class UpdateTaskRequest {
     private String blockedReason;
     private Boolean clearBlockedReason;
     private String notes;
+    private Integer estimatedMinutes;
+    private Integer actualMinutes;
 
     public UUID getAssignedUserId() {
         return assignedTo;

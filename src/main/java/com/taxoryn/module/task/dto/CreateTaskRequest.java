@@ -22,6 +22,8 @@ import java.util.UUID;
 public class CreateTaskRequest {
 
     private UUID clientId;
+    private UUID engagementId;
+    private UUID workInstanceId;
 
     @JsonAlias({"assignedUserId", "assignedTo"})
     private UUID assignedTo;
@@ -42,12 +44,15 @@ public class CreateTaskRequest {
     @Builder.Default
     private TaskPriority priority = TaskPriority.MEDIUM;
 
+    private LocalDate startDate;
     private LocalDate dueDate;
     private UUID complianceId;
     private UUID documentRequestId;
     private UUID noticeId;
     private String blockedReason;
     private String notes;
+    private Integer estimatedMinutes;
+    private Integer actualMinutes;
 
     public UUID getAssignedUserId() {
         return assignedTo;

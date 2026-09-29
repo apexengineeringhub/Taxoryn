@@ -87,6 +87,21 @@ public class TaskEntity extends TenantAuditableEntity {
     @Column(name = "work_template_task_id")
     private UUID workTemplateTaskId;
 
+    @Column(name = "engagement_id")
+    private UUID engagementId;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "completed_by")
+    private UUID completedBy;
+
+    @Column(name = "estimated_minutes")
+    private Integer estimatedMinutes;
+
+    @Column(name = "actual_minutes")
+    private Integer actualMinutes;
+
     @Column(name = "blocked_reason", columnDefinition = "TEXT")
     private String blockedReason;
 

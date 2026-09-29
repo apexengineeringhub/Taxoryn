@@ -305,6 +305,7 @@ public class EngagementWorkServiceImpl implements EngagementWorkService {
 
             TaskEntity task = TaskEntity.builder()
                     .clientId(engagement.getClientId())
+                    .engagementId(engagement.getId())
                     .assignedTo(assignedUserId)
                     .workInstanceId(savedInstance.getId())
                     .workTemplateTaskId(tplTask.getId())
@@ -314,6 +315,7 @@ public class EngagementWorkServiceImpl implements EngagementWorkService {
                     .taskCategory(taskCategory)
                     .status(TaskStatus.TODO)
                     .priority(tplTask.getDefaultPriority())
+                    .startDate(periodStart)
                     .dueDate(taskDueDate)
                     .notes("Generated from Work Template: " + template.getName())
                     .build();

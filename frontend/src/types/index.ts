@@ -756,19 +756,31 @@ export interface Task {
   organizationId: string;
   clientId: string;
   clientName?: string;
+  engagementId?: string;
+  engagementTitle?: string;
+  engagementCode?: string;
+  workInstanceId?: string;
+  workTemplateTaskId?: string;
   assignedTo?: string;
   assigneeName?: string;
   assigneeEmail?: string;
   title: string;
   description?: string;
   category?: string;
+  taskCategory?: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   status: TaskStatus;
+  startDate?: string;
   dueDate: string;
   completedDate?: string;
   completedAt?: string;
+  completedBy?: string;
+  completedByName?: string;
+  estimatedMinutes?: number;
+  actualMinutes?: number;
   estimatedHours?: number;
   actualHours?: number;
+  notes?: string;
   unassign?: boolean;
 
   // Task & Compliance Enhancement V1.1
@@ -785,6 +797,59 @@ export interface Task {
   isOverdue?: boolean;
   isDueToday?: boolean;
   isDueThisWeek?: boolean;
+}
+
+export interface TaskCalendarItem {
+  id: string;
+  title: string;
+  taskCategory: string;
+  status: TaskStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  startDate?: string;
+  dueDate: string;
+  clientId?: string;
+  clientName?: string;
+  engagementId?: string;
+  engagementTitle?: string;
+  engagementCode?: string;
+  assignedTo?: string;
+  assigneeName?: string;
+  workInstanceId?: string;
+  isOverdue?: boolean;
+}
+
+export interface TaskCalendarParams {
+  startDate: string;
+  endDate: string;
+  clientId?: string;
+  engagementId?: string;
+  assignedTo?: string;
+  status?: TaskStatus;
+  taskCategory?: string;
+  priority?: string;
+}
+
+export interface TeamWorkloadSummary {
+  userId?: string;
+  employeeId?: string;
+  name: string;
+  email: string;
+  designation?: string;
+  department?: string;
+  totalAssigned: number;
+  todoCount: number;
+  inProgressCount: number;
+  underReviewCount: number;
+  blockedCount: number;
+  completedCount: number;
+  overdueCount: number;
+  totalEstimatedMinutes?: number;
+  totalActualMinutes?: number;
+}
+
+export interface CompleteTaskPayload {
+  actualMinutes?: number;
+  notes?: string;
 }
 
 export interface WorklistSummary {
@@ -806,6 +871,9 @@ export interface TaskWorklistParams {
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   category?: string;
   clientId?: string;
+  engagementId?: string;
+  workInstanceId?: string;
+  assignedTo?: string;
   assigneeId?: string;
   search?: string;
   page?: number;

@@ -68,6 +68,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskMapper taskMapper;
     private final NotificationService notificationService;
     private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+    private final com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository;
 
     public TaskServiceImpl(
             TaskRepository taskRepository,
@@ -83,7 +84,25 @@ public class TaskServiceImpl implements TaskService {
     ) {
         this(taskRepository, clientRepository, employeeRepository, userRepository,
                 complianceObligationRepository, documentRequestRepository, documentRequestItemRepository,
-                securityScopeEvaluator, taskMapper, notificationService, null);
+                securityScopeEvaluator, taskMapper, notificationService, null, null);
+    }
+
+    public TaskServiceImpl(
+            TaskRepository taskRepository,
+            ClientRepository clientRepository,
+            EmployeeRepository employeeRepository,
+            UserRepository userRepository,
+            ComplianceObligationRepository complianceObligationRepository,
+            DocumentRequestRepository documentRequestRepository,
+            DocumentRequestItemRepository documentRequestItemRepository,
+            com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            TaskMapper taskMapper,
+            NotificationService notificationService,
+            com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository
+    ) {
+        this(taskRepository, clientRepository, employeeRepository, userRepository,
+                complianceObligationRepository, documentRequestRepository, documentRequestItemRepository,
+                securityScopeEvaluator, taskMapper, notificationService, null, engagementRepository);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -99,7 +118,8 @@ public class TaskServiceImpl implements TaskService {
             TaskMapper taskMapper,
             NotificationService notificationService,
             @org.springframework.beans.factory.annotation.Autowired(required = false)
-            com.taxoryn.module.organization.repository.LocationRepository locationRepository
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository
     ) {
         this.taskRepository = taskRepository;
         this.clientRepository = clientRepository;
@@ -112,6 +132,7 @@ public class TaskServiceImpl implements TaskService {
         this.taskMapper = taskMapper;
         this.notificationService = notificationService;
         this.locationRepository = locationRepository;
+        this.engagementRepository = engagementRepository;
     }
 
     @Override
@@ -189,6 +210,14 @@ public class TaskServiceImpl implements TaskService {
 
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
+            }
+
+            if (filterRequest.getEngagementId() != null) {
+                predicates.add(cb.equal(root.get("engagementId"), filterRequest.getEngagementId()));
+            }
+
+            if (filterRequest.getWorkInstanceId() != null) {
+                predicates.add(cb.equal(root.get("workInstanceId"), filterRequest.getWorkInstanceId()));
             }
 
             if (filterRequest.getWorkItemId() != null) {
@@ -305,20 +334,34 @@ public class TaskServiceImpl implements TaskService {
     public TaskDto createTask(CreateTaskRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        if (request.getClientId() != null) {
-            clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
+        UUID clientId = request.getClientId();
+        UUID locationId = request.getLocationId();
+
+        // If clientId is null but engagementId is provided, resolve from Engagement
+        if (clientId == null && request.getEngagementId() != null) {
+            var engOpt = engagementRepository.findByIdAndOrganizationId(request.getEngagementId(), organizationId);
+            if (engOpt.isPresent()) {
+                clientId = engOpt.get().getClientId();
+                if (locationId == null) {
+                    locationId = engOpt.get().getLocationId();
+                }
+            }
         }
 
-        UUID locationId = request.getLocationId();
-        if (locationId == null && request.getClientId() != null) {
-            locationId = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
-                    .map(ClientEntity::getLocationId)
-                    .orElse(null);
+        if (clientId != null) {
+            clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
+            if (locationId == null) {
+                locationId = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                        .map(ClientEntity::getLocationId)
+                        .orElse(null);
+            }
         }
 
         TaskEntity task = TaskEntity.builder()
-                .clientId(request.getClientId())
+                .clientId(clientId)
+                .engagementId(request.getEngagementId())
+                .workInstanceId(request.getWorkInstanceId())
                 .locationId(locationId)
                 .workItemId(request.getWorkItemId())
                 .assignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId))
@@ -327,11 +370,14 @@ public class TaskServiceImpl implements TaskService {
                 .taskCategory(request.getTaskCategory())
                 .status(TaskStatus.TODO)
                 .priority(request.getPriority())
+                .startDate(request.getStartDate())
                 .dueDate(request.getDueDate())
                 .complianceId(request.getComplianceId())
                 .documentRequestId(request.getDocumentRequestId())
                 .blockedReason(request.getBlockedReason())
                 .notes(request.getNotes())
+                .estimatedMinutes(request.getEstimatedMinutes())
+                .actualMinutes(request.getActualMinutes())
                 .build();
         task.setOrganizationId(organizationId);
 
@@ -399,6 +445,9 @@ public class TaskServiceImpl implements TaskService {
                     .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
             task.setClientId(request.getClientId());
         }
+        if (request.getEngagementId() != null) {
+            task.setEngagementId(request.getEngagementId());
+        }
         if (Boolean.TRUE.equals(request.getUnassign())) {
             task.setAssignedTo(null);
         } else if (request.getAssignedTo() != null) {
@@ -411,16 +460,21 @@ public class TaskServiceImpl implements TaskService {
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getTaskCategory() != null) task.setTaskCategory(request.getTaskCategory());
         if (request.getPriority() != null) task.setPriority(request.getPriority());
+        if (request.getStartDate() != null) task.setStartDate(request.getStartDate());
         if (request.getDueDate() != null) task.setDueDate(request.getDueDate());
         if (request.getComplianceId() != null) task.setComplianceId(request.getComplianceId());
         if (request.getDocumentRequestId() != null) task.setDocumentRequestId(request.getDocumentRequestId());
+        if (request.getEstimatedMinutes() != null) task.setEstimatedMinutes(request.getEstimatedMinutes());
+        if (request.getActualMinutes() != null) task.setActualMinutes(request.getActualMinutes());
 
         if (request.getStatus() != null) {
             task.setStatus(request.getStatus());
             if (request.getStatus() == TaskStatus.COMPLETED && previousStatus != TaskStatus.COMPLETED) {
                 task.setCompletedAt(Instant.now());
+                task.setCompletedBy(SecurityUtils.getCurrentUserId());
             } else if (request.getStatus() != TaskStatus.COMPLETED) {
                 task.setCompletedAt(null);
+                task.setCompletedBy(null);
             }
             if (request.getStatus() == TaskStatus.BLOCKED) {
                 task.setBlockedReason(request.getBlockedReason() != null ? request.getBlockedReason() : "Waiting for client documents or action");
@@ -566,6 +620,14 @@ public class TaskServiceImpl implements TaskService {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
             }
 
+            if (filterRequest.getEngagementId() != null) {
+                predicates.add(cb.equal(root.get("engagementId"), filterRequest.getEngagementId()));
+            }
+
+            if (filterRequest.getWorkInstanceId() != null) {
+                predicates.add(cb.equal(root.get("workInstanceId"), filterRequest.getWorkInstanceId()));
+            }
+
             if (filterRequest.getAssignedTo() != null) {
                 Set<UUID> candidateIds = resolveCandidateAssigneeIds(filterRequest.getAssignedTo(), organizationId);
                 predicates.add(root.get("assignedTo").in(candidateIds));
@@ -597,6 +659,243 @@ public class TaskServiceImpl implements TaskService {
         Pageable pageable = filterRequest.toPageable();
         Page<TaskEntity> page = taskRepository.findAll(spec, pageable);
         return PagedResponse.of(page, this::enrichDto);
+    }
+
+    @Override
+    @Transactional
+    public TaskDto updateTaskPriority(UUID taskId, com.taxoryn.module.task.dto.UpdateTaskPriorityRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        TaskEntity task = taskRepository.findByIdAndOrganizationId(taskId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task", "id", taskId));
+
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            Set<UUID> accessibleIds = scope.getAccessibleAssigneeIds();
+            if (task.getAssignedTo() != null && (accessibleIds == null || !accessibleIds.contains(task.getAssignedTo()))) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission to modify tasks outside your department or assigned workload.");
+            }
+        }
+
+        task.setPriority(request.getPriority());
+        TaskEntity saved = taskRepository.save(task);
+        log.info("Updated priority for task {} to {} in organization {}", taskId, request.getPriority(), organizationId);
+        return enrichDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public TaskDto completeTask(UUID taskId, com.taxoryn.module.task.dto.CompleteTaskRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        TaskEntity task = taskRepository.findByIdAndOrganizationId(taskId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task", "id", taskId));
+
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        if (!scope.isFirmAdmin()) {
+            Set<UUID> accessibleIds = scope.getAccessibleAssigneeIds();
+            if (task.getAssignedTo() != null && (accessibleIds == null || !accessibleIds.contains(task.getAssignedTo()))) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You do not have permission to modify tasks outside your department or assigned workload.");
+            }
+        }
+
+        task.setStatus(TaskStatus.COMPLETED);
+        task.setCompletedAt(Instant.now());
+        task.setCompletedBy(SecurityUtils.getCurrentUserId());
+
+        if (request != null) {
+            if (request.getActualMinutes() != null) {
+                task.setActualMinutes(request.getActualMinutes());
+            }
+            if (StringUtils.hasText(request.getNotes())) {
+                String existing = task.getNotes();
+                if (StringUtils.hasText(existing)) {
+                    task.setNotes(existing + "\n[Completion Notes]: " + request.getNotes().trim());
+                } else {
+                    task.setNotes("[Completion Notes]: " + request.getNotes().trim());
+                }
+            }
+        }
+
+        TaskEntity saved = taskRepository.save(task);
+        log.info("Task {} marked as COMPLETED by user {} for organization {}", taskId, SecurityUtils.getCurrentUserId(), organizationId);
+        return enrichDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.task.dto.TaskCalendarDto> getCalendarTasks(com.taxoryn.module.task.dto.TaskCalendarFilterRequest filterRequest) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+
+        LocalDate start = filterRequest.getStartDate();
+        LocalDate end = filterRequest.getEndDate();
+
+        Specification<TaskEntity> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            // Date window matching:
+            // 1. dueDate BETWEEN start AND end
+            // 2. OR (startDate IS NOT NULL AND startDate BETWEEN start AND end)
+            // 3. OR (startDate IS NOT NULL AND dueDate IS NOT NULL AND startDate <= start AND dueDate >= end)
+            Predicate dueInRange = cb.between(root.get("dueDate"), start, end);
+            Predicate startInRange = cb.and(
+                    cb.isNotNull(root.get("startDate")),
+                    cb.between(root.get("startDate"), start, end)
+            );
+            Predicate spanRange = cb.and(
+                    cb.isNotNull(root.get("startDate")),
+                    cb.isNotNull(root.get("dueDate")),
+                    cb.lessThanOrEqualTo(root.get("startDate"), start),
+                    cb.greaterThanOrEqualTo(root.get("dueDate"), end)
+            );
+            predicates.add(cb.or(dueInRange, startInRange, spanRange));
+
+            // Status filter: default to exclude CANCELLED unless specific status is requested
+            if (filterRequest.getStatus() != null) {
+                predicates.add(cb.equal(root.get("status"), filterRequest.getStatus()));
+            } else {
+                predicates.add(cb.notEqual(root.get("status"), TaskStatus.CANCELLED));
+            }
+
+            // Assignee scoping & filter
+            if (filterRequest.getAssignedTo() != null) {
+                Set<UUID> candidateIds = resolveCandidateAssigneeIds(filterRequest.getAssignedTo(), organizationId);
+                predicates.add(root.get("assignedTo").in(candidateIds));
+            } else if (scope.isStaff()) {
+                Set<UUID> selfIds = scope.getAccessibleAssigneeIds();
+                if (selfIds != null && !selfIds.isEmpty()) {
+                    predicates.add(root.get("assignedTo").in(selfIds));
+                } else {
+                    predicates.add(cb.disjunction());
+                }
+            } else if (scope.isDepartmentManager()) {
+                Set<UUID> deptIds = scope.getAccessibleAssigneeIds();
+                if (deptIds != null && !deptIds.isEmpty()) {
+                    predicates.add(root.get("assignedTo").in(deptIds));
+                }
+            }
+
+            if (filterRequest.getClientId() != null) {
+                predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
+            }
+
+            if (filterRequest.getEngagementId() != null) {
+                predicates.add(cb.equal(root.get("engagementId"), filterRequest.getEngagementId()));
+            }
+
+            if (filterRequest.getTaskCategory() != null) {
+                predicates.add(cb.equal(root.get("taskCategory"), filterRequest.getTaskCategory()));
+            }
+
+            if (filterRequest.getPriority() != null) {
+                predicates.add(cb.equal(root.get("priority"), filterRequest.getPriority()));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        List<TaskEntity> tasks = taskRepository.findAll(spec, Sort.by(Sort.Direction.ASC, "dueDate"));
+        LocalDate today = LocalDate.now();
+
+        return tasks.stream().map(task -> {
+            boolean isNotClosed = task.getStatus() != TaskStatus.COMPLETED && task.getStatus() != TaskStatus.CANCELLED;
+            boolean isOverdue = task.getDueDate() != null && isNotClosed && today.isAfter(task.getDueDate());
+
+            com.taxoryn.module.task.dto.TaskCalendarDto.TaskCalendarDtoBuilder builder = com.taxoryn.module.task.dto.TaskCalendarDto.builder()
+                    .id(task.getId())
+                    .title(task.getTitle())
+                    .taskCategory(task.getTaskCategory())
+                    .status(task.getStatus())
+                    .priority(task.getPriority())
+                    .startDate(task.getStartDate())
+                    .dueDate(task.getDueDate())
+                    .clientId(task.getClientId())
+                    .engagementId(task.getEngagementId())
+                    .workInstanceId(task.getWorkInstanceId())
+                    .assignedTo(task.getAssignedTo())
+                    .isOverdue(isOverdue);
+
+            if (task.getClientId() != null) {
+                clientRepository.findByIdAndOrganizationId(task.getClientId(), organizationId)
+                        .ifPresent(c -> builder.clientName(c.getDisplayName()));
+            }
+            if (task.getEngagementId() != null) {
+                engagementRepository.findByIdAndOrganizationId(task.getEngagementId(), organizationId)
+                        .ifPresent(e -> {
+                            builder.engagementTitle(e.getName());
+                            builder.engagementCode(e.getEngagementCode());
+                        });
+            }
+            if (task.getAssignedTo() != null) {
+                employeeRepository.findByIdAndOrganizationId(task.getAssignedTo(), organizationId)
+                        .ifPresentOrElse(emp -> builder.assigneeName(emp.getFullName()), () -> {
+                            userRepository.findByIdAndOrganizationId(task.getAssignedTo(), organizationId)
+                                    .ifPresent(u -> builder.assigneeName(u.getFullName()));
+                        });
+            }
+
+            return builder.build();
+        }).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.task.dto.TeamWorkloadSummaryDto> getTeamWorkload() {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        LocalDate today = LocalDate.now();
+
+        List<com.taxoryn.module.employee.entity.EmployeeEntity> employees = employeeRepository.findAllByOrganizationId(organizationId);
+        List<TaskEntity> allTasks = taskRepository.findAllByOrganizationId(organizationId);
+
+        List<com.taxoryn.module.task.dto.TeamWorkloadSummaryDto> result = new ArrayList<>();
+
+        for (com.taxoryn.module.employee.entity.EmployeeEntity emp : employees) {
+            Set<UUID> empIds = resolveCandidateAssigneeIds(emp.getId(), organizationId);
+            List<TaskEntity> empTasks = allTasks.stream()
+                    .filter(t -> t.getAssignedTo() != null && empIds.contains(t.getAssignedTo()))
+                    .filter(t -> t.getStatus() != TaskStatus.CANCELLED)
+                    .toList();
+
+            long totalAssigned = empTasks.size();
+            long todo = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.TODO).count();
+            long inProgress = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).count();
+            long underReview = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.UNDER_REVIEW).count();
+            long blocked = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.BLOCKED).count();
+            long completed = empTasks.stream().filter(t -> t.getStatus() == TaskStatus.COMPLETED).count();
+            long overdue = empTasks.stream().filter(t -> {
+                boolean isOpen = t.getStatus() != TaskStatus.COMPLETED && t.getStatus() != TaskStatus.CANCELLED;
+                return isOpen && t.getDueDate() != null && today.isAfter(t.getDueDate());
+            }).count();
+
+            int totalEstMinutes = empTasks.stream()
+                    .mapToInt(t -> t.getEstimatedMinutes() != null ? t.getEstimatedMinutes() : 0)
+                    .sum();
+            int totalActMinutes = empTasks.stream()
+                    .mapToInt(t -> t.getActualMinutes() != null ? t.getActualMinutes() : 0)
+                    .sum();
+
+            result.add(com.taxoryn.module.task.dto.TeamWorkloadSummaryDto.builder()
+                    .employeeId(emp.getId())
+                    .userId(emp.getUserId())
+                    .name(emp.getFullName())
+                    .email(emp.getEmail())
+                    .designation(emp.getDesignation())
+                    .department(emp.getDepartment())
+                    .totalAssigned(totalAssigned)
+                    .todoCount(todo)
+                    .inProgressCount(inProgress)
+                    .underReviewCount(underReview)
+                    .blockedCount(blocked)
+                    .completedCount(completed)
+                    .overdueCount(overdue)
+                    .totalEstimatedMinutes(totalEstMinutes)
+                    .totalActualMinutes(totalActMinutes)
+                    .build());
+        }
+
+        return result;
     }
 
     @Override
@@ -753,6 +1052,29 @@ public class TaskServiceImpl implements TaskService {
         dto.setLocationId(entity.getLocationId());
         dto.setNotes(entity.getNotes());
         dto.setAssignedUserId(entity.getAssignedTo());
+        dto.setEngagementId(entity.getEngagementId());
+        dto.setWorkInstanceId(entity.getWorkInstanceId());
+        dto.setWorkTemplateTaskId(entity.getWorkTemplateTaskId());
+        dto.setStartDate(entity.getStartDate());
+        dto.setEstimatedMinutes(entity.getEstimatedMinutes());
+        dto.setActualMinutes(entity.getActualMinutes());
+        dto.setCompletedBy(entity.getCompletedBy());
+
+        if (entity.getEngagementId() != null) {
+            engagementRepository.findByIdAndOrganizationId(entity.getEngagementId(), entity.getOrganizationId())
+                    .ifPresent(eng -> {
+                        dto.setEngagementTitle(eng.getName());
+                        dto.setEngagementCode(eng.getEngagementCode());
+                    });
+        }
+
+        if (entity.getCompletedBy() != null) {
+            userRepository.findByIdAndOrganizationId(entity.getCompletedBy(), entity.getOrganizationId())
+                    .ifPresentOrElse(u -> dto.setCompletedByName(u.getFullName()), () -> {
+                        employeeRepository.findByIdAndOrganizationId(entity.getCompletedBy(), entity.getOrganizationId())
+                                .ifPresent(emp -> dto.setCompletedByName(emp.getFullName()));
+                    });
+        }
 
         if (entity.getLocationId() != null && locationRepository != null) {
             locationRepository.findByIdAndOrganizationId(entity.getLocationId(), entity.getOrganizationId())

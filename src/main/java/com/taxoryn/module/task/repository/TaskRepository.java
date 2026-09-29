@@ -79,6 +79,14 @@ public interface TaskRepository extends JpaRepository<TaskEntity, UUID>, JpaSpec
 
     long countByOrganizationIdAndWorkItemIdAndStatus(UUID organizationId, UUID workItemId, TaskStatus status);
 
+    List<TaskEntity> findAllByOrganizationIdAndEngagementId(UUID organizationId, UUID engagementId);
+
+    long countByOrganizationIdAndEngagementId(UUID organizationId, UUID engagementId);
+
+    List<TaskEntity> findAllByOrganizationIdAndWorkInstanceId(UUID organizationId, UUID workInstanceId);
+
+    long countByOrganizationIdAndWorkInstanceId(UUID organizationId, UUID workInstanceId);
+
     @Query("SELECT DISTINCT t.clientId FROM TaskEntity t WHERE t.organizationId = :organizationId AND t.assignedTo IN :assigneeIds AND t.clientId IS NOT NULL")
     java.util.List<UUID> findClientIdsByAssignedToIn(@Param("organizationId") UUID organizationId, @Param("assigneeIds") Collection<UUID> assigneeIds);
 

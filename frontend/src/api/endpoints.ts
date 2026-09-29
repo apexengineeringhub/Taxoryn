@@ -259,6 +259,10 @@ import {
   WorkInstanceDto,
   WorkInstanceTaskDto,
   UpdateWorkInstanceStatusPayload,
+  TaskCalendarItem,
+  TaskCalendarParams,
+  TeamWorkloadSummary,
+  CompleteTaskPayload,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -452,6 +456,17 @@ export const clientServicesApi = {
   },
 };
 
+export const engagementApi = {
+  getAll: async (params?: { clientId?: string; status?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<any>>>('/v1/engagements', { params: { size: 100, ...params } });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any>>(`/v1/engagements/${id}`);
+    return res.data.data;
+  },
+};
+
 // --- 3c. Compliance Work Items ---
 export const complianceWorkApi = {
   create: async (payload: CreateComplianceWorkItemRequest) => {
@@ -569,6 +584,22 @@ export const taskApi = {
   },
   getWorklistSummary: async () => {
     const res = await apiClient.get<ApiResponse<WorklistSummary>>('/v1/tasks/worklist/summary');
+    return res.data.data;
+  },
+  getCalendar: async (params: TaskCalendarParams) => {
+    const res = await apiClient.get<ApiResponse<TaskCalendarItem[]>>('/v1/tasks/calendar', { params });
+    return res.data.data;
+  },
+  getTeamWorkload: async () => {
+    const res = await apiClient.get<ApiResponse<TeamWorkloadSummary[]>>('/v1/tasks/team');
+    return res.data.data;
+  },
+  updatePriority: async (id: string, priority: string) => {
+    const res = await apiClient.patch<ApiResponse<Task>>(`/v1/tasks/${id}/priority`, { priority });
+    return res.data.data;
+  },
+  complete: async (id: string, payload?: CompleteTaskPayload) => {
+    const res = await apiClient.post<ApiResponse<Task>>(`/v1/tasks/${id}/complete`, payload || {});
     return res.data.data;
   },
 };
