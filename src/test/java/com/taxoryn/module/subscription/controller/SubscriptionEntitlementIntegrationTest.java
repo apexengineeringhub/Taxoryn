@@ -94,7 +94,7 @@ class SubscriptionEntitlementIntegrationTest {
                 .subscriptionPlan(OrganizationEntity.SubscriptionPlan.STARTER)
                 .build());
 
-        // 2. Create Initial Subscription (STARTER: max 5 users, max 2 clients for tight limit testing)
+        // 2. Create Initial Subscription (STARTER: max 1 user, max 2 clients for tight limit testing)
         subscriptionRepository.save(SubscriptionEntity.builder()
                 .organizationId(tenant.getId())
                 .plan(SubscriptionPlan.STARTER)
@@ -102,7 +102,7 @@ class SubscriptionEntitlementIntegrationTest {
                 .billingInterval(BillingInterval.MONTHLY)
                 .startDate(LocalDate.now())
                 .renewalDate(LocalDate.now().plusDays(30))
-                .maxUsers(5)
+                .maxUsers(1)
                 .maxClients(2)
                 .maxStorageBytes(5L * 1024 * 1024 * 1024)
                 .price(new BigDecimal("999.00"))
@@ -152,8 +152,8 @@ class SubscriptionEntitlementIntegrationTest {
                 .andExpect(jsonPath("$.data.entitlements").isArray())
                 .andExpect(jsonPath("$.data.entitlements[0].resourceType").value("TEAM_MEMBER"))
                 .andExpect(jsonPath("$.data.entitlements[0].currentUsage").value(1))
-                .andExpect(jsonPath("$.data.entitlements[0].limit").value(5))
-                .andExpect(jsonPath("$.data.entitlements[0].allowed").value(true))
+                .andExpect(jsonPath("$.data.entitlements[0].limit").value(1))
+                .andExpect(jsonPath("$.data.entitlements[0].allowed").value(false))
                 .andExpect(jsonPath("$.data.entitlements[1].resourceType").value("CLIENT"))
                 .andExpect(jsonPath("$.data.entitlements[1].currentUsage").value(0))
                 .andExpect(jsonPath("$.data.entitlements[1].limit").value(2));
@@ -167,8 +167,27 @@ class SubscriptionEntitlementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.resourceType").value("TEAM_MEMBER"))
                 .andExpect(jsonPath("$.data.currentUsage").value(1))
-                .andExpect(jsonPath("$.data.limit").value(5))
-                .andExpect(jsonPath("$.data.allowed").value(true));
+                .andExpect(jsonPath("$.data.limit").value(1))
+                .andExpect(jsonPath("$.data.allowed").value(false));
+    }
+
+    @Test
+    @DisplayName("Team Member Quota: 2nd user creation blocked under STARTER 1-user limit")
+    void testTeamMemberCreationQuotaEnforced() throws Exception {
+        com.taxoryn.module.employee.dto.CreateEmployeeRequest empReq = com.taxoryn.module.employee.dto.CreateEmployeeRequest.builder()
+                .firstName("Anita")
+                .lastName("Desai")
+                .email("anita.desai@apexcapractice.com")
+                .designation("Junior Accountant")
+                .department("Accounting")
+                .build();
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(empReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("SUBSCRIPTION_LIMIT_EXCEEDED"));
     }
 
     @Test

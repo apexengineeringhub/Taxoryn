@@ -66,4 +66,10 @@ public class UpdateEmployeeRequest {
 
     @Schema(description = "Optional assigned role code (e.g. TAX_PROFESSIONAL, PRACTITIONER, MANAGER, STAFF)")
     private String roleCode;
+
+    @Schema(description = "Optional assigned primary location / branch ID")
+    private UUID locationId;
+
+    @Schema(description = "Optional assigned location / branch IDs")
+    private java.util.List<UUID> locationIds;
 }

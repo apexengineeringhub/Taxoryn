@@ -98,10 +98,10 @@ public class PlanRecommendationServiceImpl implements PlanRecommendationService 
                 .planName("Starter Practice")
                 .justification(justification)
                 .matchingCriteria(List.of("Solo practitioner or starting practice", "Single location", "Core compliance suite"))
-                .keyFeatures(List.of("1 Location", "5 Users", "25 Clients", "Core Tax Modules (GST, ITR, TDS, Notices)", "Client Vault"))
+                .keyFeatures(List.of("1 Location", "1 Staff User", "25 Clients", "Core Tax Modules (GST, ITR, TDS, Notices)", "Client Vault"))
                 .multiLocationEnabled(false)
                 .maxLocations(1)
-                .maxUsers(5)
+                .maxUsers(1)
                 .maxClients(25)
                 .build();
     }

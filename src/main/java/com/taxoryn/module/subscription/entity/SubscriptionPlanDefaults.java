@@ -13,7 +13,7 @@ public final class SubscriptionPlanDefaults {
 
     public static int getDefaultMaxUsers(SubscriptionPlan plan) {
         return switch (plan) {
-            case STARTER -> 5;
+            case STARTER -> 1;
             case PROFESSIONAL -> 15;
             case BUSINESS -> 50;
             case ENTERPRISE -> 250;
@@ -69,7 +69,7 @@ public final class SubscriptionPlanDefaults {
                         .maxStorageBytes(getDefaultMaxStorageBytes(SubscriptionPlan.STARTER))
                         .formattedStorage("5 GB")
                         .features(List.of(
-                                "Up to 5 team members",
+                                "Up to 1 team member",
                                 "Up to 25 active clients",
                                 "5 GB document vault storage",
                                 "GST & ITR return tracking",

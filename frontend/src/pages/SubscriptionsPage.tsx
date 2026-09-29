@@ -36,10 +36,10 @@ const DEFAULT_PLAN_CATALOG: SubscriptionPlan[] = [
     monthlyPrice: 999,
     yearlyPrice: 9990,
     maxClients: 25,
-    maxUsers: 5,
+    maxUsers: 1,
     formattedStorage: '5 GB',
     features: [
-      'Up to 5 team members',
+      'Up to 1 team member',
       'Up to 25 active clients',
       '5 GB document vault storage',
       '1 Primary office location',

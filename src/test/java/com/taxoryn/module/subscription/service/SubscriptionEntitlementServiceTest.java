@@ -70,7 +70,7 @@ class SubscriptionEntitlementServiceTest {
                 .billingInterval(BillingInterval.MONTHLY)
                 .startDate(LocalDate.now())
                 .renewalDate(LocalDate.now().plusDays(30))
-                .maxUsers(5)
+                .maxUsers(1)
                 .maxClients(25)
                 .maxStorageBytes(5L * 1024 * 1024 * 1024)
                 .price(new BigDecimal("999.00"))
@@ -82,15 +82,15 @@ class SubscriptionEntitlementServiceTest {
     @DisplayName("TEAM_MEMBER: Evaluation at normal usage (<80%) returns allowed=true, warning=false")
     void testTeamMember_NormalUsage() {
         when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(2L); // 2/5 = 40%
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(0L); // 0/1 = 0%
 
         EntitlementResult result = entitlementService.getEntitlement(organizationId, SubscriptionResourceType.TEAM_MEMBER);
 
         assertNotNull(result);
-        assertEquals(2L, result.getCurrentUsage());
-        assertEquals(5L, result.getLimit());
-        assertEquals(3L, result.getRemaining());
-        assertEquals(40.0, result.getPercentageUsed());
+        assertEquals(0L, result.getCurrentUsage());
+        assertEquals(1L, result.getLimit());
+        assertEquals(1L, result.getRemaining());
+        assertEquals(0.0, result.getPercentageUsed());
         assertTrue(result.isAllowed());
         assertFalse(result.isWarning());
     }
@@ -98,15 +98,20 @@ class SubscriptionEntitlementServiceTest {
     @Test
     @DisplayName("TEAM_MEMBER: Evaluation at warning usage (80%) returns allowed=true, warning=true")
     void testTeamMember_WarningUsage() {
-        when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(4L); // 4/5 = 80%
+        SubscriptionEntity proSub = SubscriptionEntity.builder()
+                .organizationId(organizationId)
+                .plan(SubscriptionPlan.PROFESSIONAL)
+                .maxUsers(10)
+                .build();
+        when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(proSub));
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(8L); // 8/10 = 80%
 
         EntitlementResult result = entitlementService.getEntitlement(organizationId, SubscriptionResourceType.TEAM_MEMBER);
 
         assertNotNull(result);
-        assertEquals(4L, result.getCurrentUsage());
-        assertEquals(5L, result.getLimit());
-        assertEquals(1L, result.getRemaining());
+        assertEquals(8L, result.getCurrentUsage());
+        assertEquals(10L, result.getLimit());
+        assertEquals(2L, result.getRemaining());
         assertEquals(80.0, result.getPercentageUsed());
         assertTrue(result.isAllowed());
         assertTrue(result.isWarning());
@@ -116,13 +121,13 @@ class SubscriptionEntitlementServiceTest {
     @DisplayName("TEAM_MEMBER: Evaluation at 100% quota returns allowed=false, warning=false, throws on checkCanCreate")
     void testTeamMember_LimitReached() {
         when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(5L); // 5/5 = 100%
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(1L); // 1/1 = 100%
 
         EntitlementResult result = entitlementService.getEntitlement(organizationId, SubscriptionResourceType.TEAM_MEMBER);
 
         assertNotNull(result);
-        assertEquals(5L, result.getCurrentUsage());
-        assertEquals(5L, result.getLimit());
+        assertEquals(1L, result.getCurrentUsage());
+        assertEquals(1L, result.getLimit());
         assertEquals(0L, result.getRemaining());
         assertEquals(100.0, result.getPercentageUsed());
         assertFalse(result.isAllowed());
@@ -167,7 +172,7 @@ class SubscriptionEntitlementServiceTest {
 
         when(subscriptionRepository.findByOrganizationId(organizationId)).thenReturn(Optional.of(starterSubscription));
         when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(org));
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(4L); // 80% (warning)
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(1L); // 100% (limit reached)
         when(clientRepository.countByOrganizationId(organizationId)).thenReturn(10L); // 40%
         when(documentRepository.getTotalStorageBytesByOrganizationId(organizationId)).thenReturn(1024L);
         when(locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId)).thenReturn(1L);
@@ -181,14 +186,13 @@ class SubscriptionEntitlementServiceTest {
         assertEquals("Apex CA Practice", response.getOrganizationName());
         assertEquals(SubscriptionPlan.STARTER, response.getPlan());
         assertEquals(4, response.getEntitlements().size());
-        assertTrue(response.isAnyWarning());
-        assertTrue(response.isAnyLimitReached()); // location 1/1 = 100%
+        assertTrue(response.isAnyLimitReached()); // user 1/1 = 100%, location 1/1 = 100%
     }
 
     @Test
     @DisplayName("validateDowngrade passes when usage is within target plan quotas")
     void testValidateDowngrade_Success() {
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(3L); // <= 5
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(1L); // <= 1
         when(clientRepository.countByOrganizationId(organizationId)).thenReturn(20L); // <= 25
         when(documentRepository.getTotalStorageBytesByOrganizationId(organizationId)).thenReturn(1024L); // <= 5GB
         when(locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId)).thenReturn(1L); // <= 1
@@ -201,7 +205,7 @@ class SubscriptionEntitlementServiceTest {
     @Test
     @DisplayName("validateDowngrade throws when active users exceed target plan quota")
     void testValidateDowngrade_UserExceeded() {
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(10L); // > 5
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(2L); // > 1
 
         assertThrows(SubscriptionLimitExceededException.class,
                 () -> entitlementService.validateDowngrade(organizationId, SubscriptionPlan.STARTER));
@@ -210,7 +214,7 @@ class SubscriptionEntitlementServiceTest {
     @Test
     @DisplayName("validateDowngrade throws when active clients exceed target plan quota")
     void testValidateDowngrade_ClientExceeded() {
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(3L);
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(1L);
         when(clientRepository.countByOrganizationId(organizationId)).thenReturn(50L); // > 25
 
         assertThrows(SubscriptionLimitExceededException.class,
@@ -220,7 +224,7 @@ class SubscriptionEntitlementServiceTest {
     @Test
     @DisplayName("validateDowngrade throws when locations exceed target plan quota")
     void testValidateDowngrade_LocationExceeded() {
-        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(3L);
+        when(userRepository.countByOrganizationIdAndClientIdIsNull(organizationId)).thenReturn(1L);
         when(clientRepository.countByOrganizationId(organizationId)).thenReturn(20L);
         when(documentRepository.getTotalStorageBytesByOrganizationId(organizationId)).thenReturn(1024L);
         when(locationRepository.countByOrganizationIdAndIsActiveTrue(organizationId)).thenReturn(2L); // 2 locations

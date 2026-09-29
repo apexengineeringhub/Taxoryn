@@ -1174,6 +1174,8 @@ export interface SubscriptionInfo {
 // 11. Employee & RBAC
 export interface Employee {
   id: string;
+  organizationId?: string;
+  organizationName?: string;
   userId?: string;
   employeeCode: string;
   employeeNumber?: string;
@@ -1189,6 +1191,10 @@ export interface Employee {
   roleId?: string;
   roleCode?: string;
   roleName?: string;
+  locationId?: string;
+  locationName?: string;
+  locationCode?: string;
+  locationIds?: string[];
 }
 
 export interface BulkEmployeeImportResult {

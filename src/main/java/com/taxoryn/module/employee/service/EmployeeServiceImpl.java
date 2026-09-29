@@ -56,6 +56,12 @@ import java.util.stream.Collectors;
 import com.taxoryn.module.capability.model.ProductCapability;
 import com.taxoryn.module.capability.service.PracticeCapabilityResolver;
 
+import com.taxoryn.module.organization.entity.EmployeeLocationEntity;
+import com.taxoryn.module.organization.entity.EmployeeLocationEntity.EmployeeLocationId;
+import com.taxoryn.module.organization.entity.LocationEntity;
+import com.taxoryn.module.organization.repository.EmployeeLocationRepository;
+import com.taxoryn.module.organization.repository.LocationRepository;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -66,6 +72,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final OrganizationRepository organizationRepository;
+    private final EmployeeLocationRepository employeeLocationRepository;
+    private final LocationRepository locationRepository;
     private final OrganizationActivationTokenRepository organizationActivationTokenRepository;
     private final com.taxoryn.module.authentication.repository.RefreshTokenRepository refreshTokenRepository;
     private final EmailNotificationService emailNotificationService;
@@ -303,6 +311,22 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Created employee record: id={}, code={} for tenant={}", saved.getId(), saved.getEmployeeCode(), organizationId);
 
+        // Persist Location Assignment
+        if (request.getLocationId() != null || (request.getLocationIds() != null && !request.getLocationIds().isEmpty())) {
+            List<UUID> targetLocIds = new ArrayList<>();
+            if (request.getLocationId() != null) targetLocIds.add(request.getLocationId());
+            if (request.getLocationIds() != null) {
+                for (UUID id : request.getLocationIds()) {
+                    if (id != null && !targetLocIds.contains(id)) targetLocIds.add(id);
+                }
+            }
+            for (UUID locId : targetLocIds) {
+                if (locationRepository.findByIdAndOrganizationId(locId, organizationId).isPresent()) {
+                    employeeLocationRepository.save(new EmployeeLocationEntity(new EmployeeLocationId(saved.getId(), locId)));
+                }
+            }
+        }
+
         if (targetUserId != null) {
             UserEntity user = userRepository.findByIdAndOrganizationId(targetUserId, organizationId).orElse(null);
             if (user != null) {
@@ -460,6 +484,24 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Updated employee: id={} for tenant={}", saved.getId(), organizationId);
+
+        // Persist Location Assignment Update if provided
+        if (request.getLocationId() != null || request.getLocationIds() != null) {
+            employeeLocationRepository.deleteByEmployeeId(saved.getId());
+            List<UUID> targetLocIds = new ArrayList<>();
+            if (request.getLocationId() != null) targetLocIds.add(request.getLocationId());
+            if (request.getLocationIds() != null) {
+                for (UUID id : request.getLocationIds()) {
+                    if (id != null && !targetLocIds.contains(id)) targetLocIds.add(id);
+                }
+            }
+            for (UUID locId : targetLocIds) {
+                if (locationRepository.findByIdAndOrganizationId(locId, organizationId).isPresent()) {
+                    employeeLocationRepository.save(new EmployeeLocationEntity(new EmployeeLocationId(saved.getId(), locId)));
+                }
+            }
+        }
+
         EmployeeDto result = enrichDto(saved);
         auditService.logEvent("EMPLOYEE_UPDATED", "EMPLOYEE", saved.getId().toString(), oldSnapshot, result);
         return result;
@@ -723,6 +765,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         dto.setEmployeeNumber(employee.getEmployeeCode());
         dto.setFullName(employee.getFullName());
 
+        if (employee.getOrganizationId() != null && organizationRepository != null) {
+            organizationRepository.findById(employee.getOrganizationId())
+                    .ifPresent(org -> dto.setOrganizationName(org.getName()));
+        }
+
         if (employee.getManagerId() != null) {
             employeeRepository.findByIdAndOrganizationId(employee.getManagerId(), employee.getOrganizationId())
                     .ifPresent(manager -> dto.setManagerName(manager.getFullName()));
@@ -763,6 +810,22 @@ public class EmployeeServiceImpl implements EmployeeService {
             dto.setAvatarUrl(profileImageService.resolveAvatarUrl(employee.getAvatarUrl()));
         } else if (user != null && user.getAvatarUrl() != null) {
             dto.setAvatarUrl(profileImageService.resolveAvatarUrl(user.getAvatarUrl()));
+        }
+
+        // Populate Assigned Practice Location(s)
+        if (employee.getId() != null && employeeLocationRepository != null) {
+            List<UUID> locIds = employeeLocationRepository.findLocationIdsByEmployeeId(employee.getId());
+            if (locIds != null && !locIds.isEmpty()) {
+                dto.setLocationIds(locIds);
+                UUID primaryLocId = locIds.get(0);
+                dto.setLocationId(primaryLocId);
+                if (locationRepository != null) {
+                    locationRepository.findById(primaryLocId).ifPresent(loc -> {
+                        dto.setLocationName(loc.getName());
+                        dto.setLocationCode(loc.getCode());
+                    });
+                }
+            }
         }
 
         return dto;

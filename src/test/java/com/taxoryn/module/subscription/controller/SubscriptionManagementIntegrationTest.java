@@ -95,7 +95,7 @@ class SubscriptionManagementIntegrationTest {
                 .subscriptionPlan(OrganizationEntity.SubscriptionPlan.STARTER)
                 .build());
 
-        // 2. Create Initial Subscription (STARTER: max 5 users, max 2 clients for tight testing)
+        // 2. Create Initial Subscription (STARTER: max 1 user, max 2 clients for tight testing)
         subscriptionRepository.save(SubscriptionEntity.builder()
                 .organizationId(tenant.getId())
                 .plan(SubscriptionPlan.STARTER)
@@ -103,7 +103,7 @@ class SubscriptionManagementIntegrationTest {
                 .billingInterval(BillingInterval.MONTHLY)
                 .startDate(LocalDate.now())
                 .renewalDate(LocalDate.now().plusDays(30))
-                .maxUsers(5)
+                .maxUsers(1)
                 .maxClients(2) // limit to 2 clients for easy limit enforcement test
                 .maxStorageBytes(5L * 1024 * 1024 * 1024)
                 .price(new BigDecimal("999.00"))
@@ -149,7 +149,7 @@ class SubscriptionManagementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.plan").value("STARTER"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.data.maxUsers").value(5))
+                .andExpect(jsonPath("$.data.maxUsers").value(1))
                 .andExpect(jsonPath("$.data.price").value(999.00));
 
         // 2. Get Subscription Usage Metrics
@@ -158,8 +158,8 @@ class SubscriptionManagementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.plan").value("STARTER"))
                 .andExpect(jsonPath("$.data.currentUsers").value(1))
-                .andExpect(jsonPath("$.data.maxUsers").value(5))
-                .andExpect(jsonPath("$.data.userLimitReached").value(false));
+                .andExpect(jsonPath("$.data.maxUsers").value(1))
+                .andExpect(jsonPath("$.data.userLimitReached").value(true));
 
         // 3. Upgrade Subscription Plan to PROFESSIONAL
         ChangePlanRequest upgradeReq = ChangePlanRequest.builder()
