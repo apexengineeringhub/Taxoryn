@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -250,5 +251,70 @@ class SubscriptionManagementIntegrationTest {
                 .andExpect(jsonPath("$.data[1].plan").value("PROFESSIONAL"))
                 .andExpect(jsonPath("$.data[2].plan").value("BUSINESS"))
                 .andExpect(jsonPath("$.data[3].plan").value("ENTERPRISE"));
+    }
+
+    @Test
+    @DisplayName("Downgrade Protection: Downgrade is blocked when resource count exceeds target plan limits")
+    void testDowngradeProtectionBlocksDowngradeWithoutDataDeletion() throws Exception {
+        // Upgrade to BUSINESS first
+        ChangePlanRequest toBusiness = ChangePlanRequest.builder()
+                .plan(SubscriptionPlan.BUSINESS)
+                .billingInterval(BillingInterval.MONTHLY)
+                .build();
+        mockMvc.perform(post("/api/v1/subscriptions/change-plan")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(toBusiness)))
+                .andExpect(status().isOk());
+
+        // Create 30 clients in tenant (Starter limit is 25)
+        for (int i = 1; i <= 26; i++) {
+            com.taxoryn.module.client.entity.ClientEntity client = com.taxoryn.module.client.entity.ClientEntity.builder()
+                    .displayName("Client " + i)
+                    .pan("ABCDE" + String.format("%04d", i) + "F")
+                    .clientType(ClientType.INDIVIDUAL)
+                    .build();
+            client.setOrganizationId(tenant.getId());
+            clientRepository.save(client);
+        }
+
+        assertThat(clientRepository.countByOrganizationId(tenant.getId())).isEqualTo(26);
+
+        // Attempt downgrade to STARTER (max 25 clients) -> Must be blocked
+        ChangePlanRequest toStarter = ChangePlanRequest.builder()
+                .plan(SubscriptionPlan.STARTER)
+                .billingInterval(BillingInterval.MONTHLY)
+                .build();
+
+        mockMvc.perform(post("/api/v1/subscriptions/change-plan")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(toStarter)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        // Verify no client data was deleted or altered
+        assertThat(clientRepository.countByOrganizationId(tenant.getId())).isEqualTo(26);
+    }
+
+    @Test
+    @DisplayName("Enterprise Inquiry: Submits consultation lead successfully")
+    void testEnterpriseInquirySubmission() throws Exception {
+        com.taxoryn.module.subscription.dto.EnterpriseInquiryRequest inquiry = com.taxoryn.module.subscription.dto.EnterpriseInquiryRequest.builder()
+                .contactName("CA Rajesh Sharma")
+                .contactEmail("rajesh@sharmaca.com")
+                .contactPhone("+91 9876543210")
+                .firmName("Sharma & Associates LLP")
+                .estimatedTeamSize(80)
+                .estimatedClientCount(1500)
+                .requirements("Dedicated tenant instance and custom SAP connector")
+                .build();
+
+        mockMvc.perform(post("/api/v1/subscriptions/enterprise-inquiry")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inquiry)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 }

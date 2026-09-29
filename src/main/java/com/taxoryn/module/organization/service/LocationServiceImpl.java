@@ -255,6 +255,37 @@ public class LocationServiceImpl implements LocationService {
         return employeeLocationRepository.findLocationIdsByEmployeeId(employeeId);
     }
 
+    @Override
+    @Transactional
+    public LocationDto setPrimaryLocation(UUID organizationId, UUID locationId) {
+        validateTenantAccess(organizationId);
+
+        LocationEntity location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Location", "id", locationId));
+
+        if (!location.isActive()) {
+            throw new IllegalStateException("Cannot set an inactive location as head office");
+        }
+
+        unsetHeadOffice(organizationId);
+
+        location.setHeadOffice(true);
+        LocationEntity saved = locationRepository.save(location);
+
+        auditService.logEvent(
+                organizationId,
+                SecurityUtils.getCurrentUserId(),
+                "LOCATION_PRIMARY_CHANGED",
+                "LOCATION",
+                saved.getId().toString(),
+                null,
+                Map.of("name", saved.getName(), "isHeadOffice", true)
+        );
+
+        log.info("Practice head office location changed: orgId={}, locationId={}, name={}", organizationId, saved.getId(), saved.getName());
+        return mapToDto(saved);
+    }
+
     private void unsetHeadOffice(UUID organizationId) {
         List<LocationEntity> activeLocations = locationRepository.findAllByOrganizationIdAndIsActiveTrue(organizationId);
         for (LocationEntity loc : activeLocations) {

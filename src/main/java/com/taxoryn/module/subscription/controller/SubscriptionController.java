@@ -101,4 +101,12 @@ public class SubscriptionController {
         SubscriptionDto renewed = subscriptionService.renewSubscription(organizationId);
         return ResponseEntity.ok(ApiResponse.success("Subscription renewed successfully", renewed));
     }
+
+    @PostMapping("/enterprise-inquiry")
+    @Operation(summary = "Submit enterprise consultation inquiry", description = "Submits lead details and custom scale requirements for an enterprise subscription tier.")
+    public ResponseEntity<ApiResponse<Void>> submitEnterpriseInquiry(@Valid @RequestBody com.taxoryn.module.subscription.dto.EnterpriseInquiryRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        subscriptionService.submitEnterpriseInquiry(organizationId, request);
+        return ResponseEntity.ok(ApiResponse.success("Enterprise inquiry submitted successfully. Our team will contact you shortly.", null));
+    }
 }

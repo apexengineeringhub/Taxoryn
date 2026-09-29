@@ -4905,6 +4905,65 @@ export interface PracticeUserSummary {
   createdAt?: string;
 }
 
+export interface PracticeBranchLocation {
+  id: string;
+  organizationId: string;
+  name: string;
+  code?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone?: string;
+  email?: string;
+  isHeadOffice: boolean;
+  isActive: boolean;
+  assignedEmployeeIds?: string[];
+  assignedEmployeeCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateBranchLocationRequest {
+  name: string;
+  code?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone?: string;
+  email?: string;
+  isHeadOffice?: boolean;
+  assignedEmployeeIds?: string[];
+}
+
+export interface UpdateBranchLocationRequest {
+  name?: string;
+  code?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  phone?: string;
+  email?: string;
+  isHeadOffice?: boolean;
+  isActive?: boolean;
+  assignedEmployeeIds?: string[];
+}
+
+export interface EnterpriseInquiryRequest {
+  contactName: string;
+  contactEmail: string;
+  contactPhone?: string;
+  firmName?: string;
+  estimatedTeamSize?: number;
+  estimatedClientCount?: number;
+  requirements?: string;
+}
+
 
 
 

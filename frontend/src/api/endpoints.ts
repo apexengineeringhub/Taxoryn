@@ -118,6 +118,10 @@ import {
   PublicPracticeLocation,
   CreatePracticeLocationRequest,
   UpdatePracticeLocationRequest,
+  PracticeBranchLocation,
+  CreateBranchLocationRequest,
+  UpdateBranchLocationRequest,
+  EnterpriseInquiryRequest,
   TaxServiceCategory,
   CreateTaxServiceCategoryRequest,
   UpdateTaxServiceCategoryRequest,
@@ -1198,6 +1202,50 @@ export const subscriptionApi = {
   },
   changePlan: async (payload: { plan: string; interval: string }) => {
     const res = await apiClient.post<ApiResponse<SubscriptionInfo>>('/v1/subscriptions/change-plan', payload);
+    return res.data.data;
+  },
+  cancel: async () => {
+    const res = await apiClient.post<ApiResponse<SubscriptionInfo>>('/v1/subscriptions/cancel');
+    return res.data.data;
+  },
+  renew: async () => {
+    const res = await apiClient.post<ApiResponse<SubscriptionInfo>>('/v1/subscriptions/renew');
+    return res.data.data;
+  },
+  submitEnterpriseInquiry: async (payload: EnterpriseInquiryRequest) => {
+    const res = await apiClient.post<ApiResponse<void>>('/v1/subscriptions/enterprise-inquiry', payload);
+    return res.data;
+  },
+};
+
+// --- 10a. Practice Location Management ---
+export const locationApi = {
+  getLocations: async () => {
+    const res = await apiClient.get<ApiResponse<PracticeBranchLocation[]>>('/v1/locations');
+    return res.data.data;
+  },
+  getLocation: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<PracticeBranchLocation>>(`/v1/locations/${id}`);
+    return res.data.data;
+  },
+  createLocation: async (payload: CreateBranchLocationRequest) => {
+    const res = await apiClient.post<ApiResponse<PracticeBranchLocation>>('/v1/locations', payload);
+    return res.data.data;
+  },
+  updateLocation: async (id: string, payload: UpdateBranchLocationRequest) => {
+    const res = await apiClient.put<ApiResponse<PracticeBranchLocation>>(`/v1/locations/${id}`, payload);
+    return res.data.data;
+  },
+  deleteLocation: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/locations/${id}`);
+    return res.data.data;
+  },
+  setPrimaryLocation: async (id: string) => {
+    const res = await apiClient.patch<ApiResponse<PracticeBranchLocation>>(`/v1/locations/${id}/primary`);
+    return res.data.data;
+  },
+  assignEmployees: async (id: string, employeeIds: string[]) => {
+    const res = await apiClient.post<ApiResponse<PracticeBranchLocation>>(`/v1/locations/${id}/employees`, { employeeIds });
     return res.data.data;
   },
 };

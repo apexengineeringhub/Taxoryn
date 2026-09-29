@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -93,5 +94,23 @@ public class LocationController {
         UUID orgId = SecurityUtils.getCurrentOrganizationId();
         LocationDto updated = locationService.assignEmployees(orgId, locationId, request.getEmployeeIds());
         return ResponseEntity.ok(ApiResponse.success("Employees assigned to location successfully", updated));
+    }
+
+    @PatchMapping("/{locationId}/primary")
+    @PreAuthorize("hasAuthority('ORGANIZATION_UPDATE') or hasAuthority('ORG_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Set location as primary head office", description = "Designates this office as the primary Head Office for the practice.")
+    public ResponseEntity<ApiResponse<LocationDto>> setPrimaryLocation(@PathVariable UUID locationId) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        LocationDto updated = locationService.setPrimaryLocation(orgId, locationId);
+        return ResponseEntity.ok(ApiResponse.success("Head office location updated successfully", updated));
+    }
+
+    @PostMapping("/{locationId}/set-primary")
+    @PreAuthorize("hasAuthority('ORGANIZATION_UPDATE') or hasAuthority('ORG_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN')")
+    @Operation(summary = "Set location as primary head office (POST alternative)", description = "Designates this office as the primary Head Office for the practice.")
+    public ResponseEntity<ApiResponse<LocationDto>> setPrimaryLocationPost(@PathVariable UUID locationId) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        LocationDto updated = locationService.setPrimaryLocation(orgId, locationId);
+        return ResponseEntity.ok(ApiResponse.success("Head office location updated successfully", updated));
     }
 }

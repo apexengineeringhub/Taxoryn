@@ -35,6 +35,7 @@ const TeamChatPage = React.lazy(() => import('./pages/TeamChatPage').then(m => (
 const BulkEmployeeOnboardingPage = React.lazy(() => import('./pages/BulkEmployeeOnboardingPage').then(m => ({ default: m.BulkEmployeeOnboardingPage })));
 const AuditLogsPage = React.lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const PracticeBrandingPage = React.lazy(() => import('./pages/PracticeBrandingPage').then(m => ({ default: m.PracticeBrandingPage })));
+const LocationsPage = React.lazy(() => import('./pages/LocationsPage').then(m => ({ default: m.LocationsPage })));
 const SubscriptionsPage = React.lazy(() => import('./pages/SubscriptionsPage').then(m => ({ default: m.SubscriptionsPage })));
 const MarketplaceExplorePage = React.lazy(() => import('./pages/MarketplaceExplorePage').then(m => ({ default: m.MarketplaceExplorePage })));
 const PracticePublicProfilePage = React.lazy(() => import('./pages/PracticePublicProfilePage').then(m => ({ default: m.PracticePublicProfilePage })));
@@ -632,6 +633,14 @@ export const App: React.FC = () => {
                 element={
                   <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE']}>
                     <PracticeBrandingPage />
+                  </RoleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/locations"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']} requiredPermissions={['ORGANIZATION_UPDATE', 'ORG_WRITE', 'ORGANIZATION_VIEW']}>
+                    <LocationsPage />
                   </RoleRouteGuard>
                 }
               />
