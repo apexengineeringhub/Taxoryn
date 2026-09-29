@@ -236,6 +236,15 @@ import {
   GmailAccount,
   PracticeUserSummary,
   AdminUserSummary,
+  ServiceDto,
+  CreateServiceRequest,
+  UpdateServiceRequest,
+  EngagementDto,
+  CreateEngagementPayload,
+  UpdateEngagementPayload,
+  UpdateEngagementStatusPayload,
+  UpdateEngagementAssignmentPayload,
+  EngagementFilterParams,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -3116,6 +3125,62 @@ export const gmailApi = {
     return res.data.data;
   },
 };
+
+// --- 28. Service Catalog & Practice Engagements (Stage 2.5 - P0.1) ---
+export const servicesApi = {
+  getAll: async () => {
+    const res = await apiClient.get<ApiResponse<ServiceDto[]>>('/v1/services');
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ServiceDto>>(`/v1/services/${id}`);
+    return res.data.data;
+  },
+  create: async (payload: CreateServiceRequest) => {
+    const res = await apiClient.post<ApiResponse<ServiceDto>>('/v1/services', payload);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateServiceRequest) => {
+    const res = await apiClient.put<ApiResponse<ServiceDto>>(`/v1/services/${id}`, payload);
+    return res.data.data;
+  },
+};
+
+export const engagementsApi = {
+  getAll: async (params?: EngagementFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<EngagementDto>>>('/v1/engagements', { params });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EngagementDto>>(`/v1/engagements/${id}`);
+    return res.data.data;
+  },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<EngagementDto[]>>(`/v1/engagements/clients/${clientId}`);
+    return res.data.data;
+  },
+  create: async (payload: CreateEngagementPayload) => {
+    const res = await apiClient.post<ApiResponse<EngagementDto>>('/v1/engagements', payload);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateEngagementPayload) => {
+    const res = await apiClient.put<ApiResponse<EngagementDto>>(`/v1/engagements/${id}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, payload: UpdateEngagementStatusPayload) => {
+    const res = await apiClient.patch<ApiResponse<EngagementDto>>(`/v1/engagements/${id}/status`, payload);
+    return res.data.data;
+  },
+  updateAssignment: async (id: string, payload: UpdateEngagementAssignmentPayload) => {
+    const res = await apiClient.patch<ApiResponse<EngagementDto>>(`/v1/engagements/${id}/assignment`, payload);
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/engagements/${id}`);
+    return res.data;
+  },
+};
+
 
 
 

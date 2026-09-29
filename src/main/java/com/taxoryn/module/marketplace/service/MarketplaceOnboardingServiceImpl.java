@@ -81,6 +81,7 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
         MarketplaceProposalEntity proposal = MarketplaceProposalEntity.builder()
                 .organizationId(organizationId)
                 .marketplaceProfileId(profile.getId())
+                .customerId(lead.getCustomerId())
                 .leadId(lead.getId())
                 .serviceId(request.getServiceId())
                 .proposalTitle(request.getProposalTitle())

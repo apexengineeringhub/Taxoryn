@@ -71,6 +71,8 @@ const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').the
 const ProductModulesPage = React.lazy(() => import('./pages/ProductModulesPage').then(m => ({ default: m.ProductModulesPage })));
 const TaxNoticeSettingsPage = React.lazy(() => import('./pages/TaxNoticeSettingsPage').then(m => ({ default: m.TaxNoticeSettingsPage })));
 const ServiceWorkflowDetailPage = React.lazy(() => import('./pages/ServiceWorkflowDetailPage').then(m => ({ default: m.ServiceWorkflowDetailPage })));
+const EngagementsPage = React.lazy(() => import('./pages/EngagementsPage').then(m => ({ default: m.EngagementsPage })));
+const EngagementOverviewPage = React.lazy(() => import('./pages/EngagementOverviewPage').then(m => ({ default: m.EngagementOverviewPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import { ModuleRouteGuard } from './components/common/ModuleRouteGuard';
@@ -232,6 +234,22 @@ export const App: React.FC = () => {
                 element={
                   <ModuleRouteGuard moduleCode="CLIENTS">
                     <Client360Page />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/engagements"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <EngagementsPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/engagements/:id"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <EngagementOverviewPage />
                   </ModuleRouteGuard>
                 }
               />
@@ -581,7 +599,30 @@ export const App: React.FC = () => {
               <Route
                 path="/chat"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <RoleRouteGuard
+                    allowedRoles={[
+                      'TAXORYN_SUPERADMIN',
+                      'SUPER_ADMIN',
+                      'PRACTICE_OWNER',
+                      'PRACTICE_ADMIN',
+                      'ORG_ADMIN',
+                      'PARTNER',
+                      'CA_PARTNER',
+                      'MANAGER',
+                      'TAX_MANAGER',
+                      'PRACTITIONER',
+                      'TAX_PROFESSIONAL',
+                      'ACCOUNTANT',
+                      'TAX_ASSOCIATE',
+                      'SENIOR_TAX_ASSOCIATE',
+                      'ASSOCIATE',
+                      'EMPLOYEE',
+                      'PRACTICE_EMPLOYEE',
+                      'STAFF',
+                      'ARTICLE_ASSISTANT',
+                      'TRAINEE',
+                    ]}
+                  >
                     <TeamChatPage />
                   </RoleRouteGuard>
                 }
@@ -589,7 +630,30 @@ export const App: React.FC = () => {
               <Route
                 path="/team/chat"
                 element={
-                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}>
+                  <RoleRouteGuard
+                    allowedRoles={[
+                      'TAXORYN_SUPERADMIN',
+                      'SUPER_ADMIN',
+                      'PRACTICE_OWNER',
+                      'PRACTICE_ADMIN',
+                      'ORG_ADMIN',
+                      'PARTNER',
+                      'CA_PARTNER',
+                      'MANAGER',
+                      'TAX_MANAGER',
+                      'PRACTITIONER',
+                      'TAX_PROFESSIONAL',
+                      'ACCOUNTANT',
+                      'TAX_ASSOCIATE',
+                      'SENIOR_TAX_ASSOCIATE',
+                      'ASSOCIATE',
+                      'EMPLOYEE',
+                      'PRACTICE_EMPLOYEE',
+                      'STAFF',
+                      'ARTICLE_ASSISTANT',
+                      'TRAINEE',
+                    ]}
+                  >
                     <TeamChatPage />
                   </RoleRouteGuard>
                 }

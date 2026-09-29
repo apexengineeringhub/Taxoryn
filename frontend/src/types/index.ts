@@ -4970,6 +4970,144 @@ export interface EnterpriseInquiryRequest {
   requirements?: string;
 }
 
+// ==============================================================================
+// 27. Service Catalog & Practice Engagement Foundation (Stage 2.5 - P0.1)
+// ==============================================================================
+
+export type ServiceCategoryType =
+  | 'GST'
+  | 'TDS'
+  | 'ITR'
+  | 'AUDIT'
+  | 'NOTICE'
+  | 'ADVISORY'
+  | 'OTHER';
+
+export type ServiceStatusType = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+
+export interface ServiceDto {
+  id: string;
+  organizationId?: string | null;
+  serviceCode: string;
+  serviceName: string;
+  description?: string;
+  category: ServiceCategoryType;
+  status: ServiceStatusType;
+  moduleCode?: string;
+  systemDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateServiceRequest {
+  serviceCode: string;
+  serviceName: string;
+  description?: string;
+  category: ServiceCategoryType;
+  moduleCode?: string;
+}
+
+export interface UpdateServiceRequest {
+  serviceName?: string;
+  description?: string;
+  status?: ServiceStatusType;
+  moduleCode?: string;
+}
+
+export type EngagementStatusType =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'ON_HOLD'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type EngagementPriorityType =
+  | 'LOW'
+  | 'MEDIUM'
+  | 'HIGH'
+  | 'URGENT';
+
+export interface EngagementDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  serviceId?: string;
+  serviceName?: string;
+  serviceCode?: string;
+  locationId?: string;
+  locationName?: string;
+  engagementCode: string;
+  name: string;
+  description?: string;
+  status: EngagementStatusType;
+  priority: EngagementPriorityType;
+  startDate?: string;
+  endDate?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  assignedUserEmail?: string;
+  reviewerUserId?: string;
+  reviewerUserName?: string;
+  reviewerUserEmail?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateEngagementPayload {
+  clientId: string;
+  serviceId?: string;
+  locationId?: string;
+  name: string;
+  description?: string;
+  status?: EngagementStatusType;
+  startDate?: string;
+  endDate?: string;
+  assignedUserId?: string;
+  reviewerUserId?: string;
+  priority?: EngagementPriorityType;
+  notes?: string;
+}
+
+export interface UpdateEngagementPayload {
+  name?: string;
+  description?: string;
+  serviceId?: string;
+  locationId?: string;
+  startDate?: string;
+  endDate?: string;
+  priority?: EngagementPriorityType;
+  notes?: string;
+}
+
+export interface UpdateEngagementStatusPayload {
+  status: EngagementStatusType;
+  notes?: string;
+}
+
+export interface UpdateEngagementAssignmentPayload {
+  assignedUserId?: string;
+  reviewerUserId?: string;
+  locationId?: string;
+  notes?: string;
+}
+
+export interface EngagementFilterParams {
+  clientId?: string;
+  serviceId?: string;
+  status?: EngagementStatusType;
+  assignedUserId?: string;
+  reviewerUserId?: string;
+  priority?: EngagementPriorityType;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: string;
+}
+
+
 
 
 

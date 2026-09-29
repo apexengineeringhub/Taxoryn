@@ -1,5 +1,6 @@
 package com.taxoryn.module.engagement.dto;
 
+import com.taxoryn.module.engagement.model.EngagementPriority;
 import com.taxoryn.module.engagement.model.EngagementStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
@@ -18,6 +19,7 @@ import java.util.UUID;
 @Schema(description = "Update Engagement Request Payload")
 public class UpdateEngagementRequest {
 
+    private UUID serviceId;
     private UUID locationId;
     private UUID clientServiceId;
 
@@ -32,5 +34,7 @@ public class UpdateEngagementRequest {
     private LocalDate startDate;
     private LocalDate endDate;
     private UUID assignedUserId;
+    private UUID reviewerUserId;
+    private EngagementPriority priority;
     private String notes;
 }

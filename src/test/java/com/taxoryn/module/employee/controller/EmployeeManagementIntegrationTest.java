@@ -49,7 +49,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(classes = com.taxoryn.TaxorynApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class EmployeeManagementIntegrationTest {
@@ -81,6 +81,15 @@ class EmployeeManagementIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
+    @Autowired
+    private com.taxoryn.module.organization.repository.LocationRepository locationRepository;
+
+    @Autowired
+    private com.taxoryn.module.organization.repository.EmployeeLocationRepository employeeLocationRepository;
+
     private OrganizationEntity org1;
     private OrganizationEntity org2;
     private UserEntity adminUser1;
@@ -92,8 +101,11 @@ class EmployeeManagementIntegrationTest {
     void setUp() {
         TenantContext.clear();
         taskRepository.deleteAll();
+        employeeLocationRepository.deleteAll();
+        locationRepository.deleteAll();
         employeeRepository.deleteAll();
         userRepository.deleteAll();
+        subscriptionRepository.deleteAll();
         organizationRepository.deleteAll();
         roleRepository.deleteAll();
 
@@ -104,10 +116,30 @@ class EmployeeManagementIntegrationTest {
                 .status(OrganizationStatus.ACTIVE)
                 .build());
 
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+                .organizationId(org1.getId())
+                .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+                .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+                .startDate(java.time.LocalDate.now().minusMonths(1))
+                .renewalDate(java.time.LocalDate.now().plusMonths(11))
+                .maxUsers(50)
+                .maxClients(200)
+                .build());
+
         org2 = organizationRepository.save(OrganizationEntity.builder()
                 .name("Kapadia Advisory")
                 .email("admin@kapadiatax.com")
                 .status(OrganizationStatus.ACTIVE)
+                .build());
+
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+                .organizationId(org2.getId())
+                .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+                .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+                .startDate(java.time.LocalDate.now().minusMonths(1))
+                .renewalDate(java.time.LocalDate.now().plusMonths(11))
+                .maxUsers(50)
+                .maxClients(200)
                 .build());
 
         RoleEntity orgAdminRole = roleRepository.save(RoleEntity.builder()
@@ -757,6 +789,161 @@ class EmployeeManagementIntegrationTest {
         mockMvc.perform(multipart("/api/v1/employees/" + employee1.getId() + "/avatar")
                         .file(file))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("24. Create employee with Location A persists Location A in DTO and database")
+    void testCreateEmployeeWithLocation_Success() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+        com.taxoryn.module.organization.entity.LocationEntity locA = locationRepository.save(com.taxoryn.module.organization.entity.LocationEntity.builder()
+                .name("Mumbai Branch")
+                .code("MUM-01")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .isActive(true)
+                .build());
+        TenantContext.clear();
+
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-LOC1")
+                .firstName("Kavita")
+                .lastName("Nair")
+                .email("kavita.n@vermatax.com")
+                .department("Taxation")
+                .designation("Senior Tax Associate")
+                .locationId(locA.getId())
+                .build();
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.locationId").value(locA.getId().toString()))
+                .andExpect(jsonPath("$.data.locationName").value("Mumbai Branch"))
+                .andExpect(jsonPath("$.data.locationCode").value("MUM-01"));
+    }
+
+    @Test
+    @DisplayName("25. Update employee location from Location A to Location B persists cleanly")
+    void testUpdateEmployeeLocation_Success() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+        com.taxoryn.module.organization.entity.LocationEntity locB = locationRepository.save(com.taxoryn.module.organization.entity.LocationEntity.builder()
+                .name("Pune Branch")
+                .code("PUN-01")
+                .city("Pune")
+                .state("Maharashtra")
+                .isActive(true)
+                .build());
+        TenantContext.clear();
+
+        UpdateEmployeeRequest updateReq = UpdateEmployeeRequest.builder()
+                .firstName(employee1.getFirstName())
+                .lastName(employee1.getLastName())
+                .email(employee1.getEmail())
+                .department(employee1.getDepartment())
+                .designation("Lead Consultant")
+                .locationId(locB.getId())
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.locationId").value(locB.getId().toString()))
+                .andExpect(jsonPath("$.data.locationName").value("Pune Branch"))
+                .andExpect(jsonPath("$.data.locationCode").value("PUN-01"));
+    }
+
+    @Test
+    @DisplayName("26. Assigning location belonging to another organization is rejected with 400")
+    void testAssignForeignLocation_Rejected() throws Exception {
+        // Create location under org2
+        TenantContext.setTenantId(org2.getId());
+        com.taxoryn.module.organization.entity.LocationEntity foreignLoc = locationRepository.save(com.taxoryn.module.organization.entity.LocationEntity.builder()
+                .name("Ahmedabad Branch")
+                .code("AHM-01")
+                .city("Ahmedabad")
+                .state("Gujarat")
+                .isActive(true)
+                .build());
+        TenantContext.clear();
+
+        // Attempt to create employee in org1 with org2's location
+        CreateEmployeeRequest request = CreateEmployeeRequest.builder()
+                .employeeCode("EMP-FOREIGN")
+                .firstName("Siddharth")
+                .lastName("Joshi")
+                .email("siddharth.j@vermatax.com")
+                .department("Taxation")
+                .designation("Associate")
+                .locationId(foreignLoc.getId())
+                .build();
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        // Attempt to update existing employee in org1 with org2's location
+        UpdateEmployeeRequest updateReq = UpdateEmployeeRequest.builder()
+                .firstName(employee1.getFirstName())
+                .lastName(employee1.getLastName())
+                .email(employee1.getEmail())
+                .department(employee1.getDepartment())
+                .designation(employee1.getDesignation())
+                .locationId(foreignLoc.getId())
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("27. Updating employee with null location cleanly unassigns location (Not Assigned)")
+    void testUnassignEmployeeLocation_Success() throws Exception {
+        // First assign Location
+        TenantContext.setTenantId(org1.getId());
+        com.taxoryn.module.organization.entity.LocationEntity loc = locationRepository.save(com.taxoryn.module.organization.entity.LocationEntity.builder()
+                .name("Delhi Branch")
+                .code("DEL-01")
+                .city("Delhi")
+                .state("Delhi")
+                .isActive(true)
+                .build());
+
+        employeeLocationRepository.save(new com.taxoryn.module.organization.entity.EmployeeLocationEntity(
+                new com.taxoryn.module.organization.entity.EmployeeLocationEntity.EmployeeLocationId(employee1.getId(), loc.getId())));
+        TenantContext.clear();
+
+        // Verify currently assigned
+        mockMvc.perform(get("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.locationName").value("Delhi Branch"));
+
+        // Update with locationId = null
+        UpdateEmployeeRequest unassignReq = UpdateEmployeeRequest.builder()
+                .firstName(employee1.getFirstName())
+                .lastName(employee1.getLastName())
+                .email(employee1.getEmail())
+                .department(employee1.getDepartment())
+                .designation(employee1.getDesignation())
+                .locationId(null)
+                .build();
+
+        mockMvc.perform(put("/api/v1/employees/" + employee1.getId())
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(unassignReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.locationId").doesNotExist())
+                .andExpect(jsonPath("$.data.locationName").doesNotExist());
     }
 }
 

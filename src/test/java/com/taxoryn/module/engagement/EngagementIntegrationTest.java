@@ -8,8 +8,10 @@ import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.engagement.dto.CreateEngagementRequest;
+import com.taxoryn.module.engagement.dto.UpdateEngagementAssignmentRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementStatusRequest;
+import com.taxoryn.module.engagement.model.EngagementPriority;
 import com.taxoryn.module.engagement.model.EngagementStatus;
 import com.taxoryn.module.engagement.repository.EngagementRepository;
 import com.taxoryn.module.organization.entity.LocationEntity;
@@ -19,6 +21,10 @@ import com.taxoryn.module.organization.repository.LocationRepository;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.role.entity.RoleEntity;
 import com.taxoryn.module.role.repository.RoleRepository;
+import com.taxoryn.module.service.entity.ServiceEntity;
+import com.taxoryn.module.service.model.ServiceCategory;
+import com.taxoryn.module.service.model.ServiceStatus;
+import com.taxoryn.module.service.repository.ServiceRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.entity.UserEntity.UserStatus;
 import com.taxoryn.module.user.repository.UserRepository;
@@ -67,6 +73,9 @@ public class EngagementIntegrationTest {
     private ClientRepository clientRepository;
 
     @Autowired
+    private ServiceRepository serviceRepository;
+
+    @Autowired
     private EngagementRepository engagementRepository;
 
     @Autowired
@@ -85,8 +94,11 @@ public class EngagementIntegrationTest {
     private OrganizationEntity orgB;
     private LocationEntity locA;
     private UserEntity userA;
+    private UserEntity reviewerA;
     private UserEntity userB;
     private ClientEntity clientA;
+    private ClientEntity clientB;
+    private ServiceEntity serviceGST;
     private String tokenA;
     private String tokenB;
 
@@ -125,6 +137,16 @@ public class EngagementIntegrationTest {
 
         userA = userRepository.save(UserEntity.builder()
                 .organizationId(orgA.getId())
+                .email("preparer." + UUID.randomUUID() + "@kothari.com")
+                .passwordHash(passwordEncoder.encode("Password123!"))
+                .firstName("Aarav")
+                .lastName("Kothari")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(adminRole))
+                .build());
+
+        reviewerA = userRepository.save(UserEntity.builder()
+                .organizationId(orgA.getId())
                 .email("partner." + UUID.randomUUID() + "@kothari.com")
                 .passwordHash(passwordEncoder.encode("Password123!"))
                 .firstName("Rajesh")
@@ -152,6 +174,15 @@ public class EngagementIntegrationTest {
         client.setOrganizationId(orgA.getId());
         clientA = clientRepository.save(client);
 
+        serviceGST = serviceRepository.findByServiceCodeAndOrganizationIdIsNull("GST_COMPLIANCE")
+                .orElseGet(() -> serviceRepository.save(ServiceEntity.builder()
+                        .serviceCode("GST_COMPLIANCE")
+                        .serviceName("GST Compliance & Returns")
+                        .category(ServiceCategory.GST)
+                        .status(ServiceStatus.ACTIVE)
+                        .moduleCode("GST")
+                        .build()));
+
         TenantContext.clear();
 
         // Tenant B (Isolation)
@@ -173,6 +204,15 @@ public class EngagementIntegrationTest {
                 .status(UserStatus.ACTIVE)
                 .roles(Set.of(adminRole))
                 .build());
+
+        ClientEntity clientBeta = ClientEntity.builder()
+                .displayName("Beta Client Ltd")
+                .clientType(ClientType.COMPANY)
+                .pan("BBBCN1234B")
+                .status(ClientStatus.ACTIVE)
+                .build();
+        clientBeta.setOrganizationId(orgB.getId());
+        clientB = clientRepository.save(clientBeta);
 
         tokenB = jwtTokenProvider.generateAccessToken(
                 userB.getId(),
@@ -200,18 +240,20 @@ public class EngagementIntegrationTest {
     }
 
     @Test
-    @DisplayName("Create Engagement, retrieve by ID, update details and update status")
+    @DisplayName("Create Engagement with service, reviewer, priority, and auto-generated code")
     void testCreateGetUpdateEngagement() throws Exception {
         CreateEngagementRequest request = CreateEngagementRequest.builder()
                 .clientId(clientA.getId())
+                .serviceId(serviceGST.getId())
                 .locationId(locA.getId())
-                .engagementCode("ENG-GST-2026")
                 .name("Annual GST Compliance FY 2026-27")
                 .description("Complete monthly GSTR-1, GSTR-3B filings and annual reconciliation")
                 .status(EngagementStatus.ACTIVE)
                 .startDate(LocalDate.of(2026, 4, 1))
                 .endDate(LocalDate.of(2027, 3, 31))
                 .assignedUserId(userA.getId())
+                .reviewerUserId(reviewerA.getId())
+                .priority(EngagementPriority.HIGH)
                 .notes("Monthly retainer mandate")
                 .build();
 
@@ -222,8 +264,10 @@ public class EngagementIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value("Annual GST Compliance FY 2026-27"))
-                .andExpect(jsonPath("$.data.engagementCode").value("ENG-GST-2026"))
+                .andExpect(jsonPath("$.data.engagementCode").value(org.hamcrest.Matchers.startsWith("ENG-")))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.priority").value("HIGH"))
+                .andExpect(jsonPath("$.data.serviceCode").value("GST_COMPLIANCE"))
                 .andReturn().getResponse().getContentAsString();
 
         UUID engagementId = UUID.fromString(objectMapper.readTree(response).path("data").path("id").asText());
@@ -234,12 +278,13 @@ public class EngagementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.clientName").value("Nexus Retail Pvt Ltd"))
                 .andExpect(jsonPath("$.data.locationName").value("Mumbai HQ"))
-                .andExpect(jsonPath("$.data.assignedUserName").value(userA.getFullName()));
+                .andExpect(jsonPath("$.data.assignedUserName").value(userA.getFullName()))
+                .andExpect(jsonPath("$.data.reviewerUserName").value(reviewerA.getFullName()));
 
         // Update Engagement
         UpdateEngagementRequest updateReq = UpdateEngagementRequest.builder()
                 .name("Comprehensive GST & ITC Advisory FY 2026-27")
-                .description("Expanded scope to cover Rule 37A supplier ITC reconciliation")
+                .priority(EngagementPriority.URGENT)
                 .build();
 
         mockMvc.perform(put("/api/v1/engagements/" + engagementId)
@@ -247,42 +292,123 @@ public class EngagementIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateReq)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("Comprehensive GST & ITC Advisory FY 2026-27"));
+                .andExpect(jsonPath("$.data.name").value("Comprehensive GST & ITC Advisory FY 2026-27"))
+                .andExpect(jsonPath("$.data.priority").value("URGENT"));
 
-        // Update Status
-        UpdateEngagementStatusRequest statusReq = UpdateEngagementStatusRequest.builder()
-                .status(EngagementStatus.COMPLETED)
-                .notes("All FY 2026-27 returns filed and annual return completed")
+        // Update Assignment via Patch
+        UpdateEngagementAssignmentRequest assignReq = UpdateEngagementAssignmentRequest.builder()
+                .reviewerUserId(reviewerA.getId())
+                .notes("Reviewer updated")
+                .build();
+
+        mockMvc.perform(patch("/api/v1/engagements/" + engagementId + "/assignment")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(assignReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reviewerUserId").value(reviewerA.getId().toString()));
+
+        // Update Status: ACTIVE -> ON_HOLD -> ACTIVE -> COMPLETED
+        UpdateEngagementStatusRequest holdReq = UpdateEngagementStatusRequest.builder()
+                .status(EngagementStatus.ON_HOLD)
+                .notes("Awaiting client bank statements")
                 .build();
 
         mockMvc.perform(patch("/api/v1/engagements/" + engagementId + "/status")
                         .header("Authorization", "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(statusReq)))
+                        .content(objectMapper.writeValueAsString(holdReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ON_HOLD"));
+
+        UpdateEngagementStatusRequest resumeReq = UpdateEngagementStatusRequest.builder()
+                .status(EngagementStatus.ACTIVE)
+                .build();
+
+        mockMvc.perform(patch("/api/v1/engagements/" + engagementId + "/status")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resumeReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+
+        UpdateEngagementStatusRequest completeReq = UpdateEngagementStatusRequest.builder()
+                .status(EngagementStatus.COMPLETED)
+                .notes("All returns filed")
+                .build();
+
+        mockMvc.perform(patch("/api/v1/engagements/" + engagementId + "/status")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(completeReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
     }
 
     @Test
-    @DisplayName("Retrieve Engagements by Client ID for Client 360")
-    void testGetEngagementsByClientId() throws Exception {
+    @DisplayName("List Engagements with server-side pagination, search, and status filters")
+    void testGetEngagementsWithFilters() throws Exception {
         CreateEngagementRequest req1 = CreateEngagementRequest.builder()
                 .clientId(clientA.getId())
-                .name("Engagement 1 - GST")
+                .name("Engagement Alpha - GST")
+                .status(EngagementStatus.ACTIVE)
+                .priority(EngagementPriority.HIGH)
                 .build();
 
         CreateEngagementRequest req2 = CreateEngagementRequest.builder()
                 .clientId(clientA.getId())
-                .name("Engagement 2 - TDS")
+                .name("Engagement Beta - TDS")
+                .status(EngagementStatus.DRAFT)
+                .priority(EngagementPriority.MEDIUM)
                 .build();
 
         mockMvc.perform(post("/api/v1/engagements").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req1))).andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/engagements").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req2))).andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/v1/engagements/clients/" + clientA.getId())
+        // Filter by status ACTIVE
+        mockMvc.perform(get("/api/v1/engagements?status=ACTIVE")
                         .header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2));
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].name").value("Engagement Alpha - GST"));
+
+        // Search by keyword "Beta"
+        mockMvc.perform(get("/api/v1/engagements?search=Beta")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].name").value("Engagement Beta - TDS"));
+    }
+
+    @Test
+    @DisplayName("Cross-tenant client rejection: Tenant A cannot create engagement using Tenant B client")
+    void testCrossTenantClientRejection() throws Exception {
+        CreateEngagementRequest request = CreateEngagementRequest.builder()
+                .clientId(clientB.getId()) // Belongs to Tenant B
+                .name("Cross Tenant Attempt")
+                .build();
+
+        mockMvc.perform(post("/api/v1/engagements")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Cross-tenant user rejection: Tenant A cannot assign user from Tenant B")
+    void testCrossTenantUserRejection() throws Exception {
+        CreateEngagementRequest request = CreateEngagementRequest.builder()
+                .clientId(clientA.getId())
+                .name("Cross Tenant User Attempt")
+                .assignedUserId(userB.getId()) // Belongs to Tenant B
+                .build();
+
+        mockMvc.perform(post("/api/v1/engagements")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

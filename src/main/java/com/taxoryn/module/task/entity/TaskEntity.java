@@ -81,6 +81,12 @@ public class TaskEntity extends TenantAuditableEntity {
     @Column(name = "compliance_work_item_id")
     private UUID complianceWorkItemId;
 
+    @Column(name = "work_instance_id")
+    private UUID workInstanceId;
+
+    @Column(name = "work_template_task_id")
+    private UUID workTemplateTaskId;
+
     @Column(name = "blocked_reason", columnDefinition = "TEXT")
     private String blockedReason;
 

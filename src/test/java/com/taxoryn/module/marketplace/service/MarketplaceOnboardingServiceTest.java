@@ -79,7 +79,7 @@ class MarketplaceOnboardingServiceTest {
                 .password("hash")
                 .enabled(true)
                 .roles(Set.of("ORG_ADMIN"))
-                .permissions(Set.of("CLIENT_VIEW", "CLIENT_MANAGE"))
+                .permissions(Set.of("CLIENT_VIEW", "CLIENT_WRITE", "MARKETPLACE_VIEW", "MARKETPLACE_WRITE"))
                 .build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities())

@@ -321,9 +321,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 }
             }
             for (UUID locId : targetLocIds) {
-                if (locationRepository.findByIdAndOrganizationId(locId, organizationId).isPresent()) {
-                    employeeLocationRepository.save(new EmployeeLocationEntity(new EmployeeLocationId(saved.getId(), locId)));
+                if (locationRepository.findByIdAndOrganizationId(locId, organizationId).isEmpty()) {
+                    throw new BusinessValidationException("Assigned location does not exist in the current organization.");
                 }
+                employeeLocationRepository.save(new EmployeeLocationEntity(new EmployeeLocationId(saved.getId(), locId)));
             }
         }
 
@@ -485,21 +486,20 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeEntity saved = employeeRepository.save(employee);
         log.info("Updated employee: id={} for tenant={}", saved.getId(), organizationId);
 
-        // Persist Location Assignment Update if provided
-        if (request.getLocationId() != null || request.getLocationIds() != null) {
-            employeeLocationRepository.deleteByEmployeeId(saved.getId());
-            List<UUID> targetLocIds = new ArrayList<>();
-            if (request.getLocationId() != null) targetLocIds.add(request.getLocationId());
-            if (request.getLocationIds() != null) {
-                for (UUID id : request.getLocationIds()) {
-                    if (id != null && !targetLocIds.contains(id)) targetLocIds.add(id);
-                }
+        // Persist Location Assignment Update
+        employeeLocationRepository.deleteByEmployeeId(saved.getId());
+        List<UUID> targetLocIds = new ArrayList<>();
+        if (request.getLocationId() != null) targetLocIds.add(request.getLocationId());
+        if (request.getLocationIds() != null) {
+            for (UUID id : request.getLocationIds()) {
+                if (id != null && !targetLocIds.contains(id)) targetLocIds.add(id);
             }
-            for (UUID locId : targetLocIds) {
-                if (locationRepository.findByIdAndOrganizationId(locId, organizationId).isPresent()) {
-                    employeeLocationRepository.save(new EmployeeLocationEntity(new EmployeeLocationId(saved.getId(), locId)));
-                }
+        }
+        for (UUID locId : targetLocIds) {
+            if (locationRepository.findByIdAndOrganizationId(locId, organizationId).isEmpty()) {
+                throw new BusinessValidationException("Assigned location does not exist in the current organization.");
             }
+            employeeLocationRepository.save(new EmployeeLocationEntity(new EmployeeLocationId(saved.getId(), locId)));
         }
 
         EmployeeDto result = enrichDto(saved);

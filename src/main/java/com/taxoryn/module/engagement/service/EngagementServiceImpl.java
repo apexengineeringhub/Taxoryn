@@ -1,5 +1,7 @@
 package com.taxoryn.module.engagement.service;
 
+import com.taxoryn.core.exception.BusinessValidationException;
+import com.taxoryn.core.exception.DuplicateResourceException;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.PracticeSecurityScope;
@@ -13,13 +15,18 @@ import com.taxoryn.module.client.repository.ClientServiceRepository;
 import com.taxoryn.module.engagement.dto.CreateEngagementRequest;
 import com.taxoryn.module.engagement.dto.EngagementDto;
 import com.taxoryn.module.engagement.dto.EngagementFilterRequest;
+import com.taxoryn.module.engagement.dto.UpdateEngagementAssignmentRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementStatusRequest;
 import com.taxoryn.module.engagement.entity.EngagementEntity;
+import com.taxoryn.module.engagement.model.EngagementPriority;
 import com.taxoryn.module.engagement.model.EngagementStatus;
 import com.taxoryn.module.engagement.repository.EngagementRepository;
 import com.taxoryn.module.organization.entity.LocationEntity;
 import com.taxoryn.module.organization.repository.LocationRepository;
+import com.taxoryn.module.service.entity.ServiceEntity;
+import com.taxoryn.module.service.repository.ServiceRepository;
+import com.taxoryn.module.service.service.ServiceCatalogService;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -35,9 +42,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -49,6 +58,8 @@ public class EngagementServiceImpl implements EngagementService {
 
     private final EngagementRepository engagementRepository;
     private final ClientRepository clientRepository;
+    private final ServiceRepository serviceRepository;
+    private final ServiceCatalogService serviceCatalogService;
     private final ClientServiceRepository clientServiceRepository;
     private final LocationRepository locationRepository;
     private final UserRepository userRepository;
@@ -60,41 +71,86 @@ public class EngagementServiceImpl implements EngagementService {
     public EngagementDto createEngagement(CreateEngagementRequest request) {
         UUID organizationId = resolveOrganizationId();
 
+        // 1. Client Ownership & Existence Validation
         ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
 
         UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
-
         validateAccess(client.getId(), locationId);
 
-        if (request.getClientServiceId() != null) {
-            clientServiceRepository.findByIdAndOrganizationId(request.getClientServiceId(), organizationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("ClientService", "id", request.getClientServiceId()));
+        // 2. Service Entitlement & Availability Check
+        ServiceEntity service = null;
+        if (request.getServiceId() != null) {
+            service = serviceRepository.findAccessibleServiceById(request.getServiceId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Service", "id", request.getServiceId()));
+
+            if (!serviceCatalogService.isServiceAvailableForPractice(organizationId, service)) {
+                throw new BusinessValidationException(
+                        "SERVICE_NOT_AVAILABLE: The requested service '" + service.getServiceName() +
+                                "' is not enabled or entitled under your practice's subscription plan."
+                );
+            }
         }
 
-        String engagementCode = StringUtils.hasText(request.getEngagementCode())
-                ? request.getEngagementCode().trim()
-                : "ENG-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        // 3. User Assignment Validation (Must belong to same organization)
+        if (request.getAssignedUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getAssignedUserId(), organizationId)
+                    .orElseThrow(() -> new BusinessValidationException("Assigned preparer/owner does not belong to this organization."));
+        }
+        if (request.getReviewerUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getReviewerUserId(), organizationId)
+                    .orElseThrow(() -> new BusinessValidationException("Reviewer user does not belong to this organization."));
+        }
+
+        // 4. Date Range Validation
+        if (request.getStartDate() != null && request.getEndDate() != null && request.getStartDate().isAfter(request.getEndDate())) {
+            throw new BusinessValidationException("Engagement start date cannot be after end date.");
+        }
+
+        // 5. Backend Generated Unique Engagement Code
+        String engagementCode;
+        if (StringUtils.hasText(request.getEngagementCode())) {
+            engagementCode = request.getEngagementCode().trim().toUpperCase();
+            if (engagementRepository.existsByOrganizationIdAndEngagementCode(organizationId, engagementCode)) {
+                throw new DuplicateResourceException("Engagement", "engagementCode", engagementCode);
+            }
+        } else {
+            engagementCode = generateEngagementCode(organizationId);
+        }
+
+        EngagementStatus status = request.getStatus() != null ? request.getStatus() : EngagementStatus.ACTIVE;
+        EngagementPriority priority = request.getPriority() != null ? request.getPriority() : EngagementPriority.MEDIUM;
 
         EngagementEntity engagement = EngagementEntity.builder()
                 .locationId(locationId)
                 .clientId(client.getId())
+                .serviceId(service != null ? service.getId() : null)
                 .clientServiceId(request.getClientServiceId())
                 .engagementCode(engagementCode)
                 .name(request.getName().trim())
                 .description(request.getDescription())
-                .status(request.getStatus() != null ? request.getStatus() : EngagementStatus.ACTIVE)
+                .status(status)
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .assignedUserId(request.getAssignedUserId())
+                .reviewerUserId(request.getReviewerUserId())
+                .priority(priority)
                 .notes(request.getNotes())
                 .build();
         engagement.setOrganizationId(organizationId);
 
         engagement = engagementRepository.save(engagement);
-        log.info("Created Engagement: id={}, name={} for tenant={}", engagement.getId(), engagement.getName(), organizationId);
+        log.info("Created Engagement: id={}, code={}, name={} for tenant={}",
+                engagement.getId(), engagement.getEngagementCode(), engagement.getName(), organizationId);
 
+        // Audit Logging
         auditService.logEvent("ENGAGEMENT_CREATED", "ENGAGEMENT", engagement.getId().toString(), null, engagement);
+        if (engagement.getStatus() == EngagementStatus.ACTIVE) {
+            auditService.logEvent("ENGAGEMENT_ACTIVATED", "ENGAGEMENT", engagement.getId().toString(), null, engagement);
+        }
+        if (engagement.getAssignedUserId() != null) {
+            auditService.logEvent("ENGAGEMENT_ASSIGNED", "ENGAGEMENT", engagement.getId().toString(), null, engagement);
+        }
 
         return enrichDto(engagement);
     }
@@ -135,6 +191,9 @@ public class EngagementServiceImpl implements EngagementService {
             if (filterRequest.getClientId() != null) {
                 predicates.add(cb.equal(root.get("clientId"), filterRequest.getClientId()));
             }
+            if (filterRequest.getServiceId() != null) {
+                predicates.add(cb.equal(root.get("serviceId"), filterRequest.getServiceId()));
+            }
             if (filterRequest.getLocationId() != null) {
                 predicates.add(cb.equal(root.get("locationId"), filterRequest.getLocationId()));
             }
@@ -144,9 +203,22 @@ public class EngagementServiceImpl implements EngagementService {
             if (filterRequest.getAssignedUserId() != null) {
                 predicates.add(cb.equal(root.get("assignedUserId"), filterRequest.getAssignedUserId()));
             }
+            if (filterRequest.getReviewerUserId() != null) {
+                predicates.add(cb.equal(root.get("reviewerUserId"), filterRequest.getReviewerUserId()));
+            }
             if (filterRequest.getStatus() != null) {
                 predicates.add(cb.equal(root.get("status"), filterRequest.getStatus()));
             }
+            if (filterRequest.getPriority() != null) {
+                predicates.add(cb.equal(root.get("priority"), filterRequest.getPriority()));
+            }
+            if (filterRequest.getStartDate() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("startDate"), filterRequest.getStartDate()));
+            }
+            if (filterRequest.getEndDate() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("endDate"), filterRequest.getEndDate()));
+            }
+
             if (StringUtils.hasText(filterRequest.getSearch())) {
                 String pattern = "%" + filterRequest.getSearch().trim().toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -199,6 +271,19 @@ public class EngagementServiceImpl implements EngagementService {
 
         validateAccess(engagement.getClientId(), engagement.getLocationId());
 
+        if (request.getServiceId() != null) {
+            ServiceEntity service = serviceRepository.findAccessibleServiceById(request.getServiceId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Service", "id", request.getServiceId()));
+
+            if (!serviceCatalogService.isServiceAvailableForPractice(organizationId, service)) {
+                throw new BusinessValidationException(
+                        "SERVICE_NOT_AVAILABLE: The requested service '" + service.getServiceName() +
+                                "' is not enabled or entitled under your practice's subscription plan."
+                );
+            }
+            engagement.setServiceId(service.getId());
+        }
+
         if (request.getLocationId() != null) {
             engagement.setLocationId(request.getLocationId());
         }
@@ -206,7 +291,12 @@ public class EngagementServiceImpl implements EngagementService {
             engagement.setClientServiceId(request.getClientServiceId());
         }
         if (StringUtils.hasText(request.getEngagementCode())) {
-            engagement.setEngagementCode(request.getEngagementCode().trim());
+            String newCode = request.getEngagementCode().trim().toUpperCase();
+            if (!newCode.equalsIgnoreCase(engagement.getEngagementCode())
+                    && engagementRepository.existsByOrganizationIdAndEngagementCode(organizationId, newCode)) {
+                throw new DuplicateResourceException("Engagement", "engagementCode", newCode);
+            }
+            engagement.setEngagementCode(newCode);
         }
         if (StringUtils.hasText(request.getName())) {
             engagement.setName(request.getName().trim());
@@ -214,7 +304,8 @@ public class EngagementServiceImpl implements EngagementService {
         if (request.getDescription() != null) {
             engagement.setDescription(request.getDescription());
         }
-        if (request.getStatus() != null) {
+        if (request.getStatus() != null && request.getStatus() != engagement.getStatus()) {
+            engagement.getStatus().validateTransition(request.getStatus());
             engagement.setStatus(request.getStatus());
         }
         if (request.getStartDate() != null) {
@@ -223,8 +314,23 @@ public class EngagementServiceImpl implements EngagementService {
         if (request.getEndDate() != null) {
             engagement.setEndDate(request.getEndDate());
         }
+        if (engagement.getStartDate() != null && engagement.getEndDate() != null
+                && engagement.getStartDate().isAfter(engagement.getEndDate())) {
+            throw new BusinessValidationException("Engagement start date cannot be after end date.");
+        }
+
         if (request.getAssignedUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getAssignedUserId(), organizationId)
+                    .orElseThrow(() -> new BusinessValidationException("Assigned preparer/owner does not belong to this organization."));
             engagement.setAssignedUserId(request.getAssignedUserId());
+        }
+        if (request.getReviewerUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getReviewerUserId(), organizationId)
+                    .orElseThrow(() -> new BusinessValidationException("Reviewer user does not belong to this organization."));
+            engagement.setReviewerUserId(request.getReviewerUserId());
+        }
+        if (request.getPriority() != null) {
+            engagement.setPriority(request.getPriority());
         }
         if (request.getNotes() != null) {
             engagement.setNotes(request.getNotes());
@@ -247,15 +353,67 @@ public class EngagementServiceImpl implements EngagementService {
 
         validateAccess(engagement.getClientId(), engagement.getLocationId());
 
-        engagement.setStatus(request.getStatus());
+        EngagementStatus previousStatus = engagement.getStatus();
+        EngagementStatus targetStatus = request.getStatus();
+
+        previousStatus.validateTransition(targetStatus);
+        engagement.setStatus(targetStatus);
+
         if (request.getNotes() != null) {
             engagement.setNotes(request.getNotes());
         }
 
         engagement = engagementRepository.save(engagement);
-        log.info("Updated status for Engagement: id={}, status={}", engagement.getId(), engagement.getStatus());
+        log.info("Updated status for Engagement: id={}, previous={}, new={}", engagement.getId(), previousStatus, targetStatus);
 
-        auditService.logEvent("ENGAGEMENT_STATUS_UPDATED", "ENGAGEMENT", engagement.getId().toString(), null, engagement);
+        // Audit Logging based on lifecycle event
+        auditService.logEvent("ENGAGEMENT_STATUS_CHANGED", "ENGAGEMENT", engagement.getId().toString(), previousStatus, targetStatus);
+        if (targetStatus == EngagementStatus.ACTIVE && previousStatus != EngagementStatus.ACTIVE) {
+            auditService.logEvent("ENGAGEMENT_ACTIVATED", "ENGAGEMENT", engagement.getId().toString(), null, engagement);
+        } else if (targetStatus == EngagementStatus.COMPLETED) {
+            auditService.logEvent("ENGAGEMENT_COMPLETED", "ENGAGEMENT", engagement.getId().toString(), null, engagement);
+        } else if (targetStatus == EngagementStatus.CANCELLED) {
+            auditService.logEvent("ENGAGEMENT_CANCELLED", "ENGAGEMENT", engagement.getId().toString(), null, engagement);
+        }
+
+        return enrichDto(engagement);
+    }
+
+    @Override
+    @Transactional
+    public EngagementDto updateEngagementAssignment(UUID id, UpdateEngagementAssignmentRequest request) {
+        UUID organizationId = resolveOrganizationId();
+        EngagementEntity engagement = engagementRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", id));
+
+        validateAccess(engagement.getClientId(), engagement.getLocationId());
+
+        UUID previousAssignedUser = engagement.getAssignedUserId();
+        UUID previousReviewer = engagement.getReviewerUserId();
+
+        if (request.getAssignedUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getAssignedUserId(), organizationId)
+                    .orElseThrow(() -> new BusinessValidationException("Assigned user does not belong to this organization."));
+            engagement.setAssignedUserId(request.getAssignedUserId());
+        }
+        if (request.getReviewerUserId() != null) {
+            userRepository.findByIdAndOrganizationId(request.getReviewerUserId(), organizationId)
+                    .orElseThrow(() -> new BusinessValidationException("Reviewer user does not belong to this organization."));
+            engagement.setReviewerUserId(request.getReviewerUserId());
+        }
+        if (request.getNotes() != null) {
+            engagement.setNotes(request.getNotes());
+        }
+
+        engagement = engagementRepository.save(engagement);
+        log.info("Updated assignment for Engagement: id={}, assignedUser={}, reviewerUser={}",
+                engagement.getId(), engagement.getAssignedUserId(), engagement.getReviewerUserId());
+
+        if (!Objects.equals(previousAssignedUser, engagement.getAssignedUserId())
+                || !Objects.equals(previousReviewer, engagement.getReviewerUserId())) {
+            String auditAction = previousAssignedUser == null ? "ENGAGEMENT_ASSIGNED" : "ENGAGEMENT_REASSIGNED";
+            auditService.logEvent(auditAction, "ENGAGEMENT", engagement.getId().toString(), previousAssignedUser, engagement.getAssignedUserId());
+        }
 
         return enrichDto(engagement);
     }
@@ -276,6 +434,16 @@ public class EngagementServiceImpl implements EngagementService {
     }
 
     // --- Helper Methods ---
+
+    private String generateEngagementCode(UUID organizationId) {
+        int year = LocalDate.now().getYear();
+        long count = engagementRepository.countByOrganizationId(organizationId) + 1;
+        String code;
+        do {
+            code = String.format("ENG-%d-%06d", year, count++);
+        } while (engagementRepository.existsByOrganizationIdAndEngagementCode(organizationId, code));
+        return code;
+    }
 
     private UUID resolveOrganizationId() {
         UUID tenantId = TenantContext.getTenantId();
@@ -309,10 +477,25 @@ public class EngagementServiceImpl implements EngagementService {
     private EngagementDto enrichDto(EngagementEntity entity) {
         UUID orgId = entity.getOrganizationId();
         String clientName = null;
+        String clientCode = null;
         if (entity.getClientId() != null) {
-            clientName = clientRepository.findByIdAndOrganizationId(entity.getClientId(), orgId)
-                    .map(ClientEntity::getDisplayName)
-                    .orElse(null);
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(entity.getClientId(), orgId).orElse(null);
+            if (client != null) {
+                clientName = client.getDisplayName();
+                clientCode = client.getClientCode();
+            }
+        }
+
+        String serviceCode = null;
+        String serviceName = null;
+        com.taxoryn.module.service.model.ServiceCategory serviceCategory = null;
+        if (entity.getServiceId() != null) {
+            ServiceEntity s = serviceRepository.findAccessibleServiceById(entity.getServiceId(), orgId).orElse(null);
+            if (s != null) {
+                serviceCode = s.getServiceCode();
+                serviceName = s.getServiceName();
+                serviceCategory = s.getCategory();
+            }
         }
 
         String locationName = null;
@@ -329,6 +512,13 @@ public class EngagementServiceImpl implements EngagementService {
                     .orElse(null);
         }
 
+        String reviewerUserName = null;
+        if (entity.getReviewerUserId() != null) {
+            reviewerUserName = userRepository.findByIdAndOrganizationId(entity.getReviewerUserId(), orgId)
+                    .map(UserEntity::getFullName)
+                    .orElse(null);
+        }
+
         return EngagementDto.builder()
                 .id(entity.getId())
                 .organizationId(entity.getOrganizationId())
@@ -336,6 +526,11 @@ public class EngagementServiceImpl implements EngagementService {
                 .locationName(locationName)
                 .clientId(entity.getClientId())
                 .clientName(clientName)
+                .clientCode(clientCode)
+                .serviceId(entity.getServiceId())
+                .serviceCode(serviceCode)
+                .serviceName(serviceName)
+                .serviceCategory(serviceCategory)
                 .clientServiceId(entity.getClientServiceId())
                 .engagementCode(entity.getEngagementCode())
                 .name(entity.getName())
@@ -345,6 +540,9 @@ public class EngagementServiceImpl implements EngagementService {
                 .endDate(entity.getEndDate())
                 .assignedUserId(entity.getAssignedUserId())
                 .assignedUserName(assignedUserName)
+                .reviewerUserId(entity.getReviewerUserId())
+                .reviewerUserName(reviewerUserName)
+                .priority(entity.getPriority())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
@@ -359,34 +557,49 @@ public class EngagementServiceImpl implements EngagementService {
         }
 
         UUID orgId = entities.get(0).getOrganizationId();
-        Map<UUID, String> clientNames = clientRepository.findAllByOrganizationId(orgId).stream()
-                .collect(Collectors.toMap(ClientEntity::getId, ClientEntity::getDisplayName, (a, b) -> a));
+        Map<UUID, ClientEntity> clientMap = clientRepository.findAllByOrganizationId(orgId).stream()
+                .collect(Collectors.toMap(ClientEntity::getId, c -> c, (a, b) -> a));
+        Map<UUID, ServiceEntity> serviceMap = serviceRepository.findAll().stream()
+                .collect(Collectors.toMap(ServiceEntity::getId, s -> s, (a, b) -> a));
         Map<UUID, String> locationNames = locationRepository.findAllByOrganizationId(orgId).stream()
                 .collect(Collectors.toMap(LocationEntity::getId, LocationEntity::getName, (a, b) -> a));
         Map<UUID, String> userNames = userRepository.findAllByOrganizationId(orgId).stream()
                 .collect(Collectors.toMap(UserEntity::getId, UserEntity::getFullName, (a, b) -> a));
 
-        return entities.stream().map(e -> EngagementDto.builder()
-                .id(e.getId())
-                .organizationId(e.getOrganizationId())
-                .locationId(e.getLocationId())
-                .locationName(e.getLocationId() != null ? locationNames.get(e.getLocationId()) : null)
-                .clientId(e.getClientId())
-                .clientName(e.getClientId() != null ? clientNames.get(e.getClientId()) : null)
-                .clientServiceId(e.getClientServiceId())
-                .engagementCode(e.getEngagementCode())
-                .name(e.getName())
-                .description(e.getDescription())
-                .status(e.getStatus())
-                .startDate(e.getStartDate())
-                .endDate(e.getEndDate())
-                .assignedUserId(e.getAssignedUserId())
-                .assignedUserName(e.getAssignedUserId() != null ? userNames.get(e.getAssignedUserId()) : null)
-                .notes(e.getNotes())
-                .createdAt(e.getCreatedAt())
-                .updatedAt(e.getUpdatedAt())
-                .createdBy(e.getCreatedBy())
-                .updatedBy(e.getUpdatedBy())
-                .build()).collect(Collectors.toList());
+        return entities.stream().map(e -> {
+            ClientEntity c = e.getClientId() != null ? clientMap.get(e.getClientId()) : null;
+            ServiceEntity s = e.getServiceId() != null ? serviceMap.get(e.getServiceId()) : null;
+
+            return EngagementDto.builder()
+                    .id(e.getId())
+                    .organizationId(e.getOrganizationId())
+                    .locationId(e.getLocationId())
+                    .locationName(e.getLocationId() != null ? locationNames.get(e.getLocationId()) : null)
+                    .clientId(e.getClientId())
+                    .clientName(c != null ? c.getDisplayName() : null)
+                    .clientCode(c != null ? c.getClientCode() : null)
+                    .serviceId(e.getServiceId())
+                    .serviceCode(s != null ? s.getServiceCode() : null)
+                    .serviceName(s != null ? s.getServiceName() : null)
+                    .serviceCategory(s != null ? s.getCategory() : null)
+                    .clientServiceId(e.getClientServiceId())
+                    .engagementCode(e.getEngagementCode())
+                    .name(e.getName())
+                    .description(e.getDescription())
+                    .status(e.getStatus())
+                    .startDate(e.getStartDate())
+                    .endDate(e.getEndDate())
+                    .assignedUserId(e.getAssignedUserId())
+                    .assignedUserName(e.getAssignedUserId() != null ? userNames.get(e.getAssignedUserId()) : null)
+                    .reviewerUserId(e.getReviewerUserId())
+                    .reviewerUserName(e.getReviewerUserId() != null ? userNames.get(e.getReviewerUserId()) : null)
+                    .priority(e.getPriority())
+                    .notes(e.getNotes())
+                    .createdAt(e.getCreatedAt())
+                    .updatedAt(e.getUpdatedAt())
+                    .createdBy(e.getCreatedBy())
+                    .updatedBy(e.getUpdatedBy())
+                    .build();
+        }).collect(Collectors.toList());
     }
 }
