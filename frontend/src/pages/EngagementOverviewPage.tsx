@@ -19,12 +19,22 @@ import {
   ExternalLink,
   Layers,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   UserCheck,
   Receipt,
   FolderLock,
   History,
+  Plus,
+  Play,
+  RotateCw,
+  RefreshCw,
+  Sparkles,
+  CheckSquare,
+  Filter,
+  Trash2,
 } from 'lucide-react';
-import { engagementsApi, servicesApi, clientApi } from '../api/endpoints';
+import { engagementsApi, servicesApi, clientApi, workTemplatesApi, engagementWorkApi, workInstancesApi } from '../api/endpoints';
 import {
   EngagementDto,
   EngagementStatusType,
@@ -32,6 +42,13 @@ import {
   ServiceDto,
   UpdateEngagementPayload,
   UpdateEngagementAssignmentPayload,
+  WorkTemplateDto,
+  EngagementWorkTemplateDto,
+  WorkInstanceDto,
+  WorkInstanceStatusType,
+  RecurrenceType,
+  EnableEngagementTemplatePayload,
+  GenerateWorkInstancePayload,
 } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
@@ -56,6 +73,53 @@ export const EngagementOverviewPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [editFormData, setEditFormData] = useState<UpdateEngagementPayload>({});
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+
+  // Work Items & Templates State
+  const [linkedTemplates, setLinkedTemplates] = useState<EngagementWorkTemplateDto[]>([]);
+  const [workInstances, setWorkInstances] = useState<WorkInstanceDto[]>([]);
+  const [availablePracticeTemplates, setAvailablePracticeTemplates] = useState<WorkTemplateDto[]>([]);
+  const [isLoadingWorkData, setIsLoadingWorkData] = useState<boolean>(false);
+  const [expandedWorkInstanceIds, setExpandedWorkInstanceIds] = useState<Set<string>>(new Set());
+
+  // Enable Template Modal State
+  const [isEnableTemplateModalOpen, setIsEnableTemplateModalOpen] = useState<boolean>(false);
+  const [enableTemplateForm, setEnableTemplateForm] = useState<{
+    templateId: string;
+    recurrenceType: RecurrenceType;
+    recurrenceInterval: number;
+    dayOfMonth?: number;
+  }>({
+    templateId: '',
+    recurrenceType: 'MONTHLY',
+    recurrenceInterval: 1,
+    dayOfMonth: 20,
+  });
+  const [isSubmittingEnableTemplate, setIsSubmittingEnableTemplate] = useState<boolean>(false);
+
+  // Generate Work Modal State
+  const [isGenerateWorkModalOpen, setIsGenerateWorkModalOpen] = useState<boolean>(false);
+  const [generateWorkForm, setGenerateWorkForm] = useState<{
+    templateId: string;
+    periodStart: string;
+    periodEnd: string;
+    customTitle: string;
+    targetDueDate: string;
+    assignedUserId: string;
+  }>({
+    templateId: '',
+    periodStart: '',
+    periodEnd: '',
+    customTitle: '',
+    targetDueDate: '',
+    assignedUserId: '',
+  });
+  const [isSubmittingGenerateWork, setIsSubmittingGenerateWork] = useState<boolean>(false);
+
+  // Work Instance Status Update Modal State
+  const [statusModalInstance, setStatusModalInstance] = useState<WorkInstanceDto | null>(null);
+  const [newInstanceStatus, setNewInstanceStatus] = useState<WorkInstanceStatusType>('IN_PROGRESS');
+  const [instanceStatusNotes, setInstanceStatusNotes] = useState<string>('');
+  const [isUpdatingInstanceStatus, setIsUpdatingInstanceStatus] = useState<boolean>(false);
 
   // Load Engagement
   const loadEngagement = useCallback(async () => {
@@ -82,10 +146,31 @@ export const EngagementOverviewPage: React.FC = () => {
     }
   }, [id]);
 
+  // Load Work Templates & Instances
+  const loadWorkData = useCallback(async () => {
+    if (!id) return;
+    setIsLoadingWorkData(true);
+    try {
+      const [enabledTpls, instsPage, availTpls] = await Promise.all([
+        engagementWorkApi.getEnabledTemplates(id),
+        engagementWorkApi.getWorkInstances(id),
+        engagementWorkApi.getAvailableTemplates(id),
+      ]);
+      setLinkedTemplates(enabledTpls || []);
+      setWorkInstances(instsPage?.content || []);
+      setAvailablePracticeTemplates(availTpls || []);
+    } catch (err: any) {
+      console.error('Failed to load engagement work data', err);
+    } finally {
+      setIsLoadingWorkData(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     loadEngagement();
+    loadWorkData();
     servicesApi.getAll().then(setServices).catch(() => {});
-  }, [loadEngagement]);
+  }, [loadEngagement, loadWorkData]);
 
   const handleStatusTransition = async (newStatus: EngagementStatusType) => {
     if (!id) return;
@@ -103,6 +188,99 @@ export const EngagementOverviewPage: React.FC = () => {
     } finally {
       setIsUpdatingStatus(false);
     }
+  };
+
+  const handleEnableTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !enableTemplateForm.templateId) return;
+    try {
+      setIsSubmittingEnableTemplate(true);
+      await engagementWorkApi.enableTemplate(id, enableTemplateForm.templateId, {
+        recurrenceType: enableTemplateForm.recurrenceType,
+        recurrenceInterval: enableTemplateForm.recurrenceInterval,
+        dayOfMonth: enableTemplateForm.dayOfMonth,
+      });
+      await loadWorkData();
+      setIsEnableTemplateModalOpen(false);
+      setEnableTemplateForm({
+        templateId: '',
+        recurrenceType: 'MONTHLY',
+        recurrenceInterval: 1,
+        dayOfMonth: 20,
+      });
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to link work template to engagement');
+    } finally {
+      setIsSubmittingEnableTemplate(false);
+    }
+  };
+
+  const handleDisableTemplate = async (templateId: string) => {
+    if (!id || !confirm('Are you sure you want to unlink this template from the engagement?')) return;
+    try {
+      await engagementWorkApi.disableTemplate(id, templateId);
+      await loadWorkData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to disable template');
+    }
+  };
+
+  const handleGenerateWork = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !generateWorkForm.templateId || !generateWorkForm.periodStart || !generateWorkForm.periodEnd) return;
+    try {
+      setIsSubmittingGenerateWork(true);
+      await engagementWorkApi.generateWork(id, {
+        templateId: generateWorkForm.templateId,
+        periodStart: generateWorkForm.periodStart,
+        periodEnd: generateWorkForm.periodEnd,
+        title: generateWorkForm.customTitle || undefined,
+        dueDate: generateWorkForm.targetDueDate || undefined,
+        assignedUserId: generateWorkForm.assignedUserId || engagement?.assignedUserId || undefined,
+      });
+      await loadWorkData();
+      setIsGenerateWorkModalOpen(false);
+      setGenerateWorkForm({
+        templateId: '',
+        periodStart: '',
+        periodEnd: '',
+        customTitle: '',
+        targetDueDate: '',
+        assignedUserId: '',
+      });
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to generate work instance');
+    } finally {
+      setIsSubmittingGenerateWork(false);
+    }
+  };
+
+  const handleUpdateInstanceStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statusModalInstance) return;
+    try {
+      setIsUpdatingInstanceStatus(true);
+      await workInstancesApi.updateStatus(statusModalInstance.id, {
+        status: newInstanceStatus,
+        notes: instanceStatusNotes.trim() || undefined,
+      });
+      await loadWorkData();
+      setStatusModalInstance(null);
+      setInstanceStatusNotes('');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update work instance status');
+    } finally {
+      setIsUpdatingInstanceStatus(false);
+    }
+  };
+
+  const toggleExpandInstance = (instanceId: string) => {
+    setExpandedWorkInstanceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(instanceId)) next.delete(instanceId);
+      else next.add(instanceId);
+      return next;
+    });
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -456,26 +634,321 @@ export const EngagementOverviewPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab: Work Items Placeholder (Anchor for P0.2) */}
+      {/* Tab: Work Items (P0.2 Recurring Compliance & Work Templates) */}
       {activeTab === 'work_items' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-4 shadow-2xs">
-          <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mx-auto border border-purple-100">
-            <Layers className="w-6 h-6" />
+        <div className="space-y-6">
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-brand-600" />
+                <span>Recurring Work Engine & Compliance Pipeline</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Standardized work templates and concrete compliance periods for this engagement mandate.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEnableTemplateModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 text-brand-600" />
+                <span>Link Template</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (linkedTemplates.length === 0) {
+                    alert('Please link at least one work template first before generating a work period.');
+                    return;
+                  }
+                  setGenerateWorkForm({
+                    templateId: linkedTemplates[0].templateId,
+                    periodStart: new Date().toISOString().split('T')[0],
+                    periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    customTitle: '',
+                    targetDueDate: '',
+                    assignedUserId: engagement.assignedUserId || '',
+                  });
+                  setIsGenerateWorkModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-xs transition-colors"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Generate Period Work</span>
+              </button>
+            </div>
           </div>
-          <div className="max-w-md mx-auto space-y-1">
-            <h3 className="text-sm font-bold text-slate-900">Compliance Periods & Work Items</h3>
-            <p className="text-xs text-slate-500">
-              Recurring monthly/quarterly compliance periods, return filing checklists, and task workflows for{' '}
-              <span className="font-semibold text-slate-800">{engagement.name}</span> will be managed here.
-            </p>
+
+          {/* Section 1: Linked Templates */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                <span>Active Mandate Templates ({linkedTemplates.length})</span>
+              </h4>
+              <Link
+                to="/work-templates"
+                className="text-xs font-bold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+              >
+                <span>Manage Practice Templates</span>
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+
+            {linkedTemplates.length === 0 ? (
+              <div className="py-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50 space-y-2">
+                <Layers className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">No Work Templates Linked Yet</p>
+                <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                  Link a practice compliance template (e.g., GST Monthly Returns, TDS Quarterly) to auto-generate checklists and track recurring deadlines.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsEnableTemplateModalOpen(true)}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-lg transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Link Template Now</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {linkedTemplates.map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="p-3.5 border border-slate-200 rounded-xl bg-slate-50/60 hover:bg-slate-50 transition-colors flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded">
+                          {tpl.templateCode}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                            {tpl.recurrenceType}
+                          </span>
+                          {tpl.active && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <h5 className="font-bold text-xs text-slate-900 mt-2">{tpl.templateName}</h5>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {tpl.taskCount} standard tasks included
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGenerateWorkForm({
+                            templateId: tpl.templateId,
+                            periodStart: new Date().toISOString().split('T')[0],
+                            periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                            customTitle: '',
+                            targetDueDate: '',
+                            assignedUserId: engagement.assignedUserId || '',
+                          });
+                          setIsGenerateWorkModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1 font-bold text-brand-600 hover:text-brand-700"
+                      >
+                        <Play className="w-3 h-3" />
+                        <span>Generate Instance</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDisableTemplate(tpl.templateId)}
+                        className="text-slate-400 hover:text-rose-600 transition-colors"
+                        title="Unlink template"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <Link
-            to="/compliance/workbench"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition-colors"
-          >
-            <span>Open Compliance Workbench</span>
-            <ChevronRight className="w-4 h-4" />
-          </Link>
+
+          {/* Section 2: Concrete Generated Work Instances Pipeline */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <Briefcase className="w-3.5 h-3.5 text-brand-600" />
+                <span>Generated Compliance Periods & Work ({workInstances.length})</span>
+              </h4>
+              <button
+                type="button"
+                onClick={loadWorkData}
+                disabled={isLoadingWorkData}
+                className="text-slate-400 hover:text-slate-700 transition-colors p-1"
+                title="Refresh Work Pipeline"
+              >
+                <RefreshCw className={clsx('w-3.5 h-3.5', isLoadingWorkData && 'animate-spin')} />
+              </button>
+            </div>
+
+            {workInstances.length === 0 ? (
+              <div className="py-8 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50 space-y-2">
+                <Clock className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">No Compliance Periods Generated</p>
+                <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                  Work instances represent discrete compliance periods (e.g. "October 2026 GSTR-3B") and their unified tasks.
+                </p>
+                <button
+                  type="button"
+                  disabled={linkedTemplates.length === 0}
+                  onClick={() => {
+                    if (linkedTemplates.length === 0) return;
+                    setGenerateWorkForm({
+                      templateId: linkedTemplates[0].templateId,
+                      periodStart: new Date().toISOString().split('T')[0],
+                      periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                      customTitle: '',
+                      targetDueDate: '',
+                      assignedUserId: engagement.assignedUserId || '',
+                    });
+                    setIsGenerateWorkModalOpen(true);
+                  }}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Generate Next Work Period</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {workInstances.map((inst) => {
+                  const isExpanded = expandedWorkInstanceIds.has(inst.id);
+                  const progress = inst.totalTasks > 0 ? Math.round((inst.completedTasks / inst.totalTasks) * 100) : 0;
+
+                  return (
+                    <div
+                      key={inst.id}
+                      className="border border-slate-200 rounded-2xl p-4 bg-white hover:border-slate-300 transition-all shadow-2xs space-y-3"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-slate-900">
+                              {inst.title}
+                            </span>
+                            <StatusBadge status={inst.status} />
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Period: {inst.periodStart} → {inst.periodEnd}</span>
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Due: {inst.dueDate || 'No Due Date'}</span>
+                            </span>
+                            {inst.assignedUserName && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  <User className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{inst.assignedUserName}</span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Progress & Actions */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="w-32 text-right">
+                            <div className="flex items-center justify-between text-[11px] font-bold mb-1">
+                              <span className="text-slate-500">Tasks</span>
+                              <span className="text-slate-800">{inst.completedTasks} / {inst.totalTasks}</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-brand-500 transition-all duration-300"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStatusModalInstance(inst);
+                              setNewInstanceStatus(inst.status);
+                              setInstanceStatusNotes('');
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors"
+                          >
+                            Update Status
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandInstance(inst.id)}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                            title={isExpanded ? 'Hide tasks' : 'Show tasks'}
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expanded Task Breakdown */}
+                      {isExpanded && (
+                        <div className="pt-3 border-t border-slate-100 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                            <span>Instantiated Task Checklist ({inst.tasks?.length || 0})</span>
+                            <Link
+                              to="/tasks"
+                              className="text-brand-600 hover:underline text-[11px]"
+                            >
+                              Open in Task Kanban →
+                            </Link>
+                          </div>
+
+                          {(!inst.tasks || inst.tasks.length === 0) ? (
+                            <p className="text-xs text-slate-400 italic py-2">No individual tasks registered for this instance.</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {inst.tasks.map((task) => (
+                                <div
+                                  key={task.id}
+                                  className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs hover:bg-white hover:border-slate-200 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <CheckSquare className={clsx('w-4 h-4 shrink-0', task.status === 'COMPLETED' ? 'text-emerald-600' : 'text-slate-400')} />
+                                    <span className={clsx('font-medium text-slate-800 truncate', task.status === 'COMPLETED' && 'line-through text-slate-400')}>
+                                      {task.title}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0 text-[11px]">
+                                    <span className="font-bold px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-700 text-[10px]">
+                                      {task.priority}
+                                    </span>
+                                    <StatusBadge status={task.status} />
+                                    <span className="text-slate-400">{task.dueDate || 'No Due'}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -683,6 +1156,287 @@ export const EngagementOverviewPage: React.FC = () => {
                 className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
               >
                 {isSavingEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Enable Template Modal */}
+      {isEnableTemplateModalOpen && (
+        <Modal
+          isOpen={isEnableTemplateModalOpen}
+          onClose={() => setIsEnableTemplateModalOpen(false)}
+          title="Link Work Template to Engagement"
+          maxWidth="lg"
+        >
+          <form onSubmit={handleEnableTemplate} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Select Practice Template <span className="text-rose-500">*</span>
+              </label>
+              <select
+                required
+                value={enableTemplateForm.templateId}
+                onChange={(e) => {
+                  const tplId = e.target.value;
+                  const tpl = availablePracticeTemplates.find((t) => t.id === tplId);
+                  setEnableTemplateForm((prev) => ({
+                    ...prev,
+                    templateId: tplId,
+                    recurrenceType: tpl?.recurrenceType || prev.recurrenceType,
+                    recurrenceInterval: tpl?.recurrenceInterval || prev.recurrenceInterval,
+                    dayOfMonth: tpl?.dayOfMonth ?? prev.dayOfMonth,
+                  }));
+                }}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white"
+              >
+                <option value="">Select a template...</option>
+                {availablePracticeTemplates.map((t) => {
+                  const isMatchingService = engagement.serviceId && t.serviceId === engagement.serviceId;
+                  return (
+                    <option key={t.id} value={t.id}>
+                      [{t.templateCode}] {t.name} {isMatchingService ? '★ (Matches Engagement Service)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Recurrence Schedule</label>
+                <select
+                  value={enableTemplateForm.recurrenceType}
+                  onChange={(e) =>
+                    setEnableTemplateForm({
+                      ...enableTemplateForm,
+                      recurrenceType: e.target.value as RecurrenceType,
+                    })
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white"
+                >
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="QUARTERLY">Quarterly</option>
+                  <option value="ANNUALLY">Annually</option>
+                  <option value="ONE_OFF">One-Off</option>
+                  <option value="CUSTOM">Custom Interval</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Recurrence Interval</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={enableTemplateForm.recurrenceInterval}
+                  onChange={(e) =>
+                    setEnableTemplateForm({
+                      ...enableTemplateForm,
+                      recurrenceInterval: parseInt(e.target.value) || 1,
+                    })
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Day of Month (Default Due Day)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={enableTemplateForm.dayOfMonth || 20}
+                onChange={(e) =>
+                  setEnableTemplateForm({
+                    ...enableTemplateForm,
+                    dayOfMonth: parseInt(e.target.value) || 20,
+                  })
+                }
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
+              />
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
+                e.g. 20 = GSTR-3B due on 20th of the following month
+              </span>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEnableTemplateModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingEnableTemplate || !enableTemplateForm.templateId}
+                className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
+              >
+                {isSubmittingEnableTemplate ? 'Linking...' : 'Link Template'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Generate Work Modal */}
+      {isGenerateWorkModalOpen && (
+        <Modal
+          isOpen={isGenerateWorkModalOpen}
+          onClose={() => setIsGenerateWorkModalOpen(false)}
+          title="Generate Concrete Work Period"
+          maxWidth="lg"
+        >
+          <form onSubmit={handleGenerateWork} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Work Template <span className="text-rose-500">*</span>
+              </label>
+              <select
+                required
+                value={generateWorkForm.templateId}
+                onChange={(e) => setGenerateWorkForm({ ...generateWorkForm, templateId: e.target.value })}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white"
+              >
+                <option value="">Select linked template...</option>
+                {linkedTemplates.map((t) => (
+                  <option key={t.templateId} value={t.templateId}>
+                    [{t.templateCode}] {t.templateName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Period Start Date <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={generateWorkForm.periodStart}
+                  onChange={(e) => setGenerateWorkForm({ ...generateWorkForm, periodStart: e.target.value })}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Period End Date <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={generateWorkForm.periodEnd}
+                  onChange={(e) => setGenerateWorkForm({ ...generateWorkForm, periodEnd: e.target.value })}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Custom Title (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. GST Monthly Compliance — Oct 2026"
+                  value={generateWorkForm.customTitle}
+                  onChange={(e) => setGenerateWorkForm({ ...generateWorkForm, customTitle: e.target.value })}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Target Due Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={generateWorkForm.targetDueDate}
+                  onChange={(e) => setGenerateWorkForm({ ...generateWorkForm, targetDueDate: e.target.value })}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsGenerateWorkModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingGenerateWork || !generateWorkForm.templateId || !generateWorkForm.periodStart || !generateWorkForm.periodEnd}
+                className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
+              >
+                {isSubmittingGenerateWork ? 'Instantiating Work...' : 'Generate Work & Tasks'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Update Work Instance Status Modal */}
+      {statusModalInstance && (
+        <Modal
+          isOpen={!!statusModalInstance}
+          onClose={() => setStatusModalInstance(null)}
+          title={`Update Status: ${statusModalInstance.title}`}
+          maxWidth="md"
+        >
+          <form onSubmit={handleUpdateInstanceStatus} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Target Status</label>
+              <select
+                value={newInstanceStatus}
+                onChange={(e) => setNewInstanceStatus(e.target.value as WorkInstanceStatusType)}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium"
+              >
+                <option value="PLANNED">PLANNED</option>
+                <option value="IN_PROGRESS">IN PROGRESS</option>
+                <option value="BLOCKED">BLOCKED</option>
+                <option value="UNDER_REVIEW">UNDER REVIEW</option>
+                <option value="FILED">FILED</option>
+                <option value="COMPLETED">COMPLETED</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Audit Notes / Comments</label>
+              <textarea
+                rows={3}
+                placeholder="e.g. Return challan generated and verified / Signed off by partner"
+                value={instanceStatusNotes}
+                onChange={(e) => setInstanceStatusNotes(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setStatusModalInstance(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isUpdatingInstanceStatus}
+                className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
+              >
+                {isUpdatingInstanceStatus ? 'Saving...' : 'Update Status'}
               </button>
             </div>
           </form>

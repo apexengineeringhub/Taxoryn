@@ -1,6 +1,6 @@
 package com.taxoryn.module.worktemplate.entity;
 
-import com.taxoryn.core.domain.BaseEntity;
+import com.taxoryn.core.domain.AuditableEntity;
 import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -34,7 +34,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WorkTemplateTaskEntity extends BaseEntity {
+public class WorkTemplateTaskEntity extends AuditableEntity {
 
     @Column(name = "template_id", nullable = false)
     private UUID templateId;
