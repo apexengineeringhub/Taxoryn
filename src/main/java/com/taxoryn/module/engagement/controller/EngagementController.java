@@ -5,6 +5,7 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.engagement.dto.CreateEngagementRequest;
 import com.taxoryn.module.engagement.dto.EngagementDto;
 import com.taxoryn.module.engagement.dto.EngagementFilterRequest;
+import com.taxoryn.module.engagement.dto.UpdateEngagementAssignmentRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementStatusRequest;
 import com.taxoryn.module.engagement.service.EngagementService;
@@ -43,7 +44,7 @@ public class EngagementController {
     private final EngagementService engagementService;
 
     @PostMapping
-    @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER')")
+    @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
     @Operation(summary = "Create engagement", description = "Creates a new client service engagement.")
     public ResponseEntity<ApiResponse<EngagementDto>> createEngagement(@Valid @RequestBody CreateEngagementRequest request) {
         EngagementDto created = engagementService.createEngagement(request);
@@ -52,7 +53,7 @@ public class EngagementController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "List engagements with filters", description = "Retrieves paginated engagements for the authenticated practice tenant.")
     public ResponseEntity<ApiResponse<PagedResponse<EngagementDto>>> getEngagements(@Valid @ModelAttribute EngagementFilterRequest filterRequest) {
         PagedResponse<EngagementDto> response = engagementService.getEngagements(filterRequest);
@@ -60,7 +61,7 @@ public class EngagementController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "Get engagement by ID", description = "Retrieves engagement details.")
     public ResponseEntity<ApiResponse<EngagementDto>> getEngagementById(@PathVariable UUID id) {
         EngagementDto dto = engagementService.getEngagementById(id);
@@ -68,7 +69,7 @@ public class EngagementController {
     }
 
     @GetMapping("/clients/{clientId}")
-    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT')")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     @Operation(summary = "Get engagements by client ID", description = "Retrieves all engagements for a specific client (Client 360).")
     public ResponseEntity<ApiResponse<List<EngagementDto>>> getEngagementsByClientId(@PathVariable UUID clientId) {
         List<EngagementDto> list = engagementService.getEngagementsByClientId(clientId);
@@ -76,7 +77,7 @@ public class EngagementController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
     @Operation(summary = "Update engagement", description = "Updates engagement details.")
     public ResponseEntity<ApiResponse<EngagementDto>> updateEngagement(@PathVariable UUID id, @Valid @RequestBody UpdateEngagementRequest request) {
         EngagementDto updated = engagementService.updateEngagement(id, request);
@@ -84,15 +85,25 @@ public class EngagementController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER')")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
     @Operation(summary = "Update engagement status", description = "Updates engagement lifecycle status.")
     public ResponseEntity<ApiResponse<EngagementDto>> updateEngagementStatus(@PathVariable UUID id, @Valid @RequestBody UpdateEngagementStatusRequest request) {
         EngagementDto updated = engagementService.updateEngagementStatus(id, request);
         return ResponseEntity.ok(ApiResponse.success("Engagement status updated successfully", updated));
     }
 
+    @PatchMapping("/{id}/assignment")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
+    @Operation(summary = "Update engagement assignment", description = "Updates assigned practitioner and/or reviewer.")
+    public ResponseEntity<ApiResponse<EngagementDto>> updateEngagementAssignment(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateEngagementAssignmentRequest request) {
+        EngagementDto updated = engagementService.updateEngagementAssignment(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Engagement assignment updated successfully", updated));
+    }
+
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('CLIENT_DELETE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER')")
     @Operation(summary = "Delete engagement", description = "Deletes engagement record.")
     public ResponseEntity<ApiResponse<Void>> deleteEngagement(@PathVariable UUID id) {
         engagementService.deleteEngagement(id);

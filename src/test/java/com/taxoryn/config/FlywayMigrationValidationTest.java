@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(105);
+        assertThat(allMigrations.length).isEqualTo(109);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -171,6 +171,10 @@ public class FlywayMigrationValidationTest {
         MigrationInfo v95 = infoService.all()[94];
         assertThat(v95.getVersion().getVersion()).isEqualTo("95");
         assertThat(v95.getDescription()).isEqualTo("gst compliance workspace foundation");
+
+        MigrationInfo v106 = infoService.all()[105];
+        assertThat(v106.getVersion().getVersion()).isEqualTo("106");
+        assertThat(v106.getDescription()).isEqualTo("service catalog and engagement foundation");
     }
 
     @Test
@@ -314,7 +318,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(105);
+        assertThat(all).hasSize(109);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -587,6 +591,26 @@ public class FlywayMigrationValidationTest {
                 assertThat(rs).isNotNull();
             }
         }
+    }
+
+    @Test
+    @DisplayName("Verify V106 migration script contents for service catalog and engagement foundation")
+    void testV106MigrationScriptContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource v106Resource = resolver.getResource("classpath:db/migration/V106__service_catalog_and_engagement_foundation.sql");
+
+        assertThat(v106Resource.exists()).isTrue();
+        String sql = new String(v106Resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS services");
+        assertThat(sql).contains("service_code VARCHAR(100) NOT NULL");
+        assertThat(sql).contains("service_name VARCHAR(255) NOT NULL");
+        assertThat(sql).contains("category VARCHAR(50) NOT NULL");
+        assertThat(sql).contains("ALTER TABLE engagements");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS service_id UUID REFERENCES services(id)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS reviewer_user_id UUID REFERENCES users(id)");
+        assertThat(sql).contains("ADD COLUMN IF NOT EXISTS priority VARCHAR(32)");
+        assertThat(sql).contains("uk_engagements_org_code");
     }
 }
 

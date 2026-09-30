@@ -167,6 +167,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'practice',
       sectionTitle: 'PRACTICE',
       items: [
+        { label: 'Engagements', path: '/engagements', icon: Briefcase, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
+        { label: 'Work Templates', path: '/work-templates', icon: Layers, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: 'Client Portal Hub', path: '/portal', icon: Globe, requiredPermissions: ['CLIENT_VIEW', 'CLIENT_UPDATE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'CLIENT_PORTAL' },
         { label: 'Reports', path: '/reports', icon: BarChart3, requiredPermissions: ['REPORT_VIEW', 'REPORTS_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER'], moduleCode: 'REPORTS' },
         { label: 'Inbound Leads (CRM)', path: '/marketplace/leads', icon: Store, requiredPermissions: ['MARKETPLACE_LEAD_VIEW', 'MARKETPLACE_LEAD_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'MARKETPLACE' },

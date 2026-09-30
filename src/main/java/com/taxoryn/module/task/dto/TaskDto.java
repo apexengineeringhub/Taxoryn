@@ -24,6 +24,11 @@ public class TaskDto {
     private UUID organizationId;
     private UUID clientId;
     private String clientName;
+    private UUID engagementId;
+    private String engagementTitle;
+    private String engagementCode;
+    private UUID workInstanceId;
+    private UUID workTemplateTaskId;
     private UUID locationId;
     private String locationName;
     private UUID workItemId;
@@ -36,6 +41,7 @@ public class TaskDto {
     private TaskCategory taskCategory;
     private TaskStatus status;
     private TaskPriority priority;
+    private LocalDate startDate;
     private LocalDate dueDate;
     private UUID complianceId;
     private String complianceTitle;
@@ -49,6 +55,10 @@ public class TaskDto {
     private String noticeNumber;
     private String blockedReason;
     private String notes;
+    private Integer estimatedMinutes;
+    private Integer actualMinutes;
+    private UUID completedBy;
+    private String completedByName;
     private Boolean isOverdue;
     private Boolean isDueToday;
     private Boolean isDueThisWeek;

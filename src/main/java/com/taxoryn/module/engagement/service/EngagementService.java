@@ -4,6 +4,7 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.engagement.dto.CreateEngagementRequest;
 import com.taxoryn.module.engagement.dto.EngagementDto;
 import com.taxoryn.module.engagement.dto.EngagementFilterRequest;
+import com.taxoryn.module.engagement.dto.UpdateEngagementAssignmentRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementRequest;
 import com.taxoryn.module.engagement.dto.UpdateEngagementStatusRequest;
 
@@ -23,6 +24,8 @@ public interface EngagementService {
     EngagementDto updateEngagement(UUID id, UpdateEngagementRequest request);
 
     EngagementDto updateEngagementStatus(UUID id, UpdateEngagementStatusRequest request);
+
+    EngagementDto updateEngagementAssignment(UUID id, UpdateEngagementAssignmentRequest request);
 
     void deleteEngagement(UUID id);
 }

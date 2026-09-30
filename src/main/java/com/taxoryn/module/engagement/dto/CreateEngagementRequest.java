@@ -1,5 +1,6 @@
 package com.taxoryn.module.engagement.dto;
 
+import com.taxoryn.module.engagement.model.EngagementPriority;
 import com.taxoryn.module.engagement.model.EngagementStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -23,6 +24,7 @@ public class CreateEngagementRequest {
     @NotNull(message = "Client ID is required")
     private UUID clientId;
 
+    private UUID serviceId;
     private UUID locationId;
     private UUID clientServiceId;
 
@@ -41,5 +43,10 @@ public class CreateEngagementRequest {
     private LocalDate startDate;
     private LocalDate endDate;
     private UUID assignedUserId;
+    private UUID reviewerUserId;
+
+    @Builder.Default
+    private EngagementPriority priority = EngagementPriority.MEDIUM;
+
     private String notes;
 }

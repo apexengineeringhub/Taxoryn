@@ -236,6 +236,33 @@ import {
   GmailAccount,
   PracticeUserSummary,
   AdminUserSummary,
+  ServiceDto,
+  CreateServiceRequest,
+  UpdateServiceRequest,
+  EngagementDto,
+  CreateEngagementPayload,
+  UpdateEngagementPayload,
+  UpdateEngagementStatusPayload,
+  UpdateEngagementAssignmentPayload,
+  EngagementFilterParams,
+  WorkTemplateDto,
+  WorkTemplateTaskDto,
+  CreateWorkTemplatePayload,
+  UpdateWorkTemplatePayload,
+  CreateWorkTemplateTaskPayload,
+  UpdateWorkTemplateTaskPayload,
+  WorkTemplateFilterParams,
+  WorkTemplateStatusType,
+  EngagementWorkTemplateDto,
+  EnableEngagementTemplatePayload,
+  GenerateWorkInstancePayload,
+  WorkInstanceDto,
+  WorkInstanceTaskDto,
+  UpdateWorkInstanceStatusPayload,
+  TaskCalendarItem,
+  TaskCalendarParams,
+  TeamWorkloadSummary,
+  CompleteTaskPayload,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -429,6 +456,17 @@ export const clientServicesApi = {
   },
 };
 
+export const engagementApi = {
+  getAll: async (params?: { clientId?: string; status?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<any>>>('/v1/engagements', { params: { size: 100, ...params } });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any>>(`/v1/engagements/${id}`);
+    return res.data.data;
+  },
+};
+
 // --- 3c. Compliance Work Items ---
 export const complianceWorkApi = {
   create: async (payload: CreateComplianceWorkItemRequest) => {
@@ -546,6 +584,22 @@ export const taskApi = {
   },
   getWorklistSummary: async () => {
     const res = await apiClient.get<ApiResponse<WorklistSummary>>('/v1/tasks/worklist/summary');
+    return res.data.data;
+  },
+  getCalendar: async (params: TaskCalendarParams) => {
+    const res = await apiClient.get<ApiResponse<TaskCalendarItem[]>>('/v1/tasks/calendar', { params });
+    return res.data.data;
+  },
+  getTeamWorkload: async () => {
+    const res = await apiClient.get<ApiResponse<TeamWorkloadSummary[]>>('/v1/tasks/team');
+    return res.data.data;
+  },
+  updatePriority: async (id: string, priority: string) => {
+    const res = await apiClient.patch<ApiResponse<Task>>(`/v1/tasks/${id}/priority`, { priority });
+    return res.data.data;
+  },
+  complete: async (id: string, payload?: CompleteTaskPayload) => {
+    const res = await apiClient.post<ApiResponse<Task>>(`/v1/tasks/${id}/complete`, payload || {});
     return res.data.data;
   },
 };
@@ -1013,12 +1067,28 @@ export const calendarApi = {
 
 // --- 8. Documents ---
 export const documentApi = {
-  getAll: async (params?: { clientId?: string; category?: string }) => {
+  getAll: async (params?: { clientId?: string; engagementId?: string; workInstanceId?: string; category?: string; status?: string; page?: number; size?: number }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<DocumentItem>>>('/v1/documents', { params });
     return res.data.data;
   },
   getByClientId: async (clientId: string) => {
     const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/clients/${clientId}`);
+    return res.data.data;
+  },
+  getByEngagementId: async (engagementId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/engagements/${engagementId}`);
+    return res.data.data;
+  },
+  getByWorkInstanceId: async (workInstanceId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/work-instances/${workInstanceId}`);
+    return res.data.data;
+  },
+  getByTaskId: async (taskId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/tasks/${taskId}`);
+    return res.data.data;
+  },
+  archive: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentItem>>(`/v1/documents/${id}/archive`);
     return res.data.data;
   },
   upload: async (
@@ -1027,6 +1097,9 @@ export const documentApi = {
       documentType?: string;
       category?: string;
       clientId?: string;
+      engagementId?: string;
+      workInstanceId?: string;
+      taskId?: string;
       financialYear?: string;
       assessmentYear?: string;
       notes?: string;
@@ -1083,6 +1156,9 @@ export const documentApi = {
           [
             JSON.stringify({
               clientId: metadata?.clientId,
+              engagementId: metadata?.engagementId,
+              workInstanceId: metadata?.workInstanceId,
+              taskId: metadata?.taskId,
               documentType: resolvedDocType,
               financialYear: metadata?.financialYear,
               assessmentYear: metadata?.assessmentYear,
@@ -1104,6 +1180,7 @@ export const documentApi = {
     return res.data as Blob;
   },
 };
+
 
 // --- 9. Billing & Invoices ---
 export const billingApi = {
@@ -3116,6 +3193,149 @@ export const gmailApi = {
     return res.data.data;
   },
 };
+
+// --- 28. Service Catalog & Practice Engagements (Stage 2.5 - P0.1) ---
+export const servicesApi = {
+  getAll: async () => {
+    const res = await apiClient.get<ApiResponse<ServiceDto[]>>('/v1/services');
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<ServiceDto>>(`/v1/services/${id}`);
+    return res.data.data;
+  },
+  create: async (payload: CreateServiceRequest) => {
+    const res = await apiClient.post<ApiResponse<ServiceDto>>('/v1/services', payload);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateServiceRequest) => {
+    const res = await apiClient.put<ApiResponse<ServiceDto>>(`/v1/services/${id}`, payload);
+    return res.data.data;
+  },
+};
+
+export const engagementsApi = {
+  getAll: async (params?: EngagementFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<EngagementDto>>>('/v1/engagements', { params });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<EngagementDto>>(`/v1/engagements/${id}`);
+    return res.data.data;
+  },
+  getByClientId: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<EngagementDto[]>>(`/v1/engagements/clients/${clientId}`);
+    return res.data.data;
+  },
+  create: async (payload: CreateEngagementPayload) => {
+    const res = await apiClient.post<ApiResponse<EngagementDto>>('/v1/engagements', payload);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateEngagementPayload) => {
+    const res = await apiClient.put<ApiResponse<EngagementDto>>(`/v1/engagements/${id}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, payload: UpdateEngagementStatusPayload) => {
+    const res = await apiClient.patch<ApiResponse<EngagementDto>>(`/v1/engagements/${id}/status`, payload);
+    return res.data.data;
+  },
+  updateAssignment: async (id: string, payload: UpdateEngagementAssignmentPayload) => {
+    const res = await apiClient.patch<ApiResponse<EngagementDto>>(`/v1/engagements/${id}/assignment`, payload);
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/engagements/${id}`);
+    return res.data;
+  },
+};
+
+// --- 29. Work Templates & Recurring Compliance (Stage 2.5 - P0.2) ---
+export const workTemplatesApi = {
+  getAll: async (params?: WorkTemplateFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<WorkTemplateDto>>>('/v1/work-templates', { params });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<WorkTemplateDto>>(`/v1/work-templates/${id}`);
+    return res.data.data;
+  },
+  create: async (payload: CreateWorkTemplatePayload) => {
+    const res = await apiClient.post<ApiResponse<WorkTemplateDto>>('/v1/work-templates', payload);
+    return res.data.data;
+  },
+  update: async (id: string, payload: UpdateWorkTemplatePayload) => {
+    const res = await apiClient.put<ApiResponse<WorkTemplateDto>>(`/v1/work-templates/${id}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, status: WorkTemplateStatusType) => {
+    const res = await apiClient.patch<ApiResponse<WorkTemplateDto>>(`/v1/work-templates/${id}/status`, { status });
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/work-templates/${id}`);
+    return res.data;
+  },
+  getTasks: async (templateId: string) => {
+    const res = await apiClient.get<ApiResponse<WorkTemplateTaskDto[]>>(`/v1/work-templates/${templateId}/tasks`);
+    return res.data.data;
+  },
+  addTask: async (templateId: string, payload: CreateWorkTemplateTaskPayload) => {
+    const res = await apiClient.post<ApiResponse<WorkTemplateTaskDto>>(`/v1/work-templates/${templateId}/tasks`, payload);
+    return res.data.data;
+  },
+  updateTask: async (templateId: string, taskId: string, payload: UpdateWorkTemplateTaskPayload) => {
+    const res = await apiClient.put<ApiResponse<WorkTemplateTaskDto>>(`/v1/work-templates/${templateId}/tasks/${taskId}`, payload);
+    return res.data.data;
+  },
+  deleteTask: async (templateId: string, taskId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/work-templates/${templateId}/tasks/${taskId}`);
+    return res.data;
+  },
+  reorderTasks: async (templateId: string, orderedTaskIds: string[]) => {
+    const res = await apiClient.patch<ApiResponse<WorkTemplateTaskDto[]>>(`/v1/work-templates/${templateId}/tasks/reorder`, { orderedTaskIds });
+    return res.data.data;
+  },
+};
+
+export const engagementWorkApi = {
+  getAvailableTemplates: async (engagementId: string) => {
+    const res = await apiClient.get<ApiResponse<WorkTemplateDto[]>>(`/v1/engagements/${engagementId}/work-templates/available`);
+    return res.data.data;
+  },
+  getEnabledTemplates: async (engagementId: string) => {
+    const res = await apiClient.get<ApiResponse<EngagementWorkTemplateDto[]>>(`/v1/engagements/${engagementId}/work-templates`);
+    return res.data.data;
+  },
+  enableTemplate: async (engagementId: string, templateId: string, payload?: EnableEngagementTemplatePayload) => {
+    const res = await apiClient.post<ApiResponse<EngagementWorkTemplateDto>>(`/v1/engagements/${engagementId}/work-templates/${templateId}/enable`, payload || {});
+    return res.data.data;
+  },
+  disableTemplate: async (engagementId: string, templateId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/engagements/${engagementId}/work-templates/${templateId}`);
+    return res.data;
+  },
+  generateWork: async (engagementId: string, payload: GenerateWorkInstancePayload) => {
+    const res = await apiClient.post<ApiResponse<WorkInstanceDto>>(`/v1/engagements/${engagementId}/work/generate`, payload);
+    return res.data.data;
+  },
+  getWorkInstances: async (engagementId: string, params?: { page?: number; size?: number; sortBy?: string; sortDirection?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<WorkInstanceDto>>>(`/v1/engagements/${engagementId}/work`, { params });
+    return res.data.data;
+  },
+};
+
+export const workInstancesApi = {
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<WorkInstanceDto>>(`/v1/work-instances/${id}`);
+    return res.data.data;
+  },
+  updateStatus: async (id: string, payload: UpdateWorkInstanceStatusPayload) => {
+    const res = await apiClient.patch<ApiResponse<WorkInstanceDto>>(`/v1/work-instances/${id}/status`, payload);
+    return res.data.data;
+  },
+};
+
+
 
 
 

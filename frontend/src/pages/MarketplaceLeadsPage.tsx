@@ -89,6 +89,7 @@ export const MarketplaceLeadsPage: React.FC = () => {
     pricingType: 'MONTHLY_RETAINER',
     estimatedTimelineDays: 7,
   });
+  const [proposalError, setProposalError] = useState<string | null>(null);
 
   // Conversion Modal
   const [selectedLeadForConvert, setSelectedLeadForConvert] = useState<EnquiryDetail | null>(null);
@@ -271,7 +272,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
 
   const handleSendProposal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLeadForProposal) return;
+    if (!selectedLeadForProposal || isSubmitting) return;
+    setProposalError(null);
     try {
       setIsSubmitting(true);
       const prop = await marketplaceOnboardingPracticeApi.sendProposal({
@@ -279,12 +281,14 @@ export const MarketplaceLeadsPage: React.FC = () => {
         leadId: selectedLeadForProposal.id,
       });
       setSelectedLeadForProposal(null);
+      setProposalError(null);
       await fetchEnquiriesData();
       setSuccessBanner(
         `Formal engagement proposal dispatched to ${selectedLeadForProposal.clientName}! Public link: /marketplace/onboarding/${prop.accessToken}`
       );
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to send engagement proposal.');
+      const errMsg = err.response?.data?.message || 'Failed to send engagement proposal.';
+      setProposalError(errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -1133,8 +1137,15 @@ export const MarketplaceLeadsPage: React.FC = () => {
                   <p className="text-xs text-slate-500">For {selectedLeadForProposal.clientName} ({selectedLeadForProposal.referenceNumber})</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedLeadForProposal(null)} className="text-gray-400 hover:text-gray-600 font-bold">&times;</button>
+              <button onClick={() => { setSelectedLeadForProposal(null); setProposalError(null); }} className="text-gray-400 hover:text-gray-600 font-bold">&times;</button>
             </div>
+
+            {proposalError && (
+              <div className="p-3 rounded-xl bg-rose-50 text-rose-700 text-xs flex items-center gap-2 border border-rose-200">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{proposalError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSendProposal} className="space-y-3">
               <div>
@@ -1184,11 +1195,11 @@ export const MarketplaceLeadsPage: React.FC = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t">
-                <Button variant="secondary" size="sm" onClick={() => setSelectedLeadForProposal(null)}>
+                <Button variant="secondary" size="sm" onClick={() => { setSelectedLeadForProposal(null); setProposalError(null); }}>
                   Cancel
                 </Button>
                 <Button variant="primary" size="sm" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
-                  {isSubmitting ? 'Sending...' : 'Dispatch Engagement Proposal'}
+                  {isSubmitting ? 'Sending...' : 'Send Proposal'}
                 </Button>
               </div>
             </form>

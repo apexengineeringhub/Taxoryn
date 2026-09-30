@@ -1,6 +1,8 @@
 package com.taxoryn.module.engagement.dto;
 
+import com.taxoryn.module.engagement.model.EngagementPriority;
 import com.taxoryn.module.engagement.model.EngagementStatus;
+import com.taxoryn.module.service.model.ServiceCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,6 +26,11 @@ public class EngagementDto {
     private String locationName;
     private UUID clientId;
     private String clientName;
+    private String clientCode;
+    private UUID serviceId;
+    private String serviceCode;
+    private String serviceName;
+    private ServiceCategory serviceCategory;
     private UUID clientServiceId;
     private String engagementCode;
     private String name;
@@ -33,6 +40,9 @@ public class EngagementDto {
     private LocalDate endDate;
     private UUID assignedUserId;
     private String assignedUserName;
+    private UUID reviewerUserId;
+    private String reviewerUserName;
+    private EngagementPriority priority;
     private String notes;
     private Instant createdAt;
     private Instant updatedAt;

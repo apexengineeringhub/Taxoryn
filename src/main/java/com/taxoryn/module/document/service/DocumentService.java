@@ -28,7 +28,15 @@ public interface DocumentService {
 
     List<DocumentDto> getClientDocuments(UUID clientId);
 
+    List<DocumentDto> getEngagementDocuments(UUID engagementId);
+
+    List<DocumentDto> getWorkInstanceDocuments(UUID workInstanceId);
+
+    List<DocumentDto> getTaskDocuments(UUID taskId);
+
     List<DocumentDto> getWorkflowDocuments(UUID workflowId);
+
+    DocumentDto archiveDocument(UUID id);
 
     void deleteDocument(UUID id);
 

@@ -44,6 +44,12 @@ public class DocumentFilterRequest extends PageRequestDto {
     @Schema(description = "Filter by Task ID")
     private UUID taskId;
 
+    @Schema(description = "Filter by Engagement ID")
+    private UUID engagementId;
+
+    @Schema(description = "Filter by Work Instance ID")
+    private UUID workInstanceId;
+
     @Schema(description = "Filter by Compliance Workflow ID")
     private UUID workflowId;
 

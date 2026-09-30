@@ -157,7 +157,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 "FEEDBACK_VIEW", "FEEDBACK_REVIEW", "FEEDBACK_ASSIGN",
                 "FEEDBACK_RESOLVE", "FEEDBACK_ESCALATE", "FEEDBACK_MANAGE",
                 "PLATFORM_VIEW", "PRACTICE_VIEW", "PRACTICE_CREATE", "PRACTICE_UPDATE", "PRACTICE_VERIFY", "PRACTICE_SUSPEND",
-                "USER_DISABLE", "MARKETPLACE_VIEW", "MARKETPLACE_MANAGE",
+                "USER_DISABLE", "MARKETPLACE_VIEW", "MARKETPLACE_READ", "MARKETPLACE_WRITE", "MARKETPLACE_CREATE", "MARKETPLACE_UPDATE", "MARKETPLACE_MANAGE",
                 "SUBSCRIPTION_VIEW", "SUBSCRIPTION_MANAGE", "PAYMENT_VIEW", "PAYMENT_MANAGE",
                 "CONTENT_VIEW", "CONTENT_MANAGE", "CONTENT_PUBLISH",
                 "SECURITY_VIEW", "SECURITY_MANAGE", "AUDIT_VIEW",
@@ -461,6 +461,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                         || p.getCode().startsWith("ITR_") && !p.getCode().equals("ITR_DELETE")
                         || p.getCode().startsWith("TDS_") && !p.getCode().equals("TDS_DELETE")
                         || p.getCode().startsWith("DOCUMENT_") && !p.getCode().equals("DOCUMENT_DELETE")
+                        || p.getCode().startsWith("MARKETPLACE_") && !p.getCode().equals("MARKETPLACE_DELETE") && !p.getCode().equals("MARKETPLACE_MANAGE")
                         || p.getCode().equals("DASHBOARD_VIEW")
                         || p.getCode().equals("EMPLOYEE_VIEW") || p.getCode().equals("EMPLOYEE_READ")
                 )

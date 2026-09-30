@@ -46,6 +46,12 @@ public class TaskWorklistFilterRequest extends PageRequestDto {
     @Schema(description = "Filter by Client ID")
     private UUID clientId;
 
+    @Schema(description = "Filter by Engagement ID")
+    private UUID engagementId;
+
+    @Schema(description = "Filter by Work Instance ID")
+    private UUID workInstanceId;
+
     @Schema(description = "Filter by Assignee Employee or User ID")
     private UUID assignedTo;
 

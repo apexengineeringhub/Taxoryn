@@ -41,6 +41,12 @@ public class DocumentEntity extends TenantAuditableEntity {
     @Column(name = "request_id")
     private UUID requestId;
 
+    @Column(name = "engagement_id")
+    private UUID engagementId;
+
+    @Column(name = "work_instance_id")
+    private UUID workInstanceId;
+
     @Column(name = "location_id")
     private UUID locationId;
 
@@ -104,6 +110,18 @@ public class DocumentEntity extends TenantAuditableEntity {
     private String scanResultDetails;
 
     public enum DocumentType {
+        // Generic Practice Categories (P0.4)
+        IDENTITY,
+        TAX_DOCUMENT,
+        FINANCIAL,
+        INVOICE,
+        RETURN,
+        NOTICE,
+        CERTIFICATE,
+        AGREEMENT,
+        SUPPORTING_DOCUMENT,
+
+        // Specific Filing & Indian Tax Artifacts
         PAN_CARD,
         AADHAAR_CARD,
         FORM_16,
@@ -141,6 +159,7 @@ public class DocumentEntity extends TenantAuditableEntity {
     }
 
     public enum DocumentStatus {
+        UPLOADED,
         ACTIVE,
         ARCHIVED,
         DELETED

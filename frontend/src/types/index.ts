@@ -756,19 +756,31 @@ export interface Task {
   organizationId: string;
   clientId: string;
   clientName?: string;
+  engagementId?: string;
+  engagementTitle?: string;
+  engagementCode?: string;
+  workInstanceId?: string;
+  workTemplateTaskId?: string;
   assignedTo?: string;
   assigneeName?: string;
   assigneeEmail?: string;
   title: string;
   description?: string;
   category?: string;
+  taskCategory?: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   status: TaskStatus;
+  startDate?: string;
   dueDate: string;
   completedDate?: string;
   completedAt?: string;
+  completedBy?: string;
+  completedByName?: string;
+  estimatedMinutes?: number;
+  actualMinutes?: number;
   estimatedHours?: number;
   actualHours?: number;
+  notes?: string;
   unassign?: boolean;
 
   // Task & Compliance Enhancement V1.1
@@ -785,6 +797,59 @@ export interface Task {
   isOverdue?: boolean;
   isDueToday?: boolean;
   isDueThisWeek?: boolean;
+}
+
+export interface TaskCalendarItem {
+  id: string;
+  title: string;
+  taskCategory: string;
+  status: TaskStatus;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  startDate?: string;
+  dueDate: string;
+  clientId?: string;
+  clientName?: string;
+  engagementId?: string;
+  engagementTitle?: string;
+  engagementCode?: string;
+  assignedTo?: string;
+  assigneeName?: string;
+  workInstanceId?: string;
+  isOverdue?: boolean;
+}
+
+export interface TaskCalendarParams {
+  startDate: string;
+  endDate: string;
+  clientId?: string;
+  engagementId?: string;
+  assignedTo?: string;
+  status?: TaskStatus;
+  taskCategory?: string;
+  priority?: string;
+}
+
+export interface TeamWorkloadSummary {
+  userId?: string;
+  employeeId?: string;
+  name: string;
+  email: string;
+  designation?: string;
+  department?: string;
+  totalAssigned: number;
+  todoCount: number;
+  inProgressCount: number;
+  underReviewCount: number;
+  blockedCount: number;
+  completedCount: number;
+  overdueCount: number;
+  totalEstimatedMinutes?: number;
+  totalActualMinutes?: number;
+}
+
+export interface CompleteTaskPayload {
+  actualMinutes?: number;
+  notes?: string;
 }
 
 export interface WorklistSummary {
@@ -806,6 +871,9 @@ export interface TaskWorklistParams {
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   category?: string;
   clientId?: string;
+  engagementId?: string;
+  workInstanceId?: string;
+  assignedTo?: string;
   assigneeId?: string;
   search?: string;
   page?: number;
@@ -990,20 +1058,31 @@ export interface DocumentItem {
   id: string;
   clientId?: string;
   clientName?: string;
+  engagementId?: string;
+  engagementName?: string;
+  workInstanceId?: string;
+  workInstanceTitle?: string;
   noticeId?: string;
   filename: string;
   fileName?: string;
   title?: string;
+  name?: string;
   fileType?: string;
   documentType?: string;
+  mimeType?: string;
   originalFilename: string;
   category: string;
   fileSize: number;
+  fileSizeFormatted?: string;
   contentType: string;
   storageKey: string;
+  status?: string;
+  uploadedBy?: string;
   uploadedByName?: string;
+  uploadedAt?: string;
   scanStatus?: 'PENDING_SCAN' | 'CLEAN' | 'INFECTED' | 'SCAN_FAILED' | 'LEGACY_UNSCANNED';
   createdAt: string;
+  updatedAt?: string;
   tags?: string[];
 }
 
@@ -4969,6 +5048,351 @@ export interface EnterpriseInquiryRequest {
   estimatedClientCount?: number;
   requirements?: string;
 }
+
+// ==============================================================================
+// 27. Service Catalog & Practice Engagement Foundation (Stage 2.5 - P0.1)
+// ==============================================================================
+
+export type ServiceCategoryType =
+  | 'GST'
+  | 'TDS'
+  | 'ITR'
+  | 'AUDIT'
+  | 'NOTICE'
+  | 'ADVISORY'
+  | 'OTHER';
+
+export type ServiceStatusType = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+
+export interface ServiceDto {
+  id: string;
+  organizationId?: string | null;
+  serviceCode: string;
+  serviceName: string;
+  description?: string;
+  category: ServiceCategoryType;
+  status: ServiceStatusType;
+  moduleCode?: string;
+  systemDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateServiceRequest {
+  serviceCode: string;
+  serviceName: string;
+  description?: string;
+  category: ServiceCategoryType;
+  moduleCode?: string;
+}
+
+export interface UpdateServiceRequest {
+  serviceName?: string;
+  description?: string;
+  status?: ServiceStatusType;
+  moduleCode?: string;
+}
+
+export type EngagementStatusType =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'ON_HOLD'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type EngagementPriorityType =
+  | 'LOW'
+  | 'MEDIUM'
+  | 'HIGH'
+  | 'URGENT';
+
+export interface EngagementDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  clientName?: string;
+  serviceId?: string;
+  serviceName?: string;
+  serviceCode?: string;
+  locationId?: string;
+  locationName?: string;
+  engagementCode: string;
+  name: string;
+  description?: string;
+  status: EngagementStatusType;
+  priority: EngagementPriorityType;
+  startDate?: string;
+  endDate?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  assignedUserEmail?: string;
+  reviewerUserId?: string;
+  reviewerUserName?: string;
+  reviewerUserEmail?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateEngagementPayload {
+  clientId: string;
+  serviceId?: string;
+  locationId?: string;
+  name: string;
+  description?: string;
+  status?: EngagementStatusType;
+  startDate?: string;
+  endDate?: string;
+  assignedUserId?: string;
+  reviewerUserId?: string;
+  priority?: EngagementPriorityType;
+  notes?: string;
+}
+
+export interface UpdateEngagementPayload {
+  name?: string;
+  description?: string;
+  serviceId?: string;
+  locationId?: string;
+  startDate?: string;
+  endDate?: string;
+  priority?: EngagementPriorityType;
+  notes?: string;
+}
+
+export interface UpdateEngagementStatusPayload {
+  status: EngagementStatusType;
+  notes?: string;
+}
+
+export interface UpdateEngagementAssignmentPayload {
+  assignedUserId?: string;
+  reviewerUserId?: string;
+  locationId?: string;
+  notes?: string;
+}
+
+export interface EngagementFilterParams {
+  clientId?: string;
+  serviceId?: string;
+  status?: EngagementStatusType;
+  assignedUserId?: string;
+  reviewerUserId?: string;
+  priority?: EngagementPriorityType;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: string;
+}
+
+// --- 29. Work Templates & Recurring Compliance (Stage 2.5 - P0.2) ---
+export type WorkTemplateStatusType = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+export type WorkTemplateType = 'STATUTORY_COMPLIANCE' | 'ACCOUNTING_REVIEW' | 'AUDIT_ASSURANCE' | 'ADVISORY' | 'CUSTOM';
+export type RecurrenceType = 'ONCE' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+export type WorkInstanceStatusType = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
+
+export interface WorkTemplateTaskDto {
+  id: string;
+  templateId: string;
+  name: string;
+  description?: string;
+  sequenceOrder: number;
+  defaultAssigneeRole?: string;
+  defaultPriority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  relativeDueDays: number;
+  mandatory: boolean;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  version?: number;
+}
+
+export interface WorkTemplateDto {
+  id: string;
+  organizationId?: string;
+  serviceId: string;
+  serviceName?: string;
+  serviceCode?: string;
+  templateCode: string;
+  name: string;
+  description?: string;
+  category: ServiceCategoryType;
+  status: WorkTemplateStatusType;
+  templateType: WorkTemplateType;
+  recurrenceType: RecurrenceType;
+  recurrenceInterval: number;
+  dayOfMonth?: number;
+  monthOfYear?: number;
+  recurrenceEnabled: boolean;
+  isSystemDefault: boolean;
+  taskCount: number;
+  tasks?: WorkTemplateTaskDto[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateWorkTemplateTaskPayload {
+  name: string;
+  description?: string;
+  sequenceOrder?: number;
+  defaultAssigneeRole?: string;
+  defaultPriority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  relativeDueDays?: number;
+  mandatory?: boolean;
+  active?: boolean;
+}
+
+export interface UpdateWorkTemplateTaskPayload {
+  name?: string;
+  description?: string;
+  sequenceOrder?: number;
+  defaultAssigneeRole?: string;
+  defaultPriority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  relativeDueDays?: number;
+  mandatory?: boolean;
+  active?: boolean;
+}
+
+export interface CreateWorkTemplatePayload {
+  serviceId: string;
+  templateCode?: string;
+  name: string;
+  description?: string;
+  category?: ServiceCategoryType;
+  status?: WorkTemplateStatusType;
+  templateType?: WorkTemplateType;
+  recurrenceType?: RecurrenceType;
+  recurrenceInterval?: number;
+  dayOfMonth?: number;
+  monthOfYear?: number;
+  recurrenceEnabled?: boolean;
+  initialTasks?: CreateWorkTemplateTaskPayload[];
+}
+
+export interface UpdateWorkTemplatePayload {
+  serviceId?: string;
+  templateCode?: string;
+  name?: string;
+  description?: string;
+  category?: ServiceCategoryType;
+  templateType?: WorkTemplateType;
+  recurrenceType?: RecurrenceType;
+  recurrenceInterval?: number;
+  dayOfMonth?: number;
+  monthOfYear?: number;
+  recurrenceEnabled?: boolean;
+}
+
+export interface WorkTemplateFilterParams {
+  serviceId?: string;
+  category?: ServiceCategoryType;
+  status?: WorkTemplateStatusType;
+  templateType?: WorkTemplateType;
+  recurrenceType?: RecurrenceType;
+  search?: string;
+  includeSystemDefaults?: boolean;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: string;
+}
+
+export interface EngagementWorkTemplateDto {
+  id: string;
+  organizationId: string;
+  engagementId: string;
+  templateId: string;
+  templateCode?: string;
+  templateName?: string;
+  templateDescription?: string;
+  category?: ServiceCategoryType;
+  active: boolean;
+  recurrenceType: RecurrenceType;
+  recurrenceInterval: number;
+  dayOfMonth?: number;
+  monthOfYear?: number;
+  startDate?: string;
+  endDate?: string;
+  lastGeneratedPeriodStart?: string;
+  lastGeneratedPeriodEnd?: string;
+  taskCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EnableEngagementTemplatePayload {
+  recurrenceType?: RecurrenceType;
+  recurrenceInterval?: number;
+  dayOfMonth?: number;
+  monthOfYear?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface GenerateWorkInstancePayload {
+  templateId: string;
+  title?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  dueDate?: string;
+  assignedUserId?: string;
+  reviewerUserId?: string;
+  notes?: string;
+}
+
+export interface WorkInstanceTaskDto {
+  id: string;
+  workInstanceId: string;
+  workTemplateTaskId?: string;
+  title: string;
+  description?: string;
+  taskCategory: string;
+  status: 'TODO' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  dueDate?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  completedAt?: string;
+  notes?: string;
+}
+
+export interface WorkInstanceDto {
+  id: string;
+  organizationId: string;
+  engagementId: string;
+  engagementCode?: string;
+  engagementName?: string;
+  clientId?: string;
+  clientName?: string;
+  templateId?: string;
+  templateName?: string;
+  templateCode?: string;
+  title: string;
+  periodStart: string;
+  periodEnd: string;
+  dueDate?: string;
+  status: WorkInstanceStatusType;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  reviewerUserId?: string;
+  reviewerUserName?: string;
+  generatedAt?: string;
+  completedAt?: string;
+  notes?: string;
+  totalTasks: number;
+  completedTasks: number;
+  tasks?: WorkInstanceTaskDto[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateWorkInstanceStatusPayload {
+  status: WorkInstanceStatusType;
+  notes?: string;
+}
+
+
 
 
 

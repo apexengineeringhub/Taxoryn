@@ -60,6 +60,23 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success("Worklist summary metrics retrieved successfully", summary));
     }
 
+    @GetMapping("/calendar")
+    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
+    @Operation(summary = "Get task calendar items", description = "Retrieves task calendar projections for a date range with filters.")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.task.dto.TaskCalendarDto>>> getCalendarTasks(
+            @Valid @ModelAttribute com.taxoryn.module.task.dto.TaskCalendarFilterRequest filterRequest) {
+        java.util.List<com.taxoryn.module.task.dto.TaskCalendarDto> response = taskService.getCalendarTasks(filterRequest);
+        return ResponseEntity.ok(ApiResponse.success("Task calendar retrieved successfully", response));
+    }
+
+    @GetMapping("/team")
+    @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER')")
+    @Operation(summary = "Get team workload breakdown", description = "Retrieves workload aggregation per team member.")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.task.dto.TeamWorkloadSummaryDto>>> getTeamWorkload() {
+        java.util.List<com.taxoryn.module.task.dto.TeamWorkloadSummaryDto> response = taskService.getTeamWorkload();
+        return ResponseEntity.ok(ApiResponse.success("Team workload retrieved successfully", response));
+    }
+
     @GetMapping("/{taskId}")
     @PreAuthorize("hasAuthority('TASK_VIEW') or hasAuthority('TASK_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
     @Operation(summary = "Get task by ID", description = "Retrieves task details within the authenticated tenant.")
@@ -107,6 +124,26 @@ public class TaskController {
     public ResponseEntity<ApiResponse<TaskDto>> patchTaskStatus(@PathVariable UUID taskId, @Valid @RequestBody UpdateTaskRequest request) {
         TaskDto updated = taskService.updateTask(taskId, request);
         return ResponseEntity.ok(ApiResponse.success("Task status updated successfully", updated));
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/{taskId}/priority")
+    @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
+    @Operation(summary = "Update task priority", description = "Updates task priority within the authenticated tenant.")
+    public ResponseEntity<ApiResponse<TaskDto>> patchTaskPriority(
+            @PathVariable UUID taskId,
+            @Valid @RequestBody com.taxoryn.module.task.dto.UpdateTaskPriorityRequest request) {
+        TaskDto updated = taskService.updateTaskPriority(taskId, request);
+        return ResponseEntity.ok(ApiResponse.success("Task priority updated successfully", updated));
+    }
+
+    @PostMapping("/{taskId}/complete")
+    @PreAuthorize("hasAuthority('TASK_UPDATE') or hasAuthority('TASK_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('ARTICLE_ASSISTANT') or hasRole('STAFF')")
+    @Operation(summary = "Mark task as completed", description = "Marks task as completed with actual minutes and completion notes.")
+    public ResponseEntity<ApiResponse<TaskDto>> completeTask(
+            @PathVariable UUID taskId,
+            @Valid @RequestBody(required = false) com.taxoryn.module.task.dto.CompleteTaskRequest request) {
+        TaskDto updated = taskService.completeTask(taskId, request != null ? request : new com.taxoryn.module.task.dto.CompleteTaskRequest());
+        return ResponseEntity.ok(ApiResponse.success("Task completed successfully", updated));
     }
 
     @org.springframework.web.bind.annotation.PatchMapping("/{taskId}/assign")

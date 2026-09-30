@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { UserCheck, Shield, Plus, Mail, Phone, Sparkles, Camera, KeyRound, UserX, RefreshCw, Send, CheckCircle2, AlertTriangle, AlertCircle, X } from 'lucide-react';
+import { UserCheck, Shield, Plus, Mail, Phone, Sparkles, Camera, KeyRound, UserX, RefreshCw, Send, CheckCircle2, AlertTriangle, AlertCircle, X, Pencil } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -10,6 +10,7 @@ import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { AddTeamMemberModal } from '../components/team/AddTeamMemberModal';
 import { ChangeRoleModal } from '../components/team/ChangeRoleModal';
+import { EditEmployeeModal } from '../components/team/EditEmployeeModal';
 
 type StatusFilterType = 'ALL' | 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'INACTIVE';
 
@@ -29,6 +30,8 @@ export const TeamManagementPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(
     () => searchParams.get('action') === 'add' || searchParams.get('action') === 'new' || searchParams.get('create') === 'true'
   );
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedEmployeeForEdit, setSelectedEmployeeForEdit] = useState<Employee | null>(null);
   const [isChangeRoleModalOpen, setIsChangeRoleModalOpen] = useState(false);
   const [selectedEmployeeForRole, setSelectedEmployeeForRole] = useState<Employee | null>(null);
 
@@ -135,6 +138,11 @@ export const TeamManagementPage: React.FC = () => {
       setUploadingAvatarEmployeeId(null);
       setTargetEmployee(null);
     }
+  };
+
+  const handleEditEmployeeClick = (employee: Employee) => {
+    setSelectedEmployeeForEdit(employee);
+    setIsEditModalOpen(true);
   };
 
   const handleChangeRoleClick = (employee: Employee) => {
@@ -300,7 +308,7 @@ export const TeamManagementPage: React.FC = () => {
           {row.locationName ? (
             <span className="font-medium text-slate-800">{row.locationName}</span>
           ) : (
-            <span className="text-slate-400 italic">Head Office</span>
+            <span className="text-slate-400 italic">Not Assigned</span>
           )}
         </span>
       ),
@@ -331,6 +339,14 @@ export const TeamManagementPage: React.FC = () => {
             {/* Active Actions */}
             {normalizedStatus === 'ACTIVE' && isFirmAdmin && (
               <>
+                <button
+                  onClick={() => handleEditEmployeeClick(row)}
+                  className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors shadow-2xs"
+                  title="Edit employee profile, designation and location"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-slate-600" />
+                  Edit
+                </button>
                 <button
                   onClick={() => handleChangeRoleClick(row)}
                   className="px-2.5 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/80 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors shadow-2xs"
@@ -659,6 +675,18 @@ export const TeamManagementPage: React.FC = () => {
       <AddTeamMemberModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        onSuccess={loadData}
+      />
+
+      {/* Edit Employee Modal */}
+      <EditEmployeeModal
+        isOpen={isEditModalOpen}
+        employee={selectedEmployeeForEdit}
+        availableRoles={roles}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedEmployeeForEdit(null);
+        }}
         onSuccess={loadData}
       />
 

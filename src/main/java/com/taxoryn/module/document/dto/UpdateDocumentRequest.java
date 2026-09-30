@@ -27,6 +27,15 @@ public class UpdateDocumentRequest {
     @Schema(description = "Document status")
     private DocumentStatus status;
 
+    @Schema(description = "Associated Engagement ID")
+    private java.util.UUID engagementId;
+
+    @Schema(description = "Associated Work Instance ID")
+    private java.util.UUID workInstanceId;
+
+    @Schema(description = "Associated Task ID")
+    private java.util.UUID taskId;
+
     @Schema(description = "Associated Compliance Workflow ID")
     private java.util.UUID workflowId;
 

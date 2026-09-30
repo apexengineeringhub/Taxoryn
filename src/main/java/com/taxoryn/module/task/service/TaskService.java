@@ -20,6 +20,10 @@ public interface TaskService {
 
     TaskDto updateTask(UUID taskId, UpdateTaskRequest request);
 
+    TaskDto updateTaskPriority(UUID taskId, com.taxoryn.module.task.dto.UpdateTaskPriorityRequest request);
+
+    TaskDto completeTask(UUID taskId, com.taxoryn.module.task.dto.CompleteTaskRequest request);
+
     void deleteTask(UUID taskId);
 
     com.taxoryn.module.task.dto.BulkTaskImportResultDto generateBulkTasks(com.taxoryn.module.task.dto.BulkTaskCreateRequest request);
@@ -29,4 +33,8 @@ public interface TaskService {
     PagedResponse<TaskDto> getWorklist(com.taxoryn.module.task.dto.TaskWorklistFilterRequest filterRequest);
 
     com.taxoryn.module.task.dto.WorklistSummaryDto getWorklistSummary();
+
+    java.util.List<com.taxoryn.module.task.dto.TaskCalendarDto> getCalendarTasks(com.taxoryn.module.task.dto.TaskCalendarFilterRequest filterRequest);
+
+    java.util.List<com.taxoryn.module.task.dto.TeamWorkloadSummaryDto> getTeamWorkload();
 }

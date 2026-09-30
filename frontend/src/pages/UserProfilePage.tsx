@@ -515,7 +515,7 @@ export const UserProfilePage: React.FC = () => {
                         {employeeDetails.locationName ? (
                           <span>{employeeDetails.locationName} {employeeDetails.locationCode ? `(${employeeDetails.locationCode})` : ''}</span>
                         ) : (
-                          <span className="text-slate-500 italic">Head Office / Primary Branch</span>
+                          <span className="text-slate-400 italic">Not Assigned</span>
                         )}
                       </span>
                     </div>

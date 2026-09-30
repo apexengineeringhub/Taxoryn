@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(classes = com.taxoryn.TaxorynApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class MarketplaceSecurityIntegrationTest {
@@ -825,5 +825,138 @@ class MarketplaceSecurityIntegrationTest {
                         .header("Authorization", "Bearer " + orgAdminTokenA)
                         .param("status", "COMPLETED"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Scenario 19: Authorized practitioner can successfully send engagement proposal for an inbound lead")
+    void testScenario19_AuthorizedPractitionerCanSendProposal() throws Exception {
+        // Setup practice profile A
+        com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity profileA = marketplaceProfileRepository.save(
+                com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.builder()
+                        .organizationId(orgA.getId())
+                        .displayName("Alpha Practice")
+                        .slug("alpha-practice-prop")
+                        .city("Mumbai")
+                        .state("Maharashtra")
+                        .visibilityStatus(VisibilityStatus.PUBLIC)
+                        .isPublished(true)
+                        .build()
+        );
+
+        // Setup lead under orgA
+        com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity leadA = marketplaceLeadRepository.save(
+                com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.builder()
+                        .organizationId(orgA.getId())
+                        .marketplaceProfileId(profileA.getId())
+                        .clientName("Pooja Singhania")
+                        .clientEmail("pooja@singhania.com")
+                        .clientPhone("+919811122244")
+                        .serviceCategory("INCOME_TAX")
+                        .leadStatus(com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus.NEW)
+                        .build()
+        );
+
+        com.taxoryn.module.marketplace.dto.CreateProposalRequest request = com.taxoryn.module.marketplace.dto.CreateProposalRequest.builder()
+                .leadId(leadA.getId())
+                .proposalTitle("Annual Statutory Tax Audit & Filing")
+                .scopeOfWork("Audit preparation, Form 3CD, and ITR-6 Filing")
+                .deliverables("Form 3CD report, ITR acknowledgement")
+                .feeAmount(new java.math.BigDecimal("15000.00"))
+                .pricingType(com.taxoryn.module.marketplace.entity.MarketplaceServiceEntity.PricingType.FIXED)
+                .estimatedTimelineDays(10)
+                .build();
+
+        mockMvc.perform(post("/api/v1/practice/marketplace/onboarding/proposals")
+                        .header("Authorization", "Bearer " + orgAdminTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.proposalTitle").value("Annual Statutory Tax Audit & Filing"))
+                .andExpect(jsonPath("$.data.feeAmount").value(15000.00))
+                .andExpect(jsonPath("$.data.proposalStatus").value("SENT"))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
+
+        // Verify lead status updated to PROPOSAL_SENT
+        com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity updatedLead = marketplaceLeadRepository.findById(leadA.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus.PROPOSAL_SENT, updatedLead.getLeadStatus());
+    }
+
+    @Test
+    @DisplayName("Scenario 20: Read-only viewer or customer without MARKETPLACE_WRITE cannot send proposal (403)")
+    void testScenario20_UnauthorizedUserCannotSendProposal() throws Exception {
+        com.taxoryn.module.marketplace.dto.CreateProposalRequest request = com.taxoryn.module.marketplace.dto.CreateProposalRequest.builder()
+                .leadId(UUID.randomUUID())
+                .proposalTitle("Unauthorized Proposal")
+                .scopeOfWork("Scope")
+                .feeAmount(new java.math.BigDecimal("5000.00"))
+                .build();
+
+        // Viewer (only MARKETPLACE_VIEW) -> 403 Forbidden
+        mockMvc.perform(post("/api/v1/practice/marketplace/onboarding/proposals")
+                        .header("Authorization", "Bearer " + viewerTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+
+        // Client user -> 403 Forbidden
+        mockMvc.perform(post("/api/v1/practice/marketplace/onboarding/proposals")
+                        .header("Authorization", "Bearer " + clientUserToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Scenario 21: Cross-tenant isolation — Practice A cannot send proposal for Practice B's lead")
+    void testScenario21_PracticeACannotSendProposalForPracticeBLead() throws Exception {
+        // Setup practice profile B
+        com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity profileB = marketplaceProfileRepository.save(
+                com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.builder()
+                        .organizationId(orgB.getId())
+                        .displayName("Beta Practice")
+                        .slug("beta-practice-prop")
+                        .city("Delhi")
+                        .state("Delhi")
+                        .visibilityStatus(VisibilityStatus.PUBLIC)
+                        .isPublished(true)
+                        .build()
+        );
+
+        // Setup lead under orgB
+        com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity leadB = marketplaceLeadRepository.save(
+                com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.builder()
+                        .organizationId(orgB.getId())
+                        .marketplaceProfileId(profileB.getId())
+                        .clientName("Beta Lead Client")
+                        .clientEmail("client@betalead.com")
+                        .clientPhone("+919844455577")
+                        .serviceCategory("GST")
+                        .leadStatus(com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus.NEW)
+                        .build()
+        );
+
+        com.taxoryn.module.marketplace.dto.CreateProposalRequest request = com.taxoryn.module.marketplace.dto.CreateProposalRequest.builder()
+                .leadId(leadB.getId())
+                .proposalTitle("Cross Tenant Attempt")
+                .scopeOfWork("Cross tenant proposal")
+                .feeAmount(new java.math.BigDecimal("8000.00"))
+                .build();
+
+        // Practice A Admin tries to send proposal for Practice B's lead -> 404 NOT FOUND (lead not found in tenant)
+        mockMvc.perform(post("/api/v1/practice/marketplace/onboarding/proposals")
+                        .header("Authorization", "Bearer " + orgAdminTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Scenario 22: Authorized practitioner can view sent proposals list")
+    void testScenario22_AuthorizedPractitionerCanViewProposals() throws Exception {
+        mockMvc.perform(get("/api/v1/practice/marketplace/onboarding/proposals")
+                        .header("Authorization", "Bearer " + orgAdminTokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 }

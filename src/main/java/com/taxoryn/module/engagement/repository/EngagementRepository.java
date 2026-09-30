@@ -15,11 +15,17 @@ public interface EngagementRepository extends JpaRepository<EngagementEntity, UU
 
     Optional<EngagementEntity> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
+    Optional<EngagementEntity> findByOrganizationIdAndEngagementCode(UUID organizationId, String engagementCode);
+
+    boolean existsByOrganizationIdAndEngagementCode(UUID organizationId, String engagementCode);
+
     List<EngagementEntity> findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(UUID organizationId, UUID clientId);
 
     List<EngagementEntity> findAllByOrganizationIdAndStatus(UUID organizationId, EngagementStatus status);
 
     List<EngagementEntity> findAllByOrganizationId(UUID organizationId);
+
+    long countByOrganizationId(UUID organizationId);
 
     long countByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 }

@@ -1,6 +1,7 @@
 package com.taxoryn.module.engagement.entity;
 
 import com.taxoryn.core.domain.TenantAuditableEntity;
+import com.taxoryn.module.engagement.model.EngagementPriority;
 import com.taxoryn.module.engagement.model.EngagementStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -34,6 +35,9 @@ public class EngagementEntity extends TenantAuditableEntity {
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
 
+    @Column(name = "service_id")
+    private UUID serviceId;
+
     @Column(name = "client_service_id")
     private UUID clientServiceId;
 
@@ -59,6 +63,14 @@ public class EngagementEntity extends TenantAuditableEntity {
 
     @Column(name = "assigned_user_id")
     private UUID assignedUserId;
+
+    @Column(name = "reviewer_user_id")
+    private UUID reviewerUserId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority", nullable = false, length = 32)
+    @Builder.Default
+    private EngagementPriority priority = EngagementPriority.MEDIUM;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;

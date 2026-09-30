@@ -66,12 +66,6 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
       locationApi.getLocations().then((locs) => {
         if (locs && Array.isArray(locs)) {
           setLocations(locs);
-          const primary = locs.find((l) => l.isHeadOffice);
-          if (primary) {
-            setLocationId(primary.id);
-          } else if (locs.length > 0) {
-            setLocationId(locs[0].id);
-          }
         }
       }).catch((err) => {
         console.warn('Could not load locations for team member modal', err);
@@ -90,6 +84,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
     setDepartment('Taxation');
     setDesignation('Tax Associate');
     setRoleCode('TAX_ASSOCIATE');
+    setLocationId('');
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -296,7 +291,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
               onChange={(e) => setLocationId(e.target.value)}
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-hidden bg-white"
             >
-              {locations.length === 0 && <option value="">Primary Head Office</option>}
+              <option value="">Not Assigned</option>
               {locations.map((loc) => (
                 <option key={loc.id} value={loc.id}>
                   {loc.name} {loc.isHeadOffice ? '(Head Office)' : ''} {loc.city ? `- ${loc.city}` : ''}
@@ -304,7 +299,7 @@ export const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
               ))}
             </select>
             <p className="text-[10px] text-slate-400 mt-1">
-              Assign this staff member to an office branch or leave default for Head Office.
+              Assign this staff member to an office branch or keep Not Assigned.
             </p>
           </div>
 
