@@ -57,6 +57,8 @@ public class DocumentServiceImpl implements DocumentService {
     private final com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository;
     private final com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository;
     private final com.taxoryn.module.task.repository.TaskRepository taskRepository;
+    private final com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository;
+    private final com.taxoryn.module.worktemplate.repository.WorkInstanceRepository workInstanceRepository;
     private final com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository;
     private final com.taxoryn.module.docrequest.repository.DocumentRequestRepository docRequestRepository;
     private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
@@ -77,6 +79,8 @@ public class DocumentServiceImpl implements DocumentService {
             com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository,
             com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository,
             com.taxoryn.module.task.repository.TaskRepository taskRepository,
+            com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository,
+            com.taxoryn.module.worktemplate.repository.WorkInstanceRepository workInstanceRepository,
             com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository,
             com.taxoryn.module.docrequest.repository.DocumentRequestRepository docRequestRepository,
             com.taxoryn.module.organization.repository.LocationRepository locationRepository,
@@ -95,6 +99,8 @@ public class DocumentServiceImpl implements DocumentService {
         this.itrReturnRepository = itrReturnRepository;
         this.tdsReturnRepository = tdsReturnRepository;
         this.taskRepository = taskRepository;
+        this.engagementRepository = engagementRepository;
+        this.workInstanceRepository = workInstanceRepository;
         this.complianceWorkflowRepository = complianceWorkflowRepository;
         this.docRequestRepository = docRequestRepository;
         this.locationRepository = locationRepository;
@@ -104,6 +110,35 @@ public class DocumentServiceImpl implements DocumentService {
         this.securityScopeEvaluator = securityScopeEvaluator;
         this.fileValidator = fileValidator;
         this.malwareScanner = malwareScanner;
+    }
+
+    public DocumentServiceImpl(
+            DocumentRepository documentRepository,
+            DocumentStorageService storageService,
+            StorageProperties storageProperties,
+            ClientRepository clientRepository,
+            com.taxoryn.module.gst.repository.GstReturnFilingRepository gstReturnFilingRepository,
+            com.taxoryn.module.itr.repository.ItrReturnRepository itrReturnRepository,
+            com.taxoryn.module.tds.repository.TdsReturnRepository tdsReturnRepository,
+            com.taxoryn.module.task.repository.TaskRepository taskRepository,
+            com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository,
+            com.taxoryn.module.docrequest.repository.DocumentRequestRepository docRequestRepository,
+            com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            com.taxoryn.module.subscription.service.SubscriptionService subscriptionService,
+            DocumentMapper documentMapper,
+            com.taxoryn.module.audit.service.AuditService auditService,
+            PracticeSecurityScopeEvaluator securityScopeEvaluator,
+            FileValidator fileValidator,
+            MalwareScanner malwareScanner
+    ) {
+        this(
+                documentRepository, storageService, storageProperties, clientRepository,
+                gstReturnFilingRepository, itrReturnRepository, tdsReturnRepository,
+                taskRepository, null, null,
+                complianceWorkflowRepository, docRequestRepository, locationRepository,
+                subscriptionService, documentMapper, auditService, securityScopeEvaluator,
+                fileValidator, malwareScanner
+        );
     }
 
     public DocumentServiceImpl(
@@ -125,7 +160,7 @@ public class DocumentServiceImpl implements DocumentService {
         this(
                 documentRepository, storageService, storageProperties, clientRepository,
                 gstReturnFilingRepository, itrReturnRepository, tdsReturnRepository,
-                taskRepository, null, null, null,
+                taskRepository, null, null, null, null, null,
                 subscriptionService, documentMapper, auditService, securityScopeEvaluator,
                 fileValidator, malwareScanner
         );
@@ -222,10 +257,42 @@ public class DocumentServiceImpl implements DocumentService {
                     .orElseThrow(() -> new ResourceNotFoundException("TDS Return", "id", request.getTdsReturnId()));
         }
 
+        // Validate Engagement relationship and tenant boundary
+        if (request.getEngagementId() != null && engagementRepository != null) {
+            com.taxoryn.module.engagement.entity.EngagementEntity engagement = engagementRepository.findByIdAndOrganizationId(request.getEngagementId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", request.getEngagementId()));
+            if (request.getClientId() == null) {
+                request.setClientId(engagement.getClientId());
+            } else if (!request.getClientId().equals(engagement.getClientId())) {
+                throw new BadRequestException("Engagement does not belong to specified client");
+            }
+        }
+
+        // Validate Work Instance relationship and tenant boundary
+        if (request.getWorkInstanceId() != null && workInstanceRepository != null) {
+            com.taxoryn.module.worktemplate.entity.WorkInstanceEntity workInstance = workInstanceRepository.findByIdAndOrganizationId(request.getWorkInstanceId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("WorkInstance", "id", request.getWorkInstanceId()));
+            if (request.getEngagementId() == null) {
+                request.setEngagementId(workInstance.getEngagementId());
+            } else if (!request.getEngagementId().equals(workInstance.getEngagementId())) {
+                throw new BadRequestException("Work instance does not belong to specified engagement");
+            }
+            if (request.getClientId() == null && engagementRepository != null) {
+                engagementRepository.findByIdAndOrganizationId(workInstance.getEngagementId(), organizationId)
+                        .ifPresent(eng -> request.setClientId(eng.getClientId()));
+            }
+        }
+
         // Validate Task tenant boundary if linked
         if (request.getTaskId() != null && taskRepository != null) {
-            taskRepository.findByIdAndOrganizationId(request.getTaskId(), organizationId)
+            com.taxoryn.module.task.entity.TaskEntity task = taskRepository.findByIdAndOrganizationId(request.getTaskId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Task", "id", request.getTaskId()));
+            if (request.getClientId() == null && task.getClientId() != null) {
+                request.setClientId(task.getClientId());
+            }
+            if (request.getEngagementId() == null && task.getEngagementId() != null) {
+                request.setEngagementId(task.getEngagementId());
+            }
         }
 
         String originalFilename = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "document.bin";
@@ -301,6 +368,8 @@ public class DocumentServiceImpl implements DocumentService {
 
             DocumentEntity entity = DocumentEntity.builder()
                     .clientId(request.getClientId())
+                    .engagementId(request.getEngagementId())
+                    .workInstanceId(request.getWorkInstanceId())
                     .gstFilingId(request.getGstFilingId())
                     .itrReturnId(request.getItrReturnId())
                     .tdsReturnId(request.getTdsReturnId())
@@ -503,6 +572,14 @@ public class DocumentServiceImpl implements DocumentService {
                 predicates.add(cb.equal(root.get("assessmentYear"), filterRequest.getAssessmentYear().trim()));
             }
 
+            if (filterRequest.getEngagementId() != null) {
+                predicates.add(cb.equal(root.get("engagementId"), filterRequest.getEngagementId()));
+            }
+
+            if (filterRequest.getWorkInstanceId() != null) {
+                predicates.add(cb.equal(root.get("workInstanceId"), filterRequest.getWorkInstanceId()));
+            }
+
             if (filterRequest.getGstFilingId() != null) {
                 predicates.add(cb.equal(root.get("gstFilingId"), filterRequest.getGstFilingId()));
             }
@@ -562,26 +639,65 @@ public class DocumentServiceImpl implements DocumentService {
         clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
-        // SECURITY: enforce the same staff-level (non-firm-admin) ABAC scoping used elsewhere
-        // (e.g. ClientServiceImpl#getClientById) so an employee restricted to their own
-        // assigned/accessible clients cannot pull another employee's client document vault
-        // just because both clients belong to the same organization.
-        UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
-        if (currentClientId != null && currentClientId.equals(clientId)) {
-            // Authorized: Client portal user accessing their own client document vault
-        } else {
-            PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
-            if (!scope.isFirmAdmin()) {
-                Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-                if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
-                    throw new org.springframework.security.access.AccessDeniedException(
-                            "Access denied: You do not have permission to view documents for this client.");
-                }
-            }
-        }
+        validateClientAccess(clientId);
 
         List<DocumentEntity> docs = documentRepository.findAllByOrganizationIdAndClientIdAndStatus(
                 organizationId, clientId, DocumentStatus.ACTIVE);
+
+        return docs.stream().map(this::enrichDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getEngagementDocuments(UUID engagementId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (engagementRepository != null) {
+            com.taxoryn.module.engagement.entity.EngagementEntity engagement = engagementRepository.findByIdAndOrganizationId(engagementId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", engagementId));
+            if (engagement.getClientId() != null) {
+                validateClientAccess(engagement.getClientId());
+            }
+        }
+
+        List<DocumentEntity> docs = documentRepository.findAllByOrganizationIdAndEngagementIdAndStatus(
+                organizationId, engagementId, DocumentStatus.ACTIVE);
+
+        return docs.stream().map(this::enrichDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getWorkInstanceDocuments(UUID workInstanceId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (workInstanceRepository != null) {
+            com.taxoryn.module.worktemplate.entity.WorkInstanceEntity workInstance = workInstanceRepository.findByIdAndOrganizationId(workInstanceId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("WorkInstance", "id", workInstanceId));
+            if (workInstance.getEngagementId() != null && engagementRepository != null) {
+                engagementRepository.findByIdAndOrganizationId(workInstance.getEngagementId(), organizationId)
+                        .ifPresent(eng -> validateClientAccess(eng.getClientId()));
+            }
+        }
+
+        List<DocumentEntity> docs = documentRepository.findAllByOrganizationIdAndWorkInstanceIdAndStatus(
+                organizationId, workInstanceId, DocumentStatus.ACTIVE);
+
+        return docs.stream().map(this::enrichDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getTaskDocuments(UUID taskId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (taskRepository != null) {
+            com.taxoryn.module.task.entity.TaskEntity task = taskRepository.findByIdAndOrganizationId(taskId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Task", "id", taskId));
+            if (task.getClientId() != null) {
+                validateClientAccess(task.getClientId());
+            }
+        }
+
+        List<DocumentEntity> docs = documentRepository.findAllByOrganizationIdAndTaskIdAndStatus(
+                organizationId, taskId, DocumentStatus.ACTIVE);
 
         return docs.stream().map(this::enrichDto).toList();
     }
@@ -618,6 +734,25 @@ public class DocumentServiceImpl implements DocumentService {
                 organizationId, workflowId, DocumentStatus.ACTIVE);
 
         return docs.stream().map(this::enrichDto).toList();
+    }
+
+    @Override
+    @Transactional
+    public DocumentDto archiveDocument(UUID id) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentEntity document = documentRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", "id", id));
+
+        validateDocumentAccess(document);
+
+        DocumentDto oldSnapshot = enrichDto(document);
+        document.setStatus(DocumentStatus.ARCHIVED);
+        DocumentEntity saved = documentRepository.save(document);
+
+        log.info("Archived document: id={} for tenant={}", id, organizationId);
+        DocumentDto result = enrichDto(saved);
+        auditService.logEvent("DOCUMENT_ARCHIVED", "DOCUMENT", id.toString(), oldSnapshot, result);
+        return result;
     }
 
     @Override
@@ -661,6 +796,15 @@ public class DocumentServiceImpl implements DocumentService {
         if (request.getAssessmentYear() != null) {
             document.setAssessmentYear(request.getAssessmentYear());
         }
+        if (request.getEngagementId() != null) {
+            document.setEngagementId(request.getEngagementId());
+        }
+        if (request.getWorkInstanceId() != null) {
+            document.setWorkInstanceId(request.getWorkInstanceId());
+        }
+        if (request.getTaskId() != null) {
+            document.setTaskId(request.getTaskId());
+        }
         if (request.getWorkflowId() != null) {
             document.setWorkflowId(request.getWorkflowId());
         }
@@ -696,9 +840,19 @@ public class DocumentServiceImpl implements DocumentService {
         dto.setUploadedBy(entity.getCreatedBy());
         dto.setUploadedAt(entity.getCreatedAt());
 
-        if (entity.getClientId() != null) {
+        if (entity.getClientId() != null && clientRepository != null) {
             clientRepository.findByIdAndOrganizationId(entity.getClientId(), entity.getOrganizationId())
                     .ifPresent(c -> dto.setClientName(c.getDisplayName()));
+        }
+
+        if (entity.getEngagementId() != null && engagementRepository != null) {
+            engagementRepository.findByIdAndOrganizationId(entity.getEngagementId(), entity.getOrganizationId())
+                    .ifPresent(e -> dto.setEngagementName(e.getName()));
+        }
+
+        if (entity.getWorkInstanceId() != null && workInstanceRepository != null) {
+            workInstanceRepository.findByIdAndOrganizationId(entity.getWorkInstanceId(), entity.getOrganizationId())
+                    .ifPresent(w -> dto.setWorkInstanceTitle(w.getTitle()));
         }
 
         return dto;
@@ -746,10 +900,16 @@ public class DocumentServiceImpl implements DocumentService {
             return;
         }
 
+        validateClientAccess(document.getClientId());
+    }
+
+    private void validateClientAccess(UUID clientId) {
+        if (clientId == null) return;
+
         // 1. Strict match for Client Portal Users
         if (SecurityUtils.isClientPortalUser()) {
             UUID currentClientId = SecurityUtils.getCurrentClientId().orElse(null);
-            if (currentClientId == null || !currentClientId.equals(document.getClientId())) {
+            if (currentClientId == null || !currentClientId.equals(clientId)) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied: You cannot access documents belonging to another client");
             }
             return;
@@ -760,7 +920,7 @@ public class DocumentServiceImpl implements DocumentService {
             PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
             if (scope != null && !scope.isFirmAdmin()) {
                 Set<UUID> accessibleClientIds = securityScopeEvaluator.getAccessibleClientIds(scope);
-                if (accessibleClientIds == null || !accessibleClientIds.contains(document.getClientId())) {
+                if (accessibleClientIds == null || !accessibleClientIds.contains(clientId)) {
                     throw new org.springframework.security.access.AccessDeniedException(
                             "Access denied: You do not have permission to access documents for this client.");
                 }

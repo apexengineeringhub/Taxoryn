@@ -1058,20 +1058,31 @@ export interface DocumentItem {
   id: string;
   clientId?: string;
   clientName?: string;
+  engagementId?: string;
+  engagementName?: string;
+  workInstanceId?: string;
+  workInstanceTitle?: string;
   noticeId?: string;
   filename: string;
   fileName?: string;
   title?: string;
+  name?: string;
   fileType?: string;
   documentType?: string;
+  mimeType?: string;
   originalFilename: string;
   category: string;
   fileSize: number;
+  fileSizeFormatted?: string;
   contentType: string;
   storageKey: string;
+  status?: string;
+  uploadedBy?: string;
   uploadedByName?: string;
+  uploadedAt?: string;
   scanStatus?: 'PENDING_SCAN' | 'CLEAN' | 'INFECTED' | 'SCAN_FAILED' | 'LEGACY_UNSCANNED';
   createdAt: string;
+  updatedAt?: string;
   tags?: string[];
 }
 

@@ -52,7 +52,9 @@ import {
 } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
+import { EngagementDocumentVault } from '../components/document/EngagementDocumentVault';
 import clsx from 'clsx';
+
 
 export const EngagementOverviewPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -954,23 +956,27 @@ export const EngagementOverviewPage: React.FC = () => {
 
       {/* Tab: Documents */}
       {activeTab === 'documents' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-4 shadow-2xs">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto border border-blue-100">
-            <FolderLock className="w-6 h-6" />
+        <div className="space-y-4">
+          {/* Section header */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100">
+              <FolderLock className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Engagement Document Vault</h3>
+              <p className="text-xs text-slate-500">
+                Client invoices, working papers, signed engagement letters, and return acknowledgements.
+              </p>
+            </div>
           </div>
-          <div className="max-w-md mx-auto space-y-1">
-            <h3 className="text-sm font-bold text-slate-900">Engagement Documents Vault</h3>
-            <p className="text-xs text-slate-500">
-              Client invoices, working papers, signed engagement letters, and return acknowledgements.
-            </p>
-          </div>
-          <Link
-            to="/documents"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-xs transition-colors"
-          >
-            <span>Open Document Vault</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
+
+          {/* Live document vault */}
+          {id && (
+            <EngagementDocumentVault
+              engagementId={id}
+              clientId={engagement?.clientId}
+            />
+          )}
         </div>
       )}
 

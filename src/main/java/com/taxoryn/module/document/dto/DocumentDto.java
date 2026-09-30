@@ -40,6 +40,18 @@ public class DocumentDto {
     @Schema(description = "Associated Task ID")
     private UUID taskId;
 
+    @Schema(description = "Associated Engagement ID")
+    private UUID engagementId;
+
+    @Schema(description = "Engagement name", example = "Acme GST Mandate")
+    private String engagementName;
+
+    @Schema(description = "Associated Work Instance ID")
+    private UUID workInstanceId;
+
+    @Schema(description = "Work Instance title", example = "GST Monthly Compliance — April 2026")
+    private String workInstanceTitle;
+
     @Schema(description = "Associated Compliance Workflow ID")
     private UUID workflowId;
 

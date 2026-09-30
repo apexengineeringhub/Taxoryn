@@ -1067,12 +1067,28 @@ export const calendarApi = {
 
 // --- 8. Documents ---
 export const documentApi = {
-  getAll: async (params?: { clientId?: string; category?: string }) => {
+  getAll: async (params?: { clientId?: string; engagementId?: string; workInstanceId?: string; category?: string; status?: string; page?: number; size?: number }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<DocumentItem>>>('/v1/documents', { params });
     return res.data.data;
   },
   getByClientId: async (clientId: string) => {
     const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/clients/${clientId}`);
+    return res.data.data;
+  },
+  getByEngagementId: async (engagementId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/engagements/${engagementId}`);
+    return res.data.data;
+  },
+  getByWorkInstanceId: async (workInstanceId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/work-instances/${workInstanceId}`);
+    return res.data.data;
+  },
+  getByTaskId: async (taskId: string) => {
+    const res = await apiClient.get<ApiResponse<DocumentItem[]>>(`/v1/documents/tasks/${taskId}`);
+    return res.data.data;
+  },
+  archive: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<DocumentItem>>(`/v1/documents/${id}/archive`);
     return res.data.data;
   },
   upload: async (
@@ -1081,6 +1097,9 @@ export const documentApi = {
       documentType?: string;
       category?: string;
       clientId?: string;
+      engagementId?: string;
+      workInstanceId?: string;
+      taskId?: string;
       financialYear?: string;
       assessmentYear?: string;
       notes?: string;
@@ -1137,6 +1156,9 @@ export const documentApi = {
           [
             JSON.stringify({
               clientId: metadata?.clientId,
+              engagementId: metadata?.engagementId,
+              workInstanceId: metadata?.workInstanceId,
+              taskId: metadata?.taskId,
               documentType: resolvedDocType,
               financialYear: metadata?.financialYear,
               assessmentYear: metadata?.assessmentYear,
@@ -1158,6 +1180,7 @@ export const documentApi = {
     return res.data as Blob;
   },
 };
+
 
 // --- 9. Billing & Invoices ---
 export const billingApi = {

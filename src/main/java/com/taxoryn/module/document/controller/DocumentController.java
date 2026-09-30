@@ -151,6 +151,38 @@ public class DocumentController {
         return ResponseEntity.ok(ApiResponse.success("Workflow documents retrieved successfully", documents));
     }
 
+    @GetMapping("/engagements/{engagementId}")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF')")
+    @Operation(summary = "Get engagement documents", description = "Retrieves all active documents linked to a specific engagement.")
+    public ResponseEntity<ApiResponse<List<DocumentDto>>> getEngagementDocuments(@PathVariable UUID engagementId) {
+        List<DocumentDto> documents = documentService.getEngagementDocuments(engagementId);
+        return ResponseEntity.ok(ApiResponse.success("Engagement documents retrieved successfully", documents));
+    }
+
+    @GetMapping("/work-instances/{workInstanceId}")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF')")
+    @Operation(summary = "Get work instance documents", description = "Retrieves all active documents linked to a specific work instance (compliance occurrence).")
+    public ResponseEntity<ApiResponse<List<DocumentDto>>> getWorkInstanceDocuments(@PathVariable UUID workInstanceId) {
+        List<DocumentDto> documents = documentService.getWorkInstanceDocuments(workInstanceId);
+        return ResponseEntity.ok(ApiResponse.success("Work instance documents retrieved successfully", documents));
+    }
+
+    @GetMapping("/tasks/{taskId}")
+    @PreAuthorize("hasAuthority('DOCUMENT_VIEW') or hasAuthority('DOCUMENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('STAFF')")
+    @Operation(summary = "Get task documents", description = "Retrieves all active documents linked to a specific task.")
+    public ResponseEntity<ApiResponse<List<DocumentDto>>> getTaskDocuments(@PathVariable UUID taskId) {
+        List<DocumentDto> documents = documentService.getTaskDocuments(taskId);
+        return ResponseEntity.ok(ApiResponse.success("Task documents retrieved successfully", documents));
+    }
+
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasAuthority('DOCUMENT_UPLOAD') or hasAuthority('DOCUMENT_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Archive document", description = "Moves the document to ARCHIVED status. The file and metadata are retained but the document is excluded from active listings.")
+    public ResponseEntity<ApiResponse<DocumentDto>> archiveDocument(@PathVariable UUID id) {
+        DocumentDto archived = documentService.archiveDocument(id);
+        return ResponseEntity.ok(ApiResponse.success("Document archived successfully", archived));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('DOCUMENT_UPLOAD') or hasAuthority('DOCUMENT_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update document metadata", description = "Updates document category, tags, notes, or assessment/financial year.")
