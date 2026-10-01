@@ -190,6 +190,9 @@ public class TaxServiceMasterServiceImpl implements TaxServiceMasterService {
                 .description(request.getDescription())
                 .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
+                .suggestedPrice(request.getSuggestedPrice())
+                .currency(request.getCurrency() != null ? request.getCurrency().trim().toUpperCase(Locale.ROOT) : "INR")
+                .billingType(request.getBillingType() != null ? request.getBillingType().trim().toUpperCase(Locale.ROOT) : null)
                 .build();
 
         TaxServiceEntity saved = taxServiceRepository.save(service);
@@ -220,6 +223,10 @@ public class TaxServiceMasterServiceImpl implements TaxServiceMasterService {
     public TaxServiceDto updateTaxService(UUID id, UpdateTaxServiceRequest request) {
         TaxServiceEntity service = taxServiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax Service", "id", id));
+        Map<String, Object> previousPricing = Map.of(
+                "suggestedPrice", service.getSuggestedPrice() == null ? "" : service.getSuggestedPrice(),
+                "currency", service.getCurrency() == null ? "INR" : service.getCurrency(),
+                "billingType", service.getBillingType() == null ? "" : service.getBillingType());
 
         if (request.getCategoryId() != null) {
             categoryRepository.findById(request.getCategoryId())
@@ -239,10 +246,16 @@ public class TaxServiceMasterServiceImpl implements TaxServiceMasterService {
         if (request.getIsActive() != null) {
             service.setIsActive(request.getIsActive());
         }
+        if (request.getSuggestedPrice() != null) service.setSuggestedPrice(request.getSuggestedPrice());
+        if (request.getCurrency() != null && !request.getCurrency().isBlank()) service.setCurrency(request.getCurrency().trim().toUpperCase(Locale.ROOT));
+        if (request.getBillingType() != null) service.setBillingType(request.getBillingType().trim().toUpperCase(Locale.ROOT));
 
         TaxServiceEntity saved = taxServiceRepository.save(service);
-        auditService.logEvent("TAX_SERVICE_UPDATED", "TAX_SERVICE", saved.getId().toString(), null,
-                "Updated master tax service: " + saved.getCode());
+        Map<String, Object> updatedPricing = new HashMap<>();
+        updatedPricing.put("suggestedPrice", saved.getSuggestedPrice() == null ? "" : saved.getSuggestedPrice());
+        updatedPricing.put("currency", saved.getCurrency() == null ? "INR" : saved.getCurrency());
+        updatedPricing.put("billingType", saved.getBillingType() == null ? "" : saved.getBillingType());
+        auditService.logEvent("TAX_SERVICE_UPDATED", "TAX_SERVICE", saved.getId().toString(), previousPricing, updatedPricing);
 
         return getTaxServiceById(saved.getId());
     }

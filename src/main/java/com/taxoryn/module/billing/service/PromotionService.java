@@ -28,5 +28,8 @@ public interface PromotionService {
 
     PriceResolutionResultDto resolvePrice(UUID organizationId, UUID clientId, BillingServiceType service, BigDecimal manualPrice, String promoCode, LocalDate date);
 
+    PriceResolutionResultDto resolvePriceForCatalogService(UUID organizationId, UUID clientId, BillingServiceType service,
+            String serviceCode, BigDecimal manualPrice, String promoCode, LocalDate date);
+
     void incrementPromotionUse(UUID promotionId);
 }

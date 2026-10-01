@@ -24,4 +24,5 @@ public class UpdateServiceRequest {
     private ServiceStatus status;
     private String moduleCode;
     private Boolean configurable;
+
 }

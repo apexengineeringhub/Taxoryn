@@ -71,6 +71,10 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
   const [editSvcDesc, setEditSvcDesc] = useState<string>('');
   const [editSvcSort, setEditSvcSort] = useState<number>(0);
   const [editSvcCategoryId, setEditSvcCategoryId] = useState<string>('');
+  const [newSuggestedPrice, setNewSuggestedPrice] = useState('');
+  const [newBillingType, setNewBillingType] = useState('PER_RETURN');
+  const [editSuggestedPrice, setEditSuggestedPrice] = useState('');
+  const [editBillingType, setEditBillingType] = useState('PER_RETURN');
 
   const [aliasModalService, setAliasModalService] = useState<TaxService | null>(null);
   const [serviceAliases, setServiceAliases] = useState<TaxServiceAlias[]>([]);
@@ -221,6 +225,9 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
         name: newSvcName.trim(),
         description: newSvcDesc.trim(),
         aliases: aliasList,
+        suggestedPrice: newSuggestedPrice.trim() ? Number(newSuggestedPrice) : undefined,
+        currency: 'INR',
+        billingType: newBillingType,
       });
       setIsServiceModalOpen(false);
       setNewSvcCode('');
@@ -228,6 +235,7 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
       setNewSvcDesc('');
       setNewSvcCategoryId('');
       setNewSvcAliases('');
+      setNewSuggestedPrice('');
       setSuccessBanner('Created master tax service successfully!');
       await loadAdminData();
     } catch (err: any) {
@@ -243,6 +251,8 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
     setEditSvcDesc(svc.description || '');
     setEditSvcSort(svc.sortOrder || 0);
     setEditSvcCategoryId(svc.categoryId);
+    setEditSuggestedPrice(svc.suggestedPrice != null ? String(svc.suggestedPrice) : '');
+    setEditBillingType(svc.billingType || 'PER_RETURN');
   };
 
   const handleUpdateService = async (e: React.FormEvent) => {
@@ -255,6 +265,9 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
         description: editSvcDesc.trim(),
         sortOrder: editSvcSort,
         categoryId: editSvcCategoryId,
+        suggestedPrice: editSuggestedPrice.trim() ? Number(editSuggestedPrice) : undefined,
+        currency: 'INR',
+        billingType: editBillingType,
       });
       setEditingService(null);
       setSuccessBanner('Updated tax service successfully!');
@@ -463,6 +476,7 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
       ),
     },
     { header: 'Service Code', cell: (s) => <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{s.code}</span> },
+    { header: 'Suggested Price', cell: (s) => s.suggestedPrice != null ? `₹${Number(s.suggestedPrice).toLocaleString('en-IN')} / ${s.billingType || 'service'}` : 'Not priced' },
     {
       header: 'Category',
       cell: (s) => (
@@ -935,6 +949,11 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
                 <p className="text-[10px] text-slate-400 mt-1">Users searching for these keywords will match this master service.</p>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs font-bold">Suggested Price (₹)<input type="number" min="0" step="0.01" value={newSuggestedPrice} onChange={e => setNewSuggestedPrice(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></label>
+                <label className="text-xs font-bold">Billing Type<select value={newBillingType} onChange={e => setNewBillingType(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">{['ONE_TIME','PER_RETURN','PER_MONTH','PER_QUARTER','PER_SESSION','PER_NOTICE'].map(x => <option key={x}>{x}</option>)}</select></label>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsServiceModalOpen(false)}>
                   Cancel
@@ -1012,6 +1031,11 @@ export const PlatformAdminMarketplacePage: React.FC = () => {
                   onChange={(e) => setEditSvcSort(parseInt(e.target.value, 10) || 0)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs font-bold">Taxoryn Suggested Price (₹)<input type="number" min="0" step="0.01" value={editSuggestedPrice} onChange={e => setEditSuggestedPrice(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></label>
+                <label className="text-xs font-bold">Billing Type<select value={editBillingType} onChange={e => setEditBillingType(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">{['ONE_TIME','PER_RETURN','PER_MONTH','PER_QUARTER','PER_SESSION','PER_NOTICE'].map(x => <option key={x}>{x}</option>)}</select></label>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

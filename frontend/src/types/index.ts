@@ -1114,6 +1114,7 @@ export interface Invoice {
 export interface InvoiceLineItem {
   id?: string;
   service: 'GST_FILING' | 'ITR_FILING' | 'TDS' | 'ACCOUNTING' | 'CONSULTING' | 'AUDIT' | 'ROC_COMPLIANCE' | 'OTHER';
+  serviceCode?: string;
   description: string;
   hsnSacCode?: string;
   quantity: number;
@@ -1141,7 +1142,8 @@ export interface BulkCreateInvoicesRequest {
     service: 'GST_FILING' | 'ITR_FILING' | 'TDS' | 'ACCOUNTING' | 'CONSULTING' | 'AUDIT' | 'ROC_COMPLIANCE' | 'OTHER';
     description?: string;
     quantity: number;
-    unitPrice: number;
+    unitPrice?: number;
+    serviceCode?: string;
     taxRate: number;
   }>;
   autoIssue?: boolean;
@@ -1930,6 +1932,9 @@ export interface TaxService {
   description?: string;
   sortOrder: number;
   isActive: boolean;
+  suggestedPrice?: number | null;
+  currency?: string;
+  billingType?: 'ONE_TIME' | 'PER_RETURN' | 'PER_MONTH' | 'PER_QUARTER' | 'PER_SESSION' | 'PER_NOTICE' | string;
   aliases?: TaxServiceAlias[];
   createdAt?: string;
   updatedAt?: string;
@@ -1994,6 +1999,9 @@ export interface CreateTaxServiceRequest {
   sortOrder?: number;
   isActive?: boolean;
   aliases?: string[];
+  suggestedPrice?: number;
+  currency?: string;
+  billingType?: string;
 }
 
 export interface UpdateTaxServiceRequest {
@@ -2002,6 +2010,9 @@ export interface UpdateTaxServiceRequest {
   description?: string;
   sortOrder?: number;
   isActive?: boolean;
+  suggestedPrice?: number | null;
+  currency?: string;
+  billingType?: string;
 }
 
 export interface CreateTaxServiceAliasRequest {
@@ -2271,7 +2282,8 @@ export interface CreateProposalRequest {
   proposalTitle: string;
   scopeOfWork: string;
   deliverables?: string;
-  feeAmount: number;
+  feeAmount?: number;
+  serviceCode?: string;
   pricingType?: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
   estimatedTimelineDays?: number;
   validUntil?: string;
@@ -2395,7 +2407,8 @@ export interface CustomerDashboard {
   proposalTitle: string;
   scopeOfWork: string;
   deliverables?: string;
-  feeAmount: number;
+  feeAmount?: number;
+  serviceCode?: string;
   pricingType: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
   estimatedTimelineDays: number;
   proposalStatus: ProposalStatus;
@@ -2466,7 +2479,8 @@ export interface CreateProposalRequest {
   proposalTitle: string;
   scopeOfWork: string;
   deliverables?: string;
-  feeAmount: number;
+  feeAmount?: number;
+  serviceCode?: string;
   pricingType?: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
   estimatedTimelineDays?: number;
   validUntil?: string;

@@ -3,6 +3,7 @@ package com.taxoryn.module.marketplace.entity;
 import com.taxoryn.core.domain.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,16 @@ public class TaxServiceEntity extends AuditableEntity {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Column(name = "suggested_price", precision = 15, scale = 2)
+    private BigDecimal suggestedPrice;
+
+    @Column(name = "currency", nullable = false, length = 3)
+    @Builder.Default
+    private String currency = "INR";
+
+    @Column(name = "billing_type", length = 30)
+    private String billingType;
 
     @OneToMany(mappedBy = "taxService", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default

@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 @Data
 @Builder
@@ -26,6 +27,9 @@ public class TaxServiceDto {
     private String description;
     private Integer sortOrder;
     private Boolean isActive;
+    private BigDecimal suggestedPrice;
+    private String currency;
+    private String billingType;
     private List<TaxServiceAliasDto> aliases;
     private Instant createdAt;
     private Instant updatedAt;

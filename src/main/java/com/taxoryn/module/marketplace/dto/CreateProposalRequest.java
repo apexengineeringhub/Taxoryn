@@ -4,6 +4,7 @@ import com.taxoryn.module.marketplace.entity.MarketplaceServiceEntity.PricingTyp
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.DecimalMin;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -33,9 +34,11 @@ public class CreateProposalRequest {
     @Schema(example = "Monthly filing acknowledgements (ARN), ITC credit reports, and representation memo.")
     private String deliverables;
 
-    @NotNull(message = "Fee amount is required")
+    @DecimalMin(value = "0.00", message = "Fee amount cannot be negative")
     @Schema(example = "4999.00")
     private BigDecimal feeAmount;
+
+    private String serviceCode;
 
     @Builder.Default
     private PricingType pricingType = PricingType.MONTHLY_RETAINER;

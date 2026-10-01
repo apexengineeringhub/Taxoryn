@@ -36,6 +36,7 @@ const TeamChatPage = React.lazy(() => import('./pages/TeamChatPage').then(m => (
 const BulkEmployeeOnboardingPage = React.lazy(() => import('./pages/BulkEmployeeOnboardingPage').then(m => ({ default: m.BulkEmployeeOnboardingPage })));
 const AuditLogsPage = React.lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const PracticeBrandingPage = React.lazy(() => import('./pages/PracticeBrandingPage').then(m => ({ default: m.PracticeBrandingPage })));
+const PracticeServicePricingPage = React.lazy(() => import('./pages/PracticeServicePricingPage').then(m => ({ default: m.PracticeServicePricingPage })));
 const LocationsPage = React.lazy(() => import('./pages/LocationsPage').then(m => ({ default: m.LocationsPage })));
 const SubscriptionsPage = React.lazy(() => import('./pages/SubscriptionsPage').then(m => ({ default: m.SubscriptionsPage })));
 const MarketplaceExplorePage = React.lazy(() => import('./pages/MarketplaceExplorePage').then(m => ({ default: m.MarketplaceExplorePage })));
@@ -729,6 +730,14 @@ export const App: React.FC = () => {
                   >
                     <AuditLogsPage />
                   </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/service-pricing"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                    <PracticeServicePricingPage />
+                  </RoleRouteGuard>
                 }
               />
               <Route

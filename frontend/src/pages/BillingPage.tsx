@@ -21,78 +21,18 @@ import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
-import { billingApi, clientApi } from '../api/endpoints';
+import { billingApi, clientApi, practiceServicePricingApi, PracticeServicePrice } from '../api/endpoints';
 import { Invoice, InvoiceLineItem, Client, BulkCreateInvoicesRequest } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { printTaxInvoice } from '../utils/invoicePrinter';
 
-// Service presets for quick invoice creation & bulk invoicing
-const SERVICE_PRESETS = [
-  {
-    service: 'GST_FILING' as const,
-    label: 'Monthly GST Retainer (GSTR-1 & 3B)',
-    description: 'Monthly GSTR-1 & GSTR-3B return preparation, ITC reconciliation and portal filing',
-    sacCode: '998231',
-    defaultFee: 2500,
-    taxRate: 18,
-  },
-  {
-    service: 'ITR_FILING' as const,
-    label: 'Annual Income Tax Return (ITR)',
-    description: 'Annual Income Tax computation, AIS/TIS review, return preparation & CPC e-filing',
-    sacCode: '998231',
-    defaultFee: 4000,
-    taxRate: 18,
-  },
-  {
-    service: 'TDS' as const,
-    label: 'Quarterly TDS Return (24Q / 26Q)',
-    description: 'Quarterly TDS calculation, challan verification, FVU file generation & Form 16/16A generation',
-    sacCode: '998231',
-    defaultFee: 3500,
-    taxRate: 18,
-  },
-  {
-    service: 'AUDIT' as const,
-    label: 'Statutory Tax Audit (Section 44AB)',
-    description: 'Comprehensive Tax Audit under Section 44AB, verification of books & Form 3CA/3CD e-filing',
-    sacCode: '998222',
-    defaultFee: 25000,
-    taxRate: 18,
-  },
-  {
-    service: 'ACCOUNTING' as const,
-    label: 'Monthly Bookkeeping & Accounting',
-    description: 'Monthly bookkeeping, bank reconciliations, ledger scrutiny & trial balance preparation',
-    sacCode: '998221',
-    defaultFee: 5000,
-    taxRate: 18,
-  },
-  {
-    service: 'ROC_COMPLIANCE' as const,
-    label: 'Annual ROC Compliance & MCA Filings',
-    description: 'Annual ROC compliance, Director KYC (DIR-3 KYC), AOC-4 & MGT-7 filings with MCA',
-    sacCode: '998232',
-    defaultFee: 8000,
-    taxRate: 18,
-  },
-  {
-    service: 'CONSULTING' as const,
-    label: 'Tax Advisory & Virtual CFO Services',
-    description: 'Direct & Indirect Tax advisory, structure planning, notice response & virtual CFO consulting',
-    sacCode: '998231',
-    defaultFee: 7500,
-    taxRate: 18,
-  },
-  {
-    service: 'OTHER' as const,
-    label: 'Custom Professional Services',
-    description: 'Professional legal and tax compliance services',
-    sacCode: '998231',
-    defaultFee: 3000,
-    taxRate: 18,
-  },
-];
+const serviceTypeForModule = (moduleCode: string): InvoiceLineItem['service'] => {
+  if (moduleCode === 'GST') return 'GST_FILING';
+  if (moduleCode === 'ITR') return 'ITR_FILING';
+  if (moduleCode === 'TDS') return 'TDS';
+  if (moduleCode === 'TAX_NOTICES') return 'OTHER';
+  return 'CONSULTING';
+};
 
 // Helper: Amount to Words INR
 function numberToWordsINR(num: number): string {
@@ -159,26 +99,31 @@ export const BillingPage: React.FC = () => {
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [newItems, setNewItems] = useState<Array<{
     service: InvoiceLineItem['service'];
+    serviceCode?: string;
     description: string;
     quantity: number;
     unitPrice: number;
     taxRate: number;
+    customRate?: boolean;
   }>>([
     {
       service: 'GST_FILING',
-      description: 'Monthly GSTR-1 & GSTR-3B return preparation and portal filing',
+      serviceCode: '',
+      description: '',
       quantity: 1,
-      unitPrice: 2500,
+      unitPrice: 0,
       taxRate: 18,
     },
   ]);
+  const [servicePrices, setServicePrices] = useState<PracticeServicePrice[]>([]);
 
   // Bulk Invoicing State
   const [bulkSelectedClientIds, setBulkSelectedClientIds] = useState<string[]>([]);
-  const [bulkServiceIndex, setBulkServiceIndex] = useState(0);
-  const [bulkCustomDesc, setBulkCustomDesc] = useState(SERVICE_PRESETS[0].description);
-  const [bulkFee, setBulkFee] = useState<number>(SERVICE_PRESETS[0].defaultFee);
-  const [bulkTaxRate, setBulkTaxRate] = useState<number>(SERVICE_PRESETS[0].taxRate);
+  const [bulkServiceCode, setBulkServiceCode] = useState('');
+  const [bulkCustomDesc, setBulkCustomDesc] = useState('');
+  const [bulkFee, setBulkFee] = useState<number>(0);
+  const [bulkCustomRate, setBulkCustomRate] = useState(false);
+  const [bulkTaxRate, setBulkTaxRate] = useState<number>(18);
   const [bulkInvoiceDate, setBulkInvoiceDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [bulkDueDate, setBulkDueDate] = useState(() => {
     const d = new Date();
@@ -192,6 +137,17 @@ export const BillingPage: React.FC = () => {
   useEffect(() => {
     loadInvoices();
     loadClients();
+    practiceServicePricingApi.getAll().then((prices) => {
+      setServicePrices(prices || []);
+      const initial = prices?.find((p) => p.serviceCode === 'GST_MONTHLY_RETURN') || prices?.[0];
+      if (initial) {
+        setNewItems(items => items.map((item, index) => index === 0 && !item.serviceCode ? {
+          ...item, serviceCode: initial.serviceCode, service: serviceTypeForModule(initial.moduleCode),
+          description: initial.serviceName, unitPrice: initial.effectivePrice || 0,
+        } : item));
+        setBulkServiceCode(initial.serviceCode); setBulkCustomDesc(initial.serviceName); setBulkFee(initial.effectivePrice || 0);
+      }
+    }).catch(() => setServicePrices([]));
   }, []);
 
   useEffect(() => {
@@ -318,13 +274,15 @@ export const BillingPage: React.FC = () => {
 
   // Handlers
   const handleAddItem = () => {
+    const defaultService = servicePrices.find((s) => s.enabled);
     setNewItems([
       ...newItems,
       {
-        service: 'CONSULTING',
-        description: 'Professional consulting & advisory services',
+        service: defaultService ? serviceTypeForModule(defaultService.moduleCode) : 'CONSULTING',
+        serviceCode: defaultService?.serviceCode || '',
+        description: defaultService?.serviceName || '',
         quantity: 1,
-        unitPrice: 2000,
+        unitPrice: defaultService?.effectivePrice || 0,
         taxRate: 18,
       },
     ]);
@@ -339,13 +297,20 @@ export const BillingPage: React.FC = () => {
     const updated = [...newItems];
     updated[index] = { ...updated[index], [field]: value };
 
-    if (field === 'service') {
-      const preset = SERVICE_PRESETS.find((p) => p.service === value);
-      if (preset) {
-        updated[index].description = preset.description;
-        updated[index].unitPrice = preset.defaultFee;
-        updated[index].taxRate = preset.taxRate;
+    if (field === 'serviceCode') {
+      const selected = servicePrices.find((s) => s.serviceCode === value);
+      if (selected) {
+        updated[index].service = serviceTypeForModule(selected.moduleCode);
+        updated[index].description = selected.serviceName;
+        updated[index].unitPrice = selected.effectivePrice || 0;
+        updated[index].customRate = false;
+      } else if (!value) {
+        updated[index].unitPrice = 0;
+        updated[index].customRate = true;
       }
+    }
+    if (field === 'unitPrice') {
+      updated[index].customRate = true;
     }
     setNewItems(updated);
   };
@@ -355,8 +320,8 @@ export const BillingPage: React.FC = () => {
       alert('Please select a client.');
       return;
     }
-    if (newItems.some((it) => !it.unitPrice || it.unitPrice <= 0)) {
-      alert('Please provide valid unit prices for all line items.');
+    if (newItems.some((it) => it.serviceCode ? (!it.customRate && !servicePrices.some(s => s.serviceCode === it.serviceCode && s.enabled)) : (!it.unitPrice || it.unitPrice <= 0))) {
+      alert('Select an enabled catalog service or provide a valid custom price.');
       return;
     }
 
@@ -369,9 +334,10 @@ export const BillingPage: React.FC = () => {
         discount: Number(newInvoiceCalculations.discountAmount || 0),
         items: newItems.map((it) => ({
           service: it.service,
+          serviceCode: it.serviceCode || undefined,
           description: it.description,
           quantity: Number(it.quantity),
-          unitPrice: Number(it.unitPrice),
+          ...(it.serviceCode && !it.customRate ? {} : { unitPrice: Number(it.unitPrice) }),
           taxRate: Number(it.taxRate),
         })),
         notes: newNotes,
@@ -400,24 +366,25 @@ export const BillingPage: React.FC = () => {
       alert('Please select at least one client.');
       return;
     }
-    if (bulkFee <= 0) {
+    const selectedService = servicePrices.find((service) => service.serviceCode === bulkServiceCode && service.enabled);
+    if (!selectedService || (bulkCustomRate && bulkFee < 0) || (!bulkCustomRate && (selectedService.effectivePrice == null))) {
       alert('Please specify a valid fee amount.');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const selectedPreset = SERVICE_PRESETS[bulkServiceIndex];
       const payload: BulkCreateInvoicesRequest = {
         clientIds: bulkSelectedClientIds,
         invoiceDate: bulkInvoiceDate,
         dueDate: bulkDueDate,
         items: [
           {
-            service: selectedPreset.service,
-            description: bulkCustomDesc || selectedPreset.description,
+            service: serviceTypeForModule(selectedService.moduleCode),
+            serviceCode: selectedService.serviceCode,
+            description: bulkCustomDesc || selectedService.serviceName,
             quantity: 1,
-            unitPrice: Number(bulkFee),
+            ...(bulkCustomRate ? { unitPrice: Number(bulkFee) } : {}),
             taxRate: Number(bulkTaxRate),
           },
         ],
@@ -448,18 +415,19 @@ export const BillingPage: React.FC = () => {
         for (let i = 0; i < Math.min(clients.length, 3); i++) {
           try {
             const c = clients[i];
-            const preset = SERVICE_PRESETS[i % SERVICE_PRESETS.length];
+            const catalogService = servicePrices.filter((service) => service.enabled)[i % Math.max(1, servicePrices.filter((service) => service.enabled).length)];
+            if (!catalogService) continue;
             await billingApi.createInvoice({
               clientId: c.id,
               invoiceDate: new Date().toISOString().split('T')[0],
               dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
               items: [
                 {
-                  service: preset.service,
-                  description: preset.description,
+                  service: serviceTypeForModule(catalogService.moduleCode),
+                  serviceCode: catalogService.serviceCode,
+                  description: catalogService.serviceName,
                   quantity: 1,
-                  unitPrice: preset.defaultFee,
-                  taxRate: preset.taxRate,
+                  taxRate: 18,
                 },
               ] as any,
               notes: 'Demo practice invoice for testing.',
@@ -915,17 +883,14 @@ export const BillingPage: React.FC = () => {
                 <div key={idx} className="p-3 bg-slate-50/70 border border-slate-200 rounded-lg space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
                     <div className="sm:col-span-4">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Service Type</label>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Catalog Service</label>
                       <select
-                        value={item.service}
-                        onChange={(e) => handleItemChange(idx, 'service', e.target.value)}
+                        value={item.serviceCode || ''}
+                        onChange={(e) => handleItemChange(idx, 'serviceCode', e.target.value)}
                         className="w-full text-xs px-2 py-1.5 border border-slate-300 rounded bg-white"
                       >
-                        {SERVICE_PRESETS.map((p) => (
-                          <option key={p.service} value={p.service}>
-                            {p.label}
-                          </option>
-                        ))}
+                        <option value="">Custom / unlisted service</option>
+                        {servicePrices.filter(s => s.enabled).map(s => <option key={s.serviceCode} value={s.serviceCode}>{s.serviceName} · {formatCurrency(s.effectivePrice || 0)}</option>)}
                       </select>
                     </div>
 
@@ -945,10 +910,12 @@ export const BillingPage: React.FC = () => {
                       <input
                         type="number"
                         min="0"
+                        step="0.01"
                         value={item.unitPrice}
                         onChange={(e) => handleItemChange(idx, 'unitPrice', Number(e.target.value))}
                         className="w-full text-xs px-2 py-1.5 border border-slate-300 rounded font-mono font-bold"
                       />
+                      {item.serviceCode && item.customRate && <button type="button" className="mt-1 text-[10px] font-semibold text-indigo-600" onClick={() => handleItemChange(idx, 'serviceCode', item.serviceCode)}>Use practice price</button>}
                     </div>
 
                     <div className="sm:col-span-2">
@@ -1158,26 +1125,26 @@ export const BillingPage: React.FC = () => {
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Select Service Template *</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {SERVICE_PRESETS.map((preset, idx) => (
+              {servicePrices.filter((service) => service.enabled).map((service) => (
                 <button
-                  key={preset.service}
+                  key={service.serviceCode}
                   type="button"
                   onClick={() => {
-                    setBulkServiceIndex(idx);
-                    setBulkCustomDesc(preset.description);
-                    setBulkFee(preset.defaultFee);
-                    setBulkTaxRate(preset.taxRate);
+                    setBulkServiceCode(service.serviceCode);
+                    setBulkCustomDesc(service.serviceName);
+                    setBulkFee(service.effectivePrice || 0);
+                    setBulkCustomRate(false);
                   }}
                   className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between ${
-                    bulkServiceIndex === idx
+                    bulkServiceCode === service.serviceCode
                       ? 'border-brand-500 bg-brand-50/60 ring-2 ring-brand-500/20'
                       : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
-                  <span className="font-bold text-xs text-slate-900">{preset.label}</span>
+                  <span className="font-bold text-xs text-slate-900">{service.serviceName}</span>
                   <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 text-[11px]">
-                    <span className="font-mono font-bold text-brand-700">{formatCurrency(preset.defaultFee)}</span>
-                    <span className="text-slate-400 font-mono">SAC {preset.sacCode}</span>
+                    <span className="font-mono font-bold text-brand-700">{formatCurrency(service.effectivePrice || 0)}</span>
+                    <span className="text-slate-400 font-mono">{service.billingType.replace(/_/g, ' ')}</span>
                   </div>
                 </button>
               ))}
@@ -1192,9 +1159,10 @@ export const BillingPage: React.FC = () => {
                 type="number"
                 min="1"
                 value={bulkFee}
-                onChange={(e) => setBulkFee(Number(e.target.value))}
+                onChange={(e) => { setBulkFee(Number(e.target.value)); setBulkCustomRate(true); }}
                 className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded font-mono font-bold bg-white"
               />
+              {bulkCustomRate && bulkServiceCode && <button type="button" onClick={() => { const service = servicePrices.find(s => s.serviceCode === bulkServiceCode); setBulkFee(service?.effectivePrice || 0); setBulkCustomRate(false); }} className="mt-1 text-[10px] font-semibold text-indigo-600">Use practice price</button>}
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">Invoice Date</label>

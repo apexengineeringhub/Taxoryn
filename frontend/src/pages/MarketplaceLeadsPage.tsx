@@ -30,7 +30,7 @@ import {
   Send,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
-import { marketplacePracticeApi, marketplaceOnboardingPracticeApi, employeeApi } from '../api/endpoints';
+import { marketplacePracticeApi, marketplaceOnboardingPracticeApi, employeeApi, practiceServicePricingApi, PracticeServicePrice } from '../api/endpoints';
 import {
   MarketplaceLead,
   MarketplaceStats,
@@ -85,11 +85,13 @@ export const MarketplaceLeadsPage: React.FC = () => {
     proposalTitle: 'Statutory Tax Compliance & Advisory Engagement',
     scopeOfWork: 'Preparation and filing of tax returns, computations, reconciliations, and representation.',
     deliverables: 'Filed return acknowledgements (ARN), Monthly ITC analysis report, Form 26AS/AIS reconciliation sheet.',
-    feeAmount: 4999,
+    feeAmount: undefined,
+    serviceCode: '',
     pricingType: 'MONTHLY_RETAINER',
     estimatedTimelineDays: 7,
   });
   const [proposalError, setProposalError] = useState<string | null>(null);
+  const [servicePrices, setServicePrices] = useState<PracticeServicePrice[]>([]);
 
   // Conversion Modal
   const [selectedLeadForConvert, setSelectedLeadForConvert] = useState<EnquiryDetail | null>(null);
@@ -172,6 +174,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
   useEffect(() => {
     fetchEnquiriesData();
   }, [statusFilter]);
+
+  useEffect(() => { practiceServicePricingApi.getAll().then(setServicePrices).catch(() => setServicePrices([])); }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -620,7 +624,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
                                     proposalTitle: `Engagement for ${enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}`,
                                     scopeOfWork: enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Statutory tax compliance, documentation and representation.',
                                     deliverables: 'Filing acknowledgements, monthly reconciliations, and compliance reports.',
-                                    feeAmount: 3999,
+                                    feeAmount: undefined,
+                                    serviceCode: '',
                                     pricingType: 'MONTHLY_RETAINER',
                                     estimatedTimelineDays: 7,
                                   });
@@ -786,7 +791,8 @@ export const MarketplaceLeadsPage: React.FC = () => {
                               proposalTitle: `Engagement for ${enquiry.taxServiceName || enquiry.serviceCategory || 'Tax Advisory'}`,
                               scopeOfWork: enquiry.earlyEnquiryMessage || enquiry.requirementDescription || 'Statutory tax compliance, documentation and representation.',
                               deliverables: 'Filing acknowledgements, monthly reconciliations, and compliance reports.',
-                              feeAmount: 3999,
+                              feeAmount: undefined,
+                              serviceCode: '',
                               pricingType: 'MONTHLY_RETAINER',
                               estimatedTimelineDays: 7,
                             });
@@ -1171,12 +1177,24 @@ export const MarketplaceLeadsPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Catalog Service / Default Fee</label>
+                  <select value={proposalForm.serviceCode || ''} onChange={(e) => {
+                    const selected = servicePrices.find((s) => s.serviceCode === e.target.value);
+                    setProposalForm({ ...proposalForm, serviceCode: e.target.value || undefined, feeAmount: selected ? selected.effectivePrice ?? undefined : proposalForm.feeAmount });
+                  }} className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                    <option value="">No catalog default — enter fee</option>
+                    {servicePrices.filter(s => s.enabled).map(s => <option key={s.serviceCode} value={s.serviceCode}>{s.serviceName} · ₹{Number(s.effectivePrice || 0).toLocaleString('en-IN')} ({s.pricingMode === 'DEFAULT' ? 'Taxoryn default' : 'Practice price'})</option>)}
+                  </select>
+                </div>
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Proposed Fee (₹) *</label>
                   <input
                     type="number"
                     required
-                    value={proposalForm.feeAmount}
+                    min="0"
+                    step="0.01"
+                    value={proposalForm.feeAmount ?? ''}
                     onChange={(e) => setProposalForm({ ...proposalForm, feeAmount: parseFloat(e.target.value) || 0 })}
                     className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
                   />

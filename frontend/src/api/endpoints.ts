@@ -2153,6 +2153,32 @@ export const taxServiceAdminApi = {
   },
 };
 
+export interface PracticeServicePrice {
+  serviceId: string;
+  serviceCode: string;
+  serviceName: string;
+  description?: string;
+  moduleCode: string;
+  suggestedPrice: number;
+  practicePrice: number;
+  effectivePrice: number | null;
+  currency: string;
+  billingType: string;
+  pricingMode: 'DEFAULT' | 'CUSTOM';
+  enabled: boolean;
+}
+
+export const practiceServicePricingApi = {
+  getAll: async () => {
+    const res = await apiClient.get<ApiResponse<PracticeServicePrice[]>>('/v1/practice/service-pricing');
+    return res.data.data;
+  },
+  update: async (serviceCode: string, payload: { pricingMode: 'DEFAULT' | 'CUSTOM'; customPrice?: number; enabled: boolean }) => {
+    const res = await apiClient.put<ApiResponse<PracticeServicePrice>>(`/v1/practice/service-pricing/${encodeURIComponent(serviceCode)}`, payload);
+    return res.data.data;
+  },
+};
+
 // --- 16. Practice Marketplace Onboarding Hub ---
 export const marketplaceOnboardingPracticeApi = {
   sendProposal: async (payload: CreateProposalRequest) => {

@@ -55,4 +55,5 @@ public class ServiceEntity extends AuditableEntity {
 
     @Column(name = "module_code", length = 50)
     private String moduleCode;
+
 }
