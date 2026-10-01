@@ -13,6 +13,7 @@ public enum ProductModuleCode {
     MODULE_CONFIG,
     CLIENTS,
     TASKS,
+    REMINDERS,
     DOCUMENTS,
     DOCUMENT_REQUESTS,
     CLIENT_PORTAL,
@@ -39,7 +40,7 @@ public enum ProductModuleCode {
         return switch (this) {
             case ORGANIZATION, LOCATIONS, USERS, ROLES, SECURITY, SUBSCRIPTION, MODULE_CONFIG, NOTIFICATIONS, AUDIT ->
                     ProductModuleCategory.CORE;
-            case CLIENTS, TASKS, DOCUMENTS, DOCUMENT_REQUESTS, BILLING, BILLING_PRACTICE_OPERATIONS, REPORTS, DASHBOARD, PRACTICE_DASHBOARD ->
+            case CLIENTS, TASKS, REMINDERS, DOCUMENTS, DOCUMENT_REQUESTS, BILLING, BILLING_PRACTICE_OPERATIONS, REPORTS, DASHBOARD, PRACTICE_DASHBOARD ->
                     ProductModuleCategory.FOUNDATION;
             case GST, GST_COMPLIANCE, ITR, ITR_COMPLIANCE, TDS, TDS_COMPLIANCE, TAX_NOTICES, TAX_NOTICE_MANAGEMENT ->
                     ProductModuleCategory.BUSINESS;
@@ -82,6 +83,7 @@ public enum ProductModuleCode {
             case AUDIT -> "Enterprise Audit Logging";
             case CLIENTS -> "Client Management & Master CRM";
             case TASKS -> "Task & Workflow Management";
+            case REMINDERS -> "Reminders & Automation";
             case DOCUMENTS -> "Document Vault & Storage";
             case DOCUMENT_REQUESTS -> "Document Request Workflows";
             case BILLING, BILLING_PRACTICE_OPERATIONS -> "Billing, Invoicing & Payments";

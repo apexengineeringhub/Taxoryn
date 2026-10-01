@@ -142,6 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
         { label: isStaff ? 'My Compliance Work' : 'Compliance Worklist', path: '/compliance-work', icon: Briefcase, requiredPermissions: ['TASK_VIEW', 'CLIENT_VIEW'], moduleCode: 'TASKS' },
+        { label: 'Reminders', path: '/reminders', icon: Bell, requiredPermissions: ['TASK_VIEW'], moduleCode: 'REMINDERS' },
       ],
     },
     {
@@ -190,6 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Automations', path: '/settings/automations', icon: Settings, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'REMINDERS' },
       ],
     },
     {
@@ -202,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   ];
 
   // Check if current route is inside administration to auto-expand
-  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/locations', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules', '/settings/tax-notices'];
+  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/locations', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules', '/settings/tax-notices', '/settings/automations'];
   const isAdminRouteActive = adminRoutes.some((p) => location.pathname.startsWith(p));
 
   const [isAdminExpanded, setIsAdminExpanded] = useState<boolean>(() => {

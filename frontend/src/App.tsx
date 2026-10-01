@@ -65,6 +65,8 @@ const LearnContentDetailPage = React.lazy(() => import('./pages/learn/LearnConte
 const PlatformContentManagementPage = React.lazy(() => import('./pages/PlatformContentManagementPage').then(m => ({ default: m.PlatformContentManagementPage })));
 const WhatsAppMessagesPage = React.lazy(() => import('./pages/WhatsAppMessagesPage').then(m => ({ default: m.WhatsAppMessagesPage })));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+const RemindersPage = React.lazy(() => import('./pages/RemindersPage').then(m => ({ default: m.RemindersPage })));
+const AutomationSettingsPage = React.lazy(() => import('./pages/AutomationSettingsPage').then(m => ({ default: m.AutomationSettingsPage })));
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const NoticeCenterPage = React.lazy(() => import('./pages/NoticeCenterPage').then(m => ({ default: m.NoticeCenterPage })));
 const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').then(m => ({ default: m.NoticeDetailPage })));
@@ -478,6 +480,25 @@ export const App: React.FC = () => {
                     requiredPermissions={NOTIFICATION_PERMISSIONS}
                   >
                     <NotificationsPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/reminders"
+                element={
+                  <ModuleRouteGuard moduleCode="REMINDERS">
+                    <RemindersPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/automations"
+                element={
+                  <ModuleRouteGuard
+                    moduleCode="REMINDERS"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                  >
+                    <AutomationSettingsPage />
                   </ModuleRouteGuard>
                 }
               />

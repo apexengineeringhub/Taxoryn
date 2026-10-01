@@ -109,7 +109,8 @@ public class NotificationEntity extends AuditableEntity {
         COMPLIANCE,
         ACCOUNT,
         BILLING,
-        SYSTEM
+        SYSTEM,
+        REMINDER  // P0.5
     }
 
     public enum NotificationType {
@@ -152,7 +153,11 @@ public class NotificationEntity extends AuditableEntity {
         CLIENT_MESSAGE_RECEIVED,
         PRACTICE_MESSAGE_REPLY,
         SYSTEM_NOTIFICATION,
-        GENERAL
+        GENERAL,
+        // P0.5 — Reminder / Automation
+        REMINDER_TRIGGERED,
+        REMINDER_DUE,
+        REMINDER_OVERDUE
     }
 
     public enum NotificationChannel {
