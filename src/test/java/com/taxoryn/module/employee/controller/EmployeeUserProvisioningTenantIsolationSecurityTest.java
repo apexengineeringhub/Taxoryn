@@ -65,6 +65,9 @@ class EmployeeUserProvisioningTenantIsolationSecurityTest {
     private OrganizationTestDataFactory factory;
 
     @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     private EmployeeRepository employeeRepository;
 
     @Autowired
@@ -92,7 +95,26 @@ class EmployeeUserProvisioningTenantIsolationSecurityTest {
         String suffixB = UUID.randomUUID().toString().substring(0, 6);
 
         orgA = factory.createOrganization("Alpha Tax Practice " + suffixA, "admin.alpha." + suffixA + "@alpha.in");
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(orgA.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
+
         orgB = factory.createOrganization("Beta Financial Practice " + suffixB, "admin.beta." + suffixB + "@beta.in");
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(orgB.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
 
         adminA = factory.createAdminUser(orgA, "adminA." + suffixA + "@alpha.in", "AdminPass123!");
         adminB = factory.createAdminUser(orgB, "adminB." + suffixB + "@beta.in", "AdminPass123!");

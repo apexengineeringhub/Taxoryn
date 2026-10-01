@@ -3336,6 +3336,99 @@ export const workInstancesApi = {
 };
 
 
+// ============================================================================
+// Reminders & Automation API (P0.5)
+// ============================================================================
+
+export const reminderApi = {
+  getMyReminders: async (params?: Record<string, any>) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<any>>>('/v1/reminders/my', { params });
+    return res.data.data;
+  },
+  getTeamReminders: async (params?: Record<string, any>) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<any>>>('/v1/reminders/team', { params });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any>>(`/v1/reminders/${id}`);
+    return res.data.data;
+  },
+  getByTaskId: async (taskId: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/reminders/task/${taskId}`);
+    return res.data.data;
+  },
+  create: async (data: {
+    title: string;
+    description?: string;
+    reminderType?: string;
+    priority?: string;
+    scheduledAt: string;
+    recurrenceType?: string;
+    targetUserId?: string;
+    clientId?: string;
+    engagementId?: string;
+    workInstanceId?: string;
+    taskId?: string;
+    notes?: string;
+  }) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/reminders', data);
+    return res.data.data;
+  },
+  update: async (id: string, data: Record<string, any>) => {
+    const res = await apiClient.put<ApiResponse<any>>(`/v1/reminders/${id}`, data);
+    return res.data.data;
+  },
+  complete: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/reminders/${id}/complete`);
+    return res.data.data;
+  },
+  cancel: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/reminders/${id}/cancel`);
+    return res.data.data;
+  },
+  getOverdueCount: async () => {
+    const res = await apiClient.get<ApiResponse<number>>('/v1/reminders/overdue/count');
+    return res.data.data;
+  },
+};
+
+export const automationRuleApi = {
+  list: async () => {
+    const res = await apiClient.get<ApiResponse<any[]>>('/v1/automation-rules');
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any>>(`/v1/automation-rules/${id}`);
+    return res.data.data;
+  },
+  create: async (data: {
+    name: string;
+    description?: string;
+    eventType: string;
+    daysOffset: number;
+    targetType?: string;
+    enabled?: boolean;
+  }) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/automation-rules', data);
+    return res.data.data;
+  },
+  update: async (id: string, data: Record<string, any>) => {
+    const res = await apiClient.put<ApiResponse<any>>(`/v1/automation-rules/${id}`, data);
+    return res.data.data;
+  },
+  enable: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/automation-rules/${id}/enable`);
+    return res.data.data;
+  },
+  disable: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/automation-rules/${id}/disable`);
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/automation-rules/${id}`);
+    return res.data;
+  },
+};
 
 
 

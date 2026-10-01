@@ -48,6 +48,9 @@ class EmployeeWorkflowIntegrationTest {
     private OrganizationTestDataFactory factory;
 
     @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     private EmployeeRepository employeeRepository;
 
     @Autowired
@@ -69,7 +72,25 @@ class EmployeeWorkflowIntegrationTest {
         SecurityContextHolder.clearContext();
         TenantContext.clear();
         orgA = factory.createOrganization("Alpha Advisors " + UUID.randomUUID().toString().substring(0, 5), "admin.alpha." + UUID.randomUUID().toString().substring(0, 5) + "@alpha.in");
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(orgA.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
         orgB = factory.createOrganization("Beta Financial " + UUID.randomUUID().toString().substring(0, 5), "admin.beta." + UUID.randomUUID().toString().substring(0, 5) + "@beta.in");
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(orgB.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
         adminA = factory.createAdminUser(orgA, "adminA." + UUID.randomUUID().toString().substring(0, 5) + "@alpha.in", "AdminPass123!");
         adminB = factory.createAdminUser(orgB, "adminB." + UUID.randomUUID().toString().substring(0, 5) + "@beta.in", "AdminPass123!");
 

@@ -70,6 +70,9 @@ class RbacAuthorizationIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
     private OrganizationEntity org;
     private UserEntity orgAdminUser;
     private UserEntity viewerUser;
@@ -82,6 +85,7 @@ class RbacAuthorizationIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        subscriptionRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
         roleRepository.deleteAll();
@@ -94,6 +98,17 @@ class RbacAuthorizationIntegrationTest {
                 .status(OrganizationStatus.ACTIVE)
                 .build();
         org = organizationRepository.save(org);
+
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(org.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
+
 
         // 2. Create Permissions
         PermissionEntity orgRead = permissionRepository.save(PermissionEntity.builder().code("ORGANIZATION_VIEW").name("View Org").module("ORGANIZATION").build());

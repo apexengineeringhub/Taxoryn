@@ -140,6 +140,7 @@ public class UserRoleAndLocationScopeIntegrationTest {
                 .plan(SubscriptionPlan.BUSINESS)
                 .startDate(LocalDate.now())
                 .renewalDate(LocalDate.now().plusMonths(1))
+                .maxUsers(50)
                 .build());
 
         // Create Org B (Starter tier)
@@ -155,6 +156,7 @@ public class UserRoleAndLocationScopeIntegrationTest {
                 .plan(SubscriptionPlan.STARTER)
                 .startDate(LocalDate.now())
                 .renewalDate(LocalDate.now().plusMonths(1))
+                .maxUsers(50)
                 .build());
 
         // Locations for Org A
