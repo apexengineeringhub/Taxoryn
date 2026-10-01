@@ -21,6 +21,7 @@ const BulkTasksGeneratorPage = React.lazy(() => import('./pages/BulkTasksGenerat
 const GstCompliancePage = React.lazy(() => import('./pages/GstCompliancePage').then(m => ({ default: m.GstCompliancePage })));
 const GstDataMigrationHubPage = React.lazy(() => import('./pages/GstDataMigrationHubPage').then(m => ({ default: m.GstDataMigrationHubPage })));
 const ItrCompliancePage = React.lazy(() => import('./pages/ItrCompliancePage').then(m => ({ default: m.ItrCompliancePage })));
+const ItrTaxCalculatorPage = React.lazy(() => import('./pages/ItrTaxCalculatorPage').then(m => ({ default: m.ItrTaxCalculatorPage })));
 const ItrDataMigrationHubPage = React.lazy(() => import('./pages/ItrDataMigrationHubPage').then(m => ({ default: m.ItrDataMigrationHubPage })));
 const TdsCompliancePage = React.lazy(() => import('./pages/TdsCompliancePage').then(m => ({ default: m.TdsCompliancePage })));
 const TdsDataMigrationHubPage = React.lazy(() => import('./pages/TdsDataMigrationHubPage').then(m => ({ default: m.TdsDataMigrationHubPage })));
@@ -334,6 +335,14 @@ export const App: React.FC = () => {
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}
                   >
                     <GstDataMigrationHubPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/itr/calculator"
+                element={
+                  <ModuleRouteGuard moduleCode="ITR">
+                    <ItrTaxCalculatorPage />
                   </ModuleRouteGuard>
                 }
               />

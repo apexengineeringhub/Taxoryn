@@ -610,6 +610,9 @@ const DEMO_PRACTICE_TAXPAYERS = [
 
         {/* Global Action Toolbar */}
         <div className="flex flex-wrap items-center gap-2.5">
+          <Link to="/itr/calculator" className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100">
+            Tax Calculator
+          </Link>
           {/* AY Switcher */}
           <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-2xs">
             <span className="text-[11px] font-bold text-slate-500">AY:</span>

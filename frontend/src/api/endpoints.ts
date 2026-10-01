@@ -680,7 +680,45 @@ export const gstApi = {
 };
 
 // --- 6. ITR Compliance ---
+export interface TaxCalculationInput {
+  assessmentYear: string;
+  taxpayerType: 'INDIVIDUAL';
+  age: number;
+  residentialStatus: 'RESIDENT' | 'NON_RESIDENT';
+  regime: 'OLD' | 'NEW';
+  totalIncome: number;
+  deductions: number;
+}
+export interface TaxCalculationResult {
+  assessmentYear: string;
+  lawVersion: string;
+  regime: 'OLD' | 'NEW';
+  totalIncome: number;
+  deductions: number;
+  taxableIncome: number;
+  slabBreakdown: { from: number; to: number; rate: number; tax: number }[];
+  slabTax: number;
+  rebate: number;
+  taxAfterRebate: number;
+  surcharge: number;
+  taxWithSurcharge: number;
+  cess: number;
+  totalTax: number;
+}
+export interface TaxRegimeComparison {
+  oldRegime: TaxCalculationResult;
+  newRegime: TaxCalculationResult;
+  taxDifference: number;
+}
 export const itrApi = {
+  calculateTax: async (payload: TaxCalculationInput) => {
+    const res = await apiClient.post<ApiResponse<TaxCalculationResult>>('/v1/itr/calculation/calculate', payload);
+    return res.data.data;
+  },
+  compareTaxRegimes: async (payload: Omit<TaxCalculationInput, 'regime'>) => {
+    const res = await apiClient.post<ApiResponse<TaxRegimeComparison>>('/v1/itr/calculation/compare', payload);
+    return res.data.data;
+  },
   getProfiles: async (params?: { clientId?: string; page?: number; size?: number; search?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ItrProfile>>>('/v1/itr/profiles', { params });
     return res.data.data;
