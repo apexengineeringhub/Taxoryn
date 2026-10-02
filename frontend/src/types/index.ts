@@ -10,6 +10,30 @@ export interface ApiResponse<T> {
   traceId?: string;
 }
 
+export interface ReviewAction {
+  action: string;
+  actorId: string;
+  occurredAt: string;
+  comment?: string | null;
+}
+
+export interface ReviewRequest {
+  id: string;
+  resourceType: string;
+  resourceId: string;
+  reviewType: string;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  requestedBy: string;
+  assignedReviewerId: string;
+  requestedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  reviewComment?: string | null;
+  rejectionReason?: string | null;
+  version: number;
+  history: ReviewAction[];
+}
+
 export interface PagedResponse<T> {
   content: T[];
   pageNumber: number;

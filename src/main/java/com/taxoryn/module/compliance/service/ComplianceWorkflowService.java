@@ -47,6 +47,8 @@ public interface ComplianceWorkflowService {
 
     ComplianceWorkflowDto submitReview(UUID workflowId);
 
+    ComplianceWorkflowDto withdrawReview(UUID workflowId);
+
     ComplianceWorkflowDto requestChanges(UUID workflowId, RequestWorkflowChangesRequest request);
 
     ComplianceWorkflowDto approveWorkflow(UUID workflowId, ApproveWorkflowRequest request);

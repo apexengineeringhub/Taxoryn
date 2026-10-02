@@ -2,6 +2,7 @@ import { apiClient } from './client';
 import {
   ApiResponse,
   PagedResponse,
+  ReviewRequest,
   OrganizationDashboard,
   Client,
   Client360Overview,
@@ -3098,6 +3099,29 @@ export const complianceApi = {
   },
   createTaskForObligation: async (id: string) => {
     const res = await apiClient.post<ApiResponse<any>>(`/v1/compliance/obligations/${id}/create-task`);
+    return res.data.data;
+  },
+};
+
+export const reviewApi = {
+  getForResource: async (resourceId: string): Promise<ReviewRequest> => {
+    const res = await apiClient.get<ApiResponse<ReviewRequest>>(`/v1/reviews/resource/COMPLIANCE_WORK/${resourceId}`);
+    return res.data.data;
+  },
+  submit: async (resourceId: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>('/v1/reviews', { resourceType: 'COMPLIANCE_WORK', resourceId });
+    return res.data.data;
+  },
+  approve: async (id: string, comment?: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>(`/v1/reviews/${id}/approve`, { comment });
+    return res.data.data;
+  },
+  reject: async (id: string, comment: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>(`/v1/reviews/${id}/reject`, { comment });
+    return res.data.data;
+  },
+  resubmit: async (id: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>(`/v1/reviews/${id}/resubmit`);
     return res.data.data;
   },
 };
