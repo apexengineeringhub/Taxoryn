@@ -2,10 +2,16 @@ import { apiClient } from './client';
 import {
   ApiResponse,
   PagedResponse,
+  ReviewRequest,
   OrganizationDashboard,
   Client,
   Client360Overview,
   ClientNote,
+  ClientCommunication,
+  ClientCommunicationRequest,
+  PracticeLead,
+  PracticeLeadRequest,
+  PracticeLeadActivity,
   ServiceCatalogItem,
   ClientServiceDto,
   CreateClientServiceRequest,
@@ -418,6 +424,62 @@ export const clientApi = {
     const res = await apiClient.get<ApiResponse<ClientNote[]>>(`/v1/clients/${id}/notes`);
     return res.data.data;
   },
+  getCommunications: async (id: string, params?: { page?: number; size?: number; type?: string; dateFrom?: string; dateTo?: string; followUpRequired?: boolean }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientCommunication>>>(`/v1/clients/${id}/communications`, { params });
+    return res.data.data;
+  },
+  createCommunication: async (id: string, payload: ClientCommunicationRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientCommunication>>(`/v1/clients/${id}/communications`, payload);
+    return res.data.data;
+  },
+  updateCommunication: async (clientId: string, communicationId: string, payload: ClientCommunicationRequest) => {
+    const res = await apiClient.put<ApiResponse<ClientCommunication>>(`/v1/clients/${clientId}/communications/${communicationId}`, payload);
+    return res.data.data;
+  },
+  deleteCommunication: async (clientId: string, communicationId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${clientId}/communications/${communicationId}`);
+    return res.data;
+  },
+};
+
+export const practiceLeadApi = {
+  list: async (params: { page?: number; size?: number; status?: string; priority?: string; source?: string; assignedEmployeeId?: string; interestedServiceCode?: string; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<PracticeLead>>>('/v1/leads', { params });
+    return res.data.data;
+  },
+  get: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<PracticeLead>>(`/v1/leads/${id}`);
+    return res.data.data;
+  },
+  create: async (payload: PracticeLeadRequest) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>('/v1/leads', payload);
+    return res.data.data;
+  },
+  update: async (id: string, payload: PracticeLeadRequest) => {
+    const res = await apiClient.put<ApiResponse<PracticeLead>>(`/v1/leads/${id}`, payload);
+    return res.data.data;
+  },
+  remove: async (id: string) => { await apiClient.delete(`/v1/leads/${id}`); },
+  assign: async (id: string, employeeId: string) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>(`/v1/leads/${id}/assign`, { employeeId });
+    return res.data.data;
+  },
+  markLost: async (id: string, reason?: string) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>(`/v1/leads/${id}/lost`, { reason });
+    return res.data.data;
+  },
+  convert: async (id: string, client: Record<string, unknown>) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>(`/v1/leads/${id}/convert`, { client });
+    return res.data.data;
+  },
+  activities: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<PracticeLeadActivity[]>>(`/v1/leads/${id}/activities`);
+    return res.data.data;
+  },
+  addActivity: async (id: string, payload: { activityType: string; subject?: string; content: string; occurredAt: string }) => {
+    const res = await apiClient.post<ApiResponse<PracticeLeadActivity>>(`/v1/leads/${id}/activities`, payload);
+    return res.data.data;
+  },
 };
 
 // --- 3b. Client Services / Engagements ---
@@ -680,7 +742,45 @@ export const gstApi = {
 };
 
 // --- 6. ITR Compliance ---
+export interface TaxCalculationInput {
+  assessmentYear: string;
+  taxpayerType: 'INDIVIDUAL';
+  age: number;
+  residentialStatus: 'RESIDENT' | 'NON_RESIDENT';
+  regime: 'OLD' | 'NEW';
+  totalIncome: number;
+  deductions: number;
+}
+export interface TaxCalculationResult {
+  assessmentYear: string;
+  lawVersion: string;
+  regime: 'OLD' | 'NEW';
+  totalIncome: number;
+  deductions: number;
+  taxableIncome: number;
+  slabBreakdown: { from: number; to: number; rate: number; tax: number }[];
+  slabTax: number;
+  rebate: number;
+  taxAfterRebate: number;
+  surcharge: number;
+  taxWithSurcharge: number;
+  cess: number;
+  totalTax: number;
+}
+export interface TaxRegimeComparison {
+  oldRegime: TaxCalculationResult;
+  newRegime: TaxCalculationResult;
+  taxDifference: number;
+}
 export const itrApi = {
+  calculateTax: async (payload: TaxCalculationInput) => {
+    const res = await apiClient.post<ApiResponse<TaxCalculationResult>>('/v1/itr/calculation/calculate', payload);
+    return res.data.data;
+  },
+  compareTaxRegimes: async (payload: Omit<TaxCalculationInput, 'regime'>) => {
+    const res = await apiClient.post<ApiResponse<TaxRegimeComparison>>('/v1/itr/calculation/compare', payload);
+    return res.data.data;
+  },
   getProfiles: async (params?: { clientId?: string; page?: number; size?: number; search?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ItrProfile>>>('/v1/itr/profiles', { params });
     return res.data.data;
@@ -1483,6 +1583,12 @@ export const portalApi = {
     const res = await apiClient.get<ApiResponse<ClientPortalDashboard>>(`/v1/portal/preview/${clientId}`);
     return res.data.data;
   },
+  getClientVisibleCommunications: async (clientId: string, page = 0, size = 20) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientCommunication>>>(
+      `/v1/portal/clients/${clientId}/communications`, { params: { page, size } },
+    );
+    return res.data.data;
+  },
   getProfile: async () => {
     const res = await apiClient.get<ApiResponse<ClientPortalProfile>>('/v1/portal/profile');
     return res.data.data;
@@ -2112,6 +2218,32 @@ export const taxServiceAdminApi = {
   deleteAlias: async (taxServiceId: string, aliasId: string) => {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/admin/tax-services/${taxServiceId}/aliases/${aliasId}`);
     return res.data;
+  },
+};
+
+export interface PracticeServicePrice {
+  serviceId: string;
+  serviceCode: string;
+  serviceName: string;
+  description?: string;
+  moduleCode: string;
+  suggestedPrice: number;
+  practicePrice: number;
+  effectivePrice: number | null;
+  currency: string;
+  billingType: string;
+  pricingMode: 'DEFAULT' | 'CUSTOM';
+  enabled: boolean;
+}
+
+export const practiceServicePricingApi = {
+  getAll: async () => {
+    const res = await apiClient.get<ApiResponse<PracticeServicePrice[]>>('/v1/practice/service-pricing');
+    return res.data.data;
+  },
+  update: async (serviceCode: string, payload: { pricingMode: 'DEFAULT' | 'CUSTOM'; customPrice?: number; enabled: boolean }) => {
+    const res = await apiClient.put<ApiResponse<PracticeServicePrice>>(`/v1/practice/service-pricing/${encodeURIComponent(serviceCode)}`, payload);
+    return res.data.data;
   },
 };
 
@@ -3038,6 +3170,29 @@ export const complianceApi = {
   },
 };
 
+export const reviewApi = {
+  getForResource: async (resourceId: string): Promise<ReviewRequest> => {
+    const res = await apiClient.get<ApiResponse<ReviewRequest>>(`/v1/reviews/resource/COMPLIANCE_WORK/${resourceId}`);
+    return res.data.data;
+  },
+  submit: async (resourceId: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>('/v1/reviews', { resourceType: 'COMPLIANCE_WORK', resourceId });
+    return res.data.data;
+  },
+  approve: async (id: string, comment?: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>(`/v1/reviews/${id}/approve`, { comment });
+    return res.data.data;
+  },
+  reject: async (id: string, comment: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>(`/v1/reviews/${id}/reject`, { comment });
+    return res.data.data;
+  },
+  resubmit: async (id: string): Promise<ReviewRequest> => {
+    const res = await apiClient.post<ApiResponse<ReviewRequest>>(`/v1/reviews/${id}/resubmit`);
+    return res.data.data;
+  },
+};
+
 export const complianceWorkflowApi = {
   getWorkbenchWorkflows: async (params?: ComplianceWorkbenchFilterParams): Promise<PagedResponse<ComplianceWorkflowDto>> => {
     const res = await apiClient.get<ApiResponse<PagedResponse<ComplianceWorkflowDto>>>('/compliance/workbench', { params });
@@ -3336,6 +3491,99 @@ export const workInstancesApi = {
 };
 
 
+// ============================================================================
+// Reminders & Automation API (P0.5)
+// ============================================================================
+
+export const reminderApi = {
+  getMyReminders: async (params?: Record<string, any>) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<any>>>('/v1/reminders/my', { params });
+    return res.data.data;
+  },
+  getTeamReminders: async (params?: Record<string, any>) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<any>>>('/v1/reminders/team', { params });
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any>>(`/v1/reminders/${id}`);
+    return res.data.data;
+  },
+  getByTaskId: async (taskId: string) => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/v1/reminders/task/${taskId}`);
+    return res.data.data;
+  },
+  create: async (data: {
+    title: string;
+    description?: string;
+    reminderType?: string;
+    priority?: string;
+    scheduledAt: string;
+    recurrenceType?: string;
+    targetUserId?: string;
+    clientId?: string;
+    engagementId?: string;
+    workInstanceId?: string;
+    taskId?: string;
+    notes?: string;
+  }) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/reminders', data);
+    return res.data.data;
+  },
+  update: async (id: string, data: Record<string, any>) => {
+    const res = await apiClient.put<ApiResponse<any>>(`/v1/reminders/${id}`, data);
+    return res.data.data;
+  },
+  complete: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/reminders/${id}/complete`);
+    return res.data.data;
+  },
+  cancel: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/reminders/${id}/cancel`);
+    return res.data.data;
+  },
+  getOverdueCount: async () => {
+    const res = await apiClient.get<ApiResponse<number>>('/v1/reminders/overdue/count');
+    return res.data.data;
+  },
+};
+
+export const automationRuleApi = {
+  list: async () => {
+    const res = await apiClient.get<ApiResponse<any[]>>('/v1/automation-rules');
+    return res.data.data;
+  },
+  getById: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<any>>(`/v1/automation-rules/${id}`);
+    return res.data.data;
+  },
+  create: async (data: {
+    name: string;
+    description?: string;
+    eventType: string;
+    daysOffset: number;
+    targetType?: string;
+    enabled?: boolean;
+  }) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/automation-rules', data);
+    return res.data.data;
+  },
+  update: async (id: string, data: Record<string, any>) => {
+    const res = await apiClient.put<ApiResponse<any>>(`/v1/automation-rules/${id}`, data);
+    return res.data.data;
+  },
+  enable: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/automation-rules/${id}/enable`);
+    return res.data.data;
+  },
+  disable: async (id: string) => {
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/automation-rules/${id}/disable`);
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/automation-rules/${id}`);
+    return res.data;
+  },
+};
 
 
 

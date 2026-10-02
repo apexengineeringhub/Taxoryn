@@ -8,6 +8,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
+import java.math.BigDecimal;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Pattern;
 
 @Data
 @Builder
@@ -31,4 +35,15 @@ public class UpdateTaxServiceRequest {
 
     @Schema(description = "Active status flag", example = "true")
     private Boolean isActive;
+
+    @DecimalMin(value = "0.00", message = "Suggested price cannot be negative")
+    @Digits(integer = 13, fraction = 2, message = "Suggested price must have at most two decimal places")
+    private BigDecimal suggestedPrice;
+
+    @Size(min = 3, max = 3)
+    private String currency;
+
+    @Pattern(regexp = "^(ONE_TIME|PER_RETURN|PER_MONTH|PER_QUARTER|PER_SESSION|PER_NOTICE)$")
+    @Size(max = 30)
+    private String billingType;
 }

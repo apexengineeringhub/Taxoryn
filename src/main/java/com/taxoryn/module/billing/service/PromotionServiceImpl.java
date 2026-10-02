@@ -23,6 +23,7 @@ import com.taxoryn.module.billing.repository.BillingProfileRepository;
 import com.taxoryn.module.billing.repository.InvoiceRepository;
 import com.taxoryn.module.billing.repository.PromotionRepository;
 import com.taxoryn.module.client.repository.ClientRepository;
+import com.taxoryn.module.service.service.ServicePricingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,7 @@ public class PromotionServiceImpl implements PromotionService {
     private final ClientRepository clientRepository;
     private final AuditService auditService;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    private final ServicePricingService servicePricingService;
 
     private static final Map<BillingServiceType, BigDecimal> DEFAULT_STANDARD_PRICES = Map.of(
             BillingServiceType.GST_FILING, new BigDecimal("2500.00"),
@@ -257,8 +259,21 @@ public class PromotionServiceImpl implements PromotionService {
             String promoCode,
             LocalDate date
     ) {
+        return resolvePriceInternal(organizationId, clientId, service, null, manualPrice, promoCode, date);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PriceResolutionResultDto resolvePriceForCatalogService(UUID organizationId, UUID clientId,
+            BillingServiceType service, String serviceCode, BigDecimal manualPrice, String promoCode, LocalDate date) {
+        BigDecimal catalogPrice = servicePricingService.getEffectiveServicePrice(organizationId, serviceCode).effectivePrice();
+        return resolvePriceInternal(organizationId, clientId, service, catalogPrice, manualPrice, promoCode, date);
+    }
+
+    private PriceResolutionResultDto resolvePriceInternal(UUID organizationId, UUID clientId,
+            BillingServiceType service, BigDecimal catalogPrice, BigDecimal manualPrice, String promoCode, LocalDate date) {
         LocalDate evaluationDate = (date != null) ? date : LocalDate.now();
-        BigDecimal standardBasePrice = DEFAULT_STANDARD_PRICES.getOrDefault(service, new BigDecimal("2500.00"));
+        BigDecimal standardBasePrice = catalogPrice != null ? catalogPrice : DEFAULT_STANDARD_PRICES.getOrDefault(service, new BigDecimal("2500.00"));
 
         // 1. Manual / Explicit custom rate provided
         if (manualPrice != null && manualPrice.compareTo(BigDecimal.ZERO) >= 0) {

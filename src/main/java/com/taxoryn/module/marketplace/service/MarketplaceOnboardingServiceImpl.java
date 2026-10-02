@@ -25,6 +25,8 @@ import com.taxoryn.module.task.entity.TaskEntity;
 import com.taxoryn.module.task.repository.TaskRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.entity.UserEntity.UserStatus;
+import com.taxoryn.module.service.service.ServicePricingService;
+import com.taxoryn.core.exception.BadRequestException;
 import com.taxoryn.module.user.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +62,7 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
     private final PasswordEncoder passwordEncoder;
     private final MarketplaceMapper mapper;
     private final AuditService auditService;
+    private final ServicePricingService servicePricingService;
 
     // =========================================================================
     // 1. Practice Operations (Authenticated Practice Portal)
@@ -77,6 +80,12 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "organizationId", organizationId));
 
         String token = "prop_" + UUID.randomUUID().toString().replace("-", "");
+        java.math.BigDecimal feeAmount = request.getFeeAmount();
+        if (org.springframework.util.StringUtils.hasText(request.getServiceCode())) {
+            java.math.BigDecimal effectivePrice = servicePricingService.getEffectiveServicePrice(organizationId, request.getServiceCode()).effectivePrice();
+            if (feeAmount == null) feeAmount = effectivePrice;
+        }
+        if (feeAmount == null) throw new BadRequestException("Select a catalog service or enter a proposal fee");
 
         MarketplaceProposalEntity proposal = MarketplaceProposalEntity.builder()
                 .organizationId(organizationId)
@@ -84,10 +93,11 @@ public class MarketplaceOnboardingServiceImpl implements MarketplaceOnboardingSe
                 .customerId(lead.getCustomerId())
                 .leadId(lead.getId())
                 .serviceId(request.getServiceId())
+                .catalogServiceCode(org.springframework.util.StringUtils.hasText(request.getServiceCode()) ? request.getServiceCode().trim().toUpperCase(Locale.ROOT) : null)
                 .proposalTitle(request.getProposalTitle())
                 .scopeOfWork(request.getScopeOfWork())
                 .deliverables(request.getDeliverables())
-                .feeAmount(request.getFeeAmount())
+                .feeAmount(feeAmount)
                 .pricingType(request.getPricingType())
                 .estimatedTimelineDays(request.getEstimatedTimelineDays() != null ? request.getEstimatedTimelineDays() : 7)
                 .proposalStatus(ProposalStatus.SENT)

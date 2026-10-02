@@ -90,6 +90,9 @@ class EmployeeStatusLifecycleIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
     private OrganizationEntity orgA;
     private OrganizationEntity orgB;
     private UserEntity adminUserA;
@@ -110,6 +113,7 @@ class EmployeeStatusLifecycleIntegrationTest {
     void setUp() {
         TenantContext.clear();
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        subscriptionRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         activationTokenRepository.deleteAll();
         employeeRepository.deleteAll();
@@ -137,6 +141,16 @@ class EmployeeStatusLifecycleIntegrationTest {
                 .email("contact@alpha.com")
                 .status(OrganizationEntity.OrganizationStatus.ACTIVE)
                 .build());
+
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(orgA.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
 
         adminUserA = UserEntity.builder()
                 .email("admin@alpha.com")
@@ -169,6 +183,16 @@ class EmployeeStatusLifecycleIntegrationTest {
                 .email("contact@beta.com")
                 .status(OrganizationEntity.OrganizationStatus.ACTIVE)
                 .build());
+
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(orgB.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
 
         adminUserB = UserEntity.builder()
                 .email("admin@beta.com")

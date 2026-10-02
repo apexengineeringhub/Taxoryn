@@ -59,7 +59,6 @@ export const MarketplaceOnboardingHubPage: React.FC = () => {
     proposalTitle: 'Statutory Tax Compliance & Advisory Engagement',
     scopeOfWork: 'Preparation and filing of monthly GST returns (GSTR-1, GSTR-3B), TDS computations, advance tax forecasting, and audit preparation.',
     deliverables: 'Filed return acknowledgements (ARN), Monthly ITC analysis report, Form 26AS/AIS reconciliation sheet.',
-    feeAmount: 4999,
     pricingType: 'MONTHLY_RETAINER',
     estimatedTimelineDays: 7,
   });

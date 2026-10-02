@@ -797,4 +797,60 @@ class ClientServiceTest {
         assertThrows(org.springframework.security.access.AccessDeniedException.class,
                 () -> clientService.updateClient(clientId, req));
     }
+
+    @Test
+    @DisplayName("Partial client update adds normalized GSTIN and preserves protected and omitted fields")
+    void updateClient_addsGstinWithoutClearingExistingProfile() {
+        ClientEntity existing = ClientEntity.builder()
+                .clientType(ClientType.PRIVATE_LIMITED)
+                .displayName("ABC Pvt Ltd")
+                .pan("ABCDE1234F")
+                .gstin(null)
+                .phone("9999999999")
+                .status(ClientStatus.ACTIVE)
+                .assignedEmployeeId(employeeId)
+                .build();
+        existing.setId(clientId);
+        existing.setOrganizationId(tenantId);
+        ClientDto dto = ClientDto.builder().id(clientId).displayName("ABC Pvt Ltd").build();
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(existing));
+        when(clientMapper.toDto(existing)).thenReturn(dto);
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+        when(clientRepository.existsByOrganizationIdAndGstin(tenantId, "29ABCDE1234F1ZX")).thenReturn(false);
+        when(clientRepository.save(existing)).thenReturn(existing);
+
+        clientService.updateClient(clientId, UpdateClientRequest.builder().gstin(" 29abcde1234f1zx ").build());
+
+        assertEquals("29ABCDE1234F1ZX", existing.getGstin());
+        assertEquals("ABC Pvt Ltd", existing.getDisplayName());
+        assertEquals("ABCDE1234F", existing.getPan());
+        assertEquals("9999999999", existing.getPhone());
+        assertEquals(ClientStatus.ACTIVE, existing.getStatus());
+        assertEquals(employeeId, existing.getAssignedEmployeeId());
+        assertEquals(tenantId, existing.getOrganizationId());
+        assertEquals(clientId, existing.getId());
+        verify(auditService).logEvent(eq("CLIENT_UPDATED"), eq("CLIENT"), eq(clientId.toString()), any(), any());
+    }
+
+    @Test
+    @DisplayName("Partial client update allows blank GSTIN and rejects invalid GSTIN")
+    void updateClient_blankGstinClearsAndInvalidGstinIsRejected() {
+        ClientEntity existing = ClientEntity.builder()
+                .clientType(ClientType.PRIVATE_LIMITED).displayName("ABC Pvt Ltd")
+                .gstin("29ABCDE1234F1ZX").build();
+        existing.setId(clientId);
+        existing.setOrganizationId(tenantId);
+        ClientDto dto = ClientDto.builder().id(clientId).displayName("ABC Pvt Ltd").build();
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(existing));
+        when(clientMapper.toDto(existing)).thenReturn(dto);
+        when(userRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of());
+        when(clientRepository.save(existing)).thenReturn(existing);
+
+        clientService.updateClient(clientId, UpdateClientRequest.builder().gstin("  ").build());
+        assertEquals(null, existing.getGstin());
+
+        assertThrows(com.taxoryn.core.exception.BadRequestException.class,
+                () -> clientService.updateClient(clientId, UpdateClientRequest.builder().gstin("invalid").build()));
+    }
 }

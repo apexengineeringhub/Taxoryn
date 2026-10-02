@@ -33,6 +33,9 @@ public class MarketplaceProposalEntity extends AuditableEntity {
     @Column(name = "service_id")
     private UUID serviceId;
 
+    @Column(name = "catalog_service_code", length = 100)
+    private String catalogServiceCode;
+
     @Column(name = "proposal_title", nullable = false)
     private String proposalTitle;
 

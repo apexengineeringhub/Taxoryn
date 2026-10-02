@@ -13,6 +13,7 @@ const ActivateOrgPage = React.lazy(() => import('./pages/ActivateOrgPage').then(
 const AccountSecurityPage = React.lazy(() => import('./pages/AccountSecurityPage').then(m => ({ default: m.AccountSecurityPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
+const PracticeLeadsPage = React.lazy(() => import('./pages/PracticeLeadsPage').then(m => ({ default: m.PracticeLeadsPage })));
 const Client360Page = React.lazy(() => import('./pages/Client360Page').then(m => ({ default: m.Client360Page })));
 const ClientMigrationHubPage = React.lazy(() => import('./pages/ClientMigrationHubPage').then(m => ({ default: m.ClientMigrationHubPage })));
 const TasksPage = React.lazy(() => import('./pages/TasksPage').then(m => ({ default: m.TasksPage })));
@@ -21,6 +22,7 @@ const BulkTasksGeneratorPage = React.lazy(() => import('./pages/BulkTasksGenerat
 const GstCompliancePage = React.lazy(() => import('./pages/GstCompliancePage').then(m => ({ default: m.GstCompliancePage })));
 const GstDataMigrationHubPage = React.lazy(() => import('./pages/GstDataMigrationHubPage').then(m => ({ default: m.GstDataMigrationHubPage })));
 const ItrCompliancePage = React.lazy(() => import('./pages/ItrCompliancePage').then(m => ({ default: m.ItrCompliancePage })));
+const ItrTaxCalculatorPage = React.lazy(() => import('./pages/ItrTaxCalculatorPage').then(m => ({ default: m.ItrTaxCalculatorPage })));
 const ItrDataMigrationHubPage = React.lazy(() => import('./pages/ItrDataMigrationHubPage').then(m => ({ default: m.ItrDataMigrationHubPage })));
 const TdsCompliancePage = React.lazy(() => import('./pages/TdsCompliancePage').then(m => ({ default: m.TdsCompliancePage })));
 const TdsDataMigrationHubPage = React.lazy(() => import('./pages/TdsDataMigrationHubPage').then(m => ({ default: m.TdsDataMigrationHubPage })));
@@ -35,6 +37,7 @@ const TeamChatPage = React.lazy(() => import('./pages/TeamChatPage').then(m => (
 const BulkEmployeeOnboardingPage = React.lazy(() => import('./pages/BulkEmployeeOnboardingPage').then(m => ({ default: m.BulkEmployeeOnboardingPage })));
 const AuditLogsPage = React.lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const PracticeBrandingPage = React.lazy(() => import('./pages/PracticeBrandingPage').then(m => ({ default: m.PracticeBrandingPage })));
+const PracticeServicePricingPage = React.lazy(() => import('./pages/PracticeServicePricingPage').then(m => ({ default: m.PracticeServicePricingPage })));
 const LocationsPage = React.lazy(() => import('./pages/LocationsPage').then(m => ({ default: m.LocationsPage })));
 const SubscriptionsPage = React.lazy(() => import('./pages/SubscriptionsPage').then(m => ({ default: m.SubscriptionsPage })));
 const MarketplaceExplorePage = React.lazy(() => import('./pages/MarketplaceExplorePage').then(m => ({ default: m.MarketplaceExplorePage })));
@@ -65,6 +68,8 @@ const LearnContentDetailPage = React.lazy(() => import('./pages/learn/LearnConte
 const PlatformContentManagementPage = React.lazy(() => import('./pages/PlatformContentManagementPage').then(m => ({ default: m.PlatformContentManagementPage })));
 const WhatsAppMessagesPage = React.lazy(() => import('./pages/WhatsAppMessagesPage').then(m => ({ default: m.WhatsAppMessagesPage })));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+const RemindersPage = React.lazy(() => import('./pages/RemindersPage').then(m => ({ default: m.RemindersPage })));
+const AutomationSettingsPage = React.lazy(() => import('./pages/AutomationSettingsPage').then(m => ({ default: m.AutomationSettingsPage })));
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const NoticeCenterPage = React.lazy(() => import('./pages/NoticeCenterPage').then(m => ({ default: m.NoticeCenterPage })));
 const NoticeDetailPage = React.lazy(() => import('./pages/NoticeDetailPage').then(m => ({ default: m.NoticeDetailPage })));
@@ -222,6 +227,8 @@ export const App: React.FC = () => {
             >
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/leads" element={<ModuleRouteGuard moduleCode="CLIENTS"><PracticeLeadsPage /></ModuleRouteGuard>} />
+              <Route path="/leads/:leadId" element={<ModuleRouteGuard moduleCode="CLIENTS"><PracticeLeadsPage /></ModuleRouteGuard>} />
               <Route
                 path="/clients"
                 element={
@@ -332,6 +339,14 @@ export const App: React.FC = () => {
                     allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'PRACTITIONER', 'TAX_PROFESSIONAL', 'MANAGER', 'STAFF', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'ACCOUNTANT']}
                   >
                     <GstDataMigrationHubPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/itr/calculator"
+                element={
+                  <ModuleRouteGuard moduleCode="ITR">
+                    <ItrTaxCalculatorPage />
                   </ModuleRouteGuard>
                 }
               />
@@ -478,6 +493,25 @@ export const App: React.FC = () => {
                     requiredPermissions={NOTIFICATION_PERMISSIONS}
                   >
                     <NotificationsPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/reminders"
+                element={
+                  <ModuleRouteGuard moduleCode="REMINDERS">
+                    <RemindersPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/automations"
+                element={
+                  <ModuleRouteGuard
+                    moduleCode="REMINDERS"
+                    allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}
+                  >
+                    <AutomationSettingsPage />
                   </ModuleRouteGuard>
                 }
               />
@@ -699,6 +733,14 @@ export const App: React.FC = () => {
                   >
                     <AuditLogsPage />
                   </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/settings/service-pricing"
+                element={
+                  <RoleRouteGuard allowedRoles={['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER']}>
+                    <PracticeServicePricingPage />
+                  </RoleRouteGuard>
                 }
               />
               <Route

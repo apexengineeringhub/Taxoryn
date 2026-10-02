@@ -362,37 +362,46 @@ public class ClientServiceImpl implements ClientService {
 
         ClientDto oldSnapshot = enrichDto(client);
 
-        if (StringUtils.hasText(request.getClientCode())) {
-            String newCode = request.getClientCode().trim();
-            if (!newCode.equalsIgnoreCase(client.getClientCode())
-                    && clientRepository.existsByOrganizationIdAndClientCode(organizationId, newCode)) {
-                throw new DuplicateResourceException("Client", "clientCode", newCode);
+        if (request.getClientCode() != null) {
+            if (!StringUtils.hasText(request.getClientCode())) {
+                client.setClientCode(null);
+            } else {
+                String newCode = request.getClientCode().trim();
+                if (!newCode.equalsIgnoreCase(client.getClientCode())
+                        && clientRepository.existsByOrganizationIdAndClientCode(organizationId, newCode)) {
+                    throw new DuplicateResourceException("Client", "clientCode", newCode);
+                }
+                client.setClientCode(newCode);
             }
-            client.setClientCode(newCode);
-        } else {
-            client.setClientCode(null);
         }
 
-        if (StringUtils.hasText(request.getPan())) {
-            String newPan = request.getPan().toUpperCase().trim();
-            if (!newPan.equalsIgnoreCase(client.getPan())
-                    && clientRepository.existsByOrganizationIdAndPan(organizationId, newPan)) {
-                throw new DuplicateResourceException("Client", "pan", newPan);
+        if (request.getPan() != null) {
+            if (!StringUtils.hasText(request.getPan())) {
+                client.setPan(null);
+            } else {
+                String newPan = request.getPan().toUpperCase().trim();
+                if (!newPan.equalsIgnoreCase(client.getPan())
+                        && clientRepository.existsByOrganizationIdAndPan(organizationId, newPan)) {
+                    throw new DuplicateResourceException("Client", "pan", newPan);
+                }
+                client.setPan(newPan);
             }
-            client.setPan(newPan);
-        } else {
-            client.setPan(null);
         }
 
-        if (StringUtils.hasText(request.getGstin())) {
-            String newGstin = request.getGstin().toUpperCase().trim();
-            if (!newGstin.equalsIgnoreCase(client.getGstin())
-                    && clientRepository.existsByOrganizationIdAndGstin(organizationId, newGstin)) {
-                throw new DuplicateResourceException("Client", "gstin", newGstin);
+        if (request.getGstin() != null) {
+            String newGstin = request.getGstin().trim().toUpperCase();
+            if (newGstin.isEmpty()) {
+                client.setGstin(null);
+            } else {
+                if (!Pattern.matches("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$", newGstin)) {
+                    throw new com.taxoryn.core.exception.BadRequestException("Enter a valid 15-character GSTIN.");
+                }
+                if (!newGstin.equalsIgnoreCase(client.getGstin())
+                        && clientRepository.existsByOrganizationIdAndGstin(organizationId, newGstin)) {
+                    throw new DuplicateResourceException("Client", "gstin", newGstin);
+                }
+                client.setGstin(newGstin);
             }
-            client.setGstin(newGstin);
-        } else {
-            client.setGstin(null);
         }
 
         if (request.getAssignedEmployeeId() != null) {
@@ -400,31 +409,31 @@ public class ClientServiceImpl implements ClientService {
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
         }
 
-        client.setClientType(request.getClientType());
-        client.setDisplayName(request.getDisplayName().trim());
-        client.setLegalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : null);
-        client.setTradeName(StringUtils.hasText(request.getTradeName()) ? request.getTradeName().trim() : null);
-        client.setTan(StringUtils.hasText(request.getTan()) ? request.getTan().toUpperCase().trim() : null);
-        client.setCin(StringUtils.hasText(request.getCin()) ? request.getCin().toUpperCase().trim() : null);
-        client.setDateOfIncorporation(request.getDateOfIncorporation());
-        client.setEmail(StringUtils.hasText(request.getEmail()) ? request.getEmail().toLowerCase().trim() : null);
-        client.setPhone(request.getPhone());
-        client.setAltPhone(request.getAltPhone());
-        client.setContactPersonName(request.getContactPersonName());
-        client.setContactPersonDesignation(request.getContactPersonDesignation());
-        client.setAddressLine1(request.getAddressLine1());
-        client.setAddressLine2(request.getAddressLine2());
-        client.setCity(request.getCity());
-        client.setState(request.getState());
+        if (request.getClientType() != null) client.setClientType(request.getClientType());
+        if (request.getDisplayName() != null) client.setDisplayName(request.getDisplayName().trim());
+        if (request.getLegalName() != null) client.setLegalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : null);
+        if (request.getTradeName() != null) client.setTradeName(StringUtils.hasText(request.getTradeName()) ? request.getTradeName().trim() : null);
+        if (request.getTan() != null) client.setTan(StringUtils.hasText(request.getTan()) ? request.getTan().toUpperCase().trim() : null);
+        if (request.getCin() != null) client.setCin(StringUtils.hasText(request.getCin()) ? request.getCin().toUpperCase().trim() : null);
+        if (request.getDateOfIncorporation() != null) client.setDateOfIncorporation(request.getDateOfIncorporation());
+        if (request.getEmail() != null) client.setEmail(StringUtils.hasText(request.getEmail()) ? request.getEmail().toLowerCase().trim() : null);
+        if (request.getPhone() != null) client.setPhone(request.getPhone());
+        if (request.getAltPhone() != null) client.setAltPhone(request.getAltPhone());
+        if (request.getContactPersonName() != null) client.setContactPersonName(request.getContactPersonName());
+        if (request.getContactPersonDesignation() != null) client.setContactPersonDesignation(request.getContactPersonDesignation());
+        if (request.getAddressLine1() != null) client.setAddressLine1(request.getAddressLine1());
+        if (request.getAddressLine2() != null) client.setAddressLine2(request.getAddressLine2());
+        if (request.getCity() != null) client.setCity(request.getCity());
+        if (request.getState() != null) client.setState(request.getState());
         if (StringUtils.hasText(request.getCountry())) {
             client.setCountry(request.getCountry());
         }
-        client.setPincode(request.getPincode());
+        if (request.getPincode() != null) client.setPincode(request.getPincode());
         if (request.getLocationId() != null) {
             client.setLocationId(request.getLocationId());
         }
-        client.setAssignedEmployeeId(request.getAssignedEmployeeId());
-        client.setNotes(request.getNotes());
+        if (request.getAssignedEmployeeId() != null) client.setAssignedEmployeeId(request.getAssignedEmployeeId());
+        if (request.getNotes() != null) client.setNotes(request.getNotes());
         if (request.getStatus() != null) {
             client.setStatus(request.getStatus());
         }
@@ -1537,9 +1546,14 @@ public class ClientServiceImpl implements ClientService {
         ClientNoteEntity note = ClientNoteEntity.builder()
                 .clientId(clientId)
                 .authorId(currentUserId)
+                .authorName(userRepository.findByIdAndOrganizationId(currentUserId, organizationId)
+                        .map(UserEntity::getFullName).orElse("Practice user"))
                 .noteType(request.getNoteType())
                 .title(request.getTitle().trim())
                 .content(request.getContent().trim())
+                .occurredAt(Instant.now())
+                .visibility(ClientNoteEntity.Visibility.INTERNAL)
+                .followUpRequired(false)
                 .build();
         note.setOrganizationId(organizationId);
 

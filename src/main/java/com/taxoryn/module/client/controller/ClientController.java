@@ -9,6 +9,10 @@ import com.taxoryn.module.client.dto.ClientNoteDto;
 import com.taxoryn.module.client.dto.ClientOverviewDto;
 import com.taxoryn.module.client.dto.CreateClientNoteRequest;
 import com.taxoryn.module.client.dto.CreateClientRequest;
+import com.taxoryn.module.client.dto.ClientCommunicationDto;
+import com.taxoryn.module.client.dto.ClientCommunicationRequest;
+import com.taxoryn.module.client.entity.ClientNoteEntity.NoteType;
+import com.taxoryn.module.client.service.ClientCommunicationTimelineService;
 import com.taxoryn.module.client.dto.UpdateClientRequest;
 import com.taxoryn.module.client.dto.UpdateClientStatusRequest;
 import com.taxoryn.module.client.service.ClientService;
@@ -29,12 +33,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 
 @RestController
 @RequestMapping({"/api/v1/clients", "/api/clients"})
@@ -45,6 +51,7 @@ import java.util.UUID;
 public class ClientController {
 
     private final ClientService clientService;
+    private final ClientCommunicationTimelineService communicationTimelineService;
 
     @GetMapping
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
@@ -194,6 +201,55 @@ public class ClientController {
     public ResponseEntity<ApiResponse<List<ClientNoteDto>>> getClientNotes(@PathVariable UUID clientId) {
         List<ClientNoteDto> notes = clientService.getClientNotes(clientId);
         return ResponseEntity.ok(ApiResponse.success("Client notes retrieved successfully", notes));
+    }
+
+    @GetMapping("/{clientId}/communications")
+    @PreAuthorize("hasAuthority('CLIENT_COMMUNICATION_VIEW')")
+    @Operation(summary = "List client communication timeline entries", description = "Returns a tenant- and client-scope-checked, paginated interaction timeline.")
+    public ResponseEntity<ApiResponse<PagedResponse<ClientCommunicationDto>>> getClientCommunications(
+            @PathVariable UUID clientId,
+            @RequestParam(required = false) NoteType type,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) Instant dateFrom,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) Instant dateTo,
+            @RequestParam(required = false) Boolean followUpRequired,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PagedResponse<ClientCommunicationDto> response = communicationTimelineService.listPracticeEntries(
+                clientId, type, dateFrom, dateTo, followUpRequired, page, size);
+        return ResponseEntity.ok(ApiResponse.success("Client communications retrieved", response));
+    }
+
+    @GetMapping("/{clientId}/communications/{communicationId}")
+    @PreAuthorize("hasAuthority('CLIENT_COMMUNICATION_VIEW')")
+    public ResponseEntity<ApiResponse<ClientCommunicationDto>> getClientCommunication(
+            @PathVariable UUID clientId, @PathVariable UUID communicationId) {
+        return ResponseEntity.ok(ApiResponse.success("Client communication retrieved",
+                communicationTimelineService.getPracticeEntry(clientId, communicationId)));
+    }
+
+    @PostMapping("/{clientId}/communications")
+    @PreAuthorize("hasAuthority('CLIENT_COMMUNICATION_CREATE')")
+    public ResponseEntity<ApiResponse<ClientCommunicationDto>> createClientCommunication(
+            @PathVariable UUID clientId, @Valid @RequestBody ClientCommunicationRequest request) {
+        ClientCommunicationDto created = communicationTimelineService.create(clientId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created("Communication recorded", created));
+    }
+
+    @PutMapping("/{clientId}/communications/{communicationId}")
+    @PreAuthorize("hasAuthority('CLIENT_COMMUNICATION_UPDATE')")
+    public ResponseEntity<ApiResponse<ClientCommunicationDto>> updateClientCommunication(
+            @PathVariable UUID clientId, @PathVariable UUID communicationId,
+            @Valid @RequestBody ClientCommunicationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Communication updated",
+                communicationTimelineService.update(clientId, communicationId, request)));
+    }
+
+    @DeleteMapping("/{clientId}/communications/{communicationId}")
+    @PreAuthorize("hasAuthority('CLIENT_COMMUNICATION_DELETE')")
+    public ResponseEntity<ApiResponse<Void>> deleteClientCommunication(
+            @PathVariable UUID clientId, @PathVariable UUID communicationId) {
+        communicationTimelineService.delete(clientId, communicationId);
+        return ResponseEntity.ok(ApiResponse.success("Communication deleted", null));
     }
 
     @GetMapping("/{clientId}/locations")

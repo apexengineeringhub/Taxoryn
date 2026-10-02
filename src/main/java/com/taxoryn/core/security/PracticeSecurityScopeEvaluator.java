@@ -201,6 +201,46 @@ public class PracticeSecurityScopeEvaluator {
     }
 
     public Set<UUID> getAccessibleClientIds(PracticeSecurityScope scope) {
+        return collectAccessibleClientIds(scope, true);
+    }
+
+    /** Evaluates another active practice user using the same portfolio rules as the current-user scope. */
+    public boolean userHasClientAccess(UUID organizationId, com.taxoryn.module.user.entity.UserEntity user, UUID clientId) {
+        if (user == null || organizationId == null || user.getId() == null || !organizationId.equals(user.getOrganizationId())) return false;
+        Set<String> roles = user.getRoles() == null ? Set.of() : user.getRoles().stream()
+                .map(com.taxoryn.module.role.entity.RoleEntity::getCode).collect(java.util.stream.Collectors.toSet());
+        boolean admin = roles.stream().anyMatch(r -> Set.of("ORG_ADMIN", "SUPER_ADMIN", "TAXORYN_SUPERADMIN",
+                "PRACTICE_OWNER", "PRACTICE_ADMIN", "PARTNER", "CA_PARTNER").contains(r));
+        if (admin) return true;
+        EmployeeEntity employee = employeeRepository.findByOrganizationIdAndUserId(organizationId, user.getId())
+                .or(() -> user.getEmail() == null ? Optional.empty() : employeeRepository.findByOrganizationIdAndEmail(organizationId, user.getEmail()))
+                .orElse(null);
+        Set<UUID> assigneeIds = new HashSet<>();
+        assigneeIds.add(user.getId());
+        if (employee != null) assigneeIds.add(employee.getId());
+        String department = employee == null ? null : employee.getDepartment();
+        boolean manager = roles.stream().anyMatch(r -> Set.of("MANAGER", "TAX_MANAGER").contains(r));
+        if (manager && department != null && !department.isBlank()) {
+            employeeRepository.findAllByOrganizationId(organizationId).stream()
+                    .filter(e -> department.equalsIgnoreCase(e.getDepartment()))
+                    .forEach(e -> { assigneeIds.add(e.getId()); if (e.getUserId() != null) assigneeIds.add(e.getUserId()); });
+        }
+        Set<UUID> locations = new HashSet<>();
+        if (userLocationRepository != null) locations.addAll(userLocationRepository.findLocationIdsByUserIdAndOrganizationId(user.getId(), organizationId));
+        if (employee != null && employeeLocationRepository != null) locations.addAll(employeeLocationRepository.findLocationIdsByEmployeeId(employee.getId()));
+        PracticeSecurityScope targetScope = PracticeSecurityScope.builder().organizationId(organizationId).userId(user.getId())
+                .employeeId(employee == null ? null : employee.getId()).userEmail(user.getEmail()).employee(employee)
+                .isFirmAdmin(false).isDepartmentManager(manager).isStaff(!manager)
+                .accessibleAssigneeIds(assigneeIds).accessibleLocationIds(locations).build();
+        Set<UUID> accessible = collectAccessibleClientIds(targetScope, false);
+        return accessible != null && accessible.contains(clientId);
+    }
+
+    public Set<UUID> getAccessibleClientIdsForScope(PracticeSecurityScope scope) {
+        return collectAccessibleClientIds(scope, false);
+    }
+
+    private Set<UUID> collectAccessibleClientIds(PracticeSecurityScope scope, boolean includeCurrentClient) {
         if (scope == null || scope.isFirmAdmin()) {
             return null; // unrestricted
         }
@@ -208,7 +248,7 @@ public class PracticeSecurityScopeEvaluator {
         Set<UUID> accessibleClientIds = new HashSet<>();
 
         // 0. If caller is a client user or linked to a client record, grant access to their own client
-        SecurityUtils.getCurrentClientId().ifPresent(accessibleClientIds::add);
+        if (includeCurrentClient) SecurityUtils.getCurrentClientId().ifPresent(accessibleClientIds::add);
 
         UUID orgId = scope.getOrganizationId();
         Set<UUID> assigneeIds = scope.getAccessibleAssigneeIds();

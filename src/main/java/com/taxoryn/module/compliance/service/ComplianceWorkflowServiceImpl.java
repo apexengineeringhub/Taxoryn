@@ -639,6 +639,11 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
+        requireReviewPermission("REVIEW_SUBMIT");
+        EmployeeEntity reviewer = requireAssignedReviewer(workflow, organizationId);
+        if (SecurityUtils.getCurrentUserId().equals(reviewer.getUserId())) {
+            throw new ForbiddenException("The preparer cannot approve their own review");
+        }
 
         workflow.validateTransition(ComplianceWorkflowStatus.UNDER_REVIEW);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -667,12 +672,37 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
     @Override
     @Transactional
+    public ComplianceWorkflowDto withdrawReview(UUID workflowId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
+        validateClientAccess(scope, workflow.getClientId());
+        requireReviewPermission("REVIEW_SUBMIT");
+        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.UNDER_REVIEW) {
+            throw new BusinessValidationException("Only work awaiting review can be withdrawn");
+        }
+        workflow.validateTransition(ComplianceWorkflowStatus.IN_PROGRESS);
+        ComplianceWorkflowStatus oldStatus = workflow.getWorkflowStatus();
+        workflow.setWorkflowStatus(ComplianceWorkflowStatus.IN_PROGRESS);
+        workflow.setChangesRequestedReason("Review withdrawn by the preparer");
+        workflowRepository.save(workflow);
+        obligationRepository.findByIdAndOrganizationId(workflow.getComplianceObligationId(), organizationId)
+                .ifPresent(ob -> { ob.setStatus(ComplianceObligationStatus.IN_PROGRESS); obligationRepository.save(ob); });
+        auditService.logEvent("WORKFLOW_REVIEW_WITHDRAWN", "COMPLIANCE_WORKFLOW", workflow.getId().toString(),
+                oldStatus, ComplianceWorkflowStatus.IN_PROGRESS);
+        return mapToDto(workflow);
+    }
+
+    @Override
+    @Transactional
     public ComplianceWorkflowDto requestChanges(UUID workflowId, RequestWorkflowChangesRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
+        requireReviewPermission("REVIEW_REJECT");
+        requireCurrentAssignedReviewer(workflow, organizationId);
 
         workflow.validateTransition(ComplianceWorkflowStatus.CHANGES_REQUIRED);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -709,6 +739,8 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
+        requireReviewPermission("REVIEW_APPROVE");
+        requireCurrentAssignedReviewer(workflow, organizationId);
 
         workflow.validateTransition(ComplianceWorkflowStatus.READY_FOR_FILING);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -748,6 +780,41 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
         );
 
         return mapToDto(workflow);
+    }
+
+    private void requireReviewPermission(String permission) {
+        if (!SecurityUtils.hasAuthority(permission)) {
+            throw new ForbiddenException("Missing permission: " + permission);
+        }
+    }
+
+    private EmployeeEntity requireAssignedReviewer(ComplianceWorkflowEntity workflow, UUID organizationId) {
+        if (workflow.getReviewerEmployeeId() == null) {
+            throw new BusinessValidationException("A reviewer must be assigned before review submission");
+        }
+        EmployeeEntity reviewer = employeeRepository.findByIdAndOrganizationId(workflow.getReviewerEmployeeId(), organizationId)
+                .filter(e -> e.getStatus() == EmployeeEntity.EmployeeStatus.ACTIVE && e.getUserId() != null)
+                .orElseThrow(() -> new BusinessValidationException("Assigned reviewer must be active in this organization"));
+        com.taxoryn.module.user.entity.UserEntity reviewerAccount = userRepository.findByIdAndOrganizationId(reviewer.getUserId(), organizationId)
+                .filter(u -> u.getStatus() == com.taxoryn.module.user.entity.UserEntity.UserStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessValidationException("Assigned reviewer account must be active in this organization"));
+        boolean reviewerAuthorized = reviewerAccount.getRoles().stream().flatMap(r -> r.getPermissions().stream())
+                .anyMatch(p -> "REVIEW_APPROVE".equals(p.getCode()));
+        if (!reviewerAuthorized) throw new BusinessValidationException("Assigned reviewer lacks review approval permission");
+        return reviewer;
+    }
+
+    private void requireCurrentAssignedReviewer(ComplianceWorkflowEntity workflow, UUID organizationId) {
+        EmployeeEntity reviewer = requireAssignedReviewer(workflow, organizationId);
+        if (!SecurityUtils.getCurrentUserId().equals(reviewer.getUserId())) {
+            throw new ForbiddenException("Only the assigned reviewer may decide this compliance review");
+        }
+        if (workflow.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(workflow.getAssignedEmployeeId(), organizationId)
+                    .map(EmployeeEntity::getUserId)
+                    .filter(SecurityUtils.getCurrentUserId()::equals)
+                    .ifPresent(userId -> { throw new ForbiddenException("The preparer cannot approve their own review"); });
+        }
     }
 
     @Override

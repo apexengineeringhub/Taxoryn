@@ -68,6 +68,9 @@ class AuthenticationSecurityIntegrationTest {
     @Autowired
     private com.taxoryn.module.authentication.repository.RefreshTokenRepository refreshTokenRepository;
 
+    @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
     private OrganizationEntity org1;
     private OrganizationEntity org2;
     private UserEntity activeUserOrg1;
@@ -77,6 +80,7 @@ class AuthenticationSecurityIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        subscriptionRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
@@ -89,6 +93,17 @@ class AuthenticationSecurityIntegrationTest {
                 .build();
         org1 = organizationRepository.save(org1);
 
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(org1.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
+
+
         // 2. Create Organization 2
         org2 = OrganizationEntity.builder()
                 .name("Beta Tax Consultants")
@@ -96,6 +111,17 @@ class AuthenticationSecurityIntegrationTest {
                 .status(OrganizationStatus.ACTIVE)
                 .build();
         org2 = organizationRepository.save(org2);
+
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(org2.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
+
 
         orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN")
                 .orElseGet(() -> roleRepository.save(RoleEntity.builder()

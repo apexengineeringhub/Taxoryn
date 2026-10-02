@@ -39,8 +39,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import com.taxoryn.module.reminder.event.TaxorynBusinessEvent;
+import com.taxoryn.module.reminder.entity.AutomationEventType;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -69,6 +73,8 @@ public class TaskServiceImpl implements TaskService {
     private final NotificationService notificationService;
     private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final com.taxoryn.module.reminder.repository.ReminderRepository reminderRepository;
 
     public TaskServiceImpl(
             TaskRepository taskRepository,
@@ -84,7 +90,7 @@ public class TaskServiceImpl implements TaskService {
     ) {
         this(taskRepository, clientRepository, employeeRepository, userRepository,
                 complianceObligationRepository, documentRequestRepository, documentRequestItemRepository,
-                securityScopeEvaluator, taskMapper, notificationService, null, null);
+                securityScopeEvaluator, taskMapper, notificationService, null, null, null, null);
     }
 
     public TaskServiceImpl(
@@ -102,7 +108,7 @@ public class TaskServiceImpl implements TaskService {
     ) {
         this(taskRepository, clientRepository, employeeRepository, userRepository,
                 complianceObligationRepository, documentRequestRepository, documentRequestItemRepository,
-                securityScopeEvaluator, taskMapper, notificationService, null, engagementRepository);
+                securityScopeEvaluator, taskMapper, notificationService, null, engagementRepository, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -119,7 +125,11 @@ public class TaskServiceImpl implements TaskService {
             NotificationService notificationService,
             @org.springframework.beans.factory.annotation.Autowired(required = false)
             com.taxoryn.module.organization.repository.LocationRepository locationRepository,
-            com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository
+            com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            ApplicationEventPublisher applicationEventPublisher,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            com.taxoryn.module.reminder.repository.ReminderRepository reminderRepository
     ) {
         this.taskRepository = taskRepository;
         this.clientRepository = clientRepository;
@@ -133,6 +143,8 @@ public class TaskServiceImpl implements TaskService {
         this.notificationService = notificationService;
         this.locationRepository = locationRepository;
         this.engagementRepository = engagementRepository;
+        this.applicationEventPublisher = applicationEventPublisher;
+        this.reminderRepository = reminderRepository;
     }
 
     @Override
@@ -414,6 +426,12 @@ public class TaskServiceImpl implements TaskService {
             notifyTaskAssigned(organizationId, saved);
         }
 
+        // Publish business events for reminder automation
+        publishTaskEvent(AutomationEventType.TASK_CREATED, organizationId, saved);
+        if (saved.getAssignedTo() != null) {
+            publishTaskEvent(AutomationEventType.TASK_ASSIGNED, organizationId, saved);
+        }
+
         return enrichDto(saved);
     }
 
@@ -500,6 +518,19 @@ public class TaskServiceImpl implements TaskService {
             notifyTaskBlocked(organizationId, saved);
         }
 
+        // Publish business events for reminder automation
+        if (saved.getAssignedTo() != null && !Objects.equals(previousAssignee, saved.getAssignedTo())) {
+            publishTaskEvent(AutomationEventType.TASK_ASSIGNED, organizationId, saved);
+        }
+        if (saved.getStatus() == TaskStatus.COMPLETED && previousStatus != TaskStatus.COMPLETED) {
+            publishTaskEvent(AutomationEventType.TASK_COMPLETED, organizationId, saved);
+            // Cancel any pending reminders for this task since it's now completed
+            cancelPendingRemindersForTask(organizationId, saved.getId());
+        }
+        if (saved.getStatus() == TaskStatus.CANCELLED && previousStatus != TaskStatus.CANCELLED) {
+            cancelPendingRemindersForTask(organizationId, saved.getId());
+        }
+
         return enrichDto(saved);
     }
 
@@ -550,6 +581,7 @@ public class TaskServiceImpl implements TaskService {
         task.setStatus(TaskStatus.CANCELLED);
         taskRepository.save(task);
         log.info("Cancelled task {} for organization {}", taskId, organizationId);
+        cancelPendingRemindersForTask(organizationId, taskId);
     }
 
     @Override
@@ -719,6 +751,8 @@ public class TaskServiceImpl implements TaskService {
 
         TaskEntity saved = taskRepository.save(task);
         log.info("Task {} marked as COMPLETED by user {} for organization {}", taskId, SecurityUtils.getCurrentUserId(), organizationId);
+        publishTaskEvent(AutomationEventType.TASK_COMPLETED, organizationId, saved);
+        cancelPendingRemindersForTask(organizationId, saved.getId());
         return enrichDto(saved);
     }
 
@@ -1130,5 +1164,48 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return dto;
+    }
+
+    // -------------------------------------------------------------------------
+    // Reminder / Automation event publishing
+    // -------------------------------------------------------------------------
+
+    /**
+     * Publishes a business event for the reminder automation system.
+     * Wrapped in try-catch so a failing event publisher never breaks task operations.
+     */
+    private void publishTaskEvent(AutomationEventType eventType, UUID organizationId, TaskEntity task) {
+        if (applicationEventPublisher == null) return;
+        try {
+            applicationEventPublisher.publishEvent(TaxorynBusinessEvent.builder()
+                    .organizationId(organizationId)
+                    .eventType(eventType)
+                    .taskId(task.getId())
+                    .assignedUserId(task.getAssignedTo())
+                    .dueDate(task.getDueDate())
+                    .clientId(task.getClientId())
+                    .engagementId(task.getEngagementId())
+                    .workInstanceId(task.getWorkInstanceId())
+                    .entityTitle(task.getTitle())
+                    .build());
+        } catch (Exception ex) {
+            log.error("Failed to publish {} event for task {}: {}", eventType, task.getId(), ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Cancels all PENDING reminders associated with a task.
+     * Uses the injected ReminderRepository — null-safe for backward compatibility.
+     */
+    private void cancelPendingRemindersForTask(UUID organizationId, UUID taskId) {
+        if (reminderRepository == null) return;
+        try {
+            int cancelled = reminderRepository.cancelPendingRemindersForTask(organizationId, taskId, Instant.now());
+            if (cancelled > 0) {
+                log.info("Cancelled {} pending reminder(s) for task {} in org {}", cancelled, taskId, organizationId);
+            }
+        } catch (Exception ex) {
+            log.warn("Could not cancel pending reminders for task {}: {}", taskId, ex.getMessage());
+        }
     }
 }

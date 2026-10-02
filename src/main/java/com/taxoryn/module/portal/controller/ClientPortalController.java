@@ -1,6 +1,9 @@
 package com.taxoryn.module.portal.controller;
 
 import com.taxoryn.core.response.ApiResponse;
+import com.taxoryn.core.response.PagedResponse;
+import com.taxoryn.module.client.dto.ClientCommunicationDto;
+import com.taxoryn.module.client.service.ClientCommunicationTimelineService;
 import com.taxoryn.module.document.dto.DocumentDownloadDto;
 import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.dto.PresignedUrlResponse;
@@ -60,6 +63,7 @@ public class ClientPortalController {
     private final ClientPortalService clientPortalService;
     private final com.taxoryn.module.docrequest.service.DocumentRequestService documentRequestService;
     private final com.taxoryn.module.notice.service.TaxNoticeService taxNoticeService;
+    private final ClientCommunicationTimelineService communicationTimelineService;
 
     // =========================================================================
     // 1. User Management & Onboarding
@@ -469,5 +473,16 @@ public class ClientPortalController {
             @PathVariable UUID clientId) {
         long count = clientPortalService.getUnreadCountForPractice(clientId);
         return ResponseEntity.ok(ApiResponse.success("Unread count retrieved", count));
+    }
+
+    @GetMapping("/clients/{clientId}/communications")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "List client-visible timeline entries", description = "Returns only client-visible communications for the authenticated client's own profile.")
+    public ResponseEntity<ApiResponse<PagedResponse<ClientCommunicationDto>>> getClientVisibleCommunications(
+            @PathVariable UUID clientId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success("Client communications retrieved",
+                communicationTimelineService.listClientVisibleEntries(clientId, page, size)));
     }
 }

@@ -10,6 +10,30 @@ export interface ApiResponse<T> {
   traceId?: string;
 }
 
+export interface ReviewAction {
+  action: string;
+  actorId: string;
+  occurredAt: string;
+  comment?: string | null;
+}
+
+export interface ReviewRequest {
+  id: string;
+  resourceType: string;
+  resourceId: string;
+  reviewType: string;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  requestedBy: string;
+  assignedReviewerId: string;
+  requestedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  reviewComment?: string | null;
+  rejectionReason?: string | null;
+  version: number;
+  history: ReviewAction[];
+}
+
 export interface PagedResponse<T> {
   content: T[];
   pageNumber: number;
@@ -128,7 +152,8 @@ export type ProductModuleCode =
   | 'PRACTICE_DASHBOARD'
   | 'MARKETPLACE'
   | 'GMAIL'
-  | 'SELF_ITR';
+  | 'SELF_ITR'
+  | 'REMINDERS';
 
 export type ProductModuleCategory =
   | 'CORE'
@@ -663,6 +688,60 @@ export interface ClientNote {
   createdAt: string;
 }
 
+export type ClientCommunicationType =
+  | 'NOTE' | 'EMAIL' | 'PHONE_CALL' | 'MEETING' | 'WHATSAPP' | 'CLIENT_PORTAL'
+  | 'DOCUMENT_REQUEST' | 'TASK' | 'COMPLIANCE' | 'NOTICE' | 'BILLING' | 'SYSTEM_EVENT'
+  | 'CALL' | 'FOLLOW_UP' | 'GENERAL';
+
+export type ClientCommunicationVisibility = 'INTERNAL' | 'CLIENT_VISIBLE';
+
+export interface ClientCommunication {
+  id: string;
+  clientId: string;
+  communicationType: ClientCommunicationType;
+  subject?: string;
+  content: string;
+  occurredAt: string;
+  visibility: ClientCommunicationVisibility;
+  followUpRequired: boolean;
+  followUpDate?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ClientCommunicationRequest {
+  communicationType: ClientCommunicationType;
+  subject?: string;
+  content: string;
+  occurredAt: string;
+  visibility: ClientCommunicationVisibility;
+  followUpRequired: boolean;
+  followUpDate?: string;
+}
+
+export type PracticeLeadType = 'INDIVIDUAL' | 'BUSINESS';
+export type PracticeLeadSource = 'WEBSITE' | 'PHONE' | 'EMAIL' | 'WALK_IN' | 'REFERRAL' | 'MARKETPLACE' | 'SOCIAL_MEDIA' | 'CAMPAIGN' | 'OTHER';
+export type PracticeLeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'PROPOSAL_SENT' | 'FOLLOW_UP' | 'CONVERTED' | 'LOST';
+export type PracticeLeadPriority = 'CRITICAL' | 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
+export interface PracticeLead {
+  id: string; leadType: PracticeLeadType; name: string; businessName?: string; email?: string; phone?: string;
+  source: PracticeLeadSource; status: PracticeLeadStatus; priority: PracticeLeadPriority;
+  interestedServiceCode?: string; interestedServiceName?: string; description?: string;
+  assignedEmployeeId?: string; assignedEmployeeName?: string; nextFollowUpAt?: string;
+  convertedClientId?: string; convertedAt?: string; createdAt?: string; lostReason?: string;
+}
+export interface PracticeLeadRequest {
+  leadType: PracticeLeadType; name: string; businessName?: string; email?: string; phone?: string;
+  source: PracticeLeadSource; status: PracticeLeadStatus; priority: PracticeLeadPriority;
+  interestedServiceCode?: string; description?: string; assignedEmployeeId?: string; nextFollowUpAt?: string; lostReason?: string;
+}
+export interface PracticeLeadActivity {
+  id: string; leadId: string; activityType: 'NOTE' | 'EMAIL' | 'PHONE_CALL' | 'MEETING' | 'WHATSAPP' | 'SYSTEM_EVENT';
+  subject?: string; content: string; occurredAt: string; authorName?: string; createdAt?: string;
+}
+
 export interface ClientActivityItem {
   id: string;
   eventType: string;
@@ -1114,6 +1193,7 @@ export interface Invoice {
 export interface InvoiceLineItem {
   id?: string;
   service: 'GST_FILING' | 'ITR_FILING' | 'TDS' | 'ACCOUNTING' | 'CONSULTING' | 'AUDIT' | 'ROC_COMPLIANCE' | 'OTHER';
+  serviceCode?: string;
   description: string;
   hsnSacCode?: string;
   quantity: number;
@@ -1141,7 +1221,8 @@ export interface BulkCreateInvoicesRequest {
     service: 'GST_FILING' | 'ITR_FILING' | 'TDS' | 'ACCOUNTING' | 'CONSULTING' | 'AUDIT' | 'ROC_COMPLIANCE' | 'OTHER';
     description?: string;
     quantity: number;
-    unitPrice: number;
+    unitPrice?: number;
+    serviceCode?: string;
     taxRate: number;
   }>;
   autoIssue?: boolean;
@@ -1930,6 +2011,9 @@ export interface TaxService {
   description?: string;
   sortOrder: number;
   isActive: boolean;
+  suggestedPrice?: number | null;
+  currency?: string;
+  billingType?: 'ONE_TIME' | 'PER_RETURN' | 'PER_MONTH' | 'PER_QUARTER' | 'PER_SESSION' | 'PER_NOTICE' | string;
   aliases?: TaxServiceAlias[];
   createdAt?: string;
   updatedAt?: string;
@@ -1994,6 +2078,9 @@ export interface CreateTaxServiceRequest {
   sortOrder?: number;
   isActive?: boolean;
   aliases?: string[];
+  suggestedPrice?: number;
+  currency?: string;
+  billingType?: string;
 }
 
 export interface UpdateTaxServiceRequest {
@@ -2002,6 +2089,9 @@ export interface UpdateTaxServiceRequest {
   description?: string;
   sortOrder?: number;
   isActive?: boolean;
+  suggestedPrice?: number | null;
+  currency?: string;
+  billingType?: string;
 }
 
 export interface CreateTaxServiceAliasRequest {
@@ -2271,7 +2361,8 @@ export interface CreateProposalRequest {
   proposalTitle: string;
   scopeOfWork: string;
   deliverables?: string;
-  feeAmount: number;
+  feeAmount?: number;
+  serviceCode?: string;
   pricingType?: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
   estimatedTimelineDays?: number;
   validUntil?: string;
@@ -2395,7 +2486,8 @@ export interface CustomerDashboard {
   proposalTitle: string;
   scopeOfWork: string;
   deliverables?: string;
-  feeAmount: number;
+  feeAmount?: number;
+  serviceCode?: string;
   pricingType: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
   estimatedTimelineDays: number;
   proposalStatus: ProposalStatus;
@@ -2466,7 +2558,8 @@ export interface CreateProposalRequest {
   proposalTitle: string;
   scopeOfWork: string;
   deliverables?: string;
-  feeAmount: number;
+  feeAmount?: number;
+  serviceCode?: string;
   pricingType?: 'FIXED' | 'MONTHLY_RETAINER' | 'HOURLY';
   estimatedTimelineDays?: number;
   validUntil?: string;

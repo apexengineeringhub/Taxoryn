@@ -174,7 +174,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
             com.taxoryn.module.billing.dto.PriceResolutionResultDto resolution = null;
             if (promotionService != null) {
-                resolution = promotionService.resolvePrice(organizationId, client.getId(), svc, manualPrice, null, request.getInvoiceDate());
+                resolution = StringUtils.hasText(itemReq.getServiceCode())
+                        ? promotionService.resolvePriceForCatalogService(organizationId, client.getId(), svc, itemReq.getServiceCode(), manualPrice, null, request.getInvoiceDate())
+                        : promotionService.resolvePrice(organizationId, client.getId(), svc, manualPrice, null, request.getInvoiceDate());
             }
 
             BigDecimal price = resolution != null ? resolution.getUnitPrice() : itemReq.getEffectiveUnitPrice();
@@ -188,6 +190,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceItemEntity item = InvoiceItemEntity.builder()
                     .service(svc)
                     .serviceId(itemReq.getServiceId())
+                    .catalogServiceCode(StringUtils.hasText(itemReq.getServiceCode()) ? itemReq.getServiceCode().trim().toUpperCase(java.util.Locale.ROOT) : null)
                     .workItemId(itemReq.getWorkItemId())
                     .timeEntryId(itemReq.getTimeEntryId())
                     .description(itemReq.getDescription())

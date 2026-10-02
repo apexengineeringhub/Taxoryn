@@ -28,6 +28,8 @@ import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationEntity.OrganizationStatus;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.role.entity.RoleEntity;
+import com.taxoryn.module.role.entity.PermissionEntity;
+import com.taxoryn.module.role.repository.PermissionRepository;
 import com.taxoryn.module.role.repository.RoleRepository;
 import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
 import com.taxoryn.module.user.entity.UserEntity;
@@ -93,6 +95,9 @@ class ComplianceWorkflowSecurityIntegrationTest {
     private RoleRepository roleRepository;
 
     @Autowired
+    private PermissionRepository permissionRepository;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
@@ -147,7 +152,7 @@ class ComplianceWorkflowSecurityIntegrationTest {
                 tenantA.getId(),
                 tenantAAdminUser.getEmail(),
                 Set.of("ROLE_ORG_ADMIN"),
-                Set.of("TASK_VIEW", "TASK_CREATE", "TASK_EDIT", "CLIENT_VIEW", "CLIENT_EDIT", "GST_VIEW", "ITR_VIEW", "TDS_VIEW")
+                Set.of("TASK_VIEW", "TASK_CREATE", "TASK_EDIT", "CLIENT_VIEW", "CLIENT_EDIT", "GST_VIEW", "ITR_VIEW", "TDS_VIEW", "REVIEW_SUBMIT")
         );
 
         TenantContext.setTenantId(tenantA.getId());
@@ -162,11 +167,15 @@ class ComplianceWorkflowSecurityIntegrationTest {
                 .status(EmployeeStatus.ACTIVE)
                 .build());
 
+        PermissionEntity reviewApprovePermission = permissionRepository.findByCode("REVIEW_APPROVE")
+                .orElseGet(() -> permissionRepository.save(PermissionEntity.builder()
+                        .code("REVIEW_APPROVE").name("Approve Reviews").module("REVIEW")
+                        .description("Review compliance work").build()));
         RoleEntity staffRole = roleRepository.save(RoleEntity.builder()
                 .code("STAFF")
                 .name("Staff")
                 .isSystemRole(true)
-                .permissions(new HashSet<>())
+                .permissions(new HashSet<>(Set.of(reviewApprovePermission)))
                 .build());
 
         staffUserA = userRepository.save(UserEntity.builder()
@@ -187,7 +196,7 @@ class ComplianceWorkflowSecurityIntegrationTest {
                 tenantA.getId(),
                 staffUserA.getEmail(),
                 Set.of("ROLE_STAFF"),
-                Set.of("TASK_VIEW", "TASK_CREATE", "TASK_EDIT", "CLIENT_VIEW")
+                Set.of("TASK_VIEW", "TASK_CREATE", "TASK_EDIT", "CLIENT_VIEW", "REVIEW_APPROVE")
         );
 
         // Client A1 assigned to employeeA
@@ -382,6 +391,7 @@ class ComplianceWorkflowSecurityIntegrationTest {
                 .clientId(clientA1.getId())
                 .complianceObligationId(obligation.getId())
                 .workflowStatus(ComplianceWorkflowStatus.READY)
+                .reviewerEmployeeId(employeeA.getId())
                 .statutoryDueDate(LocalDate.of(2026, 7, 31))
                 .build());
         TenantContext.clear();
@@ -423,7 +433,7 @@ class ComplianceWorkflowSecurityIntegrationTest {
                 .approvalNotes("Verified challan payments")
                 .build();
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflow.getId() + "/approve")
-                        .header("Authorization", "Bearer " + tenantAAdminToken)
+                        .header("Authorization", "Bearer " + staffTokenA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(approveReq)))
                 .andExpect(status().isOk())

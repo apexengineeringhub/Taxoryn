@@ -4,13 +4,17 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.math.BigDecimal;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.util.UUID;
 
 @Data
@@ -48,4 +52,15 @@ public class CreateTaxServiceRequest {
 
     @Schema(description = "Initial search aliases for customer discovery", example = "[\"ITR\", \"IT Return\", \"Income Tax Filing\"]")
     private List<String> aliases;
+
+    @DecimalMin(value = "0.00", message = "Suggested price cannot be negative")
+    @Digits(integer = 13, fraction = 2, message = "Suggested price must have at most two decimal places")
+    private BigDecimal suggestedPrice;
+
+    @Size(min = 3, max = 3)
+    private String currency;
+
+    @Pattern(regexp = "^(ONE_TIME|PER_RETURN|PER_MONTH|PER_QUARTER|PER_SESSION|PER_NOTICE)$")
+    @Size(max = 30)
+    private String billingType;
 }

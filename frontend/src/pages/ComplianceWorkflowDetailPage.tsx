@@ -28,24 +28,29 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
-import { complianceWorkflowApi, employeeApi } from '../api/endpoints';
+import { complianceWorkflowApi, employeeApi, reviewApi } from '../api/endpoints';
 import {
   ComplianceWorkflowDetailDto,
   ComplianceWorkflowStatus,
   ComplianceWorkflowChecklistItemDto,
   Employee,
   Task,
+  ReviewRequest,
 } from '../types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { Modal } from '../components/common/Modal';
 import clsx from 'clsx';
+import { useAuth } from '../context/AuthContext';
+import { hasPermission } from '../utils/permissionUtils';
 
 export const ComplianceWorkflowDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [detail, setDetail] = useState<ComplianceWorkflowDetailDto | null>(null);
+  const [review, setReview] = useState<ReviewRequest | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +90,11 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
       setError(null);
       const data = await complianceWorkflowApi.getWorkflowById(id);
       setDetail(data);
+      try {
+        setReview(await reviewApi.getForResource(id));
+      } catch {
+        setReview(null);
+      }
     } catch (err: any) {
       console.error('Failed to load workflow details', err);
       setError(err?.response?.data?.message || 'Failed to load workflow details');
@@ -143,7 +153,8 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
     if (!id) return;
     try {
       setIsSubmitting(true);
-      await complianceWorkflowApi.submitReview(id);
+      if (review?.status === 'REJECTED') await reviewApi.resubmit(review.id);
+      else await reviewApi.submit(id);
       fetchWorkflowDetail();
     } catch (err) {
       console.error('Failed to submit workflow for review', err);
@@ -173,7 +184,8 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
     if (!id || !changesReason) return;
     try {
       setIsSubmitting(true);
-      await complianceWorkflowApi.requestChanges(id, { reason: changesReason });
+      if (!review) throw new Error('Review request is unavailable');
+      await reviewApi.reject(review.id, changesReason);
       setIsChangesModalOpen(false);
       fetchWorkflowDetail();
     } catch (err) {
@@ -187,7 +199,8 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
     if (!id) return;
     try {
       setIsSubmitting(true);
-      await complianceWorkflowApi.approveWorkflow(id, { notes: approveNotes || undefined });
+      if (!review) throw new Error('Review request is unavailable');
+      await reviewApi.approve(review.id, approveNotes || undefined);
       setIsApproveModalOpen(false);
       fetchWorkflowDetail();
     } catch (err) {
@@ -276,6 +289,9 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
   }
 
   const { workflow, checklistItems, linkedTasks } = detail;
+  const canSubmitReview = hasPermission(user, ['REVIEW_SUBMIT']);
+  const canApproveReview = !!review && review.assignedReviewerId === user?.id && hasPermission(user, ['REVIEW_APPROVE']);
+  const canRejectReview = !!review && review.assignedReviewerId === user?.id && hasPermission(user, ['REVIEW_REJECT']);
 
   const STEPS: { status: ComplianceWorkflowStatus; label: string }[] = [
     { status: 'READY', label: '1. Ready' },
@@ -355,20 +371,22 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
               <Button variant="outline" onClick={() => setIsWaitModalOpen(true)} className="text-yellow-700 border-yellow-300 hover:bg-yellow-50 flex items-center gap-1.5">
                 <PauseCircle className="w-4 h-4" /> Wait Client
               </Button>
-              <Button variant="primary" onClick={handleSubmitReview} disabled={isSubmitting} className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white">
-                <Send className="w-4 h-4" /> Submit for Review
-              </Button>
+              {canSubmitReview && (review?.status === 'REJECTED' || !review || review.status === 'CANCELLED' || review.status === 'APPROVED') && (
+                <Button variant="primary" onClick={handleSubmitReview} disabled={isSubmitting} className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white">
+                  <Send className="w-4 h-4" /> {review?.status === 'REJECTED' ? 'Resubmit for Review' : 'Submit for Review'}
+                </Button>
+              )}
             </>
           ) : null}
 
-          {workflow.workflowStatus === 'UNDER_REVIEW' ? (
+          {workflow.workflowStatus === 'UNDER_REVIEW' && review?.status === 'UNDER_REVIEW' && (canRejectReview || canApproveReview) ? (
             <>
-              <Button variant="outline" onClick={() => setIsChangesModalOpen(true)} className="text-rose-700 border-rose-300 hover:bg-rose-50 flex items-center gap-1.5">
+              {canRejectReview && <Button variant="outline" onClick={() => setIsChangesModalOpen(true)} className="text-rose-700 border-rose-300 hover:bg-rose-50 flex items-center gap-1.5">
                 <X className="w-4 h-4" /> Request Changes
-              </Button>
-              <Button variant="primary" onClick={() => setIsApproveModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-1.5">
+              </Button>}
+              {canApproveReview && <Button variant="primary" onClick={() => setIsApproveModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-1.5">
                 <Check className="w-4 h-4" /> Approve & Ready Filing
-              </Button>
+              </Button>}
             </>
           ) : null}
 
@@ -458,6 +476,27 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
             <p className="text-sm mt-1 text-rose-900 font-medium">{workflow.changesRequestedReason}</p>
           </div>
         </div>
+      )}
+
+      {review && (
+        <Card className="p-5 border-slate-200">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-slate-900">Review & approval</h2>
+              <p className="text-sm text-slate-600 mt-1">Status: <strong>{review.status.replace(/_/g, ' ')}</strong> · Assigned reviewer: {workflow.reviewerEmployeeName || 'Assigned reviewer'}</p>
+            </div>
+            {review.rejectionReason && <p className="text-sm text-rose-700 max-w-xl">Feedback: {review.rejectionReason}</p>}
+          </div>
+          <ol className="mt-4 space-y-2 border-l-2 border-slate-200 pl-4">
+            {review.history.map((action, index) => (
+              <li key={`${action.action}-${action.occurredAt}-${index}`} className="text-sm text-slate-700">
+                <span className="font-semibold">{action.action.replace(/_/g, ' ')}</span>
+                <span className="text-slate-500"> · {new Date(action.occurredAt).toLocaleString()}</span>
+                {action.comment && <p className="text-slate-600 mt-0.5">{action.comment}</p>}
+              </li>
+            ))}
+          </ol>
+        </Card>
       )}
 
       {/* Main Grid: 2 Columns (Checklist & Details) */}

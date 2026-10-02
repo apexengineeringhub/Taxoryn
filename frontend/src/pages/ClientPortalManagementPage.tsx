@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Send,
   MessageCircle,
+  MessageSquareText,
   RefreshCw,
   Check,
   CheckCheck,
@@ -50,6 +51,7 @@ import {
   TdsReturn,
   DocumentRequest,
   ClientPortalMessage,
+  ClientCommunication,
   ProductModuleCode,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
@@ -172,6 +174,11 @@ export const ClientPortalManagementPage: React.FC = () => {
 
   // Messages / Direct Consultation State (Live Real-Time WebSocket + REST Fallback)
   const [messages, setMessages] = useState<ClientPortalMessage[]>([]);
+  const [clientCommunications, setClientCommunications] = useState<ClientCommunication[]>([]);
+  const [clientCommunicationsLoading, setClientCommunicationsLoading] = useState(false);
+  const [clientCommunicationsError, setClientCommunicationsError] = useState('');
+  const [clientCommunicationsPage, setClientCommunicationsPage] = useState(0);
+  const [clientCommunicationsTotalPages, setClientCommunicationsTotalPages] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
   const [newMessageText, setNewMessageText] = useState<string>('');
   const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
@@ -471,6 +478,25 @@ export const ClientPortalManagementPage: React.FC = () => {
     }
   }, [isClientUser, selectedClientId]);
 
+  useEffect(() => {
+    if (!isClientUser || activeTab !== 'communications' || !dashboard?.clientId) return;
+    let active = true;
+    setClientCommunicationsLoading(true);
+    setClientCommunicationsError('');
+    portalApi.getClientVisibleCommunications(dashboard.clientId, clientCommunicationsPage)
+      .then((response) => {
+        if (active) {
+          setClientCommunications(response?.content || []);
+          setClientCommunicationsTotalPages(response?.totalPages || 0);
+        }
+      })
+      .catch((error: any) => {
+        if (active) setClientCommunicationsError(error?.response?.data?.message || 'Unable to load client communications.');
+      })
+      .finally(() => { if (active) setClientCommunicationsLoading(false); });
+    return () => { active = false; };
+  }, [isClientUser, activeTab, dashboard?.clientId, clientCommunicationsPage]);
+
   // Handle Quick Setup & Resend Portal Invitation
   const [isInviting, setIsInviting] = useState(false);
   const handleQuickSetupInvite = async (clientId: string) => {
@@ -687,6 +713,7 @@ export const ClientPortalManagementPage: React.FC = () => {
             badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
             moduleCode: 'CLIENT_PORTAL' as ProductModuleCode,
           },
+          ...(!isPracticeUser ? [{ id: 'communications', label: 'Communications', icon: MessageSquareText }] : []),
           ...(isPracticeUser ? [{ id: 'users', label: `Logins (${clientUsers.length})`, icon: KeyRound }] : []),
         ]
           .filter((tab) => !tab.moduleCode || isModuleAvailable(tab.moduleCode))
@@ -1566,6 +1593,40 @@ export const ClientPortalManagementPage: React.FC = () => {
             </div>
           </Card>
         </div>
+      )}
+
+      {activeTab === 'communications' && !isPracticeUser && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Communications</h2>
+            <p className="mt-1 text-xs text-slate-500">Updates your practice has shared with you.</p>
+          </div>
+          {clientCommunicationsError && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{clientCommunicationsError}</div>}
+          {clientCommunicationsLoading ? (
+            <div role="status" className="rounded-xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500">Loading communications…</div>
+          ) : clientCommunications.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white py-10 text-center text-sm text-slate-500">No shared communications yet.</div>
+          ) : (
+            <>
+              {clientCommunications.map((entry) => (
+                <article key={entry.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">{entry.communicationType.replace(/_/g, ' ')}</span>
+                    <time className="ml-auto text-[11px] text-slate-400">{new Date(entry.occurredAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</time>
+                  </div>
+                  {entry.subject && <h3 className="mt-2 text-sm font-bold text-slate-900">{entry.subject}</h3>}
+                  <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-slate-600">{entry.content}</p>
+                  <p className="mt-2 text-[10px] text-slate-400">{entry.createdByName || 'Your practice'}</p>
+                </article>
+              ))}
+              {clientCommunicationsTotalPages > 1 && <div className="flex items-center justify-between pt-2 text-xs text-slate-500">
+                <button type="button" disabled={clientCommunicationsPage <= 0} onClick={() => setClientCommunicationsPage((page) => page - 1)} className="rounded border border-slate-200 px-3 py-1.5 disabled:opacity-40">Previous</button>
+                <span>Page {clientCommunicationsPage + 1} of {clientCommunicationsTotalPages}</span>
+                <button type="button" disabled={clientCommunicationsPage + 1 >= clientCommunicationsTotalPages} onClick={() => setClientCommunicationsPage((page) => page + 1)} className="rounded border border-slate-200 px-3 py-1.5 disabled:opacity-40">Next</button>
+              </div>}
+            </>
+          )}
+        </section>
       )}
 
       {/* TAB 6: Portal Users & Logins (For Practice Admins) */}

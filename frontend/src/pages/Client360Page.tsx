@@ -54,6 +54,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
 import { Modal } from '../components/common/Modal';
 import { ClientDocumentRequestsTab } from '../components/docrequest/ClientDocumentRequestsTab';
+import { ClientCommunicationTimeline } from '../components/client/ClientCommunicationTimeline';
 import clsx from 'clsx';
 
 export const Client360Page: React.FC = () => {
@@ -66,7 +67,7 @@ export const Client360Page: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'services' | 'compliance' | 'documents' | 'doc_requests' | 'tasks' | 'notices' | 'billing' | 'activity'
+    'overview' | 'services' | 'compliance' | 'documents' | 'doc_requests' | 'tasks' | 'notices' | 'billing' | 'activity' | 'communication'
   >('overview');
 
   // Services State
@@ -396,6 +397,7 @@ export const Client360Page: React.FC = () => {
           { id: 'tasks', label: 'Workflow Tasks', icon: CheckCircle2, count: taskSummary?.totalTasks },
           { id: 'notices', label: 'Tax Notices', icon: AlertCircle, count: noticeSummary?.activeNotices },
           { id: 'billing', label: 'Billing & Invoices', icon: CreditCard },
+          { id: 'communication', label: 'Communication', icon: MessageSquare },
           { id: 'activity', label: 'Activity & Notes', icon: History, count: recentNotes?.length },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -1422,6 +1424,10 @@ export const Client360Page: React.FC = () => {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === 'communication' && clientId && (
+          <ClientCommunicationTimeline clientId={clientId} />
         )}
       </div>
 

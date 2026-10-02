@@ -23,6 +23,7 @@ public class InvoiceItemDto {
     private UUID workItemId;
     private UUID timeEntryId;
     private UUID serviceId;
+    private String catalogServiceCode;
     private BillingServiceType service;
     private String description;
     private BigDecimal quantity;

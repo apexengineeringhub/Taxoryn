@@ -140,8 +140,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
         { label: 'Team Chat', path: '/chat', icon: MessageSquare, visible: !isSolo },
         { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
+        { label: 'Leads / Enquiries', path: '/leads', icon: UserCheck, requiredPermissions: ['LEAD_VIEW'], allowedRoles: ['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'SENIOR_TAX_ASSOCIATE', 'STAFF', 'ACCOUNTANT', 'TAX_ASSOCIATE', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'EMPLOYEE'], moduleCode: 'CLIENTS' },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
         { label: isStaff ? 'My Compliance Work' : 'Compliance Worklist', path: '/compliance-work', icon: Briefcase, requiredPermissions: ['TASK_VIEW', 'CLIENT_VIEW'], moduleCode: 'TASKS' },
+        { label: 'Reminders', path: '/reminders', icon: Bell, requiredPermissions: ['TASK_VIEW'], moduleCode: 'REMINDERS' },
       ],
     },
     {
@@ -183,6 +185,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       items: [
         { label: isStaff ? 'Department Team' : 'Team & RBAC', path: '/team', icon: UserCheck, requiredPermissions: ['USER_VIEW', 'ROLE_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], visible: !isSolo },
         { label: 'Modules & Features', path: '/settings/modules', icon: Layers, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Services & Pricing', path: '/settings/service-pricing', icon: Receipt, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Notice Operations', path: '/settings/tax-notices', icon: Scale, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'TAX_NOTICES' },
         { label: 'Billing & Invoices', path: '/billing', icon: Receipt, requiredPermissions: ['BILLING_VIEW', 'BILLING_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'ACCOUNTANT'], moduleCode: 'BILLING' },
         { label: 'Activity & Audit', path: '/audit-logs', icon: ShieldCheck, requiredPermissions: ['AUDIT_VIEW', 'AUDIT_READ'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'ACCOUNTANT'], moduleCode: 'AUDIT' },
@@ -190,6 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'Branding & Themes', path: '/settings/branding', icon: Palette, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'Subscription', path: '/settings/subscription', icon: CreditCard, requiredPermissions: ['SUBSCRIPTION_VIEW', 'ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
         { label: 'WhatsApp Alerts', path: '/settings/whatsapp', icon: MessageSquare, requiredPermissions: ['COMMUNICATION_MANAGE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'] },
+        { label: 'Automations', path: '/settings/automations', icon: Settings, requiredPermissions: ['ORGANIZATION_UPDATE', 'ORG_WRITE'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER'], moduleCode: 'REMINDERS' },
       ],
     },
     {
@@ -202,7 +206,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
   ];
 
   // Check if current route is inside administration to auto-expand
-  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/locations', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules', '/settings/tax-notices'];
+  const adminRoutes = ['/team', '/billing', '/audit-logs', '/settings/locations', '/settings/branding', '/settings/subscription', '/settings/whatsapp', '/settings/modules', '/settings/service-pricing', '/settings/tax-notices', '/settings/automations'];
   const isAdminRouteActive = adminRoutes.some((p) => location.pathname.startsWith(p));
 
   const [isAdminExpanded, setIsAdminExpanded] = useState<boolean>(() => {

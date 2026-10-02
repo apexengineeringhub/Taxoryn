@@ -33,6 +33,9 @@ import com.taxoryn.module.compliance.repository.ComplianceWorkflowChecklistItemR
 import com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository;
 import com.taxoryn.module.employee.entity.EmployeeEntity;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
+import com.taxoryn.module.role.entity.PermissionEntity;
+import com.taxoryn.module.role.entity.RoleEntity;
+import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.task.dto.TaskDto;
 import com.taxoryn.module.task.entity.TaskEntity;
 import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
@@ -82,6 +85,8 @@ class ComplianceWorkflowServiceTest {
     @Mock
     private EmployeeRepository employeeRepository;
     @Mock
+    private com.taxoryn.module.user.repository.UserRepository userRepository;
+    @Mock
     private TaskRepository taskRepository;
     @Mock
     private TaskMapper taskMapper;
@@ -107,6 +112,23 @@ class ComplianceWorkflowServiceTest {
         securityUtilsMock.when(SecurityUtils::getCurrentOrganizationId).thenReturn(orgId);
         securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(UUID.randomUUID());
         securityUtilsMock.when(SecurityUtils::getCurrentUserEmail).thenReturn("practitioner@taxoryn.com");
+        securityUtilsMock.when(() -> SecurityUtils.hasAuthority("REVIEW_SUBMIT")).thenReturn(true);
+        securityUtilsMock.when(() -> SecurityUtils.hasAuthority("REVIEW_APPROVE")).thenReturn(true);
+        securityUtilsMock.when(() -> SecurityUtils.hasAuthority("REVIEW_REJECT")).thenReturn(true);
+
+        EmployeeEntity reviewer = EmployeeEntity.builder().userId(reviewerId).status(EmployeeEntity.EmployeeStatus.ACTIVE)
+                .employeeCode("REV-1").firstName("Reviewer").build();
+        reviewer.setId(reviewerId);
+        reviewer.setOrganizationId(orgId);
+        UserEntity reviewerAccount = org.mockito.Mockito.mock(UserEntity.class);
+        RoleEntity reviewerRole = org.mockito.Mockito.mock(RoleEntity.class);
+        PermissionEntity reviewerPermission = org.mockito.Mockito.mock(PermissionEntity.class);
+        org.mockito.Mockito.lenient().when(reviewerAccount.getStatus()).thenReturn(UserEntity.UserStatus.ACTIVE);
+        org.mockito.Mockito.lenient().when(reviewerAccount.getRoles()).thenReturn(Set.of(reviewerRole));
+        org.mockito.Mockito.lenient().when(reviewerRole.getPermissions()).thenReturn(Set.of(reviewerPermission));
+        org.mockito.Mockito.lenient().when(reviewerPermission.getCode()).thenReturn("REVIEW_APPROVE");
+        org.mockito.Mockito.lenient().when(employeeRepository.findByIdAndOrganizationId(reviewerId, orgId)).thenReturn(Optional.of(reviewer));
+        org.mockito.Mockito.lenient().when(userRepository.findByIdAndOrganizationId(reviewerId, orgId)).thenReturn(Optional.of(reviewerAccount));
 
         PracticeSecurityScope firmAdminScope = PracticeSecurityScope.builder()
                 .organizationId(orgId)
@@ -215,11 +237,13 @@ class ComplianceWorkflowServiceTest {
         assertThat(workflow.getStartedAt()).isNotNull();
 
         // 2. Submit Review
+        securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(UUID.randomUUID());
         ComplianceWorkflowDto underReview = workflowService.submitReview(workflowId);
         assertThat(underReview.getWorkflowStatus()).isEqualTo(ComplianceWorkflowStatus.UNDER_REVIEW);
         assertThat(workflow.getSubmittedAt()).isNotNull();
 
         // 3. Approve
+        securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(reviewerId);
         ApproveWorkflowRequest approveReq = ApproveWorkflowRequest.builder().approvalNotes("Computation verified").build();
         ComplianceWorkflowDto approved = workflowService.approveWorkflow(workflowId, approveReq);
         assertThat(approved.getWorkflowStatus()).isEqualTo(ComplianceWorkflowStatus.READY_FOR_FILING);
@@ -299,6 +323,7 @@ class ComplianceWorkflowServiceTest {
                 .clientId(clientId)
                 .complianceObligationId(obligationId)
                 .workflowStatus(ComplianceWorkflowStatus.UNDER_REVIEW)
+                .reviewerEmployeeId(reviewerId)
                 .build();
         workflow.setId(workflowId);
         workflow.setOrganizationId(orgId);
@@ -309,6 +334,8 @@ class ComplianceWorkflowServiceTest {
         RequestWorkflowChangesRequest changesReq = RequestWorkflowChangesRequest.builder()
                 .reason("Table 4B ITC reversal missing for Rule 42")
                 .build();
+
+        securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(reviewerId);
 
         ComplianceWorkflowDto dto = workflowService.requestChanges(workflowId, changesReq);
 

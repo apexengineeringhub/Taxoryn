@@ -61,6 +61,9 @@ class RbacRoleDesignationSeparationSecurityTest {
     private OrganizationTestDataFactory factory;
 
     @Autowired
+    private com.taxoryn.module.subscription.repository.SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     private EmployeeRepository employeeRepository;
 
     @Autowired
@@ -80,6 +83,15 @@ class RbacRoleDesignationSeparationSecurityTest {
 
         String suffix = UUID.randomUUID().toString().substring(0, 6);
         orgA = factory.createOrganization("Chartered Practice " + suffix, "admin." + suffix + "@practice.in");
+        subscriptionRepository.save(com.taxoryn.module.subscription.entity.SubscriptionEntity.builder()
+            .organizationId(orgA.getId())
+            .plan(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionPlan.PROFESSIONAL)
+            .status(com.taxoryn.module.subscription.entity.SubscriptionEntity.SubscriptionStatus.ACTIVE)
+            .startDate(java.time.LocalDate.now().minusMonths(1))
+            .renewalDate(java.time.LocalDate.now().plusMonths(11))
+            .maxUsers(50)
+            .maxClients(200)
+            .build());
         adminA = factory.createAdminUser(orgA, "admin." + suffix + "@practice.in", "AdminPass123!");
         tokenAdminA = factory.generateBearerToken(adminA);
 

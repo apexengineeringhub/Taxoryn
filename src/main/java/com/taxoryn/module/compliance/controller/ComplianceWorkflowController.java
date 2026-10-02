@@ -16,6 +16,8 @@ import com.taxoryn.module.compliance.dto.RequestWorkflowChangesRequest;
 import com.taxoryn.module.compliance.dto.UpdateChecklistItemRequest;
 import com.taxoryn.module.compliance.dto.WaitClientWorkflowRequest;
 import com.taxoryn.module.compliance.service.ComplianceWorkflowService;
+import com.taxoryn.module.review.dto.SubmitReviewRequest;
+import com.taxoryn.module.review.service.ReviewService;
 import com.taxoryn.module.task.dto.TaskDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -47,6 +49,7 @@ import java.util.UUID;
 public class ComplianceWorkflowController {
 
     private final ComplianceWorkflowService workflowService;
+    private final ReviewService reviewService;
 
     // =========================================================================
     // 1. Workbench Workflows & Summary
@@ -141,7 +144,7 @@ public class ComplianceWorkflowController {
     }
 
     @PostMapping("/workflows/{workflowId}/start")
-    @PreAuthorize("hasAnyAuthority('TASK_EDIT', 'CLIENT_EDIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_STAFF', 'ROLE_PRACTITIONER', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('REVIEW_SUBMIT')")
     @Operation(summary = "Start workflow execution", description = "Transitions workflow from CREATED / READY to IN_PROGRESS.")
     public ResponseEntity<ApiResponse<ComplianceWorkflowDto>> startWorkflow(
             @PathVariable UUID workflowId
@@ -177,29 +180,37 @@ public class ComplianceWorkflowController {
     public ResponseEntity<ApiResponse<ComplianceWorkflowDto>> submitReview(
             @PathVariable UUID workflowId
     ) {
-        ComplianceWorkflowDto updated = workflowService.submitReview(workflowId);
+        SubmitReviewRequest reviewRequest = new SubmitReviewRequest();
+        reviewRequest.setResourceType("COMPLIANCE_WORK");
+        reviewRequest.setResourceId(workflowId);
+        reviewService.submit(reviewRequest);
+        ComplianceWorkflowDto updated = workflowService.getWorkflowById(workflowId).getWorkflow();
         return ResponseEntity.ok(ApiResponse.success("Workflow submitted for review", updated));
     }
 
     @PostMapping("/workflows/{workflowId}/request-changes")
-    @PreAuthorize("hasAnyAuthority('TASK_EDIT', 'CLIENT_EDIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_PRACTITIONER')")
+    @PreAuthorize("hasAuthority('REVIEW_REJECT')")
     @Operation(summary = "Request revisions / changes", description = "Reviewer requests corrections from preparer before filing.")
     public ResponseEntity<ApiResponse<ComplianceWorkflowDto>> requestChanges(
             @PathVariable UUID workflowId,
             @Valid @RequestBody RequestWorkflowChangesRequest request
     ) {
-        ComplianceWorkflowDto updated = workflowService.requestChanges(workflowId, request);
+        var review = reviewService.getForResource("COMPLIANCE_WORK", workflowId);
+        reviewService.reject(review.getId(), request.getReason());
+        ComplianceWorkflowDto updated = workflowService.getWorkflowById(workflowId).getWorkflow();
         return ResponseEntity.ok(ApiResponse.success("Changes requested on workflow", updated));
     }
 
     @PostMapping("/workflows/{workflowId}/approve")
-    @PreAuthorize("hasAnyAuthority('TASK_EDIT', 'CLIENT_EDIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_PRACTITIONER')")
+    @PreAuthorize("hasAuthority('REVIEW_APPROVE')")
     @Operation(summary = "Approve workflow", description = "Reviewer approves computation; workflow transitions to READY_FOR_FILING.")
     public ResponseEntity<ApiResponse<ComplianceWorkflowDto>> approveWorkflow(
             @PathVariable UUID workflowId,
             @Valid @RequestBody ApproveWorkflowRequest request
     ) {
-        ComplianceWorkflowDto updated = workflowService.approveWorkflow(workflowId, request);
+        var review = reviewService.getForResource("COMPLIANCE_WORK", workflowId);
+        reviewService.approve(review.getId(), request.getNotes());
+        ComplianceWorkflowDto updated = workflowService.getWorkflowById(workflowId).getWorkflow();
         return ResponseEntity.ok(ApiResponse.success("Workflow approved and marked READY_FOR_FILING", updated));
     }
 
