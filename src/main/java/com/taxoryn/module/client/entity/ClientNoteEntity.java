@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.UUID;
+import java.time.Instant;
 
 @Entity
 @Table(name = "client_notes")
@@ -37,17 +38,47 @@ public class ClientNoteEntity extends TenantAuditableEntity {
     @Builder.Default
     private NoteType noteType = NoteType.GENERAL;
 
-    @Column(name = "title", nullable = false)
+    @Column(name = "title")
     private String title;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "occurred_at", nullable = false)
+    private Instant occurredAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 24)
+    @Builder.Default
+    private Visibility visibility = Visibility.INTERNAL;
+
+    @Column(name = "follow_up_required", nullable = false)
+    @Builder.Default
+    private boolean followUpRequired = false;
+
+    @Column(name = "follow_up_date")
+    private Instant followUpDate;
+
     public enum NoteType {
+        NOTE,
+        PHONE_CALL,
         CALL,
         EMAIL,
         MEETING,
+        WHATSAPP,
+        CLIENT_PORTAL,
+        DOCUMENT_REQUEST,
+        TASK,
+        COMPLIANCE,
+        NOTICE,
+        BILLING,
+        SYSTEM_EVENT,
         FOLLOW_UP,
         GENERAL
+    }
+
+    public enum Visibility {
+        INTERNAL,
+        CLIENT_VISIBLE
     }
 }

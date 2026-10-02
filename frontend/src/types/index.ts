@@ -688,6 +688,39 @@ export interface ClientNote {
   createdAt: string;
 }
 
+export type ClientCommunicationType =
+  | 'NOTE' | 'EMAIL' | 'PHONE_CALL' | 'MEETING' | 'WHATSAPP' | 'CLIENT_PORTAL'
+  | 'DOCUMENT_REQUEST' | 'TASK' | 'COMPLIANCE' | 'NOTICE' | 'BILLING' | 'SYSTEM_EVENT'
+  | 'CALL' | 'FOLLOW_UP' | 'GENERAL';
+
+export type ClientCommunicationVisibility = 'INTERNAL' | 'CLIENT_VISIBLE';
+
+export interface ClientCommunication {
+  id: string;
+  clientId: string;
+  communicationType: ClientCommunicationType;
+  subject?: string;
+  content: string;
+  occurredAt: string;
+  visibility: ClientCommunicationVisibility;
+  followUpRequired: boolean;
+  followUpDate?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ClientCommunicationRequest {
+  communicationType: ClientCommunicationType;
+  subject?: string;
+  content: string;
+  occurredAt: string;
+  visibility: ClientCommunicationVisibility;
+  followUpRequired: boolean;
+  followUpDate?: string;
+}
+
 export interface ClientActivityItem {
   id: string;
   eventType: string;

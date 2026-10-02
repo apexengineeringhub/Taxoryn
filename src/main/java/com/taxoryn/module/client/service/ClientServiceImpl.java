@@ -1546,9 +1546,14 @@ public class ClientServiceImpl implements ClientService {
         ClientNoteEntity note = ClientNoteEntity.builder()
                 .clientId(clientId)
                 .authorId(currentUserId)
+                .authorName(userRepository.findByIdAndOrganizationId(currentUserId, organizationId)
+                        .map(UserEntity::getFullName).orElse("Practice user"))
                 .noteType(request.getNoteType())
                 .title(request.getTitle().trim())
                 .content(request.getContent().trim())
+                .occurredAt(Instant.now())
+                .visibility(ClientNoteEntity.Visibility.INTERNAL)
+                .followUpRequired(false)
                 .build();
         note.setOrganizationId(organizationId);
 

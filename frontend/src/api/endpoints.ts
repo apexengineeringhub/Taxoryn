@@ -7,6 +7,8 @@ import {
   Client,
   Client360Overview,
   ClientNote,
+  ClientCommunication,
+  ClientCommunicationRequest,
   ServiceCatalogItem,
   ClientServiceDto,
   CreateClientServiceRequest,
@@ -418,6 +420,22 @@ export const clientApi = {
   getNotes: async (id: string) => {
     const res = await apiClient.get<ApiResponse<ClientNote[]>>(`/v1/clients/${id}/notes`);
     return res.data.data;
+  },
+  getCommunications: async (id: string, params?: { page?: number; size?: number; type?: string; dateFrom?: string; dateTo?: string; followUpRequired?: boolean }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientCommunication>>>(`/v1/clients/${id}/communications`, { params });
+    return res.data.data;
+  },
+  createCommunication: async (id: string, payload: ClientCommunicationRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientCommunication>>(`/v1/clients/${id}/communications`, payload);
+    return res.data.data;
+  },
+  updateCommunication: async (clientId: string, communicationId: string, payload: ClientCommunicationRequest) => {
+    const res = await apiClient.put<ApiResponse<ClientCommunication>>(`/v1/clients/${clientId}/communications/${communicationId}`, payload);
+    return res.data.data;
+  },
+  deleteCommunication: async (clientId: string, communicationId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${clientId}/communications/${communicationId}`);
+    return res.data;
   },
 };
 
@@ -1520,6 +1538,12 @@ export const portalApi = {
   },
   getDashboardPreview: async (clientId: string) => {
     const res = await apiClient.get<ApiResponse<ClientPortalDashboard>>(`/v1/portal/preview/${clientId}`);
+    return res.data.data;
+  },
+  getClientVisibleCommunications: async (clientId: string, page = 0, size = 20) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientCommunication>>>(
+      `/v1/portal/clients/${clientId}/communications`, { params: { page, size } },
+    );
     return res.data.data;
   },
   getProfile: async () => {
