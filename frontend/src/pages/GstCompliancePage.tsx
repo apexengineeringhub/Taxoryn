@@ -37,6 +37,7 @@ export const GstCompliancePage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [filings, setFilings] = useState<GstReturnFiling[]>([]);
   const [profiles, setProfiles] = useState<GstProfile[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PREPARED' | 'FILED' | 'OVERDUE'>(
     () => {
@@ -141,18 +142,28 @@ export const GstCompliancePage: React.FC = () => {
 
   const loadProfiles = async () => {
     try {
-      const res = await gstApi.getProfiles();
-      const profList = res.content || [];
+      const [profRes, clientRes] = await Promise.all([
+        gstApi.getProfiles().catch(() => ({ content: [] })),
+        clientApi.getAll({ hasGstin: true, size: 500 }).catch(() => ({ content: [] })),
+      ]);
+      const profList = Array.isArray(profRes) ? profRes : (profRes?.content || []);
+      const clientList = Array.isArray(clientRes) ? clientRes : (clientRes?.content || []);
       setProfiles(profList);
+      setClients(clientList);
       const paramClientId = searchParams.get('clientId');
       if (paramClientId) {
         const matchingProfile = profList.find((p: GstProfile) => p.clientId === paramClientId);
         if (matchingProfile) {
           setNewProfileId(matchingProfile.id);
+        } else {
+          const matchingClient = clientList.find((c: Client) => c.id === paramClientId);
+          if (matchingClient) {
+            setNewProfileId(matchingClient.id);
+          }
         }
       }
     } catch (err) {
-      console.error('Failed to load GST profiles', err);
+      console.error('Failed to load GST profiles and clients', err);
     }
   };
 
@@ -300,17 +311,60 @@ export const GstCompliancePage: React.FC = () => {
     }
   };
 
+  const eligibleClients = React.useMemo(() => {
+    const list: { id: string; clientId: string; name: string; gstin: string }[] = [];
+    const seenGstins = new Set<string>();
+
+    // 1. First add clients from Client Master having non-blank GSTIN
+    clients.forEach((c) => {
+      if (c.gstin && c.gstin.trim()) {
+        const formattedGstin = c.gstin.trim().toUpperCase();
+        if (!seenGstins.has(formattedGstin)) {
+          seenGstins.add(formattedGstin);
+          list.push({
+            id: c.id,
+            clientId: c.id,
+            name: c.displayName || c.tradeName || c.legalName || 'Client',
+            gstin: formattedGstin,
+          });
+        }
+      }
+    });
+
+    // 2. Also include any profiles from GST profiles if not already present
+    profiles.forEach((p) => {
+      if (p.gstin && p.gstin.trim()) {
+        const formattedGstin = p.gstin.trim().toUpperCase();
+        if (!seenGstins.has(formattedGstin)) {
+          seenGstins.add(formattedGstin);
+          list.push({
+            id: p.id,
+            clientId: p.clientId || p.id,
+            name: p.clientName || p.tradeName || p.legalName || 'Client',
+            gstin: formattedGstin,
+          });
+        }
+      }
+    });
+
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients, profiles]);
+
   // 6. Create Individual Filing
   const handleCreateIndividualFiling = async () => {
     if (!newProfileId) {
-      alert('Please select a GST registration profile.');
+      alert('Please select a GST-registered client profile.');
       return;
     }
+
+    const selectedItem = eligibleClients.find((c) => c.id === newProfileId || c.clientId === newProfileId);
 
     try {
       setIsSubmitting(true);
       await gstApi.createFiling({
-        gstProfileId: newProfileId,
+        clientId: selectedItem?.clientId || newProfileId,
+        gstProfileId: profiles.find((p) => p.id === newProfileId || p.clientId === newProfileId)?.id,
+        gstin: selectedItem?.gstin,
         returnType: newReturnType,
         returnPeriod: newPeriod,
         financialYear: newFy,
@@ -325,6 +379,7 @@ export const GstCompliancePage: React.FC = () => {
       setNewTaxableValue('');
       setNewTaxLiability('');
       setNewItc('');
+      setNewProfileId('');
       loadFilings();
     } catch (err: any) {
       alert(`Failed to schedule filing: ${err.response?.data?.message || err.message}`);
@@ -1145,7 +1200,7 @@ export const GstCompliancePage: React.FC = () => {
               Cancel
             </Button>
             <Button onClick={handleExecuteBatchGenerate} isLoading={isSubmitting} leftIcon={<Clock className="w-3.5 h-3.5" />}>
-              Schedule for {profiles.length} Active Clients
+              Schedule for {eligibleClients.length || profiles.length} Active Clients
             </Button>
           </div>
         </div>
@@ -1165,18 +1220,25 @@ export const GstCompliancePage: React.FC = () => {
             <label className="block font-semibold text-slate-700 mb-1">
               Select Client & GSTIN <span className="text-rose-500">*</span>
             </label>
-            <select
-              value={newProfileId}
-              onChange={(e) => setNewProfileId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-            >
-              <option value="">-- Choose Client Profile --</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.clientName || p.tradeName || p.legalName} ({p.gstin})
-                </option>
-              ))}
-            </select>
+            {eligibleClients.length === 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>No GST-registered clients available. Add a GSTIN to a client first.</span>
+              </div>
+            ) : (
+              <select
+                value={newProfileId}
+                onChange={(e) => setNewProfileId(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              >
+                <option value="">-- Choose Client Profile --</option>
+                {eligibleClients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — {c.gstin}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

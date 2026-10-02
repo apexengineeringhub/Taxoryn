@@ -326,6 +326,7 @@ class ClientManagementIntegrationTest {
                     .noteType(NoteType.MEETING)
                     .title("Audit Alignment")
                     .content("Met with CFO.")
+                    .occurredAt(java.time.Instant.now())
                     .build());
         } finally {
             TenantContext.clear();

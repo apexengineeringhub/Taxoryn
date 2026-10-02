@@ -144,7 +144,7 @@ public class ComplianceWorkflowController {
     }
 
     @PostMapping("/workflows/{workflowId}/start")
-    @PreAuthorize("hasAuthority('REVIEW_SUBMIT')")
+    @PreAuthorize("hasAnyAuthority('TASK_EDIT', 'CLIENT_EDIT', 'GST_EDIT', 'ITR_EDIT', 'TDS_EDIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_STAFF', 'ROLE_PRACTITIONER', 'ROLE_MANAGER')")
     @Operation(summary = "Start workflow execution", description = "Transitions workflow from CREATED / READY to IN_PROGRESS.")
     public ResponseEntity<ApiResponse<ComplianceWorkflowDto>> startWorkflow(
             @PathVariable UUID workflowId

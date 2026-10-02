@@ -44,6 +44,9 @@ public class ClientFilterRequest extends PageRequestDto {
     @Schema(description = "Filter by GSTIN", example = "27AAACZ1234D1Z8")
     private String gstin;
 
+    @Schema(description = "Filter clients having a valid non-blank GSTIN registered", example = "true")
+    private Boolean hasGstin;
+
     @Schema(description = "Filter by client code", example = "CLI-001")
     private String clientCode;
 
