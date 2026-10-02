@@ -13,6 +13,7 @@ const ActivateOrgPage = React.lazy(() => import('./pages/ActivateOrgPage').then(
 const AccountSecurityPage = React.lazy(() => import('./pages/AccountSecurityPage').then(m => ({ default: m.AccountSecurityPage })));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ClientsPage = React.lazy(() => import('./pages/ClientsPage').then(m => ({ default: m.ClientsPage })));
+const PracticeLeadsPage = React.lazy(() => import('./pages/PracticeLeadsPage').then(m => ({ default: m.PracticeLeadsPage })));
 const Client360Page = React.lazy(() => import('./pages/Client360Page').then(m => ({ default: m.Client360Page })));
 const ClientMigrationHubPage = React.lazy(() => import('./pages/ClientMigrationHubPage').then(m => ({ default: m.ClientMigrationHubPage })));
 const TasksPage = React.lazy(() => import('./pages/TasksPage').then(m => ({ default: m.TasksPage })));
@@ -226,6 +227,8 @@ export const App: React.FC = () => {
             >
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/leads" element={<ModuleRouteGuard moduleCode="CLIENTS"><PracticeLeadsPage /></ModuleRouteGuard>} />
+              <Route path="/leads/:leadId" element={<ModuleRouteGuard moduleCode="CLIENTS"><PracticeLeadsPage /></ModuleRouteGuard>} />
               <Route
                 path="/clients"
                 element={

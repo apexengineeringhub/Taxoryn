@@ -9,6 +9,9 @@ import {
   ClientNote,
   ClientCommunication,
   ClientCommunicationRequest,
+  PracticeLead,
+  PracticeLeadRequest,
+  PracticeLeadActivity,
   ServiceCatalogItem,
   ClientServiceDto,
   CreateClientServiceRequest,
@@ -436,6 +439,46 @@ export const clientApi = {
   deleteCommunication: async (clientId: string, communicationId: string) => {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${clientId}/communications/${communicationId}`);
     return res.data;
+  },
+};
+
+export const practiceLeadApi = {
+  list: async (params: { page?: number; size?: number; status?: string; priority?: string; source?: string; assignedEmployeeId?: string; interestedServiceCode?: string; search?: string }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<PracticeLead>>>('/v1/leads', { params });
+    return res.data.data;
+  },
+  get: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<PracticeLead>>(`/v1/leads/${id}`);
+    return res.data.data;
+  },
+  create: async (payload: PracticeLeadRequest) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>('/v1/leads', payload);
+    return res.data.data;
+  },
+  update: async (id: string, payload: PracticeLeadRequest) => {
+    const res = await apiClient.put<ApiResponse<PracticeLead>>(`/v1/leads/${id}`, payload);
+    return res.data.data;
+  },
+  remove: async (id: string) => { await apiClient.delete(`/v1/leads/${id}`); },
+  assign: async (id: string, employeeId: string) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>(`/v1/leads/${id}/assign`, { employeeId });
+    return res.data.data;
+  },
+  markLost: async (id: string, reason?: string) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>(`/v1/leads/${id}/lost`, { reason });
+    return res.data.data;
+  },
+  convert: async (id: string, client: Record<string, unknown>) => {
+    const res = await apiClient.post<ApiResponse<PracticeLead>>(`/v1/leads/${id}/convert`, { client });
+    return res.data.data;
+  },
+  activities: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<PracticeLeadActivity[]>>(`/v1/leads/${id}/activities`);
+    return res.data.data;
+  },
+  addActivity: async (id: string, payload: { activityType: string; subject?: string; content: string; occurredAt: string }) => {
+    const res = await apiClient.post<ApiResponse<PracticeLeadActivity>>(`/v1/leads/${id}/activities`, payload);
+    return res.data.data;
   },
 };
 

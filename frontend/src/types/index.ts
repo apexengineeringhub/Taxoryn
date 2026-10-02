@@ -721,6 +721,27 @@ export interface ClientCommunicationRequest {
   followUpDate?: string;
 }
 
+export type PracticeLeadType = 'INDIVIDUAL' | 'BUSINESS';
+export type PracticeLeadSource = 'WEBSITE' | 'PHONE' | 'EMAIL' | 'WALK_IN' | 'REFERRAL' | 'MARKETPLACE' | 'SOCIAL_MEDIA' | 'CAMPAIGN' | 'OTHER';
+export type PracticeLeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'PROPOSAL_SENT' | 'FOLLOW_UP' | 'CONVERTED' | 'LOST';
+export type PracticeLeadPriority = 'CRITICAL' | 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
+export interface PracticeLead {
+  id: string; leadType: PracticeLeadType; name: string; businessName?: string; email?: string; phone?: string;
+  source: PracticeLeadSource; status: PracticeLeadStatus; priority: PracticeLeadPriority;
+  interestedServiceCode?: string; interestedServiceName?: string; description?: string;
+  assignedEmployeeId?: string; assignedEmployeeName?: string; nextFollowUpAt?: string;
+  convertedClientId?: string; convertedAt?: string; createdAt?: string; lostReason?: string;
+}
+export interface PracticeLeadRequest {
+  leadType: PracticeLeadType; name: string; businessName?: string; email?: string; phone?: string;
+  source: PracticeLeadSource; status: PracticeLeadStatus; priority: PracticeLeadPriority;
+  interestedServiceCode?: string; description?: string; assignedEmployeeId?: string; nextFollowUpAt?: string; lostReason?: string;
+}
+export interface PracticeLeadActivity {
+  id: string; leadId: string; activityType: 'NOTE' | 'EMAIL' | 'PHONE_CALL' | 'MEETING' | 'WHATSAPP' | 'SYSTEM_EVENT';
+  subject?: string; content: string; occurredAt: string; authorName?: string; createdAt?: string;
+}
+
 export interface ClientActivityItem {
   id: string;
   eventType: string;

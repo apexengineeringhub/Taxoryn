@@ -99,7 +99,7 @@ public class FlywayMigrationValidationTest {
         MigrationInfo[] allMigrations = infoService.all();
 
         assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(113);
+        assertThat(allMigrations.length).isEqualTo(114);
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
@@ -318,7 +318,7 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(113);
+        assertThat(all).hasSize(114);
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
@@ -611,6 +611,21 @@ public class FlywayMigrationValidationTest {
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS reviewer_user_id UUID REFERENCES users(id)");
         assertThat(sql).contains("ADD COLUMN IF NOT EXISTS priority VARCHAR(32)");
         assertThat(sql).contains("uk_engagements_org_code");
+    }
+
+    @Test
+    @DisplayName("Verify V114 creates practice leads, lead activity, and granular lead permissions")
+    void testV114PracticeLeadMigrationContents() throws Exception {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource migration = resolver.getResource("classpath:db/migration/V114__practice_lead_management_foundation.sql");
+        assertThat(migration.exists()).isTrue();
+        String sql = new String(migration.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS practice_leads");
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS practice_lead_activities");
+        assertThat(sql).contains("idx_practice_leads_org_status");
+        assertThat(sql).contains("idx_practice_leads_org_assigned");
+        assertThat(sql).contains("idx_practice_leads_org_followup");
+        assertThat(sql).contains("LEAD_VIEW", "LEAD_CREATE", "LEAD_UPDATE", "LEAD_ASSIGN", "LEAD_CONVERT", "LEAD_DELETE");
     }
 }
 

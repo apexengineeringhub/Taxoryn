@@ -140,6 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
         { label: 'Team Chat', path: '/chat', icon: MessageSquare, visible: !isSolo },
         { label: isStaff ? 'My Assigned Clients' : 'Clients 360°', path: '/clients', icon: Users, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
+        { label: 'Leads / Enquiries', path: '/leads', icon: UserCheck, requiredPermissions: ['LEAD_VIEW'], allowedRoles: ['TAXORYN_SUPERADMIN', 'SUPER_ADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'SENIOR_TAX_ASSOCIATE', 'STAFF', 'ACCOUNTANT', 'TAX_ASSOCIATE', 'ARTICLE_ASSISTANT', 'PRACTICE_EMPLOYEE', 'EMPLOYEE'], moduleCode: 'CLIENTS' },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
         { label: isStaff ? 'My Compliance Work' : 'Compliance Worklist', path: '/compliance-work', icon: Briefcase, requiredPermissions: ['TASK_VIEW', 'CLIENT_VIEW'], moduleCode: 'TASKS' },
         { label: 'Reminders', path: '/reminders', icon: Bell, requiredPermissions: ['TASK_VIEW'], moduleCode: 'REMINDERS' },

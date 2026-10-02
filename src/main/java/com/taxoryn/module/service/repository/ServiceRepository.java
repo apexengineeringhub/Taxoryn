@@ -22,6 +22,9 @@ public interface ServiceRepository extends JpaRepository<ServiceEntity, UUID>, J
     @Query("SELECT s FROM ServiceEntity s WHERE s.serviceCode = :serviceCode AND (s.organizationId = :organizationId OR s.organizationId IS NULL)")
     Optional<ServiceEntity> findAccessibleServiceByCode(@Param("serviceCode") String serviceCode, @Param("organizationId") UUID organizationId);
 
+    @Query("SELECT s FROM ServiceEntity s WHERE s.serviceCode IN :codes AND (s.organizationId = :organizationId OR s.organizationId IS NULL) ORDER BY CASE WHEN s.organizationId = :organizationId THEN 0 ELSE 1 END")
+    List<ServiceEntity> findAccessibleServicesByCodes(@Param("codes") List<String> codes, @Param("organizationId") UUID organizationId);
+
     @Query("SELECT s FROM ServiceEntity s WHERE (s.organizationId = :organizationId OR s.organizationId IS NULL) AND s.status = 'ACTIVE' ORDER BY s.serviceName ASC")
     List<ServiceEntity> findActiveServicesForTenant(@Param("organizationId") UUID organizationId);
 
