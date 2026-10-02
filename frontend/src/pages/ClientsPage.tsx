@@ -39,6 +39,7 @@ export const ClientsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [drawerTab, setDrawerTab] = useState<'overview' | 'doc_requests'>('overview');
   const [isModalOpen, setIsModalOpen] = useState(() => searchParams.get('action') === 'new' || searchParams.get('create') === 'true');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -171,6 +172,12 @@ export const ClientsPage: React.FC = () => {
     setFieldErrors({});
     setGeneralError('');
 
+    const normalizedGstin = formData.gstin.trim().toUpperCase();
+    if (normalizedGstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(normalizedGstin)) {
+      setFieldErrors({ gstin: 'Enter a valid 15-character GSTIN.' });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const payload: any = {
@@ -185,8 +192,23 @@ export const ClientsPage: React.FC = () => {
       if (formData.email.trim()) payload.email = formData.email.trim();
       if (formData.phone.trim()) payload.phone = formData.phone.trim();
 
-      await clientApi.create(payload);
+      if (editingClient) {
+        const updated = await clientApi.update(editingClient.id, {
+          displayName: formData.displayName.trim(),
+          legalName: formData.legalName.trim(),
+          pan: formData.pan.trim().toUpperCase(),
+          gstin: normalizedGstin,
+          clientType: formData.clientType as Client['clientType'],
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+        });
+        setClients((current) => current.map((client) => client.id === updated.id ? updated : client));
+        setSelectedClient((current) => current?.id === updated.id ? updated : current);
+      } else {
+        await clientApi.create(payload);
+      }
       setIsModalOpen(false);
+      setEditingClient(null);
       setFormData({
         displayName: '',
         legalName: '',
@@ -212,6 +234,23 @@ export const ClientsPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const openEditClient = (client: Client) => {
+    setEditingClient(client);
+    setFormData({
+      displayName: client.displayName || '',
+      legalName: client.legalName || '',
+      pan: client.pan || '',
+      gstin: client.gstin || '',
+      clientType: client.clientType || 'INDIVIDUAL',
+      email: client.email || '',
+      phone: client.phone || '',
+      status: client.status || 'ACTIVE',
+    });
+    setFieldErrors({});
+    setGeneralError('');
+    setIsModalOpen(true);
   };
 
   const clientColumns: Column<Client>[] = [
@@ -369,6 +408,16 @@ export const ClientsPage: React.FC = () => {
             )}
 
             {/* 360 View Button */}
+            {canUpdateClients && (
+              <button
+                onClick={() => openEditClient(row)}
+                className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-md transition-colors"
+                title="Edit client"
+                aria-label={`Edit ${row.displayName}`}
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={() => setSelectedClient(row)}
               className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-md transition-colors"
@@ -386,6 +435,8 @@ export const ClientsPage: React.FC = () => {
   const userRoleCodes = (user?.roles || []).map((r: any) => (typeof r === 'string' ? r : r.code || ''));
   const isFirmAdmin = userRoleCodes.some((r: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'PARTNER'].includes(r));
   const isStaff = userRoleCodes.some((r: string) => ['ARTICLE_ASSISTANT', 'STAFF', 'TRAINEE'].includes(r)) && !isFirmAdmin;
+  const canUpdateClients = (user?.permissions || []).some((permission) => ['CLIENT_UPDATE', 'CLIENT_WRITE'].includes(permission))
+    || userRoleCodes.some((role: string) => ['ORG_ADMIN', 'SUPER_ADMIN', 'TAXORYN_SUPERADMIN', 'PRACTICE_OWNER', 'PRACTICE_ADMIN', 'PRACTITIONER'].includes(role));
 
   return (
     <div className="space-y-6">
@@ -408,7 +459,7 @@ export const ClientsPage: React.FC = () => {
                 Migrate / Bulk Import
               </Button>
             </Link>
-            <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
+            <Button onClick={() => { setEditingClient(null); setIsModalOpen(true); }} leftIcon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
               Add New Client
             </Button>
           </div>
@@ -518,9 +569,9 @@ export const ClientsPage: React.FC = () => {
       {/* Add Client Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add New Client Account"
-        subtitle="Onboard a new client into your practice"
+        onClose={() => { setIsModalOpen(false); setEditingClient(null); }}
+        title={editingClient ? 'Edit Client Account' : 'Add New Client Account'}
+        subtitle={editingClient ? 'Update the existing client profile' : 'Onboard a new client into your practice'}
       >
         <form onSubmit={handleCreateClient} className="space-y-4">
           {generalError && (
@@ -571,7 +622,7 @@ export const ClientsPage: React.FC = () => {
               </label>
               <input
                 type="text"
-                required
+                required={!editingClient}
                 maxLength={10}
                 placeholder="e.g. ABCDE1234F"
                 value={formData.pan}
@@ -632,7 +683,7 @@ export const ClientsPage: React.FC = () => {
               </select>
             </div>
 
-            <div>
+            {!editingClient && <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Initial Status
               </label>
@@ -645,7 +696,7 @@ export const ClientsPage: React.FC = () => {
                 <option value="INACTIVE">Inactive / Deactivated</option>
                 <option value="PROSPECT">Prospect</option>
               </select>
-            </div>
+            </div>}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -700,11 +751,11 @@ export const ClientsPage: React.FC = () => {
           </div>
 
           <div className="pt-4 flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); setEditingClient(null); }}>
               Cancel
             </Button>
             <Button type="submit" isLoading={isSubmitting}>
-              Save Client
+              {editingClient ? 'Save Changes' : 'Save Client'}
             </Button>
           </div>
         </form>

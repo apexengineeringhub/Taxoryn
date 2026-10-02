@@ -4,8 +4,6 @@ import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -23,7 +21,6 @@ import java.util.UUID;
 @Schema(description = "Update Client Master Request Payload")
 public class UpdateClientRequest {
 
-    @NotNull(message = "Client type is required")
     @Schema(description = "Constitution / Legal Type", example = "PRIVATE_LIMITED")
     private ClientType clientType;
 
@@ -31,7 +28,6 @@ public class UpdateClientRequest {
     @Schema(description = "Unique client alphanumeric code within practice", example = "CLI-001")
     private String clientCode;
 
-    @NotBlank(message = "Display name is required")
     @Size(min = 2, max = 255, message = "Display name must be between 2 and 255 characters")
     @Schema(description = "Client primary display name", example = "Zenith Infotech Pvt Ltd")
     private String displayName;
@@ -48,7 +44,7 @@ public class UpdateClientRequest {
     @Schema(description = "Permanent Account Number (PAN)", example = "AAACZ1234D")
     private String pan;
 
-    @Pattern(regexp = "^$|^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", message = "Invalid GSTIN format (expected 15-character GSTIN)")
+    // Normalized and validated in the service so lowercase and surrounding whitespace are accepted.
     @Schema(description = "GSTIN", example = "27AAACZ1234D1Z8")
     private String gstin;
 
