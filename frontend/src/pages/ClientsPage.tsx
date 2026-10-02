@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Plus,
-  Eye,
   Edit2,
+  MoreVertical,
   Trash2,
   Building2,
   User,
@@ -40,6 +41,7 @@ export const ClientsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [actionMenu, setActionMenu] = useState<{ clientId: string; top: number; left: number } | null>(null);
   const [drawerTab, setDrawerTab] = useState<'overview' | 'doc_requests'>('overview');
   const [isModalOpen, setIsModalOpen] = useState(() => searchParams.get('action') === 'new' || searchParams.get('create') === 'true');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -255,7 +257,8 @@ export const ClientsPage: React.FC = () => {
 
   const clientColumns: Column<Client>[] = [
     {
-      header: 'Client / Business Name',
+      header: 'Client',
+      width: '250px',
       accessor: (row) => (
         <Link to={`/clients/${row.id}`} className="flex items-center gap-3 group">
           <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 text-brand-600 flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-brand-100 transition-colors">
@@ -271,7 +274,8 @@ export const ClientsPage: React.FC = () => {
       ),
     },
     {
-      header: 'PAN Card',
+      header: 'PAN',
+      width: '130px',
       accessor: (row) => (
         <span className="font-mono text-xs font-semibold bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-slate-800">
           {row.pan}
@@ -280,6 +284,7 @@ export const ClientsPage: React.FC = () => {
     },
     {
       header: 'GSTIN',
+      width: '170px',
       accessor: (row) => row.gstin ? (
         <span className="font-mono text-xs text-slate-700">{row.gstin}</span>
       ) : (
@@ -287,11 +292,13 @@ export const ClientsPage: React.FC = () => {
       ),
     },
     {
-      header: 'Contact Email',
+      header: 'Email',
+      width: '190px',
       accessor: (row) => row.email || <span className="text-slate-400">—</span>,
     },
     {
-      header: 'Client Portal',
+      header: 'Portal',
+      width: '120px',
       accessor: (row) => {
         const status = (row as any).portalStatus || (row.email ? 'NOT_PROVISIONED' : 'NO_EMAIL');
         if (status === 'ACTIVE') {
@@ -342,89 +349,84 @@ export const ClientsPage: React.FC = () => {
       align: 'center',
     },
     {
-      header: 'Client Status',
+      header: 'Status',
+      width: '110px',
       accessor: (row) => <StatusBadge status={row.status} size="sm" />,
       align: 'center',
     },
     {
-      header: 'Quick Actions',
+      header: 'Actions',
       align: 'right',
+      width: '132px',
+      stickyRight: true,
       cell: (row) => {
-        const isUpdating = statusUpdatingId === row.id;
-        const isResending = resendingId === row.id;
         const portalStatus = (row as any).portalStatus;
+        const isMenuOpen = actionMenu?.clientId === row.id;
 
         return (
-          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-            {/* Set Up Portal button if client has email and portal is not provisioned */}
-            {row.email && (portalStatus === 'NOT_PROVISIONED' || portalStatus === 'NOT_ENABLED' || !portalStatus) && (
-              <button
-                disabled={isResending || isUpdating}
-                onClick={() => handleResendPortalInvite(row.id)}
-                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                title="Set up client portal and send invitation"
-              >
-                <Send className="w-3 h-3 text-emerald-600" />
-                <span>Set Up</span>
-              </button>
-            )}
-
-            {/* Resend Portal Invitation button if invited */}
-            {row.email && portalStatus === 'INVITED' && (
-              <button
-                disabled={isResending || isUpdating}
-                onClick={() => setPortalModalAction({ type: 'RESEND', client: row })}
-                className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                title="Resend portal invitation"
-              >
-                <Send className="w-3 h-3 text-sky-600" />
-                <span>Invite</span>
-              </button>
-            )}
-
-            {/* Portal Lifecycle Action Triggers */}
-            {portalStatus === 'ACTIVE' && (
-              <button
-                disabled={isUpdating}
-                onClick={() => setPortalModalAction({ type: 'SUSPEND', client: row })}
-                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                title="Suspend portal access"
-              >
-                <Ban className="w-3 h-3 text-rose-600" />
-                <span>Suspend Portal</span>
-              </button>
-            )}
-
-            {portalStatus === 'SUSPENDED' && (
-              <button
-                disabled={isUpdating}
-                onClick={() => setPortalModalAction({ type: 'RESTORE', client: row })}
-                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold inline-flex items-center gap-1 transition-colors disabled:opacity-50"
-                title="Restore portal access"
-              >
-                <RotateCcw className="w-3 h-3 text-emerald-600" />
-                <span>Restore Portal</span>
-              </button>
-            )}
-
-            {/* 360 View Button */}
+          <div className="flex min-w-[116px] items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setSelectedClient(row)}
+              className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:text-brand-700 hover:bg-slate-100 rounded transition-colors"
+              title="View client"
+            >
+              View
+            </button>
             {canUpdateClients && (
               <button
                 onClick={() => openEditClient(row)}
-                className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-md transition-colors"
+                className="px-2 py-1 text-[11px] font-semibold text-brand-700 hover:text-brand-800 hover:bg-brand-50 rounded transition-colors"
                 title="Edit client"
                 aria-label={`Edit ${row.displayName}`}
               >
-                <Edit2 className="w-4 h-4" />
+                <span className="inline-flex items-center gap-1"><Edit2 className="w-3 h-3" />Edit</span>
               </button>
             )}
             <button
-              onClick={() => setSelectedClient(row)}
-              className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-md transition-colors"
-              title="View 360° Profile"
+              onClick={(event) => {
+                if (isMenuOpen) {
+                  setActionMenu(null);
+                  return;
+                }
+                const rect = event.currentTarget.getBoundingClientRect();
+                setActionMenu({
+                  clientId: row.id,
+                  top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 236)),
+                  left: Math.max(8, Math.min(rect.right - 196, window.innerWidth - 204)),
+                });
+              }}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
+              title="More client actions"
+              aria-label={`More actions for ${row.displayName}`}
+              aria-expanded={isMenuOpen}
             >
-              <Eye className="w-4 h-4" />
+              <MoreVertical className="w-4 h-4" />
             </button>
+            {isMenuOpen && createPortal(
+              <>
+                <button className="fixed inset-0 z-[100] cursor-default" aria-label="Close actions menu" onClick={() => setActionMenu(null)} />
+                <div
+                  role="menu"
+                  className="fixed z-[101] w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+                  style={{ top: actionMenu.top, left: actionMenu.left }}
+                >
+                  <button role="menuitem" onClick={() => { setActionMenu(null); setSelectedClient(row); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">View Client</button>
+                  {canUpdateClients && <button role="menuitem" onClick={() => { setActionMenu(null); openEditClient(row); }} className="w-full px-3 py-2 text-left text-xs font-semibold text-brand-700 hover:bg-brand-50">Edit Client</button>}
+                  {canUpdateClients && row.email && (portalStatus === 'NOT_PROVISIONED' || portalStatus === 'NOT_ENABLED' || !portalStatus) && (
+                    <button role="menuitem" disabled={resendingId === row.id} onClick={() => { setActionMenu(null); void handleResendPortalInvite(row.id); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50">Set Up Portal</button>
+                  )}
+                  {canUpdateClients && row.email && portalStatus === 'INVITED' && (
+                    <button role="menuitem" onClick={() => { setActionMenu(null); setPortalModalAction({ type: 'RESEND', client: row }); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">Resend Portal Invitation</button>
+                  )}
+                  {canUpdateClients && portalStatus === 'ACTIVE' && (
+                    <button role="menuitem" onClick={() => { setActionMenu(null); setPortalModalAction({ type: 'SUSPEND', client: row }); }} className="w-full px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50">Suspend Portal</button>
+                  )}
+                  {canUpdateClients && portalStatus === 'SUSPENDED' && (
+                    <button role="menuitem" onClick={() => { setActionMenu(null); setPortalModalAction({ type: 'RESTORE', client: row }); }} className="w-full px-3 py-2 text-left text-xs text-emerald-700 hover:bg-emerald-50">Restore Portal</button>
+                  )}
+                </div>
+              </>, document.body
+            )}
           </div>
         );
       },
@@ -564,6 +566,7 @@ export const ClientsPage: React.FC = () => {
         data={clients}
         isLoading={isLoading}
         searchPlaceholder="Search clients by name, PAN, or GSTIN..."
+        minWidth="1080px"
       />
 
       {/* Add Client Modal */}

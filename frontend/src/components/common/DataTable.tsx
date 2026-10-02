@@ -9,6 +9,7 @@ export interface Column<T> {
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
   width?: string;
+  stickyRight?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -28,6 +29,7 @@ interface DataTableProps<T> {
   onPageSizeChange?: (newSize: number) => void;
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
+  minWidth?: string;
 }
 
 export function DataTable<T extends { id?: string | number }>({
@@ -45,6 +47,7 @@ export function DataTable<T extends { id?: string | number }>({
   onPageSizeChange,
   emptyMessage = 'No records found',
   onRowClick,
+  minWidth,
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -128,7 +131,7 @@ export function DataTable<T extends { id?: string | number }>({
 
       {/* Table Container — desktop/tablet (md and up): full table with horizontal scroll fallback */}
       <div className="hidden md:block overflow-x-auto min-h-[250px]">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse" style={minWidth ? { minWidth } : undefined}>
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider select-none">
               {columns.map((col, idx) => (
@@ -139,6 +142,7 @@ export function DataTable<T extends { id?: string | number }>({
                     'px-4 py-3',
                     col.align === 'center' && 'text-center',
                     col.align === 'right' && 'text-right',
+                    col.stickyRight && 'sticky right-0 z-20 bg-slate-50 shadow-[-8px_0_12px_-10px_rgba(15,23,42,0.5)]',
                     col.sortable && 'cursor-pointer hover:bg-slate-100/80 transition-colors'
                   )}
                   onClick={() => col.sortable && typeof col.accessor === 'string' && handleSort(col.accessor)}
@@ -190,7 +194,8 @@ export function DataTable<T extends { id?: string | number }>({
                         'px-4',
                         density === 'compact' ? 'py-2' : 'py-3',
                         col.align === 'center' && 'text-center',
-                        col.align === 'right' && 'text-right'
+                        col.align === 'right' && 'text-right',
+                        col.stickyRight && 'sticky right-0 z-10 bg-white shadow-[-8px_0_12px_-10px_rgba(15,23,42,0.35)]'
                       )}
                     >
                       {renderCellContent(col, row)}
