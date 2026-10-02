@@ -152,7 +152,8 @@ export type ProductModuleCode =
   | 'PRACTICE_DASHBOARD'
   | 'MARKETPLACE'
   | 'GMAIL'
-  | 'SELF_ITR';
+  | 'SELF_ITR'
+  | 'REMINDERS';
 
 export type ProductModuleCategory =
   | 'CORE'

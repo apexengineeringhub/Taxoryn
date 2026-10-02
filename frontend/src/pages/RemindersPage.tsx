@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, Clock, CheckCircle, XCircle, Plus, AlertTriangle, Filter, Users, ChevronDown } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { reminderApi } from '../api/endpoints';
 
 type ReminderStatus = 'PENDING' | 'TRIGGERED' | 'COMPLETED' | 'CANCELLED';
@@ -56,6 +55,7 @@ export function RemindersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [totalElements, setTotalElements] = useState(0);
   const [page, setPage] = useState(0);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const fetchReminders = useCallback(async () => {
     setLoading(true);
@@ -68,7 +68,7 @@ export function RemindersPage() {
       setReminders(data?.content || []);
       setTotalElements(data?.totalElements || 0);
     } catch {
-      toast.error('Failed to load reminders');
+      setFeedback({ type: 'error', message: 'Failed to load reminders' });
     } finally {
       setLoading(false);
     }
@@ -87,33 +87,33 @@ export function RemindersPage() {
   const handleComplete = async (id: string) => {
     try {
       await reminderApi.complete(id);
-      toast.success('Reminder completed');
+      setFeedback({ type: 'success', message: 'Reminder completed' });
       fetchReminders();
       fetchOverdueCount();
     } catch {
-      toast.error('Failed to complete reminder');
+      setFeedback({ type: 'error', message: 'Failed to complete reminder' });
     }
   };
 
   const handleCancel = async (id: string) => {
     try {
       await reminderApi.cancel(id);
-      toast.success('Reminder cancelled');
+      setFeedback({ type: 'success', message: 'Reminder cancelled' });
       fetchReminders();
       fetchOverdueCount();
     } catch {
-      toast.error('Failed to cancel reminder');
+      setFeedback({ type: 'error', message: 'Failed to cancel reminder' });
     }
   };
 
   const handleCreate = async (data: any) => {
     try {
       await reminderApi.create(data);
-      toast.success('Reminder created');
+      setFeedback({ type: 'success', message: 'Reminder created' });
       setShowCreateModal(false);
       fetchReminders();
     } catch {
-      toast.error('Failed to create reminder');
+      setFeedback({ type: 'error', message: 'Failed to create reminder' });
     }
   };
 
@@ -144,6 +144,15 @@ export function RemindersPage() {
           New Reminder
         </button>
       </div>
+
+      {feedback && (
+        <div role={feedback.type === 'error' ? 'alert' : 'status'} className={`mb-4 rounded-lg border px-4 py-3 text-sm ${feedback.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <span>{feedback.message}</span>
+            <button type="button" onClick={() => setFeedback(null)} className="font-semibold" aria-label="Dismiss notification">×</button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-gray-200">
@@ -285,13 +294,15 @@ function CreateReminderModal({ onClose, onCreate }: { onClose: () => void; onCre
   const [reminderType, setReminderType] = useState('GENERAL');
   const [priority, setPriority] = useState('MEDIUM');
   const [notes, setNotes] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !scheduledAt) {
-      toast.error('Title and scheduled time are required');
+      setValidationError('Title and scheduled time are required');
       return;
     }
+    setValidationError('');
     onCreate({
       title: title.trim(),
       description: description.trim() || undefined,
@@ -312,6 +323,7 @@ function CreateReminderModal({ onClose, onCreate }: { onClose: () => void; onCre
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {validationError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{validationError}</p>}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
             <input

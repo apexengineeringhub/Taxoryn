@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, Zap, Plus, Edit, Trash2, XCircle } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { automationRuleApi } from '../api/endpoints';
+
+type Feedback = { type: 'success' | 'error'; message: string };
 
 interface AutomationRule {
   id: string;
@@ -41,6 +42,10 @@ export function AutomationSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+  const showSuccess = (message: string) => setFeedback({ type: 'success', message });
+  const showError = (message: string) => setFeedback({ type: 'error', message });
 
   const fetchRules = useCallback(async () => {
     setLoading(true);
@@ -48,7 +53,7 @@ export function AutomationSettingsPage() {
       const data = await automationRuleApi.list();
       setRules(data || []);
     } catch {
-      toast.error('Failed to load automation rules');
+      showError('Failed to load automation rules');
     } finally {
       setLoading(false);
     }
@@ -58,35 +63,35 @@ export function AutomationSettingsPage() {
 
   const handleToggle = async (rule: AutomationRule) => {
     if (!rule.organizationId) {
-      toast.error('System default rules cannot be modified');
+      showError('System default rules cannot be modified');
       return;
     }
     try {
       if (rule.enabled) {
         await automationRuleApi.disable(rule.id);
-        toast.success(`Rule "${rule.name}" disabled`);
+        showSuccess(`Rule "${rule.name}" disabled`);
       } else {
         await automationRuleApi.enable(rule.id);
-        toast.success(`Rule "${rule.name}" enabled`);
+        showSuccess(`Rule "${rule.name}" enabled`);
       }
       fetchRules();
     } catch {
-      toast.error('Failed to update rule');
+      showError('Failed to update rule');
     }
   };
 
   const handleDelete = async (rule: AutomationRule) => {
     if (!rule.organizationId) {
-      toast.error('System default rules cannot be deleted');
+      showError('System default rules cannot be deleted');
       return;
     }
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
     try {
       await automationRuleApi.delete(rule.id);
-      toast.success('Rule deleted');
+      showSuccess('Rule deleted');
       fetchRules();
     } catch {
-      toast.error('Failed to delete rule');
+      showError('Failed to delete rule');
     }
   };
 
@@ -94,16 +99,16 @@ export function AutomationSettingsPage() {
     try {
       if (editingRule) {
         await automationRuleApi.update(editingRule.id, data);
-        toast.success('Rule updated');
+        showSuccess('Rule updated');
       } else {
         await automationRuleApi.create(data);
-        toast.success('Rule created');
+        showSuccess('Rule created');
       }
       setShowModal(false);
       setEditingRule(null);
       fetchRules();
-    } catch {
-      toast.error('Failed to save rule');
+    } catch (error) {
+      throw error;
     }
   };
 
@@ -128,6 +133,15 @@ export function AutomationSettingsPage() {
           New Rule
         </button>
       </div>
+
+      {feedback && (
+        <div role={feedback.type === 'error' ? 'alert' : 'status'} className={`mb-4 rounded-lg border px-4 py-3 text-sm ${feedback.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <span>{feedback.message}</span>
+            <button type="button" onClick={() => setFeedback(null)} className="font-semibold" aria-label="Dismiss notification">×</button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-16 text-gray-500">Loading rules...</div>
@@ -238,18 +252,28 @@ function RuleCard({
   );
 }
 
-function RuleModal({ rule, onClose, onSave }: { rule: AutomationRule | null; onClose: () => void; onSave: (data: any) => void }) {
+function RuleModal({ rule, onClose, onSave }: { rule: AutomationRule | null; onClose: () => void; onSave: (data: any) => Promise<void> }) {
   const [name, setName] = useState(rule?.name || '');
   const [description, setDescription] = useState(rule?.description || '');
   const [eventType, setEventType] = useState(rule?.eventType || 'TASK_DUE');
   const [daysOffset, setDaysOffset] = useState(rule?.daysOffset ?? -2);
   const [targetType, setTargetType] = useState(rule?.targetType || 'TASK_ASSIGNEE');
   const [enabled, setEnabled] = useState(rule?.enabled ?? true);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { toast.error('Name is required'); return; }
-    onSave({ name: name.trim(), description: description.trim() || undefined, eventType, daysOffset, targetType, enabled });
+    if (!name.trim()) { setError('Name is required'); return; }
+    setError('');
+    setSaving(true);
+    try {
+      await onSave({ name: name.trim(), description: description.trim() || undefined, eventType, daysOffset, targetType, enabled });
+    } catch (saveError: any) {
+      setError(saveError?.response?.data?.message || saveError?.message || 'Failed to save rule');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -260,6 +284,7 @@ function RuleModal({ rule, onClose, onSave }: { rule: AutomationRule | null; onC
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100"><XCircle className="w-5 h-5 text-gray-400" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Rule Name *</label>
             <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="e.g. Remind 2 days before due date" required />
@@ -300,8 +325,8 @@ function RuleModal({ rule, onClose, onSave }: { rule: AutomationRule | null; onC
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">{rule ? 'Update Rule' : 'Create Rule'}</button>
+            <button type="button" onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50">{saving ? 'Saving…' : rule ? 'Update Rule' : 'Create Rule'}</button>
           </div>
         </form>
       </div>
