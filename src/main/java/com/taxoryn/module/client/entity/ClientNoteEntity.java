@@ -45,7 +45,15 @@ public class ClientNoteEntity extends TenantAuditableEntity {
     private String content;
 
     @Column(name = "occurred_at", nullable = false)
-    private Instant occurredAt;
+    @Builder.Default
+    private Instant occurredAt = Instant.now();
+
+    @jakarta.persistence.PrePersist
+    public void prePersist() {
+        if (this.occurredAt == null) {
+            this.occurredAt = Instant.now();
+        }
+    }
 
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility", nullable = false, length = 24)

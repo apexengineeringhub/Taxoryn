@@ -343,6 +343,10 @@ public class ClientServiceImpl implements ClientService {
             sendClientPortalInvitation(saved, portalUser, organizationId);
         }
 
+        if (StringUtils.hasText(saved.getGstin())) {
+            syncGstProfileForClient(organizationId, saved);
+        }
+
         ClientDto result = enrichDto(saved);
         auditService.logEvent("CLIENT_CREATED", "CLIENT", saved.getId().toString(), null, result);
         return result;
@@ -440,6 +444,9 @@ public class ClientServiceImpl implements ClientService {
 
         ClientEntity saved = clientRepository.save(client);
         log.info("Updated client: id={} for tenant={}", saved.getId(), organizationId);
+        if (StringUtils.hasText(saved.getGstin())) {
+            syncGstProfileForClient(organizationId, saved);
+        }
         ClientDto updatedDto = enrichDto(saved);
         auditService.logEvent("CLIENT_UPDATED", "CLIENT", saved.getId().toString(), oldSnapshot, updatedDto);
         return updatedDto;
@@ -551,6 +558,20 @@ public class ClientServiceImpl implements ClientService {
 
             if (StringUtils.hasText(filterRequest.getGstin())) {
                 predicates.add(cb.equal(cb.lower(root.get("gstin")), filterRequest.getGstin().trim().toLowerCase()));
+            }
+
+            if (filterRequest.getHasGstin() != null) {
+                if (Boolean.TRUE.equals(filterRequest.getHasGstin())) {
+                    predicates.add(cb.and(
+                            cb.isNotNull(root.get("gstin")),
+                            cb.notEqual(cb.trim(root.get("gstin")), "")
+                    ));
+                } else {
+                    predicates.add(cb.or(
+                            cb.isNull(root.get("gstin")),
+                            cb.equal(cb.trim(root.get("gstin")), "")
+                    ));
+                }
             }
 
             if (StringUtils.hasText(filterRequest.getTan())) {
@@ -1864,6 +1885,9 @@ public class ClientServiceImpl implements ClientService {
                 client.setOrganizationId(organizationId);
 
                 ClientEntity saved = clientRepository.save(client);
+                if (StringUtils.hasText(saved.getGstin())) {
+                    syncGstProfileForClient(organizationId, saved);
+                }
                 result.getImportedClients().add(enrichDto(saved));
                 result.setTotalSuccess(result.getTotalSuccess() + 1);
 
@@ -2391,5 +2415,42 @@ public class ClientServiceImpl implements ClientService {
         }
 
         return dto;
+    }
+
+    private void syncGstProfileForClient(UUID organizationId, ClientEntity client) {
+        if (gstProfileRepository == null || client == null || !StringUtils.hasText(client.getGstin())) {
+            return;
+        }
+        String gstin = client.getGstin().toUpperCase().trim();
+        Optional<com.taxoryn.module.gst.entity.GstProfileEntity> existing = gstProfileRepository.findByOrganizationIdAndClientId(organizationId, client.getId());
+        if (existing.isPresent()) {
+            com.taxoryn.module.gst.entity.GstProfileEntity profile = existing.get();
+            profile.setGstin(gstin);
+            profile.setLegalName(StringUtils.hasText(client.getLegalName()) ? client.getLegalName() : client.getDisplayName());
+            profile.setTradeName(client.getDisplayName());
+            if (client.getAssignedEmployeeId() != null) {
+                profile.setAssignedEmployeeId(client.getAssignedEmployeeId());
+            }
+            if (client.getStatus() == ClientStatus.ACTIVE) {
+                profile.setStatus(com.taxoryn.module.gst.entity.GstProfileEntity.GstProfileStatus.ACTIVE);
+            }
+            gstProfileRepository.save(profile);
+        } else {
+            String stateCode = gstin.length() >= 2 ? gstin.substring(0, 2) : "27";
+            com.taxoryn.module.gst.entity.GstProfileEntity profile = com.taxoryn.module.gst.entity.GstProfileEntity.builder()
+                    .clientId(client.getId())
+                    .gstin(gstin)
+                    .legalName(StringUtils.hasText(client.getLegalName()) ? client.getLegalName() : client.getDisplayName())
+                    .tradeName(client.getDisplayName())
+                    .gstType(com.taxoryn.module.gst.entity.GstProfileEntity.GstType.REGULAR)
+                    .filingFrequency(com.taxoryn.module.gst.entity.GstProfileEntity.FilingFrequency.MONTHLY)
+                    .registrationDate(LocalDate.now())
+                    .stateCode(stateCode)
+                    .assignedEmployeeId(client.getAssignedEmployeeId())
+                    .status(client.getStatus() == ClientStatus.ACTIVE ? com.taxoryn.module.gst.entity.GstProfileEntity.GstProfileStatus.ACTIVE : com.taxoryn.module.gst.entity.GstProfileEntity.GstProfileStatus.SUSPENDED)
+                    .build();
+            profile.setOrganizationId(organizationId);
+            gstProfileRepository.save(profile);
+        }
     }
 }

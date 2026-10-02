@@ -128,3 +128,52 @@ SET
     currency = EXCLUDED.currency,
     billing_type = EXCLUDED.billing_type,
     updated_at = CURRENT_TIMESTAMP;
+
+
+ ALTER TABLE invoice_items
+     ADD COLUMN IF NOT EXISTS catalog_service_code VARCHAR(100);
+
+ ALTER TABLE marketplace_proposals
+     ADD COLUMN IF NOT EXISTS catalog_service_code VARCHAR(100);
+
+ CREATE TABLE IF NOT EXISTS practice_service_pricing (
+     id UUID PRIMARY KEY,
+     organization_id UUID NOT NULL,
+     tax_service_id UUID NOT NULL,
+
+     pricing_mode VARCHAR(30) NOT NULL DEFAULT 'DEFAULT',
+     custom_price NUMERIC(15,2),
+
+     enabled BOOLEAN NOT NULL DEFAULT TRUE,
+
+     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+     created_by VARCHAR(255),
+     updated_by VARCHAR(255),
+
+     version BIGINT NOT NULL DEFAULT 0,
+
+     CONSTRAINT fk_practice_service_pricing_org
+         FOREIGN KEY (organization_id)
+         REFERENCES organizations(id)
+         ON DELETE CASCADE,
+
+     CONSTRAINT fk_practice_service_pricing_service
+         FOREIGN KEY (tax_service_id)
+         REFERENCES marketplace_tax_services(id)
+         ON DELETE CASCADE,
+
+     CONSTRAINT uk_practice_service_pricing_org_service
+         UNIQUE (organization_id, tax_service_id),
+
+     CONSTRAINT chk_practice_service_pricing_price
+         CHECK (custom_price IS NULL OR custom_price >= 0)
+ );
+
+ CREATE INDEX IF NOT EXISTS idx_practice_service_pricing_org
+     ON practice_service_pricing (organization_id);
+
+ CREATE INDEX IF NOT EXISTS idx_practice_service_pricing_service
+     ON practice_service_pricing (tax_service_id);
+

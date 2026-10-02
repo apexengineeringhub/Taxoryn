@@ -265,6 +265,7 @@ class Client360AggregationIntegrationTest {
         note.setTitle("Client Urgent Request");
         note.setNoteType(NoteType.GENERAL);
         note.setContent("Client requested urgent advance tax assessment assistance.");
+        note.setOccurredAt(java.time.Instant.now());
         clientNoteRepository.save(note);
 
         // Add Tasks

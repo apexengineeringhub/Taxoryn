@@ -8,6 +8,7 @@ import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.compliance.dto.ApproveWorkflowRequest;
+import com.taxoryn.module.compliance.dto.AssignComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.CompleteComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.CreateComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.MarkWorkflowFiledRequest;
@@ -95,6 +96,12 @@ public class ComplianceWorkflowIntegrationTest {
     private RoleRepository roleRepository;
 
     @Autowired
+    private com.taxoryn.module.role.repository.PermissionRepository permissionRepository;
+
+    @Autowired
+    private com.taxoryn.module.employee.repository.EmployeeRepository employeeRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -104,6 +111,12 @@ public class ComplianceWorkflowIntegrationTest {
     private LocationEntity location;
     private UserEntity adminUser;
     private String adminToken;
+    private UserEntity makerUser;
+    private com.taxoryn.module.employee.entity.EmployeeEntity makerEmployee;
+    private String makerToken;
+    private UserEntity reviewerUser;
+    private com.taxoryn.module.employee.entity.EmployeeEntity reviewerEmployee;
+    private String reviewerToken;
     private ClientEntity client;
     private ComplianceObligationEntity obligation;
 
@@ -129,11 +142,38 @@ public class ComplianceWorkflowIntegrationTest {
         loc.setOrganizationId(org.getId());
         location = locationRepository.save(loc);
 
+        // Permissions for Review
+        com.taxoryn.module.role.entity.PermissionEntity submitPerm = permissionRepository.findByCode("REVIEW_SUBMIT")
+                .orElseGet(() -> permissionRepository.save(com.taxoryn.module.role.entity.PermissionEntity.builder()
+                        .code("REVIEW_SUBMIT").name("Submit Review").module("REVIEW").build()));
+
+        com.taxoryn.module.role.entity.PermissionEntity approvePerm = permissionRepository.findByCode("REVIEW_APPROVE")
+                .orElseGet(() -> permissionRepository.save(com.taxoryn.module.role.entity.PermissionEntity.builder()
+                        .code("REVIEW_APPROVE").name("Approve Review").module("REVIEW").build()));
+
+        com.taxoryn.module.role.entity.PermissionEntity rejectPerm = permissionRepository.findByCode("REVIEW_REJECT")
+                .orElseGet(() -> permissionRepository.save(com.taxoryn.module.role.entity.PermissionEntity.builder()
+                        .code("REVIEW_REJECT").name("Reject Review").module("REVIEW").build()));
+
         RoleEntity adminRole = roleRepository.save(RoleEntity.builder()
                 .code("ORG_ADMIN")
                 .name("Organization Admin")
                 .isSystemRole(true)
                 .permissions(new HashSet<>())
+                .build());
+
+        RoleEntity reviewerRole = roleRepository.save(RoleEntity.builder()
+                .code("MANAGER")
+                .name("Tax Manager Reviewer")
+                .isSystemRole(true)
+                .permissions(new HashSet<>(Set.of(approvePerm, rejectPerm)))
+                .build());
+
+        RoleEntity makerRole = roleRepository.save(RoleEntity.builder()
+                .code("STAFF")
+                .name("Maker Preparer")
+                .isSystemRole(true)
+                .permissions(new HashSet<>(Set.of(submitPerm)))
                 .build());
 
         adminUser = userRepository.save(UserEntity.builder()
@@ -151,7 +191,69 @@ public class ComplianceWorkflowIntegrationTest {
                 org.getId(),
                 adminUser.getEmail(),
                 Set.of("ROLE_ORG_ADMIN"),
-                Set.of("ROLE_ORG_ADMIN", "CLIENT_VIEW", "CLIENT_EDIT", "TASK_VIEW", "TASK_CREATE", "TASK_EDIT", "GST_VIEW", "GST_EDIT")
+                Set.of("ROLE_ORG_ADMIN", "CLIENT_VIEW", "CLIENT_EDIT", "TASK_VIEW", "TASK_CREATE", "TASK_EDIT", "TASK_ASSIGN", "GST_VIEW", "GST_EDIT")
+        );
+
+        // Create Maker (Preparer) User & Employee
+        makerUser = userRepository.save(UserEntity.builder()
+                .organizationId(org.getId())
+                .email("maker-" + UUID.randomUUID() + "@zenithtax.com")
+                .passwordHash(passwordEncoder.encode("SecurePass123!"))
+                .firstName("Rahul")
+                .lastName("Sharma")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(makerRole))
+                .build());
+
+        makerEmployee = com.taxoryn.module.employee.entity.EmployeeEntity.builder()
+                .employeeCode("EMP-MAKER-01")
+                .firstName("Rahul")
+                .lastName("Sharma")
+                .email(makerUser.getEmail())
+                .department("Tax & Compliance")
+                .status(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE)
+                .userId(makerUser.getId())
+                .build();
+        makerEmployee.setOrganizationId(org.getId());
+        makerEmployee = employeeRepository.save(makerEmployee);
+
+        makerToken = jwtTokenProvider.generateAccessToken(
+                makerUser.getId(),
+                org.getId(),
+                makerUser.getEmail(),
+                Set.of("ROLE_STAFF"),
+                Set.of("ROLE_STAFF", "CLIENT_VIEW", "CLIENT_EDIT", "TASK_VIEW", "TASK_CREATE", "TASK_EDIT", "GST_VIEW", "GST_EDIT", "REVIEW_SUBMIT")
+        );
+
+        // Create Reviewer (Checker) User & Employee
+        reviewerUser = userRepository.save(UserEntity.builder()
+                .organizationId(org.getId())
+                .email("reviewer-" + UUID.randomUUID() + "@zenithtax.com")
+                .passwordHash(passwordEncoder.encode("SecurePass123!"))
+                .firstName("Priya")
+                .lastName("Nair")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(reviewerRole))
+                .build());
+
+        reviewerEmployee = com.taxoryn.module.employee.entity.EmployeeEntity.builder()
+                .employeeCode("EMP-CHECKER-01")
+                .firstName("Priya")
+                .lastName("Nair")
+                .email(reviewerUser.getEmail())
+                .department("Tax & Compliance")
+                .status(com.taxoryn.module.employee.entity.EmployeeEntity.EmployeeStatus.ACTIVE)
+                .userId(reviewerUser.getId())
+                .build();
+        reviewerEmployee.setOrganizationId(org.getId());
+        reviewerEmployee = employeeRepository.save(reviewerEmployee);
+
+        reviewerToken = jwtTokenProvider.generateAccessToken(
+                reviewerUser.getId(),
+                org.getId(),
+                reviewerUser.getEmail(),
+                Set.of("ROLE_MANAGER"),
+                Set.of("ROLE_MANAGER", "CLIENT_VIEW", "CLIENT_EDIT", "TASK_VIEW", "TASK_EDIT", "GST_VIEW", "GST_EDIT", "REVIEW_APPROVE", "REVIEW_REJECT", "REVIEW_VIEW")
         );
 
         ClientEntity clientEntity = ClientEntity.builder()
@@ -161,6 +263,8 @@ public class ComplianceWorkflowIntegrationTest {
                 .status(ClientStatus.ACTIVE)
                 .pan("NEXUS1234F")
                 .gstin("29NEXUS1234F1Z5")
+                .assignedEmployeeId(makerEmployee.getId())
+                .locationId(location.getId())
                 .build();
         clientEntity.setOrganizationId(org.getId());
         client = clientRepository.save(clientEntity);
@@ -193,7 +297,9 @@ public class ComplianceWorkflowIntegrationTest {
         obligationRepository.deleteAll();
         clientRepository.deleteAll();
         locationRepository.deleteAll();
+        employeeRepository.deleteAll();
         userRepository.deleteAll();
+        roleRepository.deleteAll();
         organizationRepository.deleteAll();
     }
 
@@ -281,15 +387,26 @@ public class ComplianceWorkflowIntegrationTest {
 
         UUID workflowId = UUID.fromString(objectMapper.readTree(wfJson).get("data").get("id").asText());
 
-        // 2. Start
+        // Assign maker as preparer and reviewer as checker
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .priority(TaskPriority.HIGH)
+                                .build())))
+                .andExpect(status().isOk());
+
+        // 2. Start (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
-                        .header("Authorization", "Bearer " + adminToken))
+                        .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("IN_PROGRESS"));
 
-        // 3. Wait client
+        // 3. Wait client (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/wait-client")
-                        .header("Authorization", "Bearer " + adminToken)
+                        .header("Authorization", "Bearer " + makerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(WaitClientWorkflowRequest.builder()
                                 .reason("Awaiting sales register for SEZ unit")
@@ -298,22 +415,22 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.data.workflowStatus").value("WAITING_FOR_CLIENT"))
                 .andExpect(jsonPath("$.data.waitingForClient").value(true));
 
-        // 4. Resume
+        // 4. Resume (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/resume-client")
-                        .header("Authorization", "Bearer " + adminToken))
+                        .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.data.waitingForClient").value(false));
 
-        // 5. Submit for Review
+        // 5. Submit for Review (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
-                        .header("Authorization", "Bearer " + adminToken))
+                        .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("UNDER_REVIEW"));
 
-        // 6. Request Changes
+        // 6. Request Changes (by Reviewer / Checker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/request-changes")
-                        .header("Authorization", "Bearer " + adminToken)
+                        .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(RequestWorkflowChangesRequest.builder()
                                 .reason("Please re-check RCM liability on freight inward")
@@ -321,15 +438,15 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("CHANGES_REQUIRED"));
 
-        // 7. Resubmit -> Submit review
+        // 7. Resubmit -> Submit review (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
-                        .header("Authorization", "Bearer " + adminToken))
+                        .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("UNDER_REVIEW"));
 
-        // 8. Approve
+        // 8. Approve (by Reviewer / Checker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
-                        .header("Authorization", "Bearer " + adminToken)
+                        .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder()
                                 .approvalNotes("RCM checked. Computation approved.")
@@ -337,9 +454,9 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("READY_FOR_FILING"));
 
-        // 9. Mark Filed
+        // 9. Mark Filed (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/mark-filed")
-                        .header("Authorization", "Bearer " + adminToken)
+                        .header("Authorization", "Bearer " + makerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(MarkWorkflowFiledRequest.builder()
                                 .acknowledgementNumber("ARN-AA2908260012345")
@@ -349,7 +466,7 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.data.workflowStatus").value("FILED"))
                 .andExpect(jsonPath("$.data.acknowledgementNumber").value("ARN-AA2908260012345"));
 
-        // 10. Complete
+        // 10. Complete (by Admin)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/complete")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -363,6 +480,139 @@ public class ComplianceWorkflowIntegrationTest {
         // Verify underlying obligation is now COMPLETED
         ComplianceObligationEntity updatedOb = obligationRepository.findById(obligation.getId()).orElseThrow();
         assertThat(updatedOb.getStatus()).isEqualTo(ComplianceObligationStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("Maker-checker separation rule: Maker cannot approve own review submission")
+    void testMakerCannotApproveOwnReview() throws Exception {
+        String wfJson = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID workflowId = UUID.fromString(objectMapper.readTree(wfJson).get("data").get("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .priority(TaskPriority.HIGH)
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // Maker attempts to approve own review -> 403 Forbidden
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + makerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder()
+                                .approvalNotes("Self approval attempt")
+                                .build())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Unauthorized employee cannot approve workflow without reviewer assignment/permissions")
+    void testUnauthorizedEmployeeCannotApprove() throws Exception {
+        UserEntity randomUser = userRepository.save(UserEntity.builder()
+                .organizationId(org.getId())
+                .email("random-" + UUID.randomUUID() + "@zenithtax.com")
+                .passwordHash(passwordEncoder.encode("SecurePass123!"))
+                .firstName("Random")
+                .lastName("Staff")
+                .status(UserStatus.ACTIVE)
+                .build());
+
+        String randomToken = "Bearer " + jwtTokenProvider.generateAccessToken(
+                randomUser.getId(),
+                org.getId(),
+                randomUser.getEmail(),
+                Set.of("ROLE_STAFF"),
+                Set.of("ROLE_STAFF", "CLIENT_VIEW", "TASK_VIEW")
+        );
+
+        String wfJson = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID workflowId = UUID.fromString(objectMapper.readTree(wfJson).get("data").get("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .priority(TaskPriority.HIGH)
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // Random user without REVIEW_APPROVE attempts approval -> 403 Forbidden
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", randomToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder()
+                                .approvalNotes("Unauthorized approval")
+                                .build())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Cross-tenant reviewer is denied access to another organization's compliance workflow")
+    void testCrossTenantReviewerDenied() throws Exception {
+        OrganizationEntity org2 = organizationRepository.save(OrganizationEntity.builder()
+                .name("Other Tax Firm LLP")
+                .legalName("Other Tax Firm LLP")
+                .status(OrganizationStatus.ACTIVE)
+                .email("other-" + UUID.randomUUID() + "@othertax.in")
+                .build());
+
+        UserEntity crossOrgUser = userRepository.save(UserEntity.builder()
+                .organizationId(org2.getId())
+                .email("cross-" + UUID.randomUUID() + "@othertax.com")
+                .passwordHash(passwordEncoder.encode("SecurePass123!"))
+                .firstName("Cross")
+                .lastName("Reviewer")
+                .status(UserStatus.ACTIVE)
+                .build());
+
+        String crossOrgToken = "Bearer " + jwtTokenProvider.generateAccessToken(
+                crossOrgUser.getId(),
+                org2.getId(),
+                crossOrgUser.getEmail(),
+                Set.of("ROLE_MANAGER"),
+                Set.of("ROLE_MANAGER", "CLIENT_VIEW", "REVIEW_APPROVE", "REVIEW_VIEW")
+        );
+
+        String wfJson = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID workflowId = UUID.fromString(objectMapper.readTree(wfJson).get("data").get("id").asText());
+
+        // Cross-org reviewer attempts to access workflow -> 404 / 403
+        mockMvc.perform(get("/api/v1/compliance/workflows/" + workflowId)
+                        .header("Authorization", crossOrgToken))
+                .andExpect(status().isNotFound());
     }
 
     @Test

@@ -21,8 +21,11 @@ import java.util.UUID;
 @Schema(description = "Create / Schedule GST Return Filing Request Payload")
 public class CreateGstReturnFilingRequest {
 
-    @Schema(description = "GST Profile ID (optional if GSTIN is provided)", example = "d1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    @Schema(description = "GST Profile ID (optional if clientId or GSTIN is provided)", example = "d1b2c3d4-e5f6-7890-abcd-ef1234567890")
     private UUID gstProfileId;
+
+    @Schema(description = "Client ID (used to auto-resolve or create GST profile)", example = "d1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    private UUID clientId;
 
     @Schema(description = "15-digit GSTIN (used to auto-resolve GST profile)", example = "27AAACZ1234D1Z8")
     private String gstin;

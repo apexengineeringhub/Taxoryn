@@ -301,12 +301,97 @@ public class GstServiceImpl implements GstService {
     public GstReturnFilingDto createFiling(CreateGstReturnFilingRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        GstProfileEntity profile = gstProfileRepository.findByIdAndOrganizationId(request.getGstProfileId(), organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("GST Profile", "id", request.getGstProfileId()));
+        GstProfileEntity profile = null;
+        if (request.getGstProfileId() != null) {
+            profile = gstProfileRepository.findByIdAndOrganizationId(request.getGstProfileId(), organizationId).orElse(null);
+            if (profile == null) {
+                Optional<ClientEntity> clientOpt = clientRepository.findByIdAndOrganizationId(request.getGstProfileId(), organizationId);
+                if (clientOpt.isPresent()) {
+                    ClientEntity client = clientOpt.get();
+                    validateClientAccess(client.getId());
+                    if (!StringUtils.hasText(client.getGstin())) {
+                        throw new com.taxoryn.core.exception.BadRequestException("Selected client does not have a GSTIN registered in Client Master.");
+                    }
+                    String gstin = client.getGstin().toUpperCase().trim();
+                    profile = gstProfileRepository.findByOrganizationIdAndClientId(organizationId, client.getId())
+                            .orElseGet(() -> {
+                                String stateCode = gstin.length() >= 2 ? gstin.substring(0, 2) : "27";
+                                GstProfileEntity newProfile = GstProfileEntity.builder()
+                                        .clientId(client.getId())
+                                        .gstin(gstin)
+                                        .legalName(StringUtils.hasText(client.getLegalName()) ? client.getLegalName() : client.getDisplayName())
+                                        .tradeName(client.getDisplayName())
+                                        .gstType(GstType.REGULAR)
+                                        .filingFrequency(FilingFrequency.MONTHLY)
+                                        .registrationDate(LocalDate.now())
+                                        .stateCode(stateCode)
+                                        .assignedEmployeeId(client.getAssignedEmployeeId())
+                                        .status(GstProfileStatus.ACTIVE)
+                                        .build();
+                                newProfile.setOrganizationId(organizationId);
+                                return gstProfileRepository.save(newProfile);
+                            });
+                } else {
+                    throw new ResourceNotFoundException("GST Profile", "id", request.getGstProfileId());
+                }
+            }
+        } else if (request.getClientId() != null) {
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client", "id", request.getClientId()));
+            validateClientAccess(client.getId());
+            if (!StringUtils.hasText(client.getGstin())) {
+                throw new com.taxoryn.core.exception.BadRequestException("Selected client does not have a GSTIN registered in Client Master.");
+            }
+            String gstin = client.getGstin().toUpperCase().trim();
+            profile = gstProfileRepository.findByOrganizationIdAndClientId(organizationId, client.getId())
+                    .orElseGet(() -> {
+                        String stateCode = gstin.length() >= 2 ? gstin.substring(0, 2) : "27";
+                        GstProfileEntity newProfile = GstProfileEntity.builder()
+                                .clientId(client.getId())
+                                .gstin(gstin)
+                                .legalName(StringUtils.hasText(client.getLegalName()) ? client.getLegalName() : client.getDisplayName())
+                                .tradeName(client.getDisplayName())
+                                .gstType(GstType.REGULAR)
+                                .filingFrequency(FilingFrequency.MONTHLY)
+                                .registrationDate(LocalDate.now())
+                                .stateCode(stateCode)
+                                .assignedEmployeeId(client.getAssignedEmployeeId())
+                                .status(GstProfileStatus.ACTIVE)
+                                .build();
+                        newProfile.setOrganizationId(organizationId);
+                        return gstProfileRepository.save(newProfile);
+                    });
+        } else if (StringUtils.hasText(request.getGstin())) {
+            String formattedGstin = request.getGstin().toUpperCase().trim();
+            profile = gstProfileRepository.findByOrganizationIdAndGstin(organizationId, formattedGstin)
+                    .orElseGet(() -> {
+                        ClientEntity client = clientRepository.findByOrganizationIdAndGstin(organizationId, formattedGstin)
+                                .orElseThrow(() -> new ResourceNotFoundException("Client with GSTIN", "gstin", formattedGstin));
+                        validateClientAccess(client.getId());
+                        String stateCode = formattedGstin.length() >= 2 ? formattedGstin.substring(0, 2) : "27";
+                        GstProfileEntity newProfile = GstProfileEntity.builder()
+                                .clientId(client.getId())
+                                .gstin(formattedGstin)
+                                .legalName(StringUtils.hasText(client.getLegalName()) ? client.getLegalName() : client.getDisplayName())
+                                .tradeName(client.getDisplayName())
+                                .gstType(GstType.REGULAR)
+                                .filingFrequency(FilingFrequency.MONTHLY)
+                                .registrationDate(LocalDate.now())
+                                .stateCode(stateCode)
+                                .assignedEmployeeId(client.getAssignedEmployeeId())
+                                .status(GstProfileStatus.ACTIVE)
+                                .build();
+                        newProfile.setOrganizationId(organizationId);
+                        return gstProfileRepository.save(newProfile);
+                    });
+        } else {
+            throw new com.taxoryn.core.exception.BadRequestException("Either gstProfileId, clientId, or gstin is required to schedule a GST filing");
+        }
+
         validateClientAccess(profile.getClientId());
 
         if (gstReturnFilingRepository.existsByOrganizationIdAndGstProfileIdAndReturnTypeAndReturnPeriod(
-                organizationId, request.getGstProfileId(), request.getReturnType(), request.getReturnPeriod())) {
+                organizationId, profile.getId(), request.getReturnType(), request.getReturnPeriod())) {
             throw new DuplicateResourceException("GST Return Filing", "returnType & period",
                     request.getReturnType() + " for " + request.getReturnPeriod());
         }

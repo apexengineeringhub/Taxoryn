@@ -360,7 +360,7 @@ export const dashboardApi = {
 
 // --- 3. Clients ---
 export const clientApi = {
-  getAll: async (params?: { page?: number; size?: number; status?: string; search?: string; portalStatus?: string }) => {
+  getAll: async (params?: { page?: number; size?: number; status?: string; search?: string; portalStatus?: string; hasGstin?: boolean; gstin?: string }) => {
     const res = await apiClient.get<ApiResponse<PagedResponse<Client>>>('/v1/clients', { params });
     return res.data.data;
   },
