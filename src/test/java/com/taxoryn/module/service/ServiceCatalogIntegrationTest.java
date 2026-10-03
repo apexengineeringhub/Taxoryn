@@ -9,6 +9,10 @@ import com.taxoryn.module.billing.entity.InvoiceEntity;
 import com.taxoryn.module.billing.repository.InvoiceRepository;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
+import com.taxoryn.module.engagement.dto.CreateEngagementRequest;
+import com.taxoryn.module.engagement.model.EngagementPriority;
+import com.taxoryn.module.engagement.model.EngagementStatus;
+import com.taxoryn.module.engagement.repository.EngagementRepository;
 import com.taxoryn.module.organization.entity.OrganizationEntity;
 import com.taxoryn.module.organization.entity.OrganizationEntity.OrganizationStatus;
 import com.taxoryn.module.organization.repository.OrganizationRepository;
@@ -87,6 +91,9 @@ public class ServiceCatalogIntegrationTest {
 
     @Autowired
     private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private EngagementRepository engagementRepository;
 
     private OrganizationEntity orgA;
     private UserEntity userA;
@@ -460,6 +467,238 @@ public class ServiceCatalogIntegrationTest {
                 .andExpect(jsonPath("$.data.totalAmount").value(2360.00))
                 .andExpect(jsonPath("$.data.items[0].unitPrice").value(2000.00))
                 .andExpect(jsonPath("$.data.items[0].taxRate").value(18.00));
+    }
+
+    @Test
+    @DisplayName("Engagement creation successfully links to custom practice service")
+    void testEngagementCreationWithCustomPracticeService() throws Exception {
+        TenantContext.setTenantId(orgA.getId());
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Client For Custom Service - " + UUID.randomUUID())
+                .clientType(ClientEntity.ClientType.INDIVIDUAL)
+                .status(ClientEntity.ClientStatus.ACTIVE)
+                .email("cust." + UUID.randomUUID() + "@example.com")
+                .pan("ABCDE9999Z")
+                .build();
+        client.setOrganizationId(orgA.getId());
+        client = clientRepository.save(client);
+        TenantContext.clear();
+
+        // 1. Create practice custom service
+        String sCode = "PAYROLL_" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        CreateServiceRequest serviceReq = CreateServiceRequest.builder()
+                .serviceCode(sCode)
+                .serviceName("Monthly Payroll Processing")
+                .category(ServiceCategory.ADVISORY)
+                .billingUnit("PER_MONTH")
+                .defaultPrice(new BigDecimal("7500.00"))
+                .taxRate(new BigDecimal("18.00"))
+                .build();
+
+        String serviceResp = mockMvc.perform(post("/api/v1/services")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(serviceReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID serviceId = UUID.fromString(objectMapper.readTree(serviceResp).path("data").path("id").asText());
+
+        // 2. Create Engagement with custom service
+        CreateEngagementRequest engReq = CreateEngagementRequest.builder()
+                .clientId(client.getId())
+                .serviceId(serviceId)
+                .name("FY 2026-27 Payroll Mandate")
+                .priority(EngagementPriority.HIGH)
+                .status(EngagementStatus.ACTIVE)
+                .startDate(LocalDate.of(2026, 4, 1))
+                .build();
+
+        mockMvc.perform(post("/api/v1/engagements")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(engReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.serviceId").value(serviceId.toString()))
+                .andExpect(jsonPath("$.data.serviceName").value("Monthly Payroll Processing"))
+                .andExpect(jsonPath("$.data.serviceCategory").value("ADVISORY"));
+    }
+
+    @Test
+    @DisplayName("Inactive service cannot be used to create a new engagement")
+    void testInactiveServiceCannotBeUsedForNewEngagement() throws Exception {
+        TenantContext.setTenantId(orgA.getId());
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Client For Inactive Service - " + UUID.randomUUID())
+                .clientType(ClientEntity.ClientType.INDIVIDUAL)
+                .status(ClientEntity.ClientStatus.ACTIVE)
+                .email("inactive." + UUID.randomUUID() + "@example.com")
+                .pan("ABCDE8888Y")
+                .build();
+        client.setOrganizationId(orgA.getId());
+        client = clientRepository.save(client);
+        TenantContext.clear();
+
+        // 1. Create and deactivate a service
+        String sCode = "DEPRECATED_" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        CreateServiceRequest serviceReq = CreateServiceRequest.builder()
+                .serviceCode(sCode)
+                .serviceName("Legacy VAT Consulting")
+                .category(ServiceCategory.ADVISORY)
+                .billingUnit("ONE_TIME")
+                .defaultPrice(new BigDecimal("3000.00"))
+                .taxRate(new BigDecimal("18.00"))
+                .build();
+
+        String serviceResp = mockMvc.perform(post("/api/v1/services")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(serviceReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID serviceId = UUID.fromString(objectMapper.readTree(serviceResp).path("data").path("id").asText());
+
+        // Deactivate service
+        mockMvc.perform(patch("/api/v1/services/" + serviceId + "/status?active=false")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
+
+        // 2. Try to create engagement with deactivated service -> 400 Bad Request
+        CreateEngagementRequest engReq = CreateEngagementRequest.builder()
+                .clientId(client.getId())
+                .serviceId(serviceId)
+                .name("Attempted Engagement with Inactive Service")
+                .build();
+
+        mockMvc.perform(post("/api/v1/engagements")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(engReq)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("0% GST rate is strictly preserved on custom service and invoices without reverting to 18%")
+    void testZeroPercentGstRatePreservedOnCustomServiceAndInvoice() throws Exception {
+        TenantContext.setTenantId(orgA.getId());
+        ClientEntity client = ClientEntity.builder()
+                .displayName("Export Client - " + UUID.randomUUID())
+                .clientType(ClientEntity.ClientType.COMPANY)
+                .status(ClientEntity.ClientStatus.ACTIVE)
+                .email("export." + UUID.randomUUID() + "@example.com")
+                .pan("EXPOR1234E")
+                .build();
+        client.setOrganizationId(orgA.getId());
+        client = clientRepository.save(client);
+        TenantContext.clear();
+
+        // 1. Create custom service with taxRate = 0.00
+        String code = "EXEMPT_ADV_" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        CreateServiceRequest serviceReq = CreateServiceRequest.builder()
+                .serviceCode(code)
+                .serviceName("Exempt Educational / Export Advisory")
+                .category(ServiceCategory.ADVISORY)
+                .billingUnit("FIXED")
+                .defaultPrice(new BigDecimal("10000.00"))
+                .taxRate(BigDecimal.ZERO)
+                .build();
+
+        String serviceResp = mockMvc.perform(post("/api/v1/services")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(serviceReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.taxRate").value(0.00))
+                .andReturn().getResponse().getContentAsString();
+
+        // 2. Create invoice with 0% GST line
+        CreateInvoiceRequest invoiceReq = CreateInvoiceRequest.builder()
+                .clientId(client.getId())
+                .invoiceDate(LocalDate.now())
+                .dueDate(LocalDate.now().plusDays(30))
+                .items(List.of(
+                        com.taxoryn.module.billing.dto.CreateInvoiceItemRequest.builder()
+                                .serviceCode(code)
+                                .description("Exempt Educational / Export Advisory")
+                                .quantity(BigDecimal.ONE)
+                                .unitPrice(new BigDecimal("10000.00"))
+                                .taxRate(BigDecimal.ZERO)
+                                .build()
+                ))
+                .build();
+
+        String invoiceResp = mockMvc.perform(post("/api/v1/invoices")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invoiceReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.subtotal").value(10000.00))
+                .andExpect(jsonPath("$.data.tax").value(0.00))
+                .andExpect(jsonPath("$.data.totalAmount").value(10000.00))
+                .andExpect(jsonPath("$.data.items[0].taxRate").value(0.00))
+                .andExpect(jsonPath("$.data.items[0].tax").value(0.00))
+                .andReturn().getResponse().getContentAsString();
+
+        UUID invoiceId = UUID.fromString(objectMapper.readTree(invoiceResp).path("data").path("id").asText());
+
+        // 3. Verify fetched invoice preserves 0.00 tax rate
+        mockMvc.perform(get("/api/v1/invoices/" + invoiceId)
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.subtotal").value(10000.00))
+                .andExpect(jsonPath("$.data.tax").value(0.00))
+                .andExpect(jsonPath("$.data.totalAmount").value(10000.00))
+                .andExpect(jsonPath("$.data.items[0].taxRate").value(0.00));
+    }
+
+    @Test
+    @DisplayName("RBAC: Read-only or unauthorized staff user cannot create or modify service catalog entries")
+    void testRbacUnauthorizedUserCannotCreateOrModifyService() throws Exception {
+        // Staff user without ORG_ADMIN or ORGANIZATION_UPDATE
+        RoleEntity staffRole = roleRepository.findByCodeAndIsSystemRoleTrue("STAFF")
+                .orElseGet(() -> roleRepository.save(RoleEntity.builder()
+                        .code("STAFF")
+                        .name("Staff")
+                        .isSystemRole(true)
+                        .permissions(new HashSet<>())
+                        .build()));
+
+        UserEntity staffUser = userRepository.save(UserEntity.builder()
+                .organizationId(orgA.getId())
+                .email("staff." + UUID.randomUUID() + "@sharma.com")
+                .passwordHash(passwordEncoder.encode("Password123!"))
+                .firstName("Staff")
+                .lastName("Member")
+                .status(UserStatus.ACTIVE)
+                .roles(Set.of(staffRole))
+                .build());
+
+        String staffToken = jwtTokenProvider.generateAccessToken(
+                staffUser.getId(),
+                orgA.getId(),
+                staffUser.getEmail(),
+                Set.of("ROLE_STAFF"),
+                Set.of("ROLE_STAFF", "CLIENT_VIEW", "CLIENT_READ")
+        );
+
+        CreateServiceRequest request = CreateServiceRequest.builder()
+                .serviceCode("UNAUTH_" + UUID.randomUUID().toString().substring(0, 4).toUpperCase())
+                .serviceName("Unauthorized Service Creation Attempt")
+                .category(ServiceCategory.ADVISORY)
+                .billingUnit("PER_FILING")
+                .defaultPrice(new BigDecimal("1000.00"))
+                .taxRate(new BigDecimal("18.00"))
+                .build();
+
+        // POST /api/v1/services -> 403 Forbidden
+        mockMvc.perform(post("/api/v1/services")
+                        .header("Authorization", "Bearer " + staffToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
     }
 
     private void seedDefaultServicesIfMissing() {

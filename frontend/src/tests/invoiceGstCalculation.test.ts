@@ -137,6 +137,7 @@ describe('Professional Tax Invoice GST Rate Display & Calculation', () => {
       paidAmount: 0,
       status: 'ISSUED',
       invoiceDate: '2026-10-01',
+      dueDate: '2026-10-15',
       items: [
         { service: 'GST_FILING', description: 'GSTR-3B', quantity: 1, unitPrice: 1000, taxRate: 5, amount: 1050 }
       ]
@@ -156,6 +157,7 @@ describe('Professional Tax Invoice GST Rate Display & Calculation', () => {
       paidAmount: 0,
       status: 'ISSUED',
       invoiceDate: '2026-10-01',
+      dueDate: '2026-10-15',
       items: [
         { service: 'CONSULTING', description: 'Exempt service', quantity: 1, unitPrice: 2000, taxRate: 0, amount: 2000 }
       ]
@@ -197,6 +199,7 @@ describe('Professional Tax Invoice GST Rate Display & Calculation', () => {
         paidAmount: 0,
         status: 'ISSUED',
         invoiceDate: '2026-10-01',
+        dueDate: '2026-10-15',
         items: [
           {
             service: 'GST_FILING',
