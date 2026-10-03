@@ -138,4 +138,12 @@ public interface ReminderRepository extends JpaRepository<ReminderEntity, UUID>,
 
     long countByOrganizationIdAndTargetUserIdAndStatusAndScheduledAtBefore(
             UUID organizationId, UUID targetUserId, ReminderStatus status, Instant before);
+
+    long countByOrganizationIdAndStatus(UUID organizationId, ReminderStatus status);
+
+    long countByOrganizationIdAndStatusAndScheduledAtBefore(
+            UUID organizationId, ReminderStatus status, Instant before);
+
+    long countByOrganizationIdAndStatusAndScheduledAtBetween(
+            UUID organizationId, ReminderStatus status, Instant start, Instant end);
 }

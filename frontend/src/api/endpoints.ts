@@ -4,6 +4,8 @@ import {
   PagedResponse,
   ReviewRequest,
   OrganizationDashboard,
+  PracticeDashboardOverview,
+  DashboardFilterParams,
   Client,
   Client360Overview,
   ClientNote,
@@ -366,6 +368,10 @@ export const userApi = {
 export const dashboardApi = {
   getOrganizationDashboard: async () => {
     const res = await apiClient.get<ApiResponse<OrganizationDashboard>>('/v1/dashboard');
+    return res.data.data;
+  },
+  getOverview: async (params?: DashboardFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PracticeDashboardOverview>>('/v1/dashboard/overview', { params });
     return res.data.data;
   },
 };

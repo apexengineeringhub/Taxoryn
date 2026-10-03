@@ -334,6 +334,60 @@ export interface EmployeeWorkloadItem {
   overdueTasks: number;
 }
 
+export interface ReminderSummary {
+  pending: number;
+  overdue: number;
+  upcoming: number;
+  triggered: number;
+}
+
+export interface RecentActivityItem {
+  id: string;
+  action: string;
+  entityType: string;
+  entityName?: string;
+  entityId?: string;
+  description: string;
+  userId?: string;
+  userName?: string;
+  createdAt: string;
+}
+
+export interface PracticeDashboardOverview {
+  totalClients: number;
+  activeClients: number;
+  activeEngagements: number;
+  openComplianceObligations: number;
+  overdueComplianceObligations: number;
+  openWorkItems: number;
+  overdueWorkItems: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  pendingDocumentRequests: number;
+  openTaxNotices: number;
+  outstandingBillingAmount: number;
+  periodInvoicedAmount: number;
+  periodCollectedAmount: number;
+  dsc?: DscSummaryDto;
+  udin?: UdinSummaryDto;
+  reminders?: ReminderSummary;
+  compliance?: any;
+  work?: any;
+  billing?: any;
+  employeeWorkload?: EmployeeWorkloadItem[];
+  recentActivity?: RecentActivityItem[];
+  generatedAt: string;
+}
+
+export interface DashboardFilterParams {
+  period?: 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_QUARTER' | 'THIS_YEAR' | 'CUSTOM' | 'ALL_TIME';
+  startDate?: string;
+  endDate?: string;
+  locationId?: string;
+  clientId?: string;
+}
+
 // 3. Client 360
 export interface Client {
   id: string;
