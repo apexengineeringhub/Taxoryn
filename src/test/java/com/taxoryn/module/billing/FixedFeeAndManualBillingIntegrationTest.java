@@ -306,4 +306,68 @@ public class FixedFeeAndManualBillingIntegrationTest {
                 .andExpect(jsonPath("$.data.invoices.length()").value(1))
                 .andExpect(jsonPath("$.data.recentPayments.length()").value(1));
     }
+
+    @Test
+    @DisplayName("Verify complete GST rate lifecycle (0%, 5%, 12%, 18%) - Save, Retrieve, and Reopen")
+    void testInvoiceGstRatePersistenceAndRetrieval_ZeroFiveTwelveEighteen() throws Exception {
+        BigDecimal[][] testCases = {
+                // {taxRate, unitPrice, expectedTax, expectedTotal}
+                {new BigDecimal("0.00"), new BigDecimal("1000.00"), new BigDecimal("0.00"), new BigDecimal("1000.00")},
+                {new BigDecimal("5.00"), new BigDecimal("1000.00"), new BigDecimal("50.00"), new BigDecimal("1050.00")},
+                {new BigDecimal("12.00"), new BigDecimal("1000.00"), new BigDecimal("120.00"), new BigDecimal("1120.00")},
+                {new BigDecimal("18.00"), new BigDecimal("1000.00"), new BigDecimal("180.00"), new BigDecimal("1180.00")}
+        };
+
+        for (BigDecimal[] tc : testCases) {
+            BigDecimal taxRate = tc[0];
+            BigDecimal unitPrice = tc[1];
+            BigDecimal expectedTax = tc[2];
+            BigDecimal expectedTotal = tc[3];
+
+            CreateInvoiceItemRequest item = CreateInvoiceItemRequest.builder()
+                    .service(BillingServiceType.CONSULTING)
+                    .description("Consulting Service @ " + taxRate + "% GST")
+                    .quantity(BigDecimal.ONE)
+                    .unitPrice(unitPrice)
+                    .taxRate(taxRate)
+                    .build();
+
+            CreateInvoiceRequest req = CreateInvoiceRequest.builder()
+                    .clientId(client.getId())
+                    .locationId(loc.getId())
+                    .invoiceDate(LocalDate.of(2026, 10, 1))
+                    .dueDate(LocalDate.of(2026, 10, 15))
+                    .items(List.of(item))
+                    .notes("Invoice with " + taxRate + "% GST")
+                    .terms("Payment due in 15 days")
+                    .build();
+
+            // 1. Create invoice
+            String createResp = mockMvc.perform(post("/api/v1/invoices")
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.subtotal").value(unitPrice.doubleValue()))
+                    .andExpect(jsonPath("$.data.tax").value(expectedTax.doubleValue()))
+                    .andExpect(jsonPath("$.data.total").value(expectedTotal.doubleValue()))
+                    .andExpect(jsonPath("$.data.items[0].taxRate").value(taxRate.doubleValue()))
+                    .andExpect(jsonPath("$.data.items[0].tax").value(expectedTax.doubleValue()))
+                    .andReturn().getResponse().getContentAsString();
+
+            UUID invoiceId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+            // 2. Reopen / Retrieve invoice and assert 0% or selected rate has not reverted to 18%
+            mockMvc.perform(get("/api/v1/invoices/" + invoiceId)
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.subtotal").value(unitPrice.doubleValue()))
+                    .andExpect(jsonPath("$.data.tax").value(expectedTax.doubleValue()))
+                    .andExpect(jsonPath("$.data.total").value(expectedTotal.doubleValue()))
+                    .andExpect(jsonPath("$.data.items[0].taxRate").value(taxRate.doubleValue()))
+                    .andExpect(jsonPath("$.data.items[0].tax").value(expectedTax.doubleValue()));
+        }
+    }
 }

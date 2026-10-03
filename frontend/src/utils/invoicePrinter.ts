@@ -43,6 +43,10 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
     return '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  const fallbackRate = invoice.subtotal && invoice.subtotal > 0 && invoice.tax != null
+    ? Math.round((Number(invoice.tax) / Number(invoice.subtotal)) * 1000) / 10
+    : (invoice.tax === 0 ? 0 : 18);
+
   const items = (invoice.items && invoice.items.length > 0) ? invoice.items : [
     {
       service: 'TAX_ADVISORY' as any,
@@ -50,7 +54,7 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
       hsnSacCode: '998231',
       quantity: 1,
       unitPrice: invoice.subtotal || invoice.total,
-      taxRate: 18,
+      taxRate: fallbackRate,
       amount: invoice.total,
     },
   ];
@@ -66,19 +70,25 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
       <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${it.quantity || 1}</td>
       <td style="padding: 8px 10px; text-align: right; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${currencyFmt(it.unitPrice)}</td>
       <td style="padding: 8px 10px; text-align: right; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${currencyFmt(Number(it.quantity || 1) * Number(it.unitPrice || 0))}</td>
-      <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${it.taxRate || 18}%</td>
+      <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${it.taxRate != null ? it.taxRate : 0}%</td>
       <td style="padding: 8px 10px; text-align: right; font-family: monospace; font-size: 12px; font-weight: 700; color: #0f172a;">${currencyFmt(it.amount || invoice.total)}</td>
     </tr>
   `).join('');
 
   const getTaxRateLabels = (inv: Invoice) => {
-    if (!inv.subtotal || inv.subtotal <= 0 || !inv.tax || inv.tax <= 0) {
+    if (!inv.subtotal || inv.subtotal <= 0) {
       return { cgst: 'Central GST (CGST)', sgst: 'State GST (SGST)' };
     }
     if (inv.items && inv.items.length > 0) {
-      const rates = inv.items.map((it) => Number(it.taxRate || 0));
+      const rates = inv.items.map((it) => Number(it.taxRate != null ? it.taxRate : 0));
       const allSame = rates.every((r) => r === rates[0]);
-      if (allSame && rates[0] > 0) {
+      if (allSame) {
+        if (rates[0] === 0) {
+          return {
+            cgst: 'Central GST (CGST @ 0%)',
+            sgst: 'State GST (SGST @ 0%)',
+          };
+        }
         const half = Number((rates[0] / 2).toFixed(2));
         return {
           cgst: `Central GST (CGST @ ${half}%)`,
@@ -86,12 +96,15 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
         };
       }
     }
-    const effectiveTotal = Math.round((Number(inv.tax) / Number(inv.subtotal)) * 1000) / 10;
-    const half = Number((effectiveTotal / 2).toFixed(2));
-    return {
-      cgst: `Central GST (CGST @ ${half}%)`,
-      sgst: `State GST (SGST @ ${half}%)`,
-    };
+    if (inv.tax && inv.tax > 0) {
+      const effectiveTotal = Math.round((Number(inv.tax) / Number(inv.subtotal)) * 1000) / 10;
+      const half = Number((effectiveTotal / 2).toFixed(2));
+      return {
+        cgst: `Central GST (CGST @ ${half}%)`,
+        sgst: `State GST (SGST @ ${half}%)`,
+      };
+    }
+    return { cgst: 'Central GST (CGST)', sgst: 'State GST (SGST)' };
   };
 
   const taxLabels = getTaxRateLabels(invoice);
