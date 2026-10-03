@@ -99,6 +99,8 @@ public class EngagementDomainModelTest {
                 ServiceCategory.AUDIT,
                 ServiceCategory.NOTICE,
                 ServiceCategory.ADVISORY,
+                ServiceCategory.GOVERNMENT_SERVICES,
+                ServiceCategory.REGISTRATION,
                 ServiceCategory.OTHER
         );
 

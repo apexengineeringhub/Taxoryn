@@ -5501,9 +5501,79 @@ export interface UpdateWorkInstanceStatusPayload {
   notes?: string;
 }
 
+// ==============================================================================
+// Digital Signature Certificate (DSC) Register & Lifecycle Management (P0.7)
+// ==============================================================================
 
+export type DscStatusType = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'REVOKED' | 'INACTIVE';
+export type DscCertificateType = 'CLASS_3' | 'CLASS_2' | 'DGFT' | 'OTHER';
 
+export interface DscDto {
+  id: string;
+  organizationId: string;
+  clientId?: string | null;
+  clientName?: string | null;
+  clientPan?: string | null;
+  clientGstin?: string | null;
+  holderName: string;
+  certificateIdentifier?: string | null;
+  certificateType: DscCertificateType;
+  issuer?: string | null;
+  issuedDate: string;
+  expiryDate: string;
+  status: DscStatusType;
+  daysUntilExpiry?: number | null;
+  applicableServices?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
+export interface CreateDscRequest {
+  clientId?: string | null;
+  holderName: string;
+  certificateIdentifier?: string | null;
+  certificateType?: DscCertificateType;
+  issuer?: string | null;
+  issuedDate: string;
+  expiryDate: string;
+  applicableServices?: string | null;
+  notes?: string | null;
+}
 
+export interface UpdateDscRequest {
+  clientId?: string | null;
+  holderName?: string;
+  certificateIdentifier?: string | null;
+  certificateType?: DscCertificateType;
+  issuer?: string | null;
+  issuedDate?: string;
+  expiryDate?: string;
+  applicableServices?: string | null;
+  notes?: string | null;
+}
 
+export interface DscSummaryDto {
+  total: number;
+  active: number;
+  expiringSoon: number;
+  expired: number;
+  revoked: number;
+  inactive: number;
+}
+
+export interface DscFilterParams {
+  search?: string;
+  status?: DscStatusType;
+  clientId?: string;
+  certificateType?: DscCertificateType;
+  service?: string;
+  expiringWithinDays?: number;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
 

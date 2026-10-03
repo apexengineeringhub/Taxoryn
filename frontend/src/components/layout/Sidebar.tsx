@@ -156,6 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'], moduleCode: 'TDS' },
         { label: 'Notice Center', path: '/tax-notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TAX_NOTICE_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT', 'ACCOUNTANT'], moduleCode: 'TAX_NOTICES' },
         { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
+        { label: 'DSC Register', path: '/dsc-register', icon: ShieldCheck, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
       ],
     },
     {

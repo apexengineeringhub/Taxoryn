@@ -79,6 +79,7 @@ const ServiceWorkflowDetailPage = React.lazy(() => import('./pages/ServiceWorkfl
 const EngagementsPage = React.lazy(() => import('./pages/EngagementsPage').then(m => ({ default: m.EngagementsPage })));
 const EngagementOverviewPage = React.lazy(() => import('./pages/EngagementOverviewPage').then(m => ({ default: m.EngagementOverviewPage })));
 const WorkTemplatesPage = React.lazy(() => import('./pages/WorkTemplatesPage').then(m => ({ default: m.WorkTemplatesPage })));
+const DscRegisterPage = React.lazy(() => import('./pages/DscRegisterPage').then(m => ({ default: m.DscRegisterPage })));
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
 import { ModuleRouteGuard } from './components/common/ModuleRouteGuard';
@@ -266,6 +267,14 @@ export const App: React.FC = () => {
                 element={
                   <ModuleRouteGuard moduleCode="CLIENTS">
                     <WorkTemplatesPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/dsc-register"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <DscRegisterPage />
                   </ModuleRouteGuard>
                 }
               />

@@ -269,6 +269,11 @@ import {
   TaskCalendarParams,
   TeamWorkloadSummary,
   CompleteTaskPayload,
+  DscDto,
+  CreateDscRequest,
+  UpdateDscRequest,
+  DscSummaryDto,
+  DscFilterParams,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -3598,14 +3603,46 @@ export const automationRuleApi = {
   },
 };
 
-
-
-
-
-
-
-
-
-
-
+// --- 55. Digital Signature Certificate (DSC) Register API (P0.7) ---
+export const dscApi = {
+  getDscList: async (params?: DscFilterParams): Promise<PagedResponse<DscDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<DscDto>>>('/v1/dsc', { params });
+    return res.data.data;
+  },
+  getDscSummary: async (): Promise<DscSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<DscSummaryDto>>('/v1/dsc/summary');
+    return res.data.data;
+  },
+  getDscById: async (id: string): Promise<DscDto> => {
+    const res = await apiClient.get<ApiResponse<DscDto>>(`/v1/dsc/${id}`);
+    return res.data.data;
+  },
+  createDsc: async (payload: CreateDscRequest): Promise<DscDto> => {
+    const res = await apiClient.post<ApiResponse<DscDto>>('/v1/dsc', payload);
+    return res.data.data;
+  },
+  updateDsc: async (id: string, payload: UpdateDscRequest): Promise<DscDto> => {
+    const res = await apiClient.put<ApiResponse<DscDto>>(`/v1/dsc/${id}`, payload);
+    return res.data.data;
+  },
+  activateDsc: async (id: string): Promise<DscDto> => {
+    const res = await apiClient.patch<ApiResponse<DscDto>>(`/v1/dsc/${id}/activate`);
+    return res.data.data;
+  },
+  deactivateDsc: async (id: string): Promise<DscDto> => {
+    const res = await apiClient.patch<ApiResponse<DscDto>>(`/v1/dsc/${id}/deactivate`);
+    return res.data.data;
+  },
+  revokeDsc: async (id: string, reason?: string): Promise<DscDto> => {
+    const res = await apiClient.patch<ApiResponse<DscDto>>(`/v1/dsc/${id}/revoke`, null, { params: { reason } });
+    return res.data.data;
+  },
+  deleteDsc: async (id: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/v1/dsc/${id}`);
+  },
+  triggerExpiryReminders: async (): Promise<number> => {
+    const res = await apiClient.post<ApiResponse<number>>('/v1/dsc/trigger-expiry-reminders');
+    return res.data.data;
+  },
+};
 
