@@ -143,6 +143,23 @@ public class ReminderEntity extends TenantAuditableEntity {
     private String notes;
 
     // -------------------------------------------------------------------------
+    // Retry & Recurrence Tracking
+    // -------------------------------------------------------------------------
+
+    @Column(name = "notification_attempts", nullable = false)
+    @Builder.Default
+    private Integer notificationAttempts = 0;
+
+    @Column(name = "last_attempt_at")
+    private Instant lastAttemptAt;
+
+    @Column(name = "last_error", columnDefinition = "TEXT")
+    private String lastError;
+
+    @Column(name = "parent_reminder_id")
+    private UUID parentReminderId;
+
+    // -------------------------------------------------------------------------
     // Derived helpers
     // -------------------------------------------------------------------------
 

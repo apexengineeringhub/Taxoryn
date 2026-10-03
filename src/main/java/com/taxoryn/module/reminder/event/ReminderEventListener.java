@@ -46,6 +46,8 @@ public class ReminderEventListener {
         }
 
         try {
+            com.taxoryn.core.security.TenantContext.setTenantId(event.getOrganizationId());
+
             // Find all enabled rules matching this event type + org (including system defaults)
             List<AutomationRuleEntity> matchingRules = automationRuleRepository
                     .findEnabledByEventTypeForOrganization(event.getEventType(), event.getOrganizationId());
@@ -70,6 +72,8 @@ public class ReminderEventListener {
         } catch (Exception ex) {
             log.error("Failed to process business event {} for org {}: {}",
                     event.getEventType(), event.getOrganizationId(), ex.getMessage(), ex);
+        } finally {
+            com.taxoryn.core.security.TenantContext.clear();
         }
     }
 }

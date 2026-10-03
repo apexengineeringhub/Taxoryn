@@ -44,6 +44,9 @@ public class AutomationRuleDto {
     @Schema(description = "Who is targeted by the action", example = "TASK_ASSIGNEE")
     private String targetType;
 
+    @Schema(description = "True if this rule is a system-wide default provided by Taxoryn")
+    private boolean systemDefault;
+
     private Boolean enabled;
     private Instant createdAt;
     private Instant updatedAt;
@@ -55,6 +58,7 @@ public class AutomationRuleDto {
         return AutomationRuleDto.builder()
                 .id(e.getId())
                 .organizationId(e.getOrganizationId())
+                .systemDefault(e.getOrganizationId() == null)
                 .name(e.getName())
                 .description(e.getDescription())
                 .eventType(e.getEventType())
@@ -66,6 +70,10 @@ public class AutomationRuleDto {
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .build();
+    }
+
+    public boolean isSystemDefault() {
+        return this.systemDefault || this.organizationId == null;
     }
 
     private static String describeOffset(Integer offset) {

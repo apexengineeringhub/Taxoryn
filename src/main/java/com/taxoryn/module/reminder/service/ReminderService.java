@@ -100,6 +100,15 @@ public interface ReminderService {
     int processAllDueReminders(UUID organizationId);
 
     /**
+     * Bounded batch version of reminder processing.
+     *
+     * @param organizationId the org being processed (null = all orgs)
+     * @param batchSize      maximum number of due reminders to process in this run
+     * @return number of reminders successfully triggered
+     */
+    int processAllDueReminders(UUID organizationId, int batchSize);
+
+    /**
      * Count of overdue PENDING reminders for the current user.
      * Used for dashboard badge.
      */

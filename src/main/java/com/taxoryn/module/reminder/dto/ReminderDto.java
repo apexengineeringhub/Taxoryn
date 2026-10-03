@@ -56,6 +56,7 @@ public class ReminderDto {
     private UUID automationRuleId;
     private String referenceType;
     private String referenceId;
+    private String idempotencyKey;
 
     // Scheduling
     private Instant scheduledAt;
@@ -69,6 +70,11 @@ public class ReminderDto {
     private Instant triggeredAt;
     private Instant completedAt;
     private Instant cancelledAt;
+
+    private Integer notificationAttempts;
+    private Instant lastAttemptAt;
+    private String lastError;
+    private UUID parentReminderId;
 
     private String notes;
     private Instant createdAt;
@@ -95,12 +101,17 @@ public class ReminderDto {
                 .automationRuleId(entity.getAutomationRuleId())
                 .referenceType(entity.getReferenceType())
                 .referenceId(entity.getReferenceId())
+                .idempotencyKey(entity.getIdempotencyKey())
                 .scheduledAt(entity.getScheduledAt())
                 .recurrenceType(entity.getRecurrenceType())
                 .overdue(entity.isOverdue())
                 .triggeredAt(entity.getTriggeredAt())
                 .completedAt(entity.getCompletedAt())
                 .cancelledAt(entity.getCancelledAt())
+                .notificationAttempts(entity.getNotificationAttempts())
+                .lastAttemptAt(entity.getLastAttemptAt())
+                .lastError(entity.getLastError())
+                .parentReminderId(entity.getParentReminderId())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
