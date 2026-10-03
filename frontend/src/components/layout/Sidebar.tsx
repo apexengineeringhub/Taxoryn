@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Layers,
   Briefcase,
+  Award,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -157,6 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'Notice Center', path: '/tax-notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TAX_NOTICE_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT', 'ACCOUNTANT'], moduleCode: 'TAX_NOTICES' },
         { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
         { label: 'DSC Register', path: '/dsc-register', icon: ShieldCheck, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
+        { label: 'UDIN Register', path: '/udin-register', icon: Award, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
       ],
     },
     {

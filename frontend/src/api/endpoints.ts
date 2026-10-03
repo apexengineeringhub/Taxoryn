@@ -274,6 +274,13 @@ import {
   UpdateDscRequest,
   DscSummaryDto,
   DscFilterParams,
+  UdinDto,
+  CreateUdinRequest,
+  UpdateUdinRequest,
+  UpdateUdinVerificationRequest,
+  CancelUdinRequest,
+  UdinSummaryDto,
+  UdinFilterParams,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -3645,4 +3652,43 @@ export const dscApi = {
     return res.data.data;
   },
 };
+
+export const udinApi = {
+  getUdins: async (params?: UdinFilterParams): Promise<PagedResponse<UdinDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<UdinDto>>>('/v1/udins', { params });
+    return res.data.data;
+  },
+  getUdinSummary: async (): Promise<UdinSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<UdinSummaryDto>>('/v1/udins/summary');
+    return res.data.data;
+  },
+  getUdinById: async (id: string): Promise<UdinDto> => {
+    const res = await apiClient.get<ApiResponse<UdinDto>>(`/v1/udins/${id}`);
+    return res.data.data;
+  },
+  getUdinsByClientId: async (clientId: string): Promise<UdinDto[]> => {
+    const res = await apiClient.get<ApiResponse<UdinDto[]>>(`/v1/udins/client/${clientId}`);
+    return res.data.data;
+  },
+  createUdin: async (payload: CreateUdinRequest): Promise<UdinDto> => {
+    const res = await apiClient.post<ApiResponse<UdinDto>>('/v1/udins', payload);
+    return res.data.data;
+  },
+  updateUdin: async (id: string, payload: UpdateUdinRequest): Promise<UdinDto> => {
+    const res = await apiClient.put<ApiResponse<UdinDto>>(`/v1/udins/${id}`, payload);
+    return res.data.data;
+  },
+  updateVerification: async (id: string, payload: UpdateUdinVerificationRequest): Promise<UdinDto> => {
+    const res = await apiClient.patch<ApiResponse<UdinDto>>(`/v1/udins/${id}/verification`, payload);
+    return res.data.data;
+  },
+  cancelUdin: async (id: string, payload: CancelUdinRequest): Promise<UdinDto> => {
+    const res = await apiClient.post<ApiResponse<UdinDto>>(`/v1/udins/${id}/cancel`, payload);
+    return res.data.data;
+  },
+  deleteUdin: async (id: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/v1/udins/${id}`);
+  },
+};
+
 

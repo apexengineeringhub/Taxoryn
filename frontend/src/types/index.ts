@@ -5577,3 +5577,128 @@ export interface DscFilterParams {
   sortDirection?: 'asc' | 'desc';
 }
 
+// ==============================================================================
+// Unique Document Identification Number (UDIN) Register & Verification (P0.8)
+// ==============================================================================
+
+export type UdinStatusType = 'ACTIVE' | 'CANCELLED' | 'REVOKED' | 'ARCHIVED';
+
+export type UdinVerificationStatusType = 'NOT_VERIFIED' | 'VERIFIED' | 'FAILED' | 'NOT_APPLICABLE';
+
+export type UdinDocumentType =
+  | 'TAX_AUDIT_REPORT_3CA_3CD'
+  | 'TAX_AUDIT_REPORT_3CB_3CD'
+  | 'GST_AUDIT_CERTIFICATE'
+  | 'TRANSFER_PRICING_REPORT'
+  | 'NET_WORTH_CERTIFICATE'
+  | 'TURNOVER_CERTIFICATE'
+  | 'FORM_15CB_CERTIFICATION'
+  | 'INTERNAL_AUDIT_REPORT'
+  | 'STATUTORY_AUDIT_REPORT'
+  | 'OTHER_CERTIFICATION'
+  | 'OTHER';
+
+export interface UdinDto {
+  id: string;
+  organizationId: string;
+  udin: string;
+  clientId?: string | null;
+  clientName?: string | null;
+  clientPan?: string | null;
+  engagementId?: string | null;
+  engagementName?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  documentId?: string | null;
+  documentFileName?: string | null;
+  invoiceId?: string | null;
+  invoiceNumber?: string | null;
+  documentType: UdinDocumentType;
+  documentTitle: string;
+  documentDescription?: string | null;
+  signatoryName: string;
+  signatoryMembershipNo?: string | null;
+  generationDate: string;
+  status: UdinStatusType;
+  verificationStatus: UdinVerificationStatusType;
+  verificationSource?: string | null;
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  verificationRemarks?: string | null;
+  financialFiguresJson?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateUdinRequest {
+  udin: string;
+  clientId?: string | null;
+  engagementId?: string | null;
+  serviceId?: string | null;
+  documentId?: string | null;
+  invoiceId?: string | null;
+  documentType: UdinDocumentType;
+  documentTitle: string;
+  documentDescription?: string | null;
+  signatoryName: string;
+  signatoryMembershipNo?: string | null;
+  generationDate: string;
+  financialFiguresJson?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateUdinRequest {
+  clientId?: string | null;
+  engagementId?: string | null;
+  serviceId?: string | null;
+  documentId?: string | null;
+  invoiceId?: string | null;
+  documentType: UdinDocumentType;
+  documentTitle: string;
+  documentDescription?: string | null;
+  signatoryName: string;
+  signatoryMembershipNo?: string | null;
+  generationDate: string;
+  status?: UdinStatusType;
+  financialFiguresJson?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateUdinVerificationRequest {
+  verificationStatus: UdinVerificationStatusType;
+  verificationSource?: string | null;
+  verificationRemarks?: string | null;
+}
+
+export interface CancelUdinRequest {
+  reason: string;
+}
+
+export interface UdinSummaryDto {
+  totalCount: number;
+  activeCount: number;
+  verifiedCount: number;
+  unverifiedCount: number;
+  failedVerificationCount: number;
+  cancelledCount: number;
+}
+
+export interface UdinFilterParams {
+  search?: string;
+  clientId?: string;
+  status?: UdinStatusType;
+  verificationStatus?: UdinVerificationStatusType;
+  documentType?: UdinDocumentType;
+  signatoryMembershipNo?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
+
+
