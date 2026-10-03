@@ -2,6 +2,7 @@ package com.taxoryn.module.service.entity;
 
 import com.taxoryn.core.domain.AuditableEntity;
 import com.taxoryn.module.service.model.ServiceCategory;
+import com.taxoryn.module.service.model.ServiceScope;
 import com.taxoryn.module.service.model.ServiceStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
@@ -31,6 +33,11 @@ public class ServiceEntity extends AuditableEntity {
     @Column(name = "organization_id")
     private UUID organizationId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scope", nullable = false, length = 30)
+    @Builder.Default
+    private ServiceScope scope = ServiceScope.PRACTICE;
+
     @Column(name = "service_code", nullable = false, length = 100)
     private String serviceCode;
 
@@ -43,6 +50,17 @@ public class ServiceEntity extends AuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false, length = 50)
     private ServiceCategory category;
+
+    @Column(name = "default_price", precision = 15, scale = 2)
+    private BigDecimal defaultPrice;
+
+    @Column(name = "billing_unit", length = 50)
+    @Builder.Default
+    private String billingUnit = "PER_RETURN";
+
+    @Column(name = "tax_rate", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal taxRate = new BigDecimal("18.00");
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)

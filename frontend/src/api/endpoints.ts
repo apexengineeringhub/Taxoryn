@@ -2227,11 +2227,14 @@ export interface PracticeServicePrice {
   serviceName: string;
   description?: string;
   moduleCode: string;
+  scope?: 'TAXORYN' | 'PRACTICE';
   suggestedPrice: number;
   practicePrice: number;
   effectivePrice: number | null;
   currency: string;
   billingType: string;
+  billingUnit?: string | null;
+  taxRate?: number | null;
   pricingMode: 'DEFAULT' | 'CUSTOM';
   enabled: boolean;
 }
@@ -3351,8 +3354,8 @@ export const gmailApi = {
 
 // --- 28. Service Catalog & Practice Engagements (Stage 2.5 - P0.1) ---
 export const servicesApi = {
-  getAll: async () => {
-    const res = await apiClient.get<ApiResponse<ServiceDto[]>>('/v1/services');
+  getAll: async (params?: { search?: string; category?: string; scope?: string; activeOnly?: boolean }) => {
+    const res = await apiClient.get<ApiResponse<ServiceDto[]>>('/v1/services', { params });
     return res.data.data;
   },
   getById: async (id: string) => {
@@ -3365,6 +3368,16 @@ export const servicesApi = {
   },
   update: async (id: string, payload: UpdateServiceRequest) => {
     const res = await apiClient.put<ApiResponse<ServiceDto>>(`/v1/services/${id}`, payload);
+    return res.data.data;
+  },
+  toggleStatus: async (id: string, active: boolean) => {
+    const res = await apiClient.patch<ApiResponse<ServiceDto>>(`/v1/services/${id}/status`, null, {
+      params: { active },
+    });
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/services/${id}`);
     return res.data.data;
   },
 };

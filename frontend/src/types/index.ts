@@ -5153,7 +5153,11 @@ export type ServiceCategoryType =
   | 'AUDIT'
   | 'NOTICE'
   | 'ADVISORY'
+  | 'GOVERNMENT_SERVICES'
+  | 'REGISTRATION'
   | 'OTHER';
+
+export type ServiceScopeType = 'TAXORYN' | 'PRACTICE';
 
 export type ServiceStatusType = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
@@ -5164,9 +5168,14 @@ export interface ServiceDto {
   serviceName: string;
   description?: string;
   category: ServiceCategoryType;
+  scope?: ServiceScopeType;
   status: ServiceStatusType;
   moduleCode?: string;
   systemDefault: boolean;
+  defaultPrice?: number | null;
+  billingUnit?: string | null;
+  taxRate?: number | null;
+  currency?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -5177,13 +5186,20 @@ export interface CreateServiceRequest {
   description?: string;
   category: ServiceCategoryType;
   moduleCode?: string;
+  defaultPrice?: number;
+  billingUnit?: string;
+  taxRate?: number;
 }
 
 export interface UpdateServiceRequest {
   serviceName?: string;
   description?: string;
+  category?: ServiceCategoryType;
   status?: ServiceStatusType;
   moduleCode?: string;
+  defaultPrice?: number;
+  billingUnit?: string;
+  taxRate?: number;
 }
 
 export type EngagementStatusType =

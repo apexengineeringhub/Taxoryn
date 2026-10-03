@@ -1,6 +1,7 @@
 package com.taxoryn.module.service.dto;
 
 import com.taxoryn.module.service.model.ServiceCategory;
+import com.taxoryn.module.service.model.ServiceScope;
 import com.taxoryn.module.service.model.ServiceStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -8,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,10 +22,14 @@ public class ServiceDto {
 
     private UUID id;
     private UUID organizationId;
+    private ServiceScope scope;
     private String serviceCode;
     private String serviceName;
     private String description;
     private ServiceCategory category;
+    private BigDecimal defaultPrice;
+    private String billingUnit;
+    private BigDecimal taxRate;
     private ServiceStatus status;
     private boolean configurable;
     private String moduleCode;

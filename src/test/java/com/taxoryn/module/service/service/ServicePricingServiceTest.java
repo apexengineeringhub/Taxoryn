@@ -8,6 +8,7 @@ import com.taxoryn.module.marketplace.repository.TaxServiceRepository;
 import com.taxoryn.module.service.entity.PracticeServicePricingEntity;
 import com.taxoryn.module.service.model.ServicePricingMode;
 import com.taxoryn.module.service.repository.PracticeServicePricingRepository;
+import com.taxoryn.module.service.repository.ServiceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,7 @@ import static org.mockito.Mockito.when;
 class ServicePricingServiceTest {
     @Mock private TaxServiceRepository serviceRepository;
     @Mock private PracticeServicePricingRepository pricingRepository;
+    @Mock private ServiceRepository serviceCatalogRepository;
     @Mock private AuditService auditService;
 
     private ServicePricingService service;
@@ -36,7 +38,7 @@ class ServicePricingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ServicePricingService(serviceRepository, pricingRepository, auditService);
+        service = new ServicePricingService(serviceRepository, pricingRepository, serviceCatalogRepository, auditService);
         serviceId = UUID.randomUUID();
         practiceA = UUID.randomUUID();
         practiceB = UUID.randomUUID();

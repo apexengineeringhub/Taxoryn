@@ -7,7 +7,10 @@ import com.taxoryn.module.service.dto.CreateServiceRequest;
 import com.taxoryn.module.service.dto.ServiceDto;
 import com.taxoryn.module.service.dto.UpdateServiceRequest;
 import com.taxoryn.module.service.service.ServiceCatalogService;
+import com.taxoryn.module.service.model.ServiceCategory;
+import com.taxoryn.module.service.model.ServiceScope;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -15,12 +18,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -38,9 +44,17 @@ public class ServiceController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
-    @Operation(summary = "Get services catalog", description = "Retrieves active services available to the authenticated practice with entitlement availability.")
-    public ResponseEntity<ApiResponse<List<ServiceDto>>> getServices() {
-        List<ServiceDto> services = serviceCatalogService.getServices();
+    @Operation(summary = "Get services catalog", description = "Retrieves services available to the authenticated practice with filtering and entitlement availability.")
+    public ResponseEntity<ApiResponse<List<ServiceDto>>> getServices(
+            @Parameter(description = "Search term for service name, code, or description")
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Filter by service category")
+            @RequestParam(required = false) ServiceCategory category,
+            @Parameter(description = "Filter by service scope (TAXORYN or PRACTICE)")
+            @RequestParam(required = false) ServiceScope scope,
+            @Parameter(description = "Filter by active status only")
+            @RequestParam(required = false) Boolean activeOnly) {
+        List<ServiceDto> services = serviceCatalogService.getServices(search, category, scope, activeOnly);
         return ResponseEntity.ok(ApiResponse.success("Services catalog retrieved successfully", services));
     }
 
@@ -69,5 +83,23 @@ public class ServiceController {
             @Valid @RequestBody UpdateServiceRequest request) {
         ServiceDto updated = serviceCatalogService.updateService(id, request);
         return ResponseEntity.ok(ApiResponse.success("Service updated successfully", updated));
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('ORGANIZATION_UPDATE') or hasAuthority('ORG_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER')")
+    @Operation(summary = "Toggle service status", description = "Activates or deactivates a service.")
+    public ResponseEntity<ApiResponse<ServiceDto>> toggleStatus(
+            @PathVariable UUID id,
+            @RequestParam boolean active) {
+        ServiceDto updated = serviceCatalogService.toggleServiceStatus(id, active);
+        return ResponseEntity.ok(ApiResponse.success("Service status updated successfully", updated));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ORGANIZATION_UPDATE') or hasAuthority('ORG_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER')")
+    @Operation(summary = "Delete practice custom service", description = "Deletes a practice-owned custom service if not in active use.")
+    public ResponseEntity<ApiResponse<Void>> deleteService(@PathVariable UUID id) {
+        serviceCatalogService.deleteService(id);
+        return ResponseEntity.ok(ApiResponse.success("Service deleted successfully", null));
     }
 }

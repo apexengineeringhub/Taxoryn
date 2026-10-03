@@ -10,5 +10,7 @@ public enum ServiceCategory {
     AUDIT,
     NOTICE,
     ADVISORY,
+    GOVERNMENT_SERVICES,
+    REGISTRATION,
     OTHER
 }
