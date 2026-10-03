@@ -5,6 +5,8 @@ import com.taxoryn.module.review.dto.ReviewDecisionRequest;
 import com.taxoryn.module.review.dto.ReviewRequestDto;
 import com.taxoryn.module.review.dto.SubmitReviewRequest;
 import com.taxoryn.module.review.service.ReviewService;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +23,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/reviews")
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.TASKS)
 public class ReviewController {
     private final ReviewService reviewService;
 

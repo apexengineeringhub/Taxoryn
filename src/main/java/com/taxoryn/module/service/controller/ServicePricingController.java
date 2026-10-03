@@ -4,6 +4,8 @@ import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.module.service.dto.PracticeServicePriceDto;
 import com.taxoryn.module.service.dto.UpdatePracticeServicePricingRequest;
 import com.taxoryn.module.service.service.ServicePricingService;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/practice/service-pricing")
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.CLIENTS)
 public class ServicePricingController {
     private final ServicePricingService servicePricingService;
 

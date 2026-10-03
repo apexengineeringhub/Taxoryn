@@ -25,11 +25,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
+
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/tasks")
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.TASKS)
 @Tag(name = "Task Management", description = "Endpoints for creating and tracking client tasks and assignments")
 @SecurityRequirement(name = "BearerAuth")
 public class TaskController {

@@ -4,6 +4,7 @@ import com.taxoryn.core.exception.ForbiddenException;
 import com.taxoryn.core.exception.UnauthorizedException;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import com.taxoryn.module.moduleconfig.service.ModuleConfigurationService;
 import com.taxoryn.module.notice.dto.TaxNoticeConfigDto;
@@ -28,6 +29,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping({"/api/v1/organizations/tax-notice-config", "/api/v1/tax-notices/config"})
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.TAX_NOTICES)
 @Tag(name = "Tax Notice Configuration", description = "Endpoints for retrieving and customizing tenant tax notice operations settings")
 @SecurityRequirement(name = "BearerAuth")
 public class TaxNoticeConfigController {
