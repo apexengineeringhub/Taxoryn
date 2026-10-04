@@ -7,7 +7,14 @@ import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.repository.ClientRepository;
+import com.taxoryn.module.gov.dto.CreateGovConnectionRequest;
+import com.taxoryn.module.gov.dto.GovConnectionDto;
+import com.taxoryn.module.gov.dto.RegisterGovCredentialRequest;
+import com.taxoryn.module.gov.model.GovCredentialType;
+import com.taxoryn.module.gov.model.GovProviderType;
+import com.taxoryn.module.gov.service.GovernmentConnectionService;
 import com.taxoryn.module.gst.dto.CreateGstRegistrationRequest;
+import com.taxoryn.module.gst.dto.GstVerifyGstinRequest;
 import com.taxoryn.module.gst.dto.UpdateGstRegistrationRequest;
 import com.taxoryn.module.gst.model.GstFilingFrequency;
 import com.taxoryn.module.gst.model.GstRegistrationStatus;
@@ -69,6 +76,9 @@ public class GstRegistrationIntegrationTest {
 
     @Autowired
     private GstRegistrationRepository gstRegistrationRepository;
+
+    @Autowired
+    private GovernmentConnectionService govConnectionService;
 
     @Autowired
     private UserRepository userRepository;
@@ -175,6 +185,19 @@ public class GstRegistrationIntegrationTest {
                 Set.of("ROLE_ORG_ADMIN"),
                 Set.of("ROLE_ORG_ADMIN", "GST_VIEW", "GST_CREATE", "GST_UPDATE")
         );
+
+        TenantContext.setTenantId(orgA.getId());
+        GovConnectionDto connA = govConnectionService.createConnection(CreateGovConnectionRequest.builder()
+                .providerType(GovProviderType.GST)
+                .displayName("Maharashtra GST Gateway")
+                .build());
+        govConnectionService.registerCredential(RegisterGovCredentialRequest.builder()
+                .connectionId(connA.getId())
+                .credentialType(GovCredentialType.API_KEY)
+                .maskedIdentifier("mumbai_gst_***")
+                .rawSecret("SecretMumbai123")
+                .build());
+        govConnectionService.activateConnection(connA.getId());
     }
 
     @AfterEach
@@ -376,5 +399,58 @@ public class GstRegistrationIntegrationTest {
         mockMvc.perform(get("/api/v1/gst/registrations/" + registrationId)
                         .header("Authorization", "Bearer " + tokenB))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Verify GSTIN Taxpayer registration via Government Integration Framework endpoint")
+    void testVerifyGstinEndpoint() throws Exception {
+        GstVerifyGstinRequest req = GstVerifyGstinRequest.builder()
+                .gstin("27AAAPL1234C1ZV")
+                .build();
+
+        mockMvc.perform(post("/api/v1/gst/registrations/verify")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.valid").value(true))
+                .andExpect(jsonPath("$.data.gstin").value("27AAAPL1234C1ZV"))
+                .andExpect(jsonPath("$.data.legalName").value("Apex Enterprises Private Limited"))
+                .andExpect(jsonPath("$.data.tradeName").value("Apex Solutions"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.stateCode").value("27"));
+    }
+
+    @Test
+    @DisplayName("Verify GSTIN with invalid format returns 400 Bad Request")
+    void testVerifyGstinInvalidFormatEndpoint() throws Exception {
+        GstVerifyGstinRequest req = GstVerifyGstinRequest.builder()
+                .gstin("INVALID_123")
+                .build();
+
+        mockMvc.perform(post("/api/v1/gst/registrations/verify")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Verify GSTIN with NOT_FOUND simulation returns 200 with valid=false")
+    void testVerifyGstinNotFoundEndpoint() throws Exception {
+        GstVerifyGstinRequest req = GstVerifyGstinRequest.builder()
+                .gstin("27AAAPL1234C1ZV")
+                .options(java.util.Map.of("mockOutcome", "NOT_FOUND"))
+                .build();
+
+        mockMvc.perform(post("/api/v1/gst/registrations/verify")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.valid").value(false))
+                .andExpect(jsonPath("$.data.errorCode").value("NOT_FOUND"));
     }
 }

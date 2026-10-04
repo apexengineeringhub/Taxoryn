@@ -20,6 +20,11 @@ public enum GovErrorCode {
     VALIDATION_FAILED(false),
 
     /**
+     * Requested entity or taxpayer record was not found on provider portal (HTTP 404).
+     */
+    NOT_FOUND(false),
+
+    /**
      * Provider rate limit exceeded (HTTP 429).
      */
     RATE_LIMITED(true),

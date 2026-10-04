@@ -5,7 +5,10 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.gst.dto.CreateGstRegistrationRequest;
 import com.taxoryn.module.gst.dto.GstRegistrationDto;
 import com.taxoryn.module.gst.dto.GstRegistrationFilterRequest;
+import com.taxoryn.module.gst.dto.GstTaxpayerProfileDto;
+import com.taxoryn.module.gst.dto.GstVerifyGstinRequest;
 import com.taxoryn.module.gst.dto.UpdateGstRegistrationRequest;
+import com.taxoryn.module.gst.integration.GstGovernmentIntegrationService;
 import com.taxoryn.module.gst.service.GstRegistrationService;
 import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
@@ -34,11 +37,25 @@ import java.util.UUID;
 @RequestMapping({"/api/v1/gst/registrations", "/api/gst/registrations"})
 @RequiredArgsConstructor
 @RequiresModule(ProductModuleCode.GST)
-@Tag(name = "GST Registrations", description = "Management of client statutory GSTIN registrations, scheme categories, and filing frequencies")
+@Tag(name = "GST Registrations", description = "Management of client statutory GSTIN registrations, scheme categories, filing frequencies, and government verification")
 @SecurityRequirement(name = "BearerAuth")
 public class GstRegistrationController {
 
     private final GstRegistrationService gstRegistrationService;
+    private final GstGovernmentIntegrationService gstGovIntegrationService;
+
+    @PostMapping("/verify")
+    @PreAuthorize("hasAuthority('GST_VIEW') or hasAuthority('GST_READ') or hasAuthority('GST_CREATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Verify GSTIN taxpayer profile", description = "Performs real-time taxpayer lookup and verification against the Government GST portal via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<GstTaxpayerProfileDto>> verifyGstin(
+            @Valid @RequestBody GstVerifyGstinRequest request) {
+        GstTaxpayerProfileDto profile = gstGovIntegrationService.lookupTaxpayer(
+                request.getConnectionId(),
+                request.getGstin(),
+                request.getOptions()
+        );
+        return ResponseEntity.ok(ApiResponse.success("GSTIN verification completed", profile));
+    }
 
     @PostMapping
     @PreAuthorize("hasAuthority('GST_CREATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")

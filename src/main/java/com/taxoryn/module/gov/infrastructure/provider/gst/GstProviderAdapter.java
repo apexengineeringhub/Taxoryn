@@ -117,6 +117,51 @@ public class GstProviderAdapter implements GovernmentProviderAdapter {
             );
         }
 
+        if ("NOT_FOUND".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.GST,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.NOT_FOUND,
+                    "GSTIN not found on GST Portal",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("TIMEOUT".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.GST,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.TIMEOUT,
+                    "GST Portal request timed out",
+                    true,
+                    responseData
+            );
+        }
+
+        if ("FORBIDDEN".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.GST,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.FORBIDDEN,
+                    "Access denied: Unauthorized GSTIN request",
+                    false,
+                    responseData
+            );
+        }
+
         if ("VALIDATION_FAILED".equalsIgnoreCase(directive)) {
             return GovIntegrationResult.failure(
                     null,
@@ -137,14 +182,57 @@ public class GstProviderAdapter implements GovernmentProviderAdapter {
                 ? String.valueOf(request.getRequestData().get("gstin"))
                 : "27AAAAA0000A1Z5";
 
+        if ("GST_RETURN_PREPARATION".equalsIgnoreCase(request.getOperationType())
+                || "PREPARE_GST_RETURN".equalsIgnoreCase(request.getOperationType())) {
+            String prepRef = "PREP-GST-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String returnType = request.getRequestData() != null && request.getRequestData().containsKey("returnType")
+                    ? String.valueOf(request.getRequestData().get("returnType")) : "GSTR1";
+            String returnPeriod = request.getRequestData() != null && request.getRequestData().containsKey("returnPeriod")
+                    ? String.valueOf(request.getRequestData().get("returnPeriod")) : "042026";
+            String fingerprint = request.getRequestData() != null && request.getRequestData().containsKey("payloadFingerprint")
+                    ? String.valueOf(request.getRequestData().get("payloadFingerprint")) : null;
+
+            responseData.put("gstin", gstin);
+            responseData.put("returnType", returnType);
+            responseData.put("returnPeriod", returnPeriod);
+            responseData.put("status", "PREPARED");
+            responseData.put("providerValidationStatus", "PASSED");
+            responseData.put("payloadFingerprint", fingerprint);
+            responseData.put("prepReference", prepRef);
+
+            return GovIntegrationResult.success(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.GST,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    prepRef,
+                    responseData
+            );
+        }
+
         String simulatedAck = "ARN-GST-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String stateCode = gstin.length() >= 2 ? gstin.substring(0, 2) : "27";
+        String status = "ACTIVE";
+        if (request.getRequestData() != null && request.getRequestData().containsKey("mockStatus")) {
+            status = String.valueOf(request.getRequestData().get("mockStatus"));
+        }
+
         responseData.put("gstin", gstin);
         responseData.put("ackNumber", simulatedAck);
-        responseData.put("status", "ACTIVE");
-        responseData.put("legalName", "Taxoryn Demo Enterprises Pvt Ltd");
-        responseData.put("tradeName", "Taxoryn Demo");
-        responseData.put("stateCode", gstin.length() >= 2 ? gstin.substring(0, 2) : "27");
+        responseData.put("status", status);
+        responseData.put("legalName", "Apex Enterprises Private Limited");
+        responseData.put("tradeName", "Apex Solutions");
+        responseData.put("registrationDate", "2017-07-01");
         responseData.put("registrationType", "REGULAR");
+        responseData.put("stateCode", stateCode);
+        responseData.put("centerJurisdiction", "COMMISSIONERATE MUMBAI WEST, DIVISION IV, RANGE II");
+        responseData.put("stateJurisdiction", "MAHARASHTRA, WARD 101");
+        responseData.put("constitutionOfBusiness", "Private Limited Company");
+        responseData.put("taxpayerType", "Taxpayer");
+        responseData.put("address", "Plot No 42, Bandra Kurla Complex, Mumbai, Maharashtra, 400051");
+        responseData.put("lastUpdatedDate", "2026-01-15");
 
         return GovIntegrationResult.success(
                 null,
