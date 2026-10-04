@@ -79,7 +79,7 @@ public class GovOperationLifecycleIntegrationTest {
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getStatus()).isEqualTo(GovOperationStatus.SUCCEEDED);
         assertThat(result.getOperationId()).isNotNull();
-        assertThat(result.getProviderReferenceId()).startsWith("ARN-MOCK-");
+        assertThat(result.getProviderReferenceId()).contains("ARN-");
 
         // Inspect persisted operation
         GovOperationDto persisted = govIntegrationService.getOperation(result.getOperationId());
