@@ -27,7 +27,8 @@ import java.util.UUID;
 public class PracticeLeadController {
     private final PracticeLeadService leadService;
 
-    @GetMapping @PreAuthorize("hasAuthority('LEAD_VIEW')")
+    @GetMapping
+    @PreAuthorize("hasAuthority('LEAD_VIEW') or hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PagedResponse<PracticeLeadDto>>> list(
             @RequestParam(required = false) LeadStatus status,
             @RequestParam(required = false) LeadPriority priority,
@@ -40,47 +41,56 @@ public class PracticeLeadController {
         return ResponseEntity.ok(ApiResponse.success("Leads retrieved", leadService.list(status, priority, source, assignedEmployeeId, interestedServiceCode, search, page, size)));
     }
 
-    @PostMapping @PreAuthorize("hasAuthority('LEAD_CREATE')")
+    @PostMapping
+    @PreAuthorize("hasAuthority('LEAD_CREATE') or hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PracticeLeadDto>> create(@Valid @RequestBody PracticeLeadRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created("Lead created", leadService.create(request)));
     }
 
-    @GetMapping("/{id}") @PreAuthorize("hasAuthority('LEAD_VIEW')")
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('LEAD_VIEW') or hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PracticeLeadDto>> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success("Lead retrieved", leadService.get(id)));
     }
 
-    @GetMapping("/{id}/activities") @PreAuthorize("hasAuthority('LEAD_VIEW')")
+    @GetMapping("/{id}/activities")
+    @PreAuthorize("hasAuthority('LEAD_VIEW') or hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     public ResponseEntity<ApiResponse<java.util.List<PracticeLeadActivityDto>>> activities(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success("Lead activity retrieved", leadService.getActivities(id)));
     }
 
-    @PostMapping("/{id}/activities") @PreAuthorize("hasAuthority('LEAD_UPDATE')")
+    @PostMapping("/{id}/activities")
+    @PreAuthorize("hasAuthority('LEAD_UPDATE') or hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PracticeLeadActivityDto>> addActivity(@PathVariable UUID id, @Valid @RequestBody PracticeLeadActivityRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created("Lead activity recorded", leadService.addActivity(id, request)));
     }
 
-    @PutMapping("/{id}") @PreAuthorize("hasAuthority('LEAD_UPDATE')")
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('LEAD_UPDATE') or hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PracticeLeadDto>> update(@PathVariable UUID id, @Valid @RequestBody PracticeLeadRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Lead updated", leadService.update(id, request)));
     }
 
-    @DeleteMapping("/{id}") @PreAuthorize("hasAuthority('LEAD_DELETE')")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('LEAD_DELETE') or hasAuthority('CLIENT_DELETE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
         leadService.delete(id); return ResponseEntity.ok(ApiResponse.success("Lead deleted", null));
     }
 
-    @PostMapping("/{id}/assign") @PreAuthorize("hasAuthority('LEAD_ASSIGN')")
+    @PostMapping("/{id}/assign")
+    @PreAuthorize("hasAuthority('LEAD_ASSIGN') or hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
     public ResponseEntity<ApiResponse<PracticeLeadDto>> assign(@PathVariable UUID id, @Valid @RequestBody AssignRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Lead assigned", leadService.assign(id, request.getEmployeeId())));
     }
 
-    @PostMapping("/{id}/convert") @PreAuthorize("hasAuthority('LEAD_CONVERT')")
+    @PostMapping("/{id}/convert")
+    @PreAuthorize("hasAuthority('LEAD_CONVERT') or hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
     public ResponseEntity<ApiResponse<PracticeLeadDto>> convert(@PathVariable UUID id, @Valid @RequestBody ConvertPracticeLeadRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Lead converted to client", leadService.convert(id, request)));
     }
 
-    @PostMapping("/{id}/lost") @PreAuthorize("hasAuthority('LEAD_UPDATE')")
+    @PostMapping("/{id}/lost")
+    @PreAuthorize("hasAuthority('LEAD_UPDATE') or hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
     public ResponseEntity<ApiResponse<PracticeLeadDto>> lost(@PathVariable UUID id, @RequestBody(required = false) LostRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Lead marked lost", leadService.markLost(id, request == null ? null : request.getReason())));
     }

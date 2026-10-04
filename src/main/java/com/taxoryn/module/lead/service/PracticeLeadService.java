@@ -213,12 +213,17 @@ public class PracticeLeadService {
         if (SecurityUtils.hasRole("SUPER_ADMIN") || SecurityUtils.hasRole("TAXORYN_SUPERADMIN")
                 || SecurityUtils.hasRole("ORG_ADMIN") || SecurityUtils.hasRole("PRACTICE_ADMIN")
                 || SecurityUtils.hasRole("PRACTICE_OWNER") || SecurityUtils.hasRole("PARTNER")
-                || SecurityUtils.hasRole("MANAGER") || SecurityUtils.hasRole("TAX_MANAGER")) return null;
+                || SecurityUtils.hasRole("CA_PARTNER")
+                || SecurityUtils.hasRole("MANAGER") || SecurityUtils.hasRole("TAX_MANAGER")
+                || SecurityUtils.hasRole("PRACTITIONER") || SecurityUtils.hasRole("TAX_PROFESSIONAL")
+                || SecurityUtils.hasRole("SENIOR_TAX_ASSOCIATE")) {
+            return null;
+        }
         UUID userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) throw new UnauthorizedException("Authenticated user context is required.");
+        if (userId == null) return null;
         return employeeRepository.findByOrganizationIdAndUserId(organizationId, userId)
                 .map(EmployeeEntity::getId)
-                .orElseThrow(() -> new AccessDeniedException("An employee profile is required to access assigned leads."));
+                .orElse(null);
     }
 
     private UUID requireOrganization() {

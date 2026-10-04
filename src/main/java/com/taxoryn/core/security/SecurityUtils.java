@@ -362,7 +362,13 @@ public final class SecurityUtils {
             "NOTICE_APPROVE",
             "NOTICE_SUBMIT",
             "NOTICE_CLOSE",
-            "NOTICE_DELETE"
+            "NOTICE_DELETE",
+            "LEAD_VIEW",
+            "LEAD_CREATE",
+            "LEAD_UPDATE",
+            "LEAD_ASSIGN",
+            "LEAD_CONVERT",
+            "LEAD_DELETE"
     );
 
     public static boolean isTenantDelegatablePermission(String permissionCode) {
