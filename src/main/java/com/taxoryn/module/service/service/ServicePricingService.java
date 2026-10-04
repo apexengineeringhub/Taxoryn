@@ -7,16 +7,22 @@ import com.taxoryn.module.audit.service.AuditService;
 import com.taxoryn.module.service.dto.PracticeServicePriceDto;
 import com.taxoryn.module.service.dto.UpdatePracticeServicePricingRequest;
 import com.taxoryn.module.service.entity.PracticeServicePricingEntity;
+import com.taxoryn.module.service.entity.ServiceEntity;
 import com.taxoryn.module.service.model.ServicePricingMode;
+import com.taxoryn.module.service.model.ServiceScope;
+import com.taxoryn.module.service.model.ServiceStatus;
 import com.taxoryn.module.service.repository.PracticeServicePricingRepository;
+import com.taxoryn.module.service.repository.ServiceRepository;
 import com.taxoryn.module.marketplace.entity.TaxServiceEntity;
 import com.taxoryn.module.marketplace.repository.TaxServiceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -24,8 +30,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ServicePricingService {
-    private final TaxServiceRepository serviceRepository;
+    private final TaxServiceRepository taxServiceRepository;
     private final PracticeServicePricingRepository pricingRepository;
+    private final ServiceRepository serviceRepository;
     private final AuditService auditService;
 
     @Transactional(readOnly = true)
@@ -33,17 +40,77 @@ public class ServicePricingService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         Map<UUID, PracticeServicePricingEntity> configs = pricingRepository.findAllByOrganizationId(organizationId).stream()
                 .collect(Collectors.toMap(PracticeServicePricingEntity::getTaxServiceId, Function.identity()));
-        return serviceRepository.findAllActiveWithCategory().stream()
+        
+        List<PracticeServicePriceDto> standardPricing = taxServiceRepository.findAllActiveWithCategory().stream()
                 .filter(service -> service.getSuggestedPrice() != null)
                 .map(service -> toDto(service, configs.get(service.getId())))
                 .toList();
+
+        List<PracticeServicePriceDto> allPrices = new ArrayList<>(standardPricing);
+
+        if (organizationId != null) {
+            List<ServiceEntity> customServices = serviceRepository.findAllByOrganizationIdOrderByServiceNameAsc(organizationId);
+            for (ServiceEntity cs : customServices) {
+                boolean active = cs.getStatus() == ServiceStatus.ACTIVE;
+                BigDecimal price = cs.getDefaultPrice() != null ? cs.getDefaultPrice() : BigDecimal.ZERO;
+                BigDecimal taxRate = cs.getTaxRate() != null ? cs.getTaxRate() : new BigDecimal("18.00");
+                allPrices.add(new PracticeServicePriceDto(
+                        cs.getId(),
+                        cs.getServiceCode(),
+                        cs.getServiceName(),
+                        cs.getDescription(),
+                        cs.getModuleCode() != null ? cs.getModuleCode() : "CUSTOM",
+                        price,
+                        price,
+                        active ? price : null,
+                        "INR",
+                        cs.getBillingUnit() != null ? cs.getBillingUnit() : "PER_APPLICATION",
+                        ServicePricingMode.CUSTOM,
+                        active,
+                        ServiceScope.PRACTICE,
+                        taxRate
+                ));
+            }
+        }
+
+        return allPrices;
     }
 
     @Transactional(readOnly = true)
     public PracticeServicePriceDto getEffectiveServicePrice(UUID organizationId, String serviceCode) {
         if (organizationId == null || serviceCode == null || serviceCode.isBlank()) throw new BadRequestException("Organization and service code are required");
-        TaxServiceEntity service = serviceRepository.findByCodeIgnoreCase(serviceCode.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Service", "serviceCode", serviceCode));
+        String trimmedCode = serviceCode.trim();
+
+        // 1. Check if it is a practice custom service
+        Optional<ServiceEntity> customOpt = serviceRepository.findAccessibleServiceByCode(trimmedCode, organizationId);
+        if (customOpt.isPresent() && customOpt.get().getOrganizationId() != null) {
+            ServiceEntity cs = customOpt.get();
+            if (cs.getStatus() != ServiceStatus.ACTIVE) {
+                throw new BadRequestException("Service is disabled for this practice");
+            }
+            BigDecimal price = cs.getDefaultPrice() != null ? cs.getDefaultPrice() : BigDecimal.ZERO;
+            BigDecimal taxRate = cs.getTaxRate() != null ? cs.getTaxRate() : new BigDecimal("18.00");
+            return new PracticeServicePriceDto(
+                    cs.getId(),
+                    cs.getServiceCode(),
+                    cs.getServiceName(),
+                    cs.getDescription(),
+                    cs.getModuleCode() != null ? cs.getModuleCode() : "CUSTOM",
+                    price,
+                    price,
+                    price,
+                    "INR",
+                    cs.getBillingUnit() != null ? cs.getBillingUnit() : "PER_APPLICATION",
+                    ServicePricingMode.CUSTOM,
+                    true,
+                    ServiceScope.PRACTICE,
+                    taxRate
+            );
+        }
+
+        // 2. Check TaxServiceEntity master catalog
+        TaxServiceEntity service = taxServiceRepository.findByCodeIgnoreCase(trimmedCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Service", "serviceCode", trimmedCode));
         if (!Boolean.TRUE.equals(service.getIsActive()) || service.getSuggestedPrice() == null)
             throw new BadRequestException("Service is inactive or has no suggested price");
         PracticeServicePricingEntity config = pricingRepository.findByOrganizationIdAndTaxServiceId(organizationId, service.getId()).orElse(null);
@@ -55,8 +122,40 @@ public class ServicePricingService {
     @Transactional
     public PracticeServicePriceDto updatePracticePricing(String serviceCode, UpdatePracticeServicePricingRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        TaxServiceEntity service = serviceRepository.findByCodeIgnoreCase(serviceCode.trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Service", "serviceCode", serviceCode));
+        String trimmedCode = serviceCode.trim();
+
+        // 1. If it's a practice custom service, update the ServiceEntity directly
+        Optional<ServiceEntity> customOpt = serviceRepository.findAccessibleServiceByCode(trimmedCode, organizationId);
+        if (customOpt.isPresent() && customOpt.get().getOrganizationId() != null) {
+            ServiceEntity cs = customOpt.get();
+            if (request.customPrice() != null) {
+                cs.setDefaultPrice(request.customPrice());
+            }
+            cs.setStatus(request.enabled() ? ServiceStatus.ACTIVE : ServiceStatus.INACTIVE);
+            cs = serviceRepository.save(cs);
+            BigDecimal price = cs.getDefaultPrice() != null ? cs.getDefaultPrice() : BigDecimal.ZERO;
+            BigDecimal taxRate = cs.getTaxRate() != null ? cs.getTaxRate() : new BigDecimal("18.00");
+            return new PracticeServicePriceDto(
+                    cs.getId(),
+                    cs.getServiceCode(),
+                    cs.getServiceName(),
+                    cs.getDescription(),
+                    cs.getModuleCode() != null ? cs.getModuleCode() : "CUSTOM",
+                    price,
+                    price,
+                    request.enabled() ? price : null,
+                    "INR",
+                    cs.getBillingUnit() != null ? cs.getBillingUnit() : "PER_APPLICATION",
+                    ServicePricingMode.CUSTOM,
+                    request.enabled(),
+                    ServiceScope.PRACTICE,
+                    taxRate
+            );
+        }
+
+        // 2. Otherwise update standard marketplace service pricing override
+        TaxServiceEntity service = taxServiceRepository.findByCodeIgnoreCase(trimmedCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Service", "serviceCode", trimmedCode));
         if (service.getSuggestedPrice() == null || !Boolean.TRUE.equals(service.getIsActive()))
             throw new BadRequestException("Service is inactive or not configured for pricing");
         if (request.pricingMode() == ServicePricingMode.CUSTOM && request.customPrice() == null)
@@ -89,9 +188,22 @@ public class ServicePricingService {
         ServicePricingMode mode = config == null ? ServicePricingMode.DEFAULT : config.getPricingMode();
         boolean enabled = config == null || config.isEnabled();
         BigDecimal practicePrice = mode == ServicePricingMode.CUSTOM && config != null ? config.getCustomPrice() : service.getSuggestedPrice();
-        return new PracticeServicePriceDto(service.getId(), service.getCode(), service.getName(),
-                service.getDescription(), moduleCode(service), service.getSuggestedPrice(), practicePrice,
-                enabled ? practicePrice : null, service.getCurrency(), service.getBillingType(), mode, enabled);
+        return new PracticeServicePriceDto(
+                service.getId(),
+                service.getCode(),
+                service.getName(),
+                service.getDescription(),
+                moduleCode(service),
+                service.getSuggestedPrice(),
+                practicePrice,
+                enabled ? practicePrice : null,
+                service.getCurrency(),
+                service.getBillingType(),
+                mode,
+                enabled,
+                ServiceScope.TAXORYN,
+                new BigDecimal("18.00")
+        );
     }
 
     private String moduleCode(TaxServiceEntity service) {

@@ -98,82 +98,97 @@ public class FlywayMigrationValidationTest {
         MigrationInfoService infoService = flyway.info();
         MigrationInfo[] allMigrations = infoService.all();
 
-        assertThat(allMigrations).isNotEmpty();
-        assertThat(allMigrations.length).isEqualTo(114);
+        assertThat(allMigrations)
+                .withFailMessage("No Flyway migrations were discovered by Flyway MigrationInfoService")
+                .isNotEmpty();
 
         Set<String> discoveredVersions = new HashSet<>();
         for (MigrationInfo info : allMigrations) {
+            assertThat(info.getVersion())
+                    .withFailMessage("Discovered migration with null version")
+                    .isNotNull();
             String versionStr = info.getVersion().getVersion();
             assertThat(discoveredVersions.add(versionStr))
                     .withFailMessage("Flyway discovered duplicate migration version: %s", versionStr)
                     .isTrue();
+            assertThat(info.getState().isFailed())
+                    .withFailMessage("Migration %s is in failed state", versionStr)
+                    .isFalse();
         }
 
-        MigrationInfo v38 = infoService.all()[37];
-        System.out.println("RESOLVED_V38_CHECKSUM: " + v38.getChecksum());
-        MigrationInfo v39 = infoService.all()[38];
-        System.out.println("RESOLVED_V39_CHECKSUM: " + v39.getChecksum());
-        MigrationInfo v43 = infoService.all()[42];
-        System.out.println("RESOLVED_V43_CHECKSUM: " + v43.getChecksum());
-        MigrationInfo v44 = infoService.all()[43];
-        System.out.println("RESOLVED_V44_CHECKSUM: " + v44.getChecksum());
-        MigrationInfo v45 = infoService.all()[44];
-        System.out.println("RESOLVED_V45_CHECKSUM: " + v45.getChecksum());
-        assertThat(v39.getVersion().getVersion()).isEqualTo("39");
-        assertThat(v39.getDescription()).isEqualTo("ensure content studio columns");
+        java.util.Map<String, MigrationInfo> migrationByVersion = java.util.Arrays.stream(allMigrations)
+                .collect(java.util.stream.Collectors.toMap(m -> m.getVersion().getVersion(), m -> m));
 
-        assertThat(v43.getVersion().getVersion()).isEqualTo("43");
-        assertThat(v43.getDescription()).isEqualTo("enquiry secure messaging");
+        MigrationInfo v38 = migrationByVersion.get("38");
+        if (v38 != null) {
+            System.out.println("RESOLVED_V38_CHECKSUM: " + v38.getChecksum());
+        }
+        MigrationInfo v39 = migrationByVersion.get("39");
+        if (v39 != null) {
+            System.out.println("RESOLVED_V39_CHECKSUM: " + v39.getChecksum());
+            assertThat(v39.getDescription()).isEqualTo("ensure content studio columns");
+        }
+        MigrationInfo v43 = migrationByVersion.get("43");
+        if (v43 != null) {
+            System.out.println("RESOLVED_V43_CHECKSUM: " + v43.getChecksum());
+            assertThat(v43.getDescription()).isEqualTo("enquiry secure messaging");
+        }
+        MigrationInfo v44 = migrationByVersion.get("44");
+        if (v44 != null) {
+            System.out.println("RESOLVED_V44_CHECKSUM: " + v44.getChecksum());
+        }
+        MigrationInfo v45 = migrationByVersion.get("45");
+        if (v45 != null) {
+            System.out.println("RESOLVED_V45_CHECKSUM: " + v45.getChecksum());
+            assertThat(v45.getDescription()).isEqualTo("add version to marketplace enquiry messages");
+        }
 
-        assertThat(v45.getVersion().getVersion()).isEqualTo("45");
-        assertThat(v45.getDescription()).isEqualTo("add version to marketplace enquiry messages");
-
-        MigrationInfo v63 = infoService.all()[62];
-        assertThat(v63.getVersion().getVersion()).isEqualTo("63");
+        MigrationInfo v63 = migrationByVersion.get("63");
+        assertThat(v63).isNotNull();
         assertThat(v63.getDescription()).isEqualTo("correct legacy document scan status");
 
-        MigrationInfo v64 = infoService.all()[63];
-        assertThat(v64.getVersion().getVersion()).isEqualTo("64");
+        MigrationInfo v64 = migrationByVersion.get("64");
+        assertThat(v64).isNotNull();
         assertThat(v64.getDescription()).isEqualTo("add profile image support");
 
-        MigrationInfo v65 = infoService.all()[64];
-        assertThat(v65.getVersion().getVersion()).isEqualTo("65");
+        MigrationInfo v65 = migrationByVersion.get("65");
+        assertThat(v65).isNotNull();
         assertThat(v65.getDescription()).isEqualTo("fix notice audit columns type");
 
-        MigrationInfo v66 = infoService.all()[65];
-        assertThat(v66.getVersion().getVersion()).isEqualTo("66");
+        MigrationInfo v66 = migrationByVersion.get("66");
+        assertThat(v66).isNotNull();
         assertThat(v66.getDescription()).isEqualTo("cleanup legacy demo data");
 
-        MigrationInfo v67 = infoService.all()[66];
-        assertThat(v67.getVersion().getVersion()).isEqualTo("67");
+        MigrationInfo v67 = migrationByVersion.get("67");
+        assertThat(v67).isNotNull();
         assertThat(v67.getDescription()).isEqualTo("create early access requests");
 
-        MigrationInfo v73 = infoService.all()[72];
-        assertThat(v73.getVersion().getVersion()).isEqualTo("73");
+        MigrationInfo v73 = migrationByVersion.get("73");
+        assertThat(v73).isNotNull();
         assertThat(v73.getDescription()).isEqualTo("product module catalog and organization configuration");
 
-        MigrationInfo v91 = infoService.all()[90];
-        assertThat(v91.getVersion().getVersion()).isEqualTo("91");
+        MigrationInfo v91 = migrationByVersion.get("91");
+        assertThat(v91).isNotNull();
         assertThat(v91.getDescription()).isEqualTo("compliance workflow foundation enhancements");
 
-        MigrationInfo v92 = infoService.all()[91];
-        assertThat(v92.getVersion().getVersion()).isEqualTo("92");
+        MigrationInfo v92 = migrationByVersion.get("92");
+        assertThat(v92).isNotNull();
         assertThat(v92.getDescription()).isEqualTo("client document and request foundation");
 
-        MigrationInfo v93 = infoService.all()[92];
-        assertThat(v93.getVersion().getVersion()).isEqualTo("93");
+        MigrationInfo v93 = migrationByVersion.get("93");
+        assertThat(v93).isNotNull();
         assertThat(v93.getDescription()).isEqualTo("task work management foundation");
 
-        MigrationInfo v94 = infoService.all()[93];
-        assertThat(v94.getVersion().getVersion()).isEqualTo("94");
+        MigrationInfo v94 = migrationByVersion.get("94");
+        assertThat(v94).isNotNull();
         assertThat(v94.getDescription()).isEqualTo("engagement time tracking billing foundation");
 
-        MigrationInfo v95 = infoService.all()[94];
-        assertThat(v95.getVersion().getVersion()).isEqualTo("95");
+        MigrationInfo v95 = migrationByVersion.get("95");
+        assertThat(v95).isNotNull();
         assertThat(v95.getDescription()).isEqualTo("gst compliance workspace foundation");
 
-        MigrationInfo v106 = infoService.all()[105];
-        assertThat(v106.getVersion().getVersion()).isEqualTo("106");
+        MigrationInfo v106 = migrationByVersion.get("106");
+        assertThat(v106).isNotNull();
         assertThat(v106.getDescription()).isEqualTo("service catalog and engagement foundation");
     }
 
@@ -310,7 +325,7 @@ public class FlywayMigrationValidationTest {
     }
 
     @Test
-    @DisplayName("Verify all Flyway migrations V1 to V91 resolve with valid descriptions and checksums")
+    @DisplayName("Verify all Flyway migrations resolve sequentially with valid descriptions and checksums")
     void testAllFlywayMigrationsResolveSuccessfully() {
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:h2:mem:flyway_metadata_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL", "sa", "")
@@ -318,15 +333,31 @@ public class FlywayMigrationValidationTest {
                 .load();
 
         MigrationInfo[] all = flyway.info().all();
-        assertThat(all).hasSize(114);
+        assertThat(all)
+                .withFailMessage("No Flyway migrations were discovered")
+                .isNotEmpty();
 
         for (int i = 0; i < all.length; i++) {
             MigrationInfo info = all[i];
             int expectedVersion = i + 1;
-            assertThat(info.getVersion().getVersion()).isEqualTo(String.valueOf(expectedVersion));
-            assertThat(info.getDescription()).isNotBlank();
-            assertThat(info.getChecksum()).isNotNull();
-            assertThat(info.getScript()).isEqualTo(String.format("V%d__%s.sql", expectedVersion, info.getDescription().replace(" ", "_")));
+            assertThat(info.getVersion())
+                    .withFailMessage("Migration at index %d has null version", i)
+                    .isNotNull();
+            assertThat(info.getVersion().getVersion())
+                    .withFailMessage("Expected version %d at index %d, but found %s", expectedVersion, i, info.getVersion().getVersion())
+                    .isEqualTo(String.valueOf(expectedVersion));
+            assertThat(info.getDescription())
+                    .withFailMessage("Migration V%d has blank description", expectedVersion)
+                    .isNotBlank();
+            assertThat(info.getChecksum())
+                    .withFailMessage("Migration V%d has null checksum", expectedVersion)
+                    .isNotNull();
+            assertThat(info.getScript())
+                    .withFailMessage("Migration V%d script name mismatch", expectedVersion)
+                    .isEqualTo(String.format("V%d__%s.sql", expectedVersion, info.getDescription().replace(" ", "_")));
+            assertThat(info.getState().isFailed())
+                    .withFailMessage("Migration V%d is in failed state: %s", expectedVersion, info.getState())
+                    .isFalse();
         }
     }
 

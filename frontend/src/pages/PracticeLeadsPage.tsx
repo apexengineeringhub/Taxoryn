@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CirclePlus, Edit2, ExternalLink, MessageSquareText, Search, UserRound, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CirclePlus, Edit2, ExternalLink, MessageSquareText, RefreshCw, Search, UserRound, X } from 'lucide-react';
 import { practiceLeadApi, employeeApi, servicesApi } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { Employee, PracticeLead, PracticeLeadActivity, PracticeLeadPriority, PracticeLeadRequest, PracticeLeadSource, PracticeLeadStatus } from '../types';
@@ -66,7 +66,7 @@ const LeadList: React.FC = () => {
     try {
       const result = await practiceLeadApi.list({ page, size: 20, search: search || undefined, status: status || undefined, priority: priority || undefined, source: source || undefined, interestedServiceCode: serviceCode || undefined, assignedEmployeeId: assigned || undefined });
       setRows(result?.content || []); setTotalPages(result?.totalPages || 0); setTotalElements(result?.totalElements || 0);
-    } catch (e: any) { setError(e?.response?.data?.message || 'Could not load leads.'); }
+    } catch (e: any) { setError(e?.response?.data?.message || 'Unable to load leads. Please try again.'); }
     finally { setLoading(false); }
   }, [page, search, status, priority, source, serviceCode, assigned]);
   useEffect(() => { void load(); }, [load]);
@@ -112,8 +112,109 @@ const LeadList: React.FC = () => {
       <select aria-label="Assigned employee filter" value={assigned} onChange={e => { setAssigned(e.target.value); setPage(0); }} className="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All assignees</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.fullName || `${emp.firstName} ${emp.lastName || ''}`}</option>)}</select>
     </div>
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      {loading ? <div role="status" className="p-12 text-center text-sm text-slate-500">Loading leads…</div> : rows.length === 0 ? <div className="p-14 text-center"><UserRound className="mx-auto mb-3 h-9 w-9 text-slate-300" /><p className="font-semibold text-slate-700">No leads yet</p><p className="mt-1 text-sm text-slate-500">Capture your first enquiry and track it through conversion.</p>{canCreate && <button onClick={openNew} className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">+ Add Lead</button>}</div> : <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{['Lead','Contact','Interested Service','Source','Status','Priority','Assigned To','Next Follow-up','Actions'].map(x => <th key={x} className="px-4 py-3">{x}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map(lead => <tr key={lead.id} className="hover:bg-slate-50/70"><td className="px-4 py-3"><Link to={`/leads/${lead.id}`} className="font-semibold text-slate-900 hover:text-brand-700">{lead.name}</Link>{lead.businessName && <div className="mt-0.5 text-xs text-slate-500">{lead.businessName}</div>}</td><td className="px-4 py-3 text-xs text-slate-600">{lead.phone || '—'}<div>{lead.email || ''}</div></td><td className="px-4 py-3">{lead.interestedServiceName || lead.interestedServiceCode || '—'}</td><td className="px-4 py-3">{label(lead.source)}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${badgeTone[lead.status]}`}>{label(lead.status)}</span></td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${badgeTone[lead.priority]}`}>{lead.priority}</span></td><td className="px-4 py-3">{lead.assignedEmployeeName || 'Unassigned'}</td><td className="px-4 py-3 text-xs">{lead.nextFollowUpAt ? <span className={new Date(lead.nextFollowUpAt) < new Date() ? 'font-semibold text-rose-700' : 'text-slate-600'}>{new Date(lead.nextFollowUpAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}{new Date(lead.nextFollowUpAt) < new Date() && <span className="block">Overdue</span>}</span> : '—'}</td><td className="px-4 py-3"><div className="flex items-center gap-2 whitespace-nowrap"><button title="View" onClick={() => navigate(`/leads/${lead.id}`)} className="text-xs font-semibold text-brand-700">View</button>{canUpdate && <button title="Edit" onClick={() => openEdit(lead)} className="text-slate-500 hover:text-brand-700"><Edit2 className="h-4 w-4" /></button>}<details className="relative"><summary className="cursor-pointer list-none rounded px-2 text-lg leading-none text-slate-500">⋮</summary><div className="absolute right-0 z-10 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">{permissions.includes('LEAD_ASSIGN') && <label className="block px-2 py-1 text-[10px] text-slate-400">Assign to<select defaultValue="" onChange={e => void assign(lead, e.target.value)} className="mt-1 w-full rounded border p-1.5 text-xs"><option value="">Choose employee…</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.fullName || emp.firstName}</option>)}</select></label>}<button onClick={() => navigate(`/leads/${lead.id}#activity`)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-slate-50">Add Communication</button>{canConvert && ['QUALIFIED','PROPOSAL_SENT','FOLLOW_UP'].includes(lead.status) && <button onClick={() => navigate(`/leads/${lead.id}#convert`)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-slate-50">Convert to Client</button>}{canUpdate && !['LOST','CONVERTED'].includes(lead.status) && <button onClick={() => void markLost(lead)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-slate-50">Mark Lost</button>}</div></details></div></td></tr>)}</tbody></table></div>}
-      {!loading && rows.length > 0 && <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500"><span>{totalElements} leads</span><div className="flex items-center gap-2"><button disabled={page <= 0} onClick={() => setPage(p => p - 1)} className="rounded border px-2 py-1 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button><span>Page {page + 1} of {Math.max(1, totalPages)}</span><button disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded border px-2 py-1 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button></div></div>}
+      {loading ? (
+        <div role="status" className="p-12 text-center text-sm text-slate-500">Loading leads…</div>
+      ) : error ? (
+        <div role="alert" className="p-14 text-center">
+          <AlertCircle className="mx-auto mb-3 h-10 w-10 text-rose-500" />
+          <p className="text-base font-semibold text-slate-900">Unable to load leads</p>
+          <p className="mt-1 text-sm text-slate-500">We couldn't retrieve your leads right now.</p>
+          {error !== 'Unable to load leads. Please try again.' && (
+            <p className="mt-1 text-xs text-rose-600">{error}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try Again
+          </button>
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="p-14 text-center">
+          <UserRound className="mx-auto mb-3 h-9 w-9 text-slate-300" />
+          <p className="font-semibold text-slate-700">No leads yet</p>
+          <p className="mt-1 text-sm text-slate-500">Capture your first enquiry and track it through conversion.</p>
+          {canCreate && (
+            <button onClick={openNew} className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">
+              + Add Lead
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>{['Lead','Contact','Interested Service','Source','Status','Priority','Assigned To','Next Follow-up','Actions'].map(x => <th key={x} className="px-4 py-3">{x}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map(lead => (
+                <tr key={lead.id} className="hover:bg-slate-50/70">
+                  <td className="px-4 py-3">
+                    <Link to={`/leads/${lead.id}`} className="font-semibold text-slate-900 hover:text-brand-700">{lead.name}</Link>
+                    {lead.businessName && <div className="mt-0.5 text-xs text-slate-500">{lead.businessName}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {lead.phone || '—'}
+                    <div>{lead.email || ''}</div>
+                  </td>
+                  <td className="px-4 py-3">{lead.interestedServiceName || lead.interestedServiceCode || '—'}</td>
+                  <td className="px-4 py-3">{label(lead.source)}</td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${badgeTone[lead.status]}`}>{label(lead.status)}</span></td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${badgeTone[lead.priority]}`}>{lead.priority}</span></td>
+                  <td className="px-4 py-3">{lead.assignedEmployeeName || 'Unassigned'}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {lead.nextFollowUpAt ? (
+                      <span className={new Date(lead.nextFollowUpAt) < new Date() ? 'font-semibold text-rose-700' : 'text-slate-600'}>
+                        {new Date(lead.nextFollowUpAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                        {new Date(lead.nextFollowUpAt) < new Date() && <span className="block">Overdue</span>}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <button title="View" onClick={() => navigate(`/leads/${lead.id}`)} className="text-xs font-semibold text-brand-700">View</button>
+                      {canUpdate && <button title="Edit" onClick={() => openEdit(lead)} className="text-slate-500 hover:text-brand-700"><Edit2 className="h-4 w-4" /></button>}
+                      <details className="relative">
+                        <summary className="cursor-pointer list-none rounded px-2 text-lg leading-none text-slate-500">⋮</summary>
+                        <div className="absolute right-0 z-10 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                          {permissions.includes('LEAD_ASSIGN') && (
+                            <label className="block px-2 py-1 text-[10px] text-slate-400">
+                              Assign to
+                              <select defaultValue="" onChange={e => void assign(lead, e.target.value)} className="mt-1 w-full rounded border p-1.5 text-xs">
+                                <option value="">Choose employee…</option>
+                                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.fullName || emp.firstName}</option>)}
+                              </select>
+                            </label>
+                          )}
+                          <button onClick={() => navigate(`/leads/${lead.id}#activity`)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-slate-50">Add Communication</button>
+                          {canConvert && ['QUALIFIED','PROPOSAL_SENT','FOLLOW_UP'].includes(lead.status) && (
+                            <button onClick={() => navigate(`/leads/${lead.id}#convert`)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-slate-50">Convert to Client</button>
+                          )}
+                          {canUpdate && !['LOST','CONVERTED'].includes(lead.status) && (
+                            <button onClick={() => void markLost(lead)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-slate-50">Mark Lost</button>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!loading && !error && rows.length > 0 && (
+        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+          <span>{totalElements} leads</span>
+          <div className="flex items-center gap-2">
+            <button disabled={page <= 0} onClick={() => setPage(p => p - 1)} className="rounded border px-2 py-1 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+            <span>Page {page + 1} of {Math.max(1, totalPages)}</span>
+            <button disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded border px-2 py-1 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+          </div>
+        </div>
+      )}
     </div>
     {formOpen && <LeadFormModal form={form} setForm={setForm} employees={employees} services={services} saving={saving} editing={!!editing} canAssign={permissions.includes('LEAD_ASSIGN')} onClose={() => setFormOpen(false)} onSubmit={save} />}
   </div>;

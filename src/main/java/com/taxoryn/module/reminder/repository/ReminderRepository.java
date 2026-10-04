@@ -46,9 +46,21 @@ public interface ReminderRepository extends JpaRepository<ReminderEntity, UUID>,
     // -------------------------------------------------------------------------
 
     /**
-     * Finds all PENDING reminders whose scheduled time is at or before {@code now}.
-     * Used by the reminder scheduler to decide which reminders to trigger.
+     * Finds all PENDING reminders whose scheduled time is at or before {@code now}
+     * with notification attempts under maxAttempts.
      */
+    @Query("""
+            SELECT r FROM ReminderEntity r
+            WHERE r.status = 'PENDING'
+              AND r.scheduledAt <= :now
+              AND r.notificationAttempts < :maxAttempts
+            ORDER BY r.scheduledAt ASC
+            """)
+    List<ReminderEntity> findAllDueForProcessing(
+            @Param("now") Instant now,
+            @Param("maxAttempts") int maxAttempts,
+            org.springframework.data.domain.Pageable pageable);
+
     @Query("""
             SELECT r FROM ReminderEntity r
             WHERE r.status = 'PENDING'
@@ -58,9 +70,23 @@ public interface ReminderRepository extends JpaRepository<ReminderEntity, UUID>,
     List<ReminderEntity> findAllDueForProcessing(@Param("now") Instant now);
 
     /**
-     * Finds all PENDING reminders for a specific organization due for processing.
-     * Used within per-tenant scheduler loops.
+     * Finds all PENDING reminders for a specific organization due for processing
+     * with notification attempts under maxAttempts.
      */
+    @Query("""
+            SELECT r FROM ReminderEntity r
+            WHERE r.organizationId = :organizationId
+              AND r.status = 'PENDING'
+              AND r.scheduledAt <= :now
+              AND r.notificationAttempts < :maxAttempts
+            ORDER BY r.scheduledAt ASC
+            """)
+    List<ReminderEntity> findDueForOrganization(
+            @Param("organizationId") UUID organizationId,
+            @Param("now") Instant now,
+            @Param("maxAttempts") int maxAttempts,
+            org.springframework.data.domain.Pageable pageable);
+
     @Query("""
             SELECT r FROM ReminderEntity r
             WHERE r.organizationId = :organizationId
@@ -112,4 +138,12 @@ public interface ReminderRepository extends JpaRepository<ReminderEntity, UUID>,
 
     long countByOrganizationIdAndTargetUserIdAndStatusAndScheduledAtBefore(
             UUID organizationId, UUID targetUserId, ReminderStatus status, Instant before);
+
+    long countByOrganizationIdAndStatus(UUID organizationId, ReminderStatus status);
+
+    long countByOrganizationIdAndStatusAndScheduledAtBefore(
+            UUID organizationId, ReminderStatus status, Instant before);
+
+    long countByOrganizationIdAndStatusAndScheduledAtBetween(
+            UUID organizationId, ReminderStatus status, Instant start, Instant end);
 }

@@ -3,6 +3,8 @@ package com.taxoryn.module.reminder.service;
 import com.taxoryn.core.exception.ResourceNotFoundException;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.core.security.SecurityUtils;
+import com.taxoryn.module.engagement.entity.EngagementEntity;
+import com.taxoryn.module.engagement.repository.EngagementRepository;
 import com.taxoryn.module.notification.entity.NotificationEntity.Category;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel;
 import com.taxoryn.module.notification.entity.NotificationEntity.NotificationType;
@@ -13,6 +15,7 @@ import com.taxoryn.module.reminder.dto.ReminderDto;
 import com.taxoryn.module.reminder.dto.ReminderFilterRequest;
 import com.taxoryn.module.reminder.dto.UpdateReminderRequest;
 import com.taxoryn.module.reminder.entity.AutomationRuleEntity;
+import com.taxoryn.module.reminder.entity.AutomationTargetType;
 import com.taxoryn.module.reminder.entity.ReminderEntity;
 import com.taxoryn.module.reminder.entity.ReminderPriority;
 import com.taxoryn.module.reminder.entity.ReminderRecurrenceType;
@@ -20,8 +23,10 @@ import com.taxoryn.module.reminder.entity.ReminderStatus;
 import com.taxoryn.module.reminder.entity.ReminderType;
 import com.taxoryn.module.reminder.event.TaxorynBusinessEvent;
 import com.taxoryn.module.reminder.repository.ReminderRepository;
-import com.taxoryn.module.user.repository.UserRepository;
 import com.taxoryn.module.task.repository.TaskRepository;
+import com.taxoryn.module.user.repository.UserRepository;
+import com.taxoryn.module.worktemplate.entity.WorkInstanceEntity;
+import com.taxoryn.module.worktemplate.repository.WorkInstanceRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,22 +40,27 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Core implementation of {@link ReminderService}.
+ * Hardened core implementation of {@link ReminderService}.
  *
  * <p>Handles:
  * <ul>
- *   <li>Manual reminder CRUD (REST API path)</li>
- *   <li>Automation-generated reminders with idempotency key dedup</li>
- *   <li>Scheduler processing: PENDING → TRIGGERED with notification creation</li>
+ *   <li>Manual reminder CRUD (REST API path) with tenant isolation</li>
+ *   <li>Automation-generated reminders with deterministic idempotency keys</li>
+ *   <li>Scheduler processing: PENDING → TRIGGERED with notification retry tracking</li>
+ *   <li>Recurring reminders: automatic calculation and spawning of next occurrence</li>
+ *   <li>Target user resolution for all AutomationTargetType values</li>
  *   <li>Task lifecycle hooks: cancel pending reminders when task is completed/cancelled</li>
  * </ul>
  */
@@ -59,12 +69,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReminderServiceImpl implements ReminderService {
 
+    public static final int MAX_NOTIFICATION_ATTEMPTS = 3;
+    private static final DateTimeFormatter IDEM_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     private final ReminderRepository reminderRepository;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
-
-    private static final DateTimeFormatter IDEM_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private final EngagementRepository engagementRepository;
+    private final WorkInstanceRepository workInstanceRepository;
 
     // =========================================================================
     // CRUD — Manual Reminders (REST API)
@@ -90,7 +103,8 @@ public class ReminderServiceImpl implements ReminderService {
                 .workInstanceId(request.getWorkInstanceId())
                 .taskId(request.getTaskId())
                 .scheduledAt(request.getScheduledAt())
-                .recurrenceType(request.getRecurrenceType())
+                .recurrenceType(request.getRecurrenceType() != null ? request.getRecurrenceType() : ReminderRecurrenceType.NONE)
+                .notificationAttempts(0)
                 .notes(request.getNotes())
                 .build();
         reminder.setOrganizationId(orgId);
@@ -279,7 +293,6 @@ public class ReminderServiceImpl implements ReminderService {
     @Override
     @Transactional
     public ReminderDto createAutomatedReminder(TaxorynBusinessEvent event, AutomationRuleEntity rule) {
-        // Compute the scheduled date: due date + offset
         LocalDate eventDate = event.getDueDate();
         if (eventDate == null) {
             eventDate = LocalDate.now();
@@ -287,27 +300,17 @@ public class ReminderServiceImpl implements ReminderService {
         LocalDate scheduledDate = eventDate.plusDays(rule.getDaysOffset());
         Instant scheduledAt = scheduledDate.atStartOfDay(ZoneOffset.UTC).toInstant();
 
-        // If the scheduled date is in the past, fire immediately (scheduler will pick it up)
-        // but still persist for audit trail
-
-        // Build idempotency key: ruleId::TASK::taskId::2026-10-01
         String referenceType = resolveReferenceType(event);
         String referenceId = resolveReferenceId(event);
         String idempotencyKey = rule.getId() + "::" + referenceType + "::" + referenceId + "::" + scheduledDate.format(IDEM_DATE_FMT);
 
-        // Idempotency check — if this exact reminder was already created, skip
         if (reminderRepository.existsByIdempotencyKey(idempotencyKey)) {
             log.debug("Skipping duplicate automated reminder: {}", idempotencyKey);
             return null;
         }
 
-        // Resolve target user
         UUID targetUserId = resolveTargetUser(event, rule);
-
-        // Map event type to ReminderType
         ReminderType reminderType = mapEventToReminderType(event);
-
-        // Build the reminder title
         String title = buildAutomatedTitle(event, rule);
 
         ReminderEntity reminder = ReminderEntity.builder()
@@ -327,6 +330,7 @@ public class ReminderServiceImpl implements ReminderService {
                 .idempotencyKey(idempotencyKey)
                 .scheduledAt(scheduledAt)
                 .recurrenceType(ReminderRecurrenceType.NONE)
+                .notificationAttempts(0)
                 .build();
         reminder.setOrganizationId(event.getOrganizationId());
 
@@ -343,20 +347,29 @@ public class ReminderServiceImpl implements ReminderService {
     @Override
     @Transactional
     public int processAllDueReminders(UUID organizationId) {
+        return processAllDueReminders(organizationId, 50);
+    }
+
+    @Override
+    @Transactional
+    public int processAllDueReminders(UUID organizationId, int batchSize) {
         List<ReminderEntity> dueReminders;
         Instant now = Instant.now();
+        PageRequest pageRequest = PageRequest.of(0, Math.max(1, batchSize));
 
         if (organizationId != null) {
-            dueReminders = reminderRepository.findDueForOrganization(organizationId, now);
+            dueReminders = reminderRepository.findDueForOrganization(organizationId, now, MAX_NOTIFICATION_ATTEMPTS, pageRequest);
         } else {
-            dueReminders = reminderRepository.findAllDueForProcessing(now);
+            dueReminders = reminderRepository.findAllDueForProcessing(now, MAX_NOTIFICATION_ATTEMPTS, pageRequest);
         }
 
         int triggered = 0;
         for (ReminderEntity reminder : dueReminders) {
             try {
                 triggerReminder(reminder);
-                triggered++;
+                if (reminder.getStatus() == ReminderStatus.TRIGGERED && reminder.getLastError() == null) {
+                    triggered++;
+                }
             } catch (Exception ex) {
                 log.error("Failed to trigger reminder {}: {}", reminder.getId(), ex.getMessage(), ex);
             }
@@ -374,16 +387,21 @@ public class ReminderServiceImpl implements ReminderService {
     }
 
     // =========================================================================
-    // Private helpers
+    // Recurrence & Trigger Helpers
     // =========================================================================
 
     /**
      * Triggers a single PENDING reminder:
-     * 1. Creates an in-app notification via NotificationService
-     * 2. Marks the reminder as TRIGGERED
+     * 1. Updates attempt count and timestamp.
+     * 2. Attempts in-app notification via NotificationService.
+     * 3. If notification succeeds: marks TRIGGERED, records triggeredAt, and spawns next occurrence if recurring.
+     * 4. If notification fails: records error. If max attempts reached, marks TRIGGERED with error; otherwise remains PENDING for retry.
      */
     private void triggerReminder(ReminderEntity reminder) {
-        // Determine notification type based on reminder type
+        int attempts = reminder.getNotificationAttempts() != null ? reminder.getNotificationAttempts() : 0;
+        reminder.setNotificationAttempts(attempts + 1);
+        reminder.setLastAttemptAt(Instant.now());
+
         NotificationType notificationType = mapReminderToNotificationType(reminder);
         Severity severity = reminder.isOverdue() ? Severity.ACTION_REQUIRED : Severity.WARNING;
 
@@ -391,6 +409,7 @@ public class ReminderServiceImpl implements ReminderService {
         String entityId = reminder.getReferenceId() != null ? reminder.getReferenceId() : reminder.getId().toString();
 
         String actionUrl = buildActionUrl(reminder);
+        boolean notificationSucceeded = false;
 
         try {
             notificationService.notify(
@@ -407,16 +426,113 @@ public class ReminderServiceImpl implements ReminderService {
                     Set.of(NotificationChannel.IN_APP),
                     actionUrl,
                     "{\"reminderId\":\"" + reminder.getId() + "\"}",
-                    null // expiresAt
+                    null
             );
+            notificationSucceeded = true;
+            reminder.setLastError(null);
         } catch (Exception ex) {
-            log.error("Failed to send notification for reminder {}: {}", reminder.getId(), ex.getMessage(), ex);
-            // Still mark as TRIGGERED — notification failure shouldn't block lifecycle
+            log.error("Notification attempt {} failed for reminder {}: {}",
+                    reminder.getNotificationAttempts(), reminder.getId(), ex.getMessage(), ex);
+            reminder.setLastError(ex.getMessage());
         }
 
-        reminder.setStatus(ReminderStatus.TRIGGERED);
-        reminder.setTriggeredAt(Instant.now());
-        reminderRepository.save(reminder);
+        if (notificationSucceeded) {
+            reminder.setStatus(ReminderStatus.TRIGGERED);
+            reminder.setTriggeredAt(Instant.now());
+            reminderRepository.save(reminder);
+
+            // Spawn next recurrence if configured
+            spawnNextRecurringOccurrence(reminder);
+        } else {
+            if (reminder.getNotificationAttempts() >= MAX_NOTIFICATION_ATTEMPTS) {
+                log.warn("Reminder {} reached max notification attempts ({}), marking as TRIGGERED with last error: {}",
+                        reminder.getId(), MAX_NOTIFICATION_ATTEMPTS, reminder.getLastError());
+                reminder.setStatus(ReminderStatus.TRIGGERED);
+                reminder.setTriggeredAt(Instant.now());
+            }
+            reminderRepository.save(reminder);
+        }
+    }
+
+    /**
+     * Calculates and creates the next occurrence of a recurring reminder.
+     * Guaranteed to be idempotent (at most one pending occurrence per parent lineage and scheduled time).
+     */
+    private void spawnNextRecurringOccurrence(ReminderEntity reminder) {
+        if (reminder.getRecurrenceType() == null || reminder.getRecurrenceType() == ReminderRecurrenceType.NONE) {
+            return;
+        }
+
+        Instant nextScheduledAt = calculateNextOccurrence(reminder.getScheduledAt(), reminder.getRecurrenceType(), ZoneOffset.UTC);
+        if (nextScheduledAt == null) {
+            return;
+        }
+
+        UUID parentId = reminder.getParentReminderId() != null ? reminder.getParentReminderId() : reminder.getId();
+
+        // Check if an existing PENDING reminder already exists for this parent lineage and next scheduled time
+        boolean alreadyExists = reminderRepository.findAllByOrganizationIdAndStatusOrderByScheduledAtAsc(reminder.getOrganizationId(), ReminderStatus.PENDING)
+                .stream()
+                .anyMatch(r -> (parentId.equals(r.getParentReminderId()) || parentId.equals(r.getId()))
+                        && nextScheduledAt.equals(r.getScheduledAt()));
+
+        if (alreadyExists) {
+            log.debug("Recurring occurrence for parent {} at {} already exists, skipping spawn", parentId, nextScheduledAt);
+            return;
+        }
+
+        ReminderEntity nextOccurrence = ReminderEntity.builder()
+                .title(reminder.getTitle())
+                .description(reminder.getDescription())
+                .reminderType(reminder.getReminderType())
+                .status(ReminderStatus.PENDING)
+                .priority(reminder.getPriority())
+                .targetUserId(reminder.getTargetUserId())
+                .clientId(reminder.getClientId())
+                .engagementId(reminder.getEngagementId())
+                .workInstanceId(reminder.getWorkInstanceId())
+                .taskId(reminder.getTaskId())
+                .automationRuleId(reminder.getAutomationRuleId())
+                .referenceType(reminder.getReferenceType())
+                .referenceId(reminder.getReferenceId())
+                .scheduledAt(nextScheduledAt)
+                .recurrenceType(reminder.getRecurrenceType())
+                .parentReminderId(parentId)
+                .notificationAttempts(0)
+                .notes(reminder.getNotes())
+                .build();
+        nextOccurrence.setOrganizationId(reminder.getOrganizationId());
+
+        reminderRepository.save(nextOccurrence);
+        log.info("Spawned next recurring reminder occurrence {} (parent={}, scheduledAt={}) for org {}",
+                nextOccurrence.getId(), parentId, nextScheduledAt, reminder.getOrganizationId());
+    }
+
+    /**
+     * Deterministically calculates the next occurrence instant for a given recurrence pattern.
+     * Handles month-end date clamping safely (e.g. Jan 31 -> Feb 28/29).
+     */
+    public static Instant calculateNextOccurrence(Instant currentScheduledAt, ReminderRecurrenceType recurrenceType, ZoneId zoneId) {
+        if (recurrenceType == null || recurrenceType == ReminderRecurrenceType.NONE || currentScheduledAt == null) {
+            return null;
+        }
+        ZoneId zone = zoneId != null ? zoneId : ZoneOffset.UTC;
+        ZonedDateTime zdt = currentScheduledAt.atZone(zone);
+
+        ZonedDateTime next = switch (recurrenceType) {
+            case DAILY -> zdt.plusDays(1);
+            case WEEKLY -> zdt.plusWeeks(1);
+            case MONTHLY -> {
+                int originalDay = zdt.getDayOfMonth();
+                ZonedDateTime plusOneMonth = zdt.plusMonths(1);
+                int maxDayInNextMonth = plusOneMonth.toLocalDate().lengthOfMonth();
+                int targetDay = Math.min(originalDay, maxDayInNextMonth);
+                yield plusOneMonth.withDayOfMonth(targetDay);
+            }
+            default -> null;
+        };
+
+        return next != null ? next.toInstant() : null;
     }
 
     private NotificationType mapReminderToNotificationType(ReminderEntity reminder) {
@@ -455,9 +571,39 @@ public class ReminderServiceImpl implements ReminderService {
         return event.getOrganizationId().toString();
     }
 
+    /**
+     * Resolves target recipient user based on AutomationTargetType:
+     * - TASK_ASSIGNEE: assigned user on the task
+     * - ENGAGEMENT_OWNER: assigned user on the engagement
+     * - WORK_INSTANCE_ASSIGNEE: assigned user on the work instance
+     * - SPECIFIC_USER: explicitly targeted user from event
+     */
     private UUID resolveTargetUser(TaxorynBusinessEvent event, AutomationRuleEntity rule) {
-        // For P0.5 all target types resolve to the assigned user from the event
-        // Future: ENGAGEMENT_OWNER, SPECIFIC_USER can be implemented
+        AutomationTargetType targetType = rule.getTargetType() != null ? rule.getTargetType() : AutomationTargetType.TASK_ASSIGNEE;
+
+        switch (targetType) {
+            case ENGAGEMENT_OWNER:
+                if (event.getEngagementId() != null && engagementRepository != null) {
+                    Optional<EngagementEntity> engOpt = engagementRepository.findById(event.getEngagementId());
+                    if (engOpt.isPresent() && engOpt.get().getAssignedUserId() != null) {
+                        return engOpt.get().getAssignedUserId();
+                    }
+                }
+                break;
+            case WORK_INSTANCE_ASSIGNEE:
+                if (event.getWorkInstanceId() != null && workInstanceRepository != null) {
+                    Optional<WorkInstanceEntity> wiOpt = workInstanceRepository.findById(event.getWorkInstanceId());
+                    if (wiOpt.isPresent() && wiOpt.get().getAssignedUserId() != null) {
+                        return wiOpt.get().getAssignedUserId();
+                    }
+                }
+                break;
+            case TASK_ASSIGNEE:
+            case SPECIFIC_USER:
+            default:
+                break;
+        }
+
         return event.getAssignedUserId();
     }
 
@@ -486,7 +632,6 @@ public class ReminderServiceImpl implements ReminderService {
 
     /**
      * Enriches a ReminderDto with display names from related entities.
-     * Uses safe optional lookups — missing relations result in null display names.
      */
     private ReminderDto enrichDto(ReminderEntity entity) {
         ReminderDto dto = ReminderDto.fromEntity(entity);

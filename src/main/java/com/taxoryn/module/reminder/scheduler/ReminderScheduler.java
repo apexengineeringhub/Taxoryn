@@ -7,43 +7,40 @@ import com.taxoryn.module.organization.repository.OrganizationRepository;
 import com.taxoryn.module.reminder.service.ReminderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 /**
- * Scheduled job that processes due reminders — finds all PENDING reminders
- * whose {@code scheduledAt ≤ now}, creates notifications, and marks them TRIGGERED.
+ * Scheduled job that processes due reminders — finds PENDING reminders
+ * whose {@code scheduledAt ≤ now}, creates notifications with retry handling,
+ * and spawns subsequent recurring occurrences.
  *
- * <p>Runs daily at 07:00 AM, matching the existing {@code NotificationScheduler} cadence.
- * Uses the same per-tenant iteration pattern:
- * <ol>
- *   <li>Load all active organizations</li>
- *   <li>For each org: set {@code TenantContext} → process → clear context</li>
- *   <li>Per-org try-catch for failure isolation</li>
- * </ol>
- *
- * <p><strong>Idempotency:</strong> Each reminder is processed at most once because
- * {@code processAllDueReminders()} only selects PENDING reminders and atomically
- * transitions them to TRIGGERED. Re-running the scheduler does not produce duplicate
- * notifications.
+ * <p>Configurable via {@code taxoryn.reminder.scheduler.*} properties in application.yml.
+ * Uses bounded per-tenant batch processing to prevent memory or connection exhaustion.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "taxoryn.reminder.scheduler.enabled", havingValue = "true", matchIfMissing = true)
 public class ReminderScheduler {
 
     private final OrganizationRepository organizationRepository;
     private final ReminderService reminderService;
 
+    @Value("${taxoryn.reminder.scheduler.batch-size:50}")
+    private int batchSize;
+
     /**
-     * Daily reminder processing — runs at 07:05 AM (5 minutes after NotificationScheduler
-     * to stagger load and avoid lock contention on shared tables).
+     * Bounded reminder processing loop.
+     * Cron expression is externalized via application configuration.
      */
-    @Scheduled(cron = "0 5 7 * * ?")
+    @Scheduled(cron = "${taxoryn.reminder.scheduler.cron:0 5 7 * * ?}")
     public void processDueReminders() {
-        log.info("Starting daily reminder processing");
+        log.info("Starting reminder processing run (batchSize={})", batchSize);
 
         List<OrganizationEntity> activeOrgs = organizationRepository.findAll().stream()
                 .filter(o -> o.getStatus() == OrganizationStatus.ACTIVE)
@@ -54,7 +51,7 @@ public class ReminderScheduler {
         for (OrganizationEntity org : activeOrgs) {
             try {
                 TenantContext.setTenantId(org.getId());
-                int triggered = reminderService.processAllDueReminders(org.getId());
+                int triggered = reminderService.processAllDueReminders(org.getId(), batchSize);
                 totalTriggered += triggered;
                 if (triggered > 0) {
                     log.info("Triggered {} reminder(s) for org {} ({})", triggered, org.getName(), org.getId());
@@ -67,7 +64,7 @@ public class ReminderScheduler {
             }
         }
 
-        log.info("Daily reminder processing completed: {} reminder(s) triggered across {} org(s)",
+        log.info("Reminder processing run completed: {} reminder(s) triggered across {} org(s)",
                 totalTriggered, activeOrgs.size());
     }
 }

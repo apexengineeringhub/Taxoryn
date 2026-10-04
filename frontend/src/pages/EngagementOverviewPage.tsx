@@ -937,7 +937,11 @@ export const EngagementOverviewPage: React.FC = () => {
                                       {task.priority}
                                     </span>
                                     <StatusBadge status={task.status} />
-                                    <span className="text-slate-400">{task.dueDate || 'No Due'}</span>
+                                    <span className="text-slate-400">
+                                      {task.status === 'COMPLETED' && task.completedAt
+                                        ? `Done ${new Date(task.completedAt).toLocaleDateString('en-IN')}`
+                                        : (task.dueDate ? `Due ${task.dueDate}` : 'No Due')}
+                                    </span>
                                   </div>
                                 </div>
                               ))}

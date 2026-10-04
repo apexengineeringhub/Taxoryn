@@ -199,13 +199,19 @@ export const BillingPage: React.FC = () => {
   };
 
   const getTaxRateLabel = (inv: Invoice) => {
-    if (!inv.subtotal || inv.subtotal <= 0 || !inv.tax || inv.tax <= 0) {
+    if (!inv.subtotal || inv.subtotal <= 0) {
       return { cgst: 'Central GST (CGST)', sgst: 'State GST (SGST)' };
     }
     if (inv.items && inv.items.length > 0) {
-      const rates = inv.items.map((it) => Number(it.taxRate || 0));
+      const rates = inv.items.map((it) => Number(it.taxRate != null ? it.taxRate : 0));
       const allSame = rates.every((r) => r === rates[0]);
-      if (allSame && rates[0] > 0) {
+      if (allSame) {
+        if (rates[0] === 0) {
+          return {
+            cgst: 'Central GST (CGST @ 0%)',
+            sgst: 'State GST (SGST @ 0%)',
+          };
+        }
         const half = Number((rates[0] / 2).toFixed(2));
         return {
           cgst: `Central GST (CGST @ ${half}%)`,
@@ -213,12 +219,15 @@ export const BillingPage: React.FC = () => {
         };
       }
     }
-    const effectiveTotal = Math.round((Number(inv.tax) / Number(inv.subtotal)) * 1000) / 10;
-    const half = Number((effectiveTotal / 2).toFixed(2));
-    return {
-      cgst: `Central GST (CGST @ ${half}%)`,
-      sgst: `State GST (SGST @ ${half}%)`,
-    };
+    if (inv.tax && inv.tax > 0) {
+      const effectiveTotal = Math.round((Number(inv.tax) / Number(inv.subtotal)) * 1000) / 10;
+      const half = Number((effectiveTotal / 2).toFixed(2));
+      return {
+        cgst: `Central GST (CGST @ ${half}%)`,
+        sgst: `State GST (SGST @ ${half}%)`,
+      };
+    }
+    return { cgst: 'Central GST (CGST)', sgst: 'State GST (SGST)' };
   };
 
   // KPI Calculations
@@ -257,7 +266,7 @@ export const BillingPage: React.FC = () => {
     let totalTax = 0;
     for (const it of newItems) {
       const lineSub = Number(it.quantity || 1) * Number(it.unitPrice || 0);
-      const lineTax = (lineSub * Number(it.taxRate || 18)) / 100;
+      const lineTax = (lineSub * Number(it.taxRate != null ? it.taxRate : 18)) / 100;
       subtotal += lineSub;
       totalTax += lineTax;
     }
@@ -269,7 +278,27 @@ export const BillingPage: React.FC = () => {
       discountAmount = (subtotal * pct) / 100;
     }
     const grandTotal = Math.max(0, subtotal + totalTax - discountAmount);
-    return { subtotal, totalTax, discountAmount, grandTotal };
+
+    let taxSummaryLabel = 'GST (CGST 9% + SGST 9% / IGST 18%):';
+    if (newItems.length > 0) {
+      const rates = newItems.map((it) => Number(it.taxRate != null ? it.taxRate : 18));
+      const allSame = rates.every((r) => r === rates[0]);
+      if (allSame) {
+        const rate = rates[0];
+        if (rate === 0) {
+          taxSummaryLabel = 'GST (0% - Exempt):';
+        } else {
+          const half = Number((rate / 2).toFixed(2));
+          taxSummaryLabel = `GST (CGST ${half}% + SGST ${half}% / IGST ${rate}%):`;
+        }
+      } else if (subtotal > 0 && totalTax > 0) {
+        const effectiveTotal = Math.round((Number(totalTax) / Number(subtotal)) * 1000) / 10;
+        const half = Number((effectiveTotal / 2).toFixed(2));
+        taxSummaryLabel = `GST (CGST ${half}% + SGST ${half}% / IGST ${effectiveTotal}%):`;
+      }
+    }
+
+    return { subtotal, totalTax, discountAmount, grandTotal, taxSummaryLabel };
   }, [newItems, discountType, discountValue]);
 
   // Handlers
@@ -1047,7 +1076,7 @@ export const BillingPage: React.FC = () => {
               <span className="font-mono font-semibold">{formatCurrency(newInvoiceCalculations.subtotal)}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-300">
-              <span>GST (CGST 9% + SGST 9% / IGST 18%):</span>
+              <span>{newInvoiceCalculations.taxSummaryLabel}</span>
               <span className="font-mono font-semibold">{formatCurrency(newInvoiceCalculations.totalTax)}</span>
             </div>
             {newInvoiceCalculations.discountAmount > 0 && (
@@ -1252,7 +1281,7 @@ export const BillingPage: React.FC = () => {
               </span>
             </div>
             <span className="text-slate-500 font-mono">
-              {bulkSelectedClientIds.length} invoices @ {formatCurrency(bulkFee * (1 + bulkTaxRate / 100))} each (incl. 18% GST)
+              {bulkSelectedClientIds.length} invoices @ {formatCurrency(bulkFee * (1 + bulkTaxRate / 100))} each (incl. {bulkTaxRate}% GST)
             </span>
           </div>
 
@@ -1464,7 +1493,9 @@ export const BillingPage: React.FC = () => {
                         hsnSacCode: '998231',
                         quantity: 1,
                         unitPrice: selectedInvoice.subtotal,
-                        taxRate: 18,
+                        taxRate: selectedInvoice.subtotal && selectedInvoice.subtotal > 0 && selectedInvoice.tax != null
+                          ? Math.round((Number(selectedInvoice.tax) / Number(selectedInvoice.subtotal)) * 1000) / 10
+                          : (selectedInvoice.tax === 0 ? 0 : 18),
                         amount: selectedInvoice.total,
                       },
                     ]).map((item, idx) => (
@@ -1482,7 +1513,7 @@ export const BillingPage: React.FC = () => {
                         <td className="p-2 text-right border-r border-slate-200 font-mono text-[11px]">
                           {formatCurrency(Number(item.quantity || 1) * Number(item.unitPrice || 0))}
                         </td>
-                        <td className="p-2 text-center border-r border-slate-200 font-mono text-[11px]">{item.taxRate || 18}%</td>
+                        <td className="p-2 text-center border-r border-slate-200 font-mono text-[11px]">{item.taxRate != null ? item.taxRate : 0}%</td>
                         <td className="p-2 text-right font-mono font-bold text-slate-900 text-xs">{formatCurrency(item.amount || selectedInvoice.total)}</td>
                       </tr>
                     ))}

@@ -334,6 +334,60 @@ export interface EmployeeWorkloadItem {
   overdueTasks: number;
 }
 
+export interface ReminderSummary {
+  pending: number;
+  overdue: number;
+  upcoming: number;
+  triggered: number;
+}
+
+export interface RecentActivityItem {
+  id: string;
+  action: string;
+  entityType: string;
+  entityName?: string;
+  entityId?: string;
+  description: string;
+  userId?: string;
+  userName?: string;
+  createdAt: string;
+}
+
+export interface PracticeDashboardOverview {
+  totalClients: number;
+  activeClients: number;
+  activeEngagements: number;
+  openComplianceObligations: number;
+  overdueComplianceObligations: number;
+  openWorkItems: number;
+  overdueWorkItems: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  completedTasks: number;
+  pendingDocumentRequests: number;
+  openTaxNotices: number;
+  outstandingBillingAmount: number;
+  periodInvoicedAmount: number;
+  periodCollectedAmount: number;
+  dsc?: DscSummaryDto;
+  udin?: UdinSummaryDto;
+  reminders?: ReminderSummary;
+  compliance?: any;
+  work?: any;
+  billing?: any;
+  employeeWorkload?: EmployeeWorkloadItem[];
+  recentActivity?: RecentActivityItem[];
+  generatedAt: string;
+}
+
+export interface DashboardFilterParams {
+  period?: 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_QUARTER' | 'THIS_YEAR' | 'CUSTOM' | 'ALL_TIME';
+  startDate?: string;
+  endDate?: string;
+  locationId?: string;
+  clientId?: string;
+}
+
 // 3. Client 360
 export interface Client {
   id: string;
@@ -5153,7 +5207,11 @@ export type ServiceCategoryType =
   | 'AUDIT'
   | 'NOTICE'
   | 'ADVISORY'
+  | 'GOVERNMENT_SERVICES'
+  | 'REGISTRATION'
   | 'OTHER';
+
+export type ServiceScopeType = 'TAXORYN' | 'PRACTICE';
 
 export type ServiceStatusType = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
@@ -5164,9 +5222,14 @@ export interface ServiceDto {
   serviceName: string;
   description?: string;
   category: ServiceCategoryType;
+  scope?: ServiceScopeType;
   status: ServiceStatusType;
   moduleCode?: string;
   systemDefault: boolean;
+  defaultPrice?: number | null;
+  billingUnit?: string | null;
+  taxRate?: number | null;
+  currency?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -5177,13 +5240,20 @@ export interface CreateServiceRequest {
   description?: string;
   category: ServiceCategoryType;
   moduleCode?: string;
+  defaultPrice?: number;
+  billingUnit?: string;
+  taxRate?: number;
 }
 
 export interface UpdateServiceRequest {
   serviceName?: string;
   description?: string;
+  category?: ServiceCategoryType;
   status?: ServiceStatusType;
   moduleCode?: string;
+  defaultPrice?: number;
+  billingUnit?: string;
+  taxRate?: number;
 }
 
 export type EngagementStatusType =
@@ -5436,6 +5506,7 @@ export interface GenerateWorkInstancePayload {
 
 export interface WorkInstanceTaskDto {
   id: string;
+  engagementId?: string;
   workInstanceId: string;
   workTemplateTaskId?: string;
   title: string;
@@ -5485,9 +5556,204 @@ export interface UpdateWorkInstanceStatusPayload {
   notes?: string;
 }
 
+// ==============================================================================
+// Digital Signature Certificate (DSC) Register & Lifecycle Management (P0.7)
+// ==============================================================================
 
+export type DscStatusType = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'REVOKED' | 'INACTIVE';
+export type DscCertificateType = 'CLASS_3' | 'CLASS_2' | 'DGFT' | 'OTHER';
 
+export interface DscDto {
+  id: string;
+  organizationId: string;
+  clientId?: string | null;
+  clientName?: string | null;
+  clientPan?: string | null;
+  clientGstin?: string | null;
+  holderName: string;
+  certificateIdentifier?: string | null;
+  certificateType: DscCertificateType;
+  issuer?: string | null;
+  issuedDate: string;
+  expiryDate: string;
+  status: DscStatusType;
+  daysUntilExpiry?: number | null;
+  applicableServices?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
+export interface CreateDscRequest {
+  clientId?: string | null;
+  holderName: string;
+  certificateIdentifier?: string | null;
+  certificateType?: DscCertificateType;
+  issuer?: string | null;
+  issuedDate: string;
+  expiryDate: string;
+  applicableServices?: string | null;
+  notes?: string | null;
+}
 
+export interface UpdateDscRequest {
+  clientId?: string | null;
+  holderName?: string;
+  certificateIdentifier?: string | null;
+  certificateType?: DscCertificateType;
+  issuer?: string | null;
+  issuedDate?: string;
+  expiryDate?: string;
+  applicableServices?: string | null;
+  notes?: string | null;
+}
+
+export interface DscSummaryDto {
+  total: number;
+  active: number;
+  expiringSoon: number;
+  expired: number;
+  revoked: number;
+  inactive: number;
+}
+
+export interface DscFilterParams {
+  search?: string;
+  status?: DscStatusType;
+  clientId?: string;
+  certificateType?: DscCertificateType;
+  service?: string;
+  expiringWithinDays?: number;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
+
+// ==============================================================================
+// Unique Document Identification Number (UDIN) Register & Verification (P0.8)
+// ==============================================================================
+
+export type UdinStatusType = 'ACTIVE' | 'CANCELLED' | 'REVOKED' | 'ARCHIVED';
+
+export type UdinVerificationStatusType = 'NOT_VERIFIED' | 'VERIFIED' | 'FAILED' | 'NOT_APPLICABLE';
+
+export type UdinDocumentType =
+  | 'TAX_AUDIT_REPORT_3CA_3CD'
+  | 'TAX_AUDIT_REPORT_3CB_3CD'
+  | 'GST_AUDIT_CERTIFICATE'
+  | 'TRANSFER_PRICING_REPORT'
+  | 'NET_WORTH_CERTIFICATE'
+  | 'TURNOVER_CERTIFICATE'
+  | 'FORM_15CB_CERTIFICATION'
+  | 'INTERNAL_AUDIT_REPORT'
+  | 'STATUTORY_AUDIT_REPORT'
+  | 'OTHER_CERTIFICATION'
+  | 'OTHER';
+
+export interface UdinDto {
+  id: string;
+  organizationId: string;
+  udin: string;
+  clientId?: string | null;
+  clientName?: string | null;
+  clientPan?: string | null;
+  engagementId?: string | null;
+  engagementName?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  documentId?: string | null;
+  documentFileName?: string | null;
+  invoiceId?: string | null;
+  invoiceNumber?: string | null;
+  documentType: UdinDocumentType;
+  documentTitle: string;
+  documentDescription?: string | null;
+  signatoryName: string;
+  signatoryMembershipNo?: string | null;
+  generationDate: string;
+  status: UdinStatusType;
+  verificationStatus: UdinVerificationStatusType;
+  verificationSource?: string | null;
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  verificationRemarks?: string | null;
+  financialFiguresJson?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateUdinRequest {
+  udin: string;
+  clientId?: string | null;
+  engagementId?: string | null;
+  serviceId?: string | null;
+  documentId?: string | null;
+  invoiceId?: string | null;
+  documentType: UdinDocumentType;
+  documentTitle: string;
+  documentDescription?: string | null;
+  signatoryName: string;
+  signatoryMembershipNo?: string | null;
+  generationDate: string;
+  financialFiguresJson?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateUdinRequest {
+  clientId?: string | null;
+  engagementId?: string | null;
+  serviceId?: string | null;
+  documentId?: string | null;
+  invoiceId?: string | null;
+  documentType: UdinDocumentType;
+  documentTitle: string;
+  documentDescription?: string | null;
+  signatoryName: string;
+  signatoryMembershipNo?: string | null;
+  generationDate: string;
+  status?: UdinStatusType;
+  financialFiguresJson?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateUdinVerificationRequest {
+  verificationStatus: UdinVerificationStatusType;
+  verificationSource?: string | null;
+  verificationRemarks?: string | null;
+}
+
+export interface CancelUdinRequest {
+  reason: string;
+}
+
+export interface UdinSummaryDto {
+  totalCount: number;
+  activeCount: number;
+  verifiedCount: number;
+  unverifiedCount: number;
+  failedVerificationCount: number;
+  cancelledCount: number;
+}
+
+export interface UdinFilterParams {
+  search?: string;
+  clientId?: string;
+  status?: UdinStatusType;
+  verificationStatus?: UdinVerificationStatusType;
+  documentType?: UdinDocumentType;
+  signatoryMembershipNo?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
 
 

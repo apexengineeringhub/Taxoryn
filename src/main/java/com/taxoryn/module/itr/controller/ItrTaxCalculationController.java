@@ -5,6 +5,8 @@ import com.taxoryn.module.itr.tax.TaxCalculationRequest;
 import com.taxoryn.module.itr.tax.TaxCalculationResponse;
 import com.taxoryn.module.itr.tax.TaxCalculationService;
 import com.taxoryn.module.itr.tax.TaxRegimeComparisonResponse;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/itr/calculation")
 @RequiredArgsConstructor
+@RequiresModule(ProductModuleCode.ITR)
 public class ItrTaxCalculationController {
     private final TaxCalculationService taxCalculationService;
 

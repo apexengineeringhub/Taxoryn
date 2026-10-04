@@ -68,6 +68,16 @@ import com.taxoryn.module.tds.entity.TdsReturnEntity;
 import com.taxoryn.module.tds.entity.TdsReturnEntity.TdsFilingStatus;
 import com.taxoryn.module.tds.repository.TdsProfileRepository;
 import com.taxoryn.module.tds.repository.TdsReturnRepository;
+import com.taxoryn.module.audit.entity.AuditLogEntity;
+import com.taxoryn.module.audit.repository.AuditLogRepository;
+import com.taxoryn.module.dashboard.dto.RecentActivityDto;
+import com.taxoryn.module.dashboard.dto.ReminderSummaryDto;
+import com.taxoryn.module.dsc.dto.DscSummaryDto;
+import com.taxoryn.module.dsc.service.DscService;
+import com.taxoryn.module.reminder.entity.ReminderStatus;
+import com.taxoryn.module.reminder.repository.ReminderRepository;
+import com.taxoryn.module.udin.dto.UdinSummaryDto;
+import com.taxoryn.module.udin.service.UdinService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -115,6 +125,10 @@ public class DashboardServiceImpl implements DashboardService {
     private final TdsReturnRepository tdsReturnRepository;
     private final LocationRepository locationRepository;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    private final DscService dscService;
+    private final UdinService udinService;
+    private final ReminderRepository reminderRepository;
+    private final AuditLogRepository auditLogRepository;
 
     private static final Set<NoticeStatus> CLOSED_NOTICE_STATUSES = Set.of(
             NoticeStatus.CLOSED,
@@ -158,6 +172,7 @@ public class DashboardServiceImpl implements DashboardService {
         // 5. Tasks
         long pendingTasks = taskRepository.count(createPendingTaskSpec(ctx, safeFilter));
         long overdueTasks = taskRepository.count(createOverdueTaskSpec(ctx, safeFilter, today));
+        long completedTasks = taskRepository.count(createCompletedTaskSpec(ctx, safeFilter));
 
         // 6. Document Requests
         long pendingDocRequests = documentRequestRepository.count(createPendingDocRequestSpec(ctx, safeFilter));
@@ -196,6 +211,71 @@ public class DashboardServiceImpl implements DashboardService {
             }
         }
 
+        // 9. DSC Health
+        DscSummaryDto dscSummary = null;
+        try {
+            dscSummary = dscService.getDscSummary();
+        } catch (Exception e) {
+            log.warn("Could not retrieve DSC summary for dashboard: {}", e.getMessage());
+        }
+
+        // 10. UDIN Status
+        UdinSummaryDto udinSummary = null;
+        try {
+            udinSummary = udinService.getUdinSummary();
+        } catch (Exception e) {
+            log.warn("Could not retrieve UDIN summary for dashboard: {}", e.getMessage());
+        }
+
+        // 11. Reminders
+        ReminderSummaryDto reminderSummary = null;
+        try {
+            Instant now = Instant.now();
+            Instant sevenDaysAhead = now.plus(7, java.time.temporal.ChronoUnit.DAYS);
+            long pendingReminders = reminderRepository.countByOrganizationIdAndStatus(ctx.organizationId(), ReminderStatus.PENDING);
+            long overdueReminders = reminderRepository.countByOrganizationIdAndStatusAndScheduledAtBefore(ctx.organizationId(), ReminderStatus.PENDING, now);
+            long upcomingReminders = reminderRepository.countByOrganizationIdAndStatusAndScheduledAtBetween(ctx.organizationId(), ReminderStatus.PENDING, now, sevenDaysAhead);
+            long triggeredReminders = reminderRepository.countByOrganizationIdAndStatus(ctx.organizationId(), ReminderStatus.TRIGGERED);
+            reminderSummary = ReminderSummaryDto.builder()
+                    .pending(pendingReminders)
+                    .overdue(overdueReminders)
+                    .upcoming(upcomingReminders)
+                    .triggered(triggeredReminders)
+                    .build();
+        } catch (Exception e) {
+            log.warn("Could not retrieve reminder summary for dashboard: {}", e.getMessage());
+        }
+
+        // 12. Sub-dashboards
+        ComplianceDashboardDto compliance = getComplianceDashboard(safeFilter);
+        WorkDashboardDto work = getWorkDashboard(safeFilter);
+        BillingDashboardSummaryDto billing = ctx.hasBillingAccess() ? getBillingDashboard(safeFilter) : null;
+        List<EmployeeWorkloadItemDto> workload = getEmployeeWorkload(ctx.organizationId(), today, ctx.scope());
+
+        // 13. Recent Activities (from AuditLog)
+        List<RecentActivityDto> recentActivities = new ArrayList<>();
+        try {
+            List<AuditLogEntity> logEntities = auditLogRepository
+                    .findAllByOrganizationId(ctx.organizationId(), org.springframework.data.domain.PageRequest.of(0, 8, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")))
+                    .getContent();
+            for (AuditLogEntity logItem : logEntities) {
+                String desc = logItem.getAction() + (logItem.getEntityName() != null ? " on " + logItem.getEntityName() : (logItem.getEntityType() != null ? " on " + logItem.getEntityType() : ""));
+                recentActivities.add(RecentActivityDto.builder()
+                        .id(logItem.getId())
+                        .action(logItem.getAction())
+                        .entityType(logItem.getEntityType())
+                        .entityName(logItem.getEntityName())
+                        .entityId(logItem.getEntityId())
+                        .description(desc)
+                        .userId(logItem.getUserId())
+                        .userName(null)
+                        .createdAt(logItem.getCreatedAt())
+                        .build());
+            }
+        } catch (Exception e) {
+            log.warn("Could not retrieve audit log activity for dashboard: {}", e.getMessage());
+        }
+
         return PracticeDashboardOverviewDto.builder()
                 .totalClients(totalClients)
                 .activeClients(activeClients)
@@ -206,11 +286,20 @@ public class DashboardServiceImpl implements DashboardService {
                 .overdueWorkItems(overdueWorkItems)
                 .pendingTasks(pendingTasks)
                 .overdueTasks(overdueTasks)
+                .completedTasks(completedTasks)
                 .pendingDocumentRequests(pendingDocRequests)
                 .openTaxNotices(openNotices)
                 .outstandingBillingAmount(outstandingBilling)
                 .periodInvoicedAmount(periodInvoiced)
                 .periodCollectedAmount(periodCollected)
+                .dsc(dscSummary)
+                .udin(udinSummary)
+                .reminders(reminderSummary)
+                .compliance(compliance)
+                .work(work)
+                .billing(billing)
+                .employeeWorkload(workload)
+                .recentActivity(recentActivities)
                 .generatedAt(Instant.now())
                 .build();
     }
@@ -804,7 +893,8 @@ public class DashboardServiceImpl implements DashboardService {
             Set<UUID> accessibleLocationIds,
             Set<UUID> accessibleClientIds,
             Set<UUID> accessibleAssigneeIds,
-            boolean hasBillingAccess
+            boolean hasBillingAccess,
+            PracticeSecurityScope scope
     ) {
         public boolean hasZeroAccess() {
             return !isFirmAdmin && accessibleClientIds != null && accessibleClientIds.isEmpty();
@@ -859,7 +949,8 @@ public class DashboardServiceImpl implements DashboardService {
                 locationIds,
                 clientIds,
                 scope.getAccessibleAssigneeIds(),
-                hasBilling
+                hasBilling,
+                scope
         );
     }
 
@@ -1122,6 +1213,11 @@ public class DashboardServiceImpl implements DashboardService {
     private Specification<TaskEntity> createPendingTaskSpec(ScopingContext ctx, DashboardFilterRequest filter) {
         return Specification.where(createTaskSpec(ctx, filter))
                 .and((root, query, cb) -> root.get("status").in(TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.UNDER_REVIEW));
+    }
+
+    private Specification<TaskEntity> createCompletedTaskSpec(ScopingContext ctx, DashboardFilterRequest filter) {
+        return Specification.where(createTaskSpec(ctx, filter))
+                .and((root, query, cb) -> cb.equal(root.get("status"), TaskStatus.COMPLETED));
     }
 
     private Specification<TaskEntity> createOverdueTaskSpec(ScopingContext ctx, DashboardFilterRequest filter, LocalDate today) {

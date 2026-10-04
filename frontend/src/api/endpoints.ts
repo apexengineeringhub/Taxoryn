@@ -4,6 +4,8 @@ import {
   PagedResponse,
   ReviewRequest,
   OrganizationDashboard,
+  PracticeDashboardOverview,
+  DashboardFilterParams,
   Client,
   Client360Overview,
   ClientNote,
@@ -269,6 +271,18 @@ import {
   TaskCalendarParams,
   TeamWorkloadSummary,
   CompleteTaskPayload,
+  DscDto,
+  CreateDscRequest,
+  UpdateDscRequest,
+  DscSummaryDto,
+  DscFilterParams,
+  UdinDto,
+  CreateUdinRequest,
+  UpdateUdinRequest,
+  UpdateUdinVerificationRequest,
+  CancelUdinRequest,
+  UdinSummaryDto,
+  UdinFilterParams,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -354,6 +368,10 @@ export const userApi = {
 export const dashboardApi = {
   getOrganizationDashboard: async () => {
     const res = await apiClient.get<ApiResponse<OrganizationDashboard>>('/v1/dashboard');
+    return res.data.data;
+  },
+  getOverview: async (params?: DashboardFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PracticeDashboardOverview>>('/v1/dashboard/overview', { params });
     return res.data.data;
   },
 };
@@ -2227,11 +2245,14 @@ export interface PracticeServicePrice {
   serviceName: string;
   description?: string;
   moduleCode: string;
+  scope?: 'TAXORYN' | 'PRACTICE';
   suggestedPrice: number;
   practicePrice: number;
   effectivePrice: number | null;
   currency: string;
   billingType: string;
+  billingUnit?: string | null;
+  taxRate?: number | null;
   pricingMode: 'DEFAULT' | 'CUSTOM';
   enabled: boolean;
 }
@@ -3351,8 +3372,8 @@ export const gmailApi = {
 
 // --- 28. Service Catalog & Practice Engagements (Stage 2.5 - P0.1) ---
 export const servicesApi = {
-  getAll: async () => {
-    const res = await apiClient.get<ApiResponse<ServiceDto[]>>('/v1/services');
+  getAll: async (params?: { search?: string; category?: string; scope?: string; activeOnly?: boolean }) => {
+    const res = await apiClient.get<ApiResponse<ServiceDto[]>>('/v1/services', { params });
     return res.data.data;
   },
   getById: async (id: string) => {
@@ -3365,6 +3386,16 @@ export const servicesApi = {
   },
   update: async (id: string, payload: UpdateServiceRequest) => {
     const res = await apiClient.put<ApiResponse<ServiceDto>>(`/v1/services/${id}`, payload);
+    return res.data.data;
+  },
+  toggleStatus: async (id: string, active: boolean) => {
+    const res = await apiClient.patch<ApiResponse<ServiceDto>>(`/v1/services/${id}/status`, null, {
+      params: { active },
+    });
+    return res.data.data;
+  },
+  delete: async (id: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/services/${id}`);
     return res.data.data;
   },
 };
@@ -3401,6 +3432,10 @@ export const engagementsApi = {
   delete: async (id: string) => {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/engagements/${id}`);
     return res.data;
+  },
+  getTasks: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Task[]>>(`/v1/engagements/${id}/tasks`);
+    return res.data.data;
   },
 };
 
@@ -3585,14 +3620,85 @@ export const automationRuleApi = {
   },
 };
 
+// --- 55. Digital Signature Certificate (DSC) Register API (P0.7) ---
+export const dscApi = {
+  getDscList: async (params?: DscFilterParams): Promise<PagedResponse<DscDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<DscDto>>>('/v1/dsc', { params });
+    return res.data.data;
+  },
+  getDscSummary: async (): Promise<DscSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<DscSummaryDto>>('/v1/dsc/summary');
+    return res.data.data;
+  },
+  getDscById: async (id: string): Promise<DscDto> => {
+    const res = await apiClient.get<ApiResponse<DscDto>>(`/v1/dsc/${id}`);
+    return res.data.data;
+  },
+  createDsc: async (payload: CreateDscRequest): Promise<DscDto> => {
+    const res = await apiClient.post<ApiResponse<DscDto>>('/v1/dsc', payload);
+    return res.data.data;
+  },
+  updateDsc: async (id: string, payload: UpdateDscRequest): Promise<DscDto> => {
+    const res = await apiClient.put<ApiResponse<DscDto>>(`/v1/dsc/${id}`, payload);
+    return res.data.data;
+  },
+  activateDsc: async (id: string): Promise<DscDto> => {
+    const res = await apiClient.patch<ApiResponse<DscDto>>(`/v1/dsc/${id}/activate`);
+    return res.data.data;
+  },
+  deactivateDsc: async (id: string): Promise<DscDto> => {
+    const res = await apiClient.patch<ApiResponse<DscDto>>(`/v1/dsc/${id}/deactivate`);
+    return res.data.data;
+  },
+  revokeDsc: async (id: string, reason?: string): Promise<DscDto> => {
+    const res = await apiClient.patch<ApiResponse<DscDto>>(`/v1/dsc/${id}/revoke`, null, { params: { reason } });
+    return res.data.data;
+  },
+  deleteDsc: async (id: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/v1/dsc/${id}`);
+  },
+  triggerExpiryReminders: async (): Promise<number> => {
+    const res = await apiClient.post<ApiResponse<number>>('/v1/dsc/trigger-expiry-reminders');
+    return res.data.data;
+  },
+};
 
-
-
-
-
-
-
-
-
+export const udinApi = {
+  getUdins: async (params?: UdinFilterParams): Promise<PagedResponse<UdinDto>> => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<UdinDto>>>('/v1/udins', { params });
+    return res.data.data;
+  },
+  getUdinSummary: async (): Promise<UdinSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<UdinSummaryDto>>('/v1/udins/summary');
+    return res.data.data;
+  },
+  getUdinById: async (id: string): Promise<UdinDto> => {
+    const res = await apiClient.get<ApiResponse<UdinDto>>(`/v1/udins/${id}`);
+    return res.data.data;
+  },
+  getUdinsByClientId: async (clientId: string): Promise<UdinDto[]> => {
+    const res = await apiClient.get<ApiResponse<UdinDto[]>>(`/v1/udins/client/${clientId}`);
+    return res.data.data;
+  },
+  createUdin: async (payload: CreateUdinRequest): Promise<UdinDto> => {
+    const res = await apiClient.post<ApiResponse<UdinDto>>('/v1/udins', payload);
+    return res.data.data;
+  },
+  updateUdin: async (id: string, payload: UpdateUdinRequest): Promise<UdinDto> => {
+    const res = await apiClient.put<ApiResponse<UdinDto>>(`/v1/udins/${id}`, payload);
+    return res.data.data;
+  },
+  updateVerification: async (id: string, payload: UpdateUdinVerificationRequest): Promise<UdinDto> => {
+    const res = await apiClient.patch<ApiResponse<UdinDto>>(`/v1/udins/${id}/verification`, payload);
+    return res.data.data;
+  },
+  cancelUdin: async (id: string, payload: CancelUdinRequest): Promise<UdinDto> => {
+    const res = await apiClient.post<ApiResponse<UdinDto>>(`/v1/udins/${id}/cancel`, payload);
+    return res.data.data;
+  },
+  deleteUdin: async (id: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/v1/udins/${id}`);
+  },
+};
 
 

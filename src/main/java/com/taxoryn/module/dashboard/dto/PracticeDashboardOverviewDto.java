@@ -1,5 +1,7 @@
 package com.taxoryn.module.dashboard.dto;
 
+import com.taxoryn.module.dsc.dto.DscSummaryDto;
+import com.taxoryn.module.udin.dto.UdinSummaryDto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,6 +10,8 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Builder
@@ -52,6 +56,10 @@ public class PracticeDashboardOverviewDto {
     @Builder.Default
     private long overdueTasks = 0;
 
+    @Schema(description = "Completed tasks in selected period", example = "34")
+    @Builder.Default
+    private long completedTasks = 0;
+
     @Schema(description = "Pending document requests awaiting client action", example = "12")
     @Builder.Default
     private long pendingDocumentRequests = 0;
@@ -71,6 +79,32 @@ public class PracticeDashboardOverviewDto {
     @Schema(description = "Total collected amount in the selected period (INR)", example = "205000.00")
     @Builder.Default
     private BigDecimal periodCollectedAmount = BigDecimal.ZERO;
+
+    @Schema(description = "DSC Register Health and Expiry Metrics")
+    private DscSummaryDto dsc;
+
+    @Schema(description = "UDIN Register Verification and Status Metrics")
+    private UdinSummaryDto udin;
+
+    @Schema(description = "Practice Reminder and Follow-Up Alerts")
+    private ReminderSummaryDto reminders;
+
+    @Schema(description = "Compliance Obligations Breakdown Summary")
+    private ComplianceDashboardDto compliance;
+
+    @Schema(description = "Work and Task Breakdown Summary")
+    private WorkDashboardDto work;
+
+    @Schema(description = "Billing and Fee Realization Summary")
+    private BillingDashboardSummaryDto billing;
+
+    @Schema(description = "Staff and Employee Workload Breakdown")
+    @Builder.Default
+    private List<EmployeeWorkloadItemDto> employeeWorkload = new ArrayList<>();
+
+    @Schema(description = "Recent Practice Operations and Audit Events Feed")
+    @Builder.Default
+    private List<RecentActivityDto> recentActivity = new ArrayList<>();
 
     @Schema(description = "Timestamp when this overview was generated")
     @Builder.Default

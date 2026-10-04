@@ -784,20 +784,26 @@ export const TasksPage: React.FC = () => {
         const today = new Date().toISOString().split('T')[0];
         const isOverdue = row.isOverdue || (row.dueDate && row.dueDate < today && row.status !== 'COMPLETED' && row.status !== 'CANCELLED');
         const isDueToday = row.isDueToday || (row.dueDate === today && row.status !== 'COMPLETED');
+        const isCompleted = row.status === 'COMPLETED';
 
         return (
-          <div className="flex flex-col text-xs font-mono">
+          <div className="flex flex-col text-xs font-mono space-y-0.5">
             {row.startDate && (
               <span className="text-[10px] text-slate-400">Start: {row.startDate}</span>
             )}
             <div className="flex items-center gap-1">
               <Clock className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-600 animate-pulse' : isDueToday ? 'text-amber-600' : 'text-slate-400'}`} />
               <span className={`font-bold ${isOverdue ? 'text-rose-700 font-extrabold' : isDueToday ? 'text-amber-700' : 'text-slate-700'}`}>
-                {row.dueDate || 'No due date'}
+                {row.dueDate ? `Due: ${row.dueDate}` : 'No due date'}
               </span>
             </div>
-            {isOverdue && <span className="text-[10px] text-rose-600 font-bold">🚨 Overdue</span>}
-            {isDueToday && <span className="text-[10px] text-amber-600 font-bold">⚡ Due Today</span>}
+            {isCompleted && row.completedAt && (
+              <span className="text-[10px] text-emerald-700 font-bold">
+                ✓ Completed: {new Date(row.completedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+              </span>
+            )}
+            {!isCompleted && isOverdue && <span className="text-[10px] text-rose-600 font-bold">🚨 Overdue</span>}
+            {!isCompleted && isDueToday && <span className="text-[10px] text-amber-600 font-bold">⚡ Due Today</span>}
           </div>
         );
       },
@@ -1483,29 +1489,67 @@ export const TasksPage: React.FC = () => {
                 <p className="text-[10px] font-bold uppercase text-slate-400">Status</p>
                 <StatusBadge status={selectedTask.status} />
               </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-slate-400">Timeline</p>
-                <p className="font-mono text-slate-700">
-                  {selectedTask.startDate ? `${selectedTask.startDate} → ` : ''}{selectedTask.dueDate || 'No due date'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-slate-400">Logged Effort</p>
-                <p className="font-mono text-slate-700">
-                  Est: {selectedTask.estimatedMinutes ? `${selectedTask.estimatedMinutes}m` : '—'} | Act: {selectedTask.actualMinutes ? `${selectedTask.actualMinutes}m` : '—'}
-                </p>
-              </div>
             </div>
 
-            {selectedTask.completedBy && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900">
-                <p className="text-[10px] font-bold uppercase text-emerald-700">Completed Information</p>
-                <p className="mt-0.5">
-                  Completed by <span className="font-bold">{selectedTask.completedByName || 'Team Member'}</span>
-                  {selectedTask.completedAt ? ` on ${new Date(selectedTask.completedAt).toLocaleString()}` : ''}
+            {/* PLANNED VS ACTUAL METRICS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* PLANNED */}
+              <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-200 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" /> Planned Schedule & Effort
                 </p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Start Date:</span>
+                    <span className="font-mono font-medium text-slate-700">{selectedTask.startDate || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Due Date:</span>
+                    <span className="font-mono font-bold text-slate-800">{selectedTask.dueDate || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Estimated Effort:</span>
+                    <span className="font-mono text-slate-700">{selectedTask.estimatedMinutes ? `${selectedTask.estimatedMinutes}m (${(selectedTask.estimatedMinutes / 60).toFixed(1)} hrs)` : '—'}</span>
+                  </div>
+                </div>
               </div>
-            )}
+
+              {/* ACTUAL */}
+              <div className={clsx(
+                "p-3 rounded-lg border space-y-2",
+                selectedTask.status === 'COMPLETED' ? "bg-emerald-50/70 border-emerald-200 text-emerald-950" : "bg-slate-50/80 border-slate-200"
+              )}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Actual Execution & Completion
+                </p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Completed Date:</span>
+                    <span className="font-mono font-bold text-emerald-900">
+                      {selectedTask.completedAt ? new Date(selectedTask.completedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : (selectedTask.status === 'COMPLETED' ? 'Recorded' : 'Pending')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Completed By:</span>
+                    <span className="font-semibold text-slate-800">{selectedTask.completedByName || (selectedTask.status === 'COMPLETED' ? 'Team Member' : '—')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Actual Effort:</span>
+                    <span className="font-mono font-bold text-slate-800">{selectedTask.actualMinutes ? `${selectedTask.actualMinutes}m (${(selectedTask.actualMinutes / 60).toFixed(1)} hrs)` : '—'}</span>
+                  </div>
+                  {selectedTask.completedAt && selectedTask.dueDate && new Date(selectedTask.completedAt).toISOString().split('T')[0] > selectedTask.dueDate && (
+                    <div className="pt-1 text-[11px] font-bold text-rose-600">
+                      ⚠️ Completed after due date (Late)
+                    </div>
+                  )}
+                  {selectedTask.completedAt && selectedTask.dueDate && new Date(selectedTask.completedAt).toISOString().split('T')[0] <= selectedTask.dueDate && (
+                    <div className="pt-1 text-[11px] font-bold text-emerald-700">
+                      ✓ Completed on time
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {selectedTask.blockedReason && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
