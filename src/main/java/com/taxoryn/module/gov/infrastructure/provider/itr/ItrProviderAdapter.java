@@ -132,7 +132,37 @@ public class ItrProviderAdapter implements GovernmentProviderAdapter {
             );
         }
 
-        if ("ERROR".equalsIgnoreCase(directive)) {
+        if ("NOT_FOUND".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.INCOME_TAX,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.NOT_FOUND,
+                    "Income Tax Department: PAN record not found",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("INVALID_PAN".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.INCOME_TAX,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.VALIDATION_FAILED,
+                    "Income Tax Department: Invalid PAN format or checksum",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("ERROR".equalsIgnoreCase(directive) || "UNKNOWN".equalsIgnoreCase(directive)) {
             return GovIntegrationResult.failure(
                     null,
                     request.getOrganizationId(),

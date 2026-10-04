@@ -1,5 +1,8 @@
 package com.taxoryn.module.itr.integration;
 
+import com.taxoryn.module.itr.dto.ItrPrepareReturnRequest;
+import com.taxoryn.module.itr.dto.ItrPreparedReturnDto;
+import com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto;
 import com.taxoryn.module.itr.integration.dto.ItrHandshakeResponseDto;
 import com.taxoryn.module.itr.integration.dto.ItrIntegrationResultDto;
 
@@ -20,5 +23,12 @@ public interface ItrGovernmentIntegrationService {
 
     ItrIntegrationResultDto verifyPan(UUID connectionId, String pan, Map<String, Object> options);
 
+    ItrTaxpayerProfileDto lookupTaxpayer(String pan);
+
+    ItrTaxpayerProfileDto lookupTaxpayer(UUID connectionId, String pan, Map<String, Object> options);
+
+    ItrPreparedReturnDto prepareReturn(ItrPrepareReturnRequest request);
+
     ItrIntegrationResultDto executeItrOperation(UUID connectionId, String operationType, Map<String, Object> payload);
 }
+

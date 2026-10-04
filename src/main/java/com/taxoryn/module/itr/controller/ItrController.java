@@ -264,4 +264,34 @@ public class ItrController {
                 connectionId, directives != null ? directives : java.util.Collections.emptyMap());
         return ResponseEntity.ok(ApiResponse.success("ITR connection health verified", response));
     }
+
+    // =========================================================================
+    // 5. Government Taxpayer PAN Lookup & Verification
+    // =========================================================================
+
+    @PostMapping("/taxpayers/verify-pan")
+    @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasAuthority('ITR_CREATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Verify PAN taxpayer profile", description = "Performs real-time PAN lookup and taxpayer verification against the Government Income Tax portal via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto>> verifyPan(
+            @Valid @RequestBody com.taxoryn.module.itr.dto.ItrPanVerificationRequest request) {
+        com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto profile = itrGovIntegrationService.lookupTaxpayer(
+                request.getConnectionId(),
+                request.getPan(),
+                request.getOptions()
+        );
+        return ResponseEntity.ok(ApiResponse.success("PAN verification completed", profile));
+    }
+
+    // =========================================================================
+    // 6. ITR Return Preparation & Normalization
+    // =========================================================================
+
+    @PostMapping("/returns/prepare")
+    @PreAuthorize("hasAuthority('ITR_CREATE') or hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Prepare & normalize ITR return payload", description = "Validates statutory return data, checks taxpayer PAN linkage, and generates a normalized payload with deterministic SHA-256 fingerprint.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrPreparedReturnDto>> prepareReturn(
+            @Valid @RequestBody com.taxoryn.module.itr.dto.ItrPrepareReturnRequest request) {
+        com.taxoryn.module.itr.dto.ItrPreparedReturnDto prepared = itrGovIntegrationService.prepareReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("ITR return prepared successfully", prepared));
+    }
 }

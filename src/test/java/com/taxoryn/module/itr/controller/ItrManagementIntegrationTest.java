@@ -87,6 +87,9 @@ class ItrManagementIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private com.taxoryn.module.gov.service.GovernmentConnectionService govConnectionService;
+
     private OrganizationEntity org1;
     private OrganizationEntity org2;
     private UserEntity adminUser1;
@@ -359,5 +362,42 @@ class ItrManagementIntegrationTest {
                 .andExpect(jsonPath("$.data.underReviewCount").value(1))
                 .andExpect(jsonPath("$.data.returns[0].clientName").value("Anand Ramesh Joshi"))
                 .andExpect(jsonPath("$.data.returns[0].assignedTo").value("Vikram Sharma"));
+    }
+
+    @Test
+    @DisplayName("6. POST /api/v1/itr/taxpayers/verify-pan verifies PAN and returns normalized profile")
+    void testVerifyPanEndpoint() throws Exception {
+        TenantContext.setTenantId(org1.getId());
+        com.taxoryn.module.gov.dto.GovConnectionDto conn = govConnectionService.createConnection(
+                com.taxoryn.module.gov.dto.CreateGovConnectionRequest.builder()
+                        .providerType(com.taxoryn.module.gov.model.GovProviderType.INCOME_TAX)
+                        .displayName("ITD Portal Connection")
+                        .build());
+        govConnectionService.registerCredential(
+                com.taxoryn.module.gov.dto.RegisterGovCredentialRequest.builder()
+                        .connectionId(conn.getId())
+                        .credentialType(com.taxoryn.module.gov.model.GovCredentialType.API_KEY)
+                        .maskedIdentifier("itd_key_***")
+                        .rawSecret("SecretItdKey123")
+                        .build());
+        govConnectionService.activateConnection(conn.getId());
+
+        com.taxoryn.module.itr.dto.ItrPanVerificationRequest req = com.taxoryn.module.itr.dto.ItrPanVerificationRequest.builder()
+                .pan("ABCDE1234F")
+                .connectionId(conn.getId())
+                .build();
+
+        mockMvc.perform(post("/api/v1/itr/taxpayers/verify-pan")
+                        .header("Authorization", adminToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.pan").value("ABCDE1234F"))
+                .andExpect(jsonPath("$.data.valid").value(true))
+                .andExpect(jsonPath("$.data.verified").value(true))
+                .andExpect(jsonPath("$.data.taxpayerName").value("Apex Enterprise Solutions"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.panStatus").value("OPERATIVE"));
     }
 }
