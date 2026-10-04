@@ -874,7 +874,6 @@ public class ItrGovernmentIntegrationServiceImpl implements ItrGovernmentIntegra
                 .businessEntityId(returnEntity.getId())
                 .payloadFingerprint(correlationId)
                 .correlationId(correlationId)
-                .idempotencyKey("ITR-STATUS-" + returnEntity.getId() + "-" + (System.currentTimeMillis() / 60000))
                 .requestData(govPayload)
                 .build();
 
