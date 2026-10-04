@@ -8,6 +8,7 @@ import com.taxoryn.module.gov.dto.GovConnectionDto;
 import com.taxoryn.module.gov.dto.GovConnectionHealthDto;
 import com.taxoryn.module.gov.dto.GovIntegrationRequest;
 import com.taxoryn.module.gov.dto.GovIntegrationResult;
+import com.taxoryn.module.gov.model.GovErrorCode;
 import com.taxoryn.module.gov.model.GovProviderType;
 import com.taxoryn.module.gov.service.GovernmentConnectionService;
 import com.taxoryn.module.gov.service.GovernmentHealthService;
@@ -17,7 +18,9 @@ import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.itr.dto.ItrPrepareReturnRequest;
 import com.taxoryn.module.itr.dto.ItrPreparedReturnDto;
 import com.taxoryn.module.itr.dto.ItrReturnPayloadDto;
+import com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto;
 import com.taxoryn.module.itr.dto.ItrReturnValidationResultDto;
+import com.taxoryn.module.itr.dto.ItrSubmitReturnRequest;
 import com.taxoryn.module.itr.dto.ItrTaxSummaryDto;
 import com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto;
 import com.taxoryn.module.itr.entity.ItrProfileEntity;
@@ -437,6 +440,303 @@ public class ItrGovernmentIntegrationServiceImpl implements ItrGovernmentIntegra
                 .payloadFingerprint(fingerprint)
                 .providerReferenceId("PREP-ITR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .preparedAt(Instant.now())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public ItrReturnSubmissionResultDto submitReturn(UUID returnId, Map<String, Object> options) {
+        return submitReturn(ItrSubmitReturnRequest.builder()
+                .returnId(returnId)
+                .options(options)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public ItrReturnSubmissionResultDto submitReturn(ItrSubmitReturnRequest request) {
+        if (request == null) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED, "Submission request must not be null");
+        }
+
+        UUID tenantId = requireActiveTenantId();
+        ItrReturnEntity returnEntity = null;
+        String rawPan = request.getPan();
+        String returnType = request.getReturnType();
+        String assessmentYear = request.getAssessmentYear();
+        String financialYear = request.getFinancialYear();
+
+        if (request.getReturnId() != null) {
+            returnEntity = itrReturnRepository.findById(request.getReturnId())
+                    .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND,
+                            "ITR return record not found for id: " + request.getReturnId()));
+
+            if (!returnEntity.getOrganizationId().equals(tenantId)) {
+                throw new AppException(ErrorCode.TENANT_MISMATCH, "ITR return does not belong to current organization");
+            }
+
+            // Guard against already filed / completed returns
+            if (returnEntity.getStatus() == ItrReturnEntity.ItrStatus.FILED
+                    || returnEntity.getStatus() == ItrReturnEntity.ItrStatus.COMPLETED) {
+                if (StringUtils.hasText(returnEntity.getAcknowledgementNumber())) {
+                    log.info("[ITR_SUBMISSION_ALREADY_FILED] Return id={} is already filed with ACK={}",
+                            returnEntity.getId(), returnEntity.getAcknowledgementNumber());
+
+                    auditService.logEvent(
+                            tenantId,
+                            null,
+                            "ITR_RETURN_SUBMISSION_DUPLICATE",
+                            "ITR_RETURN",
+                            returnEntity.getId().toString(),
+                            null,
+                            Map.of("pan", maskPan(rawPan), "ackNumber", returnEntity.getAcknowledgementNumber(), "status", returnEntity.getStatus().name())
+                    );
+
+                    return ItrReturnSubmissionResultDto.builder()
+                            .returnId(returnEntity.getId())
+                            .pan(rawPan)
+                            .maskedPan(maskPan(rawPan))
+                            .returnType(returnType != null ? returnType : (returnEntity.getItrType() != null ? returnEntity.getItrType().name() : "ITR1"))
+                            .assessmentYear(assessmentYear != null ? assessmentYear : returnEntity.getAssessmentYear())
+                            .financialYear(financialYear != null ? financialYear : returnEntity.getFinancialYear())
+                            .submissionStatus(returnEntity.getStatus().name())
+                            .success(true)
+                            .acknowledgementNumber(returnEntity.getAcknowledgementNumber())
+                            .submittedAt(Instant.now())
+                            .build();
+                } else {
+                    throw new AppException(ErrorCode.VALIDATION_FAILED,
+                            "Cannot submit return in status '" + returnEntity.getStatus() + "'");
+                }
+            }
+
+            // Return must be in READY_TO_FILE or VERIFICATION_PENDING state
+            if (returnEntity.getStatus() != ItrReturnEntity.ItrStatus.READY_TO_FILE
+                    && returnEntity.getStatus() != ItrReturnEntity.ItrStatus.VERIFICATION_PENDING) {
+                throw new AppException(ErrorCode.VALIDATION_FAILED,
+                        "Cannot submit return in status '" + returnEntity.getStatus() + "'. Return must be prepared and in READY_TO_FILE status before submission.");
+            }
+
+            assessmentYear = StringUtils.hasText(assessmentYear) ? assessmentYear : returnEntity.getAssessmentYear();
+            financialYear = StringUtils.hasText(financialYear) ? financialYear : returnEntity.getFinancialYear();
+            returnType = StringUtils.hasText(returnType) ? returnType : (returnEntity.getItrType() != null ? returnEntity.getItrType().name() : "ITR1");
+
+            if (!StringUtils.hasText(rawPan)) {
+                if (returnEntity.getItrProfileId() != null) {
+                    rawPan = itrProfileRepository.findById(returnEntity.getItrProfileId())
+                            .filter(p -> p.getOrganizationId().equals(tenantId))
+                            .map(ItrProfileEntity::getPan)
+                            .orElse(null);
+                }
+                if (!StringUtils.hasText(rawPan) && returnEntity.getClientId() != null) {
+                    rawPan = clientRepository.findById(returnEntity.getClientId())
+                            .filter(c -> c.getOrganizationId().equals(tenantId))
+                            .map(ClientEntity::getPan)
+                            .orElse(null);
+                }
+            }
+        }
+
+        validatePan(rawPan);
+        rawPan = rawPan.trim().toUpperCase();
+        String maskedPan = maskPan(rawPan);
+
+        if (!StringUtils.hasText(returnType)) {
+            returnType = "ITR1";
+        }
+        returnType = ItrPayloadFingerprintGenerator.normalizeReturnType(returnType);
+
+        if (!StringUtils.hasText(assessmentYear)) {
+            assessmentYear = "2026-27";
+        }
+        if (!StringUtils.hasText(financialYear)) {
+            financialYear = resolveFinancialYear(assessmentYear);
+        }
+
+        // Verify PAN belongs to current organization
+        boolean panBelongsToOrg = itrProfileRepository.findByOrganizationIdAndPan(tenantId, rawPan).isPresent()
+                || clientRepository.findByOrganizationIdAndPan(tenantId, rawPan).isPresent();
+        if (!panBelongsToOrg) {
+            throw new AppException(ErrorCode.FORBIDDEN,
+                    "PAN " + maskedPan + " is not registered under current organization");
+        }
+
+        GovConnectionDto connection = resolveItrConnection(request.getConnectionId());
+
+        String fingerprint = request.getPayloadFingerprint();
+        if (!StringUtils.hasText(fingerprint) && request.getPayload() != null) {
+            fingerprint = request.getPayload().getPayloadFingerprint();
+        }
+        if (!StringUtils.hasText(fingerprint)) {
+            fingerprint = itrPayloadFingerprintGenerator.generateFingerprint(
+                    rawPan, assessmentYear, returnType, "INDIVIDUAL", "RESIDENT",
+                    ItrTaxSummaryDto.builder().build(),
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()
+            );
+        }
+
+        String correlationId = UUID.randomUUID().toString();
+
+        auditService.logEvent(
+                tenantId,
+                null,
+                "ITR_RETURN_SUBMISSION_REQUESTED",
+                "ITR_RETURN",
+                returnEntity != null ? returnEntity.getId().toString() : maskedPan,
+                null,
+                Map.of("pan", maskedPan, "returnType", returnType, "assessmentYear", assessmentYear, "fingerprint", fingerprint)
+        );
+
+        Map<String, Object> govPayload = new HashMap<>();
+        govPayload.put("pan", rawPan);
+        govPayload.put("returnType", returnType);
+        govPayload.put("assessmentYear", assessmentYear);
+        govPayload.put("financialYear", financialYear);
+        govPayload.put("payloadFingerprint", fingerprint);
+        if (request.getOptions() != null) {
+            govPayload.putAll(request.getOptions());
+        }
+
+        GovIntegrationRequest govRequest = GovIntegrationRequest.builder()
+                .organizationId(tenantId)
+                .providerType(GovProviderType.INCOME_TAX)
+                .operationType("ITR_RETURN_SUBMISSION")
+                .businessEntityType("ITR_RETURN")
+                .businessEntityId(returnEntity != null ? returnEntity.getId() : connection.getId())
+                .payloadFingerprint(fingerprint)
+                .correlationId(correlationId)
+                .requestData(govPayload)
+                .build();
+
+        GovIntegrationResult govResult = govIntegrationService.executeOperation(govRequest);
+
+        if (govResult.isSuccess()) {
+            String ackNumber = govResult.getResponseMetadata() != null && govResult.getResponseMetadata().containsKey("acknowledgementNumber")
+                    ? String.valueOf(govResult.getResponseMetadata().get("acknowledgementNumber"))
+                    : govResult.getProviderReferenceId();
+            if (!StringUtils.hasText(ackNumber)) {
+                ackNumber = "ITD-ACK-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
+            }
+
+            String providerRef = govResult.getResponseMetadata() != null && govResult.getResponseMetadata().containsKey("submissionReference")
+                    ? String.valueOf(govResult.getResponseMetadata().get("submissionReference"))
+                    : "ITD-REF-" + correlationId.substring(0, Math.min(8, correlationId.length())).toUpperCase();
+
+            if (returnEntity != null) {
+                returnEntity.setStatus(ItrReturnEntity.ItrStatus.VERIFICATION_PENDING);
+                returnEntity.setAcknowledgementNumber(ackNumber);
+                returnEntity.setNotes("Submitted to ITD Gateway on " + Instant.now() + " [ACK: " + ackNumber + "]");
+                // NOTE: filingDate MUST NOT be set here. SUBMITTED != FILED.
+                itrReturnRepository.save(returnEntity);
+            }
+
+            auditService.logEvent(
+                    tenantId,
+                    null,
+                    "ITR_RETURN_SUBMITTED",
+                    "ITR_RETURN",
+                    returnEntity != null ? returnEntity.getId().toString() : maskedPan,
+                    null,
+                    Map.of(
+                            "pan", maskedPan,
+                            "returnType", returnType,
+                            "assessmentYear", assessmentYear,
+                            "ackNumber", ackNumber != null ? ackNumber : "",
+                            "operationId", govResult.getOperationId() != null ? govResult.getOperationId().toString() : ""
+                    )
+            );
+
+            return ItrReturnSubmissionResultDto.builder()
+                    .returnId(returnEntity != null ? returnEntity.getId() : request.getReturnId())
+                    .pan(rawPan)
+                    .maskedPan(maskedPan)
+                    .returnType(returnType)
+                    .assessmentYear(assessmentYear)
+                    .financialYear(financialYear)
+                    .submissionStatus("SUBMITTED")
+                    .success(true)
+                    .acknowledgementNumber(ackNumber)
+                    .providerReference(providerRef)
+                    .submittedAt(Instant.now())
+                    .operationId(govResult.getOperationId())
+                    .payloadFingerprint(fingerprint)
+                    .metadata(govResult.getResponseMetadata())
+                    .build();
+        }
+
+        if (govResult.getErrorCode() == GovErrorCode.DUPLICATE_SUBMISSION) {
+            String existingAck = govResult.getResponseMetadata() != null && govResult.getResponseMetadata().containsKey("existingAckNumber")
+                    ? String.valueOf(govResult.getResponseMetadata().get("existingAckNumber"))
+                    : null;
+
+            if (returnEntity != null && existingAck != null) {
+                returnEntity.setAcknowledgementNumber(existingAck);
+                itrReturnRepository.save(returnEntity);
+            }
+
+            auditService.logEvent(
+                    tenantId,
+                    null,
+                    "ITR_RETURN_SUBMISSION_DUPLICATE",
+                    "ITR_RETURN",
+                    returnEntity != null ? returnEntity.getId().toString() : maskedPan,
+                    null,
+                    Map.of(
+                            "pan", maskedPan,
+                            "errorCode", "DUPLICATE_SUBMISSION",
+                            "errorMessage", govResult.getErrorMessage() != null ? govResult.getErrorMessage() : "",
+                            "existingAck", existingAck != null ? existingAck : ""
+                    )
+            );
+
+            return ItrReturnSubmissionResultDto.builder()
+                    .returnId(returnEntity != null ? returnEntity.getId() : request.getReturnId())
+                    .pan(rawPan)
+                    .maskedPan(maskedPan)
+                    .returnType(returnType)
+                    .assessmentYear(assessmentYear)
+                    .financialYear(financialYear)
+                    .submissionStatus("DUPLICATE_SUBMISSION")
+                    .success(false)
+                    .acknowledgementNumber(existingAck)
+                    .errorCode("DUPLICATE_SUBMISSION")
+                    .errorMessage(govResult.getErrorMessage())
+                    .operationId(govResult.getOperationId())
+                    .payloadFingerprint(fingerprint)
+                    .metadata(govResult.getResponseMetadata())
+                    .build();
+        }
+
+        // Non-success failure handling
+        auditService.logEvent(
+                tenantId,
+                null,
+                "ITR_RETURN_SUBMISSION_FAILED",
+                "ITR_RETURN",
+                returnEntity != null ? returnEntity.getId().toString() : maskedPan,
+                null,
+                Map.of(
+                        "pan", maskedPan,
+                        "errorCode", govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "ERROR",
+                        "errorMessage", govResult.getErrorMessage() != null ? govResult.getErrorMessage() : "",
+                        "operationId", govResult.getOperationId() != null ? govResult.getOperationId().toString() : ""
+                )
+        );
+
+        return ItrReturnSubmissionResultDto.builder()
+                .returnId(returnEntity != null ? returnEntity.getId() : request.getReturnId())
+                .pan(rawPan)
+                .maskedPan(maskedPan)
+                .returnType(returnType)
+                .assessmentYear(assessmentYear)
+                .financialYear(financialYear)
+                .submissionStatus("FAILED")
+                .success(false)
+                .errorCode(govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "UNKNOWN")
+                .errorMessage(govResult.getErrorMessage())
+                .operationId(govResult.getOperationId())
+                .payloadFingerprint(fingerprint)
+                .metadata(govResult.getResponseMetadata())
                 .build();
     }
 

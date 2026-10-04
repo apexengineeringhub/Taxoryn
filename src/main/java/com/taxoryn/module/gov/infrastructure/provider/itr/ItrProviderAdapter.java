@@ -162,6 +162,39 @@ public class ItrProviderAdapter implements GovernmentProviderAdapter {
             );
         }
 
+        if ("VALIDATION_FAILED".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.INCOME_TAX,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.VALIDATION_FAILED,
+                    "Income Tax Department: Return payload validation failed against ITD schema",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("DUPLICATE_SUBMISSION".equalsIgnoreCase(directive)) {
+            String dupAck = "ITD-ACK-DUP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            responseData.put("existingAckNumber", dupAck);
+            responseData.put("acknowledgementNumber", dupAck);
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.INCOME_TAX,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.DUPLICATE_SUBMISSION,
+                    "Income Tax Department: Duplicate submission detected. Return already filed for this PAN and Assessment Year",
+                    false,
+                    responseData
+            );
+        }
+
         if ("ERROR".equalsIgnoreCase(directive) || "UNKNOWN".equalsIgnoreCase(directive)) {
             return GovIntegrationResult.failure(
                     null,
@@ -239,6 +272,7 @@ public class ItrProviderAdapter implements GovernmentProviderAdapter {
         data.put("acknowledgementNumber", ackNumber);
         data.put("submissionStatus", "SUBMITTED");
         data.put("filingStatus", "SUBMITTED");
+        data.put("submissionReference", "ITD-REF-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
 
         return GovIntegrationResult.success(
                 null,

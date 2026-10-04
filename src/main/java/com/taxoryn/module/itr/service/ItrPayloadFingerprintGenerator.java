@@ -101,7 +101,7 @@ public class ItrPayloadFingerprintGenerator {
 
     public static String normalizeReturnType(String returnType) {
         if (returnType == null) return "";
-        String clean = returnType.trim().toUpperCase();
+        String clean = returnType.trim().toUpperCase().replace("_", "-");
         if (clean.startsWith("ITR") && clean.length() == 4 && Character.isDigit(clean.charAt(3))) {
             return "ITR-" + clean.charAt(3);
         }

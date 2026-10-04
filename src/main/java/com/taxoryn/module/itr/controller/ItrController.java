@@ -294,4 +294,32 @@ public class ItrController {
         com.taxoryn.module.itr.dto.ItrPreparedReturnDto prepared = itrGovIntegrationService.prepareReturn(request);
         return ResponseEntity.ok(ApiResponse.success("ITR return prepared successfully", prepared));
     }
+
+    // =========================================================================
+    // 7. ITR Return Submission & Gateway Filing Lifecycle
+    // =========================================================================
+
+    @PostMapping("/returns/{id}/submit")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit prepared ITR return to Income Tax Department Gateway", description = "Transfers the validated, fingerprinted ITR return payload to the ITD gateway and records submission acknowledgement.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto>> submitReturnById(
+            @PathVariable UUID id,
+            @RequestBody(required = false) com.taxoryn.module.itr.dto.ItrSubmitReturnRequest request) {
+        if (request == null) {
+            request = com.taxoryn.module.itr.dto.ItrSubmitReturnRequest.builder().returnId(id).build();
+        } else {
+            request.setReturnId(id);
+        }
+        com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto result = itrGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("ITR return submission processed", result));
+    }
+
+    @PostMapping("/returns/submit")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit ITR return with payload", description = "Submits an ITR return directly with full submission request payload.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto>> submitReturn(
+            @Valid @RequestBody com.taxoryn.module.itr.dto.ItrSubmitReturnRequest request) {
+        com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto result = itrGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("ITR return submission processed", result));
+    }
 }

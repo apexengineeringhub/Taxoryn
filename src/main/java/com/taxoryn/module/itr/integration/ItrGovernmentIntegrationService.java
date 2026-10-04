@@ -6,6 +6,9 @@ import com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto;
 import com.taxoryn.module.itr.integration.dto.ItrHandshakeResponseDto;
 import com.taxoryn.module.itr.integration.dto.ItrIntegrationResultDto;
 
+import com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto;
+import com.taxoryn.module.itr.dto.ItrSubmitReturnRequest;
+
 import java.util.Map;
 import java.util.UUID;
 
@@ -28,6 +31,10 @@ public interface ItrGovernmentIntegrationService {
     ItrTaxpayerProfileDto lookupTaxpayer(UUID connectionId, String pan, Map<String, Object> options);
 
     ItrPreparedReturnDto prepareReturn(ItrPrepareReturnRequest request);
+
+    ItrReturnSubmissionResultDto submitReturn(ItrSubmitReturnRequest request);
+
+    ItrReturnSubmissionResultDto submitReturn(UUID returnId, Map<String, Object> options);
 
     ItrIntegrationResultDto executeItrOperation(UUID connectionId, String operationType, Map<String, Object> payload);
 }
