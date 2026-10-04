@@ -9,6 +9,9 @@ import com.taxoryn.module.gov.dto.GovConnectionHealthDto;
 import com.taxoryn.module.gov.dto.GovIntegrationRequest;
 import com.taxoryn.module.gov.dto.GovIntegrationResult;
 import com.taxoryn.module.gov.model.GovProviderType;
+import com.taxoryn.module.gov.service.GovernmentConnectionService;
+import com.taxoryn.module.gov.service.GovernmentHealthService;
+import com.taxoryn.module.gov.service.GovernmentIntegrationService;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.itr.dto.ItrPrepareReturnRequest;
@@ -292,7 +295,7 @@ public class ItrGovernmentIntegrationServiceImpl implements ItrGovernmentIntegra
 
         String rawPan = request.getPan() != null ? request.getPan().trim().toUpperCase() : "";
         String maskedPan = maskPan(rawPan);
-        String returnType = request.getReturnType() != null ? request.getReturnType().trim().toUpperCase() : "";
+        String returnType = ItrPayloadFingerprintGenerator.normalizeReturnType(request.getReturnType());
         String assessmentYear = request.getAssessmentYear() != null ? request.getAssessmentYear().trim() : "";
         String financialYear = StringUtils.hasText(request.getFinancialYear()) ? request.getFinancialYear().trim() : resolveFinancialYear(assessmentYear);
 
@@ -309,58 +312,23 @@ public class ItrGovernmentIntegrationServiceImpl implements ItrGovernmentIntegra
         );
 
         // Taxpayer Linkage & Verification
-        Optional<ItrProfileEntity> profileOpt = itrProfileRepository.findByOrganizationIdAndPan(tenantId, rawPan);
-        Optional<ClientEntity> clientOpt = clientRepository.findByOrganizationIdAndPan(tenantId, rawPan);
-
-        if (request.getClientId() != null) {
-            Optional<ClientEntity> clientById = clientRepository.findById(request.getClientId());
-            if (clientById.isPresent() && !clientById.get().getOrganizationId().equals(tenantId)) {
-                throw new AppException(ErrorCode.TENANT_MISMATCH, "Client does not belong to current organization");
-            }
-            if (clientOpt.isEmpty()) {
-                clientOpt = clientById.filter(c -> c.getOrganizationId().equals(tenantId));
-            }
-        }
-
-        if (request.getProfileId() != null) {
-            Optional<ItrProfileEntity> profileById = itrProfileRepository.findById(request.getProfileId());
-            if (profileById.isPresent() && !profileById.get().getOrganizationId().equals(tenantId)) {
-                throw new AppException(ErrorCode.TENANT_MISMATCH, "ITR profile does not belong to current organization");
-            }
-            if (profileOpt.isEmpty()) {
-                profileOpt = profileById.filter(p -> p.getOrganizationId().equals(tenantId));
-            }
-        }
+        Optional<ClientEntity> resolvedClient = resolveClient(tenantId, rawPan, request.getClientId());
+        Optional<ItrProfileEntity> resolvedProfile = resolveProfile(tenantId, rawPan, request.getProfileId());
 
         // Return entity verification & lifecycle check
-        Optional<ItrReturnEntity> returnOpt = Optional.empty();
-        if (request.getReturnId() != null) {
-            Optional<ItrReturnEntity> returnById = itrReturnRepository.findById(request.getReturnId());
-            if (returnById.isPresent() && !returnById.get().getOrganizationId().equals(tenantId)) {
-                throw new AppException(ErrorCode.TENANT_MISMATCH, "ITR return does not belong to current organization");
-            }
-            if (returnById.isEmpty()) {
-                throw new AppException(ErrorCode.NOT_FOUND, "ITR return record " + request.getReturnId() + " not found");
-            }
-            returnOpt = returnById;
+        Optional<ItrReturnEntity> returnOpt = resolveReturn(tenantId, request.getReturnId());
 
-            ItrReturnEntity returnEntity = returnOpt.get();
-            if (returnEntity.getStatus() == ItrReturnEntity.ItrStatus.FILED || returnEntity.getStatus() == ItrReturnEntity.ItrStatus.COMPLETED) {
-                throw new AppException(ErrorCode.VALIDATION_FAILED, "Cannot re-prepare an already FILED or COMPLETED ITR return");
-            }
-        }
-
-        String taxpayerName = clientOpt.map(c -> StringUtils.hasText(c.getLegalName()) ? c.getLegalName() : c.getDisplayName())
+        String taxpayerName = resolvedClient.map(c -> StringUtils.hasText(c.getLegalName()) ? c.getLegalName() : c.getDisplayName())
                 .orElse("Apex Enterprise Solutions");
-        String taxpayerType = profileOpt.map(p -> p.getTaxpayerType().name())
-                .orElseGet(() -> clientOpt.map(c -> c.getClientType().name()).orElse(request.getTaxpayerType()));
-        String residentialStatus = profileOpt.map(p -> p.getResidentialStatus().name()).orElse(request.getResidentialStatus());
+        String taxpayerType = resolvedProfile.map(p -> p.getTaxpayerType().name())
+                .orElseGet(() -> resolvedClient.map(c -> c.getClientType().name()).orElse(request.getTaxpayerType()));
+        String residentialStatus = resolvedProfile.map(p -> p.getResidentialStatus().name()).orElse(request.getResidentialStatus());
 
         ItrTaxSummaryDto taxSummary = request.getTaxSummary() != null ? request.getTaxSummary() : ItrTaxSummaryDto.builder().build();
 
         ItrReturnValidationResultDto validationResult = itrReturnValidator.validate(request, taxSummary, taxpayerType);
 
-        if (clientOpt.isEmpty() && profileOpt.isEmpty() && StringUtils.hasText(rawPan)) {
+        if (resolvedClient.isEmpty() && resolvedProfile.isEmpty() && StringUtils.hasText(rawPan)) {
             List<String> errors = new java.util.ArrayList<>(validationResult.getErrors());
             errors.add("Taxpayer profile or client record with PAN " + rawPan + " was not found for this organization");
             validationResult = ItrReturnValidationResultDto.failure(errors, validationResult.getWarnings());
@@ -384,8 +352,8 @@ public class ItrGovernmentIntegrationServiceImpl implements ItrGovernmentIntegra
 
             return ItrPreparedReturnDto.builder()
                     .returnId(returnOpt.map(ItrReturnEntity::getId).orElse(request.getReturnId()))
-                    .clientId(clientOpt.map(ClientEntity::getId).orElse(request.getClientId()))
-                    .profileId(profileOpt.map(ItrProfileEntity::getId).orElse(request.getProfileId()))
+                    .clientId(resolvedClient.map(ClientEntity::getId).orElse(request.getClientId()))
+                    .profileId(resolvedProfile.map(ItrProfileEntity::getId).orElse(request.getProfileId()))
                     .pan(rawPan)
                     .maskedPan(maskedPan)
                     .taxpayerName(taxpayerName)
@@ -454,8 +422,8 @@ public class ItrGovernmentIntegrationServiceImpl implements ItrGovernmentIntegra
 
         return ItrPreparedReturnDto.builder()
                 .returnId(returnOpt.map(ItrReturnEntity::getId).orElse(request.getReturnId()))
-                .clientId(clientOpt.map(ClientEntity::getId).orElse(request.getClientId()))
-                .profileId(profileOpt.map(ItrProfileEntity::getId).orElse(request.getProfileId()))
+                .clientId(resolvedClient.map(ClientEntity::getId).orElse(request.getClientId()))
+                .profileId(resolvedProfile.map(ItrProfileEntity::getId).orElse(request.getProfileId()))
                 .pan(rawPan)
                 .maskedPan(maskedPan)
                 .taxpayerName(taxpayerName)
@@ -470,6 +438,58 @@ public class ItrGovernmentIntegrationServiceImpl implements ItrGovernmentIntegra
                 .providerReferenceId("PREP-ITR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .preparedAt(Instant.now())
                 .build();
+    }
+
+    private Optional<ClientEntity> resolveClient(UUID tenantId, String rawPan, UUID clientId) {
+        Optional<ClientEntity> clientOpt = Optional.empty();
+        if (StringUtils.hasText(rawPan)) {
+            clientOpt = clientRepository.findByOrganizationIdAndPan(tenantId, rawPan);
+        }
+        if (clientId != null) {
+            Optional<ClientEntity> clientById = clientRepository.findById(clientId);
+            if (clientById.isPresent() && !clientById.get().getOrganizationId().equals(tenantId)) {
+                throw new AppException(ErrorCode.TENANT_MISMATCH, "Client does not belong to current organization");
+            }
+            if (clientOpt.isEmpty()) {
+                clientOpt = clientById.filter(c -> c.getOrganizationId().equals(tenantId));
+            }
+        }
+        return clientOpt;
+    }
+
+    private Optional<ItrProfileEntity> resolveProfile(UUID tenantId, String rawPan, UUID profileId) {
+        Optional<ItrProfileEntity> profileOpt = Optional.empty();
+        if (StringUtils.hasText(rawPan)) {
+            profileOpt = itrProfileRepository.findByOrganizationIdAndPan(tenantId, rawPan);
+        }
+        if (profileId != null) {
+            Optional<ItrProfileEntity> profileById = itrProfileRepository.findById(profileId);
+            if (profileById.isPresent() && !profileById.get().getOrganizationId().equals(tenantId)) {
+                throw new AppException(ErrorCode.TENANT_MISMATCH, "ITR profile does not belong to current organization");
+            }
+            if (profileOpt.isEmpty()) {
+                profileOpt = profileById.filter(p -> p.getOrganizationId().equals(tenantId));
+            }
+        }
+        return profileOpt;
+    }
+
+    private Optional<ItrReturnEntity> resolveReturn(UUID tenantId, UUID returnId) {
+        if (returnId == null) {
+            return Optional.empty();
+        }
+        Optional<ItrReturnEntity> returnById = itrReturnRepository.findById(returnId);
+        if (returnById.isPresent() && !returnById.get().getOrganizationId().equals(tenantId)) {
+            throw new AppException(ErrorCode.TENANT_MISMATCH, "ITR return does not belong to current organization");
+        }
+        if (returnById.isEmpty()) {
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "ITR return record " + returnId + " not found");
+        }
+        ItrReturnEntity returnEntity = returnById.get();
+        if (returnEntity.getStatus() == ItrReturnEntity.ItrStatus.FILED || returnEntity.getStatus() == ItrReturnEntity.ItrStatus.COMPLETED) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED, "Cannot re-prepare an already FILED or COMPLETED ITR return");
+        }
+        return returnById;
     }
 
     private String resolveFinancialYear(String assessmentYear) {

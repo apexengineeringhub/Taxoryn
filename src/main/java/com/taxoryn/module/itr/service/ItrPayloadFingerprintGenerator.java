@@ -45,7 +45,7 @@ public class ItrPayloadFingerprintGenerator {
             Map<String, Object> canonicalMap = new TreeMap<>();
             canonicalMap.put("pan", pan != null ? pan.trim().toUpperCase() : "");
             canonicalMap.put("assessmentYear", assessmentYear != null ? assessmentYear.trim() : "");
-            canonicalMap.put("returnType", returnType != null ? returnType.trim().toUpperCase() : "");
+            canonicalMap.put("returnType", normalizeReturnType(returnType));
             canonicalMap.put("taxpayerType", taxpayerType != null ? taxpayerType.trim().toUpperCase() : "INDIVIDUAL");
             canonicalMap.put("residentialStatus", residentialStatus != null ? residentialStatus.trim().toUpperCase() : "RESIDENT");
 
@@ -97,6 +97,15 @@ public class ItrPayloadFingerprintGenerator {
             log.error("Failed to generate deterministic ITR payload fingerprint", e);
             return "ITR-FP-FALLBACK-" + System.currentTimeMillis();
         }
+    }
+
+    public static String normalizeReturnType(String returnType) {
+        if (returnType == null) return "";
+        String clean = returnType.trim().toUpperCase();
+        if (clean.startsWith("ITR") && clean.length() == 4 && Character.isDigit(clean.charAt(3))) {
+            return "ITR-" + clean.charAt(3);
+        }
+        return clean;
     }
 
     private String formatDecimal(BigDecimal value) {
