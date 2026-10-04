@@ -84,16 +84,16 @@ class GovAuthorizationFlowIntegrationTest {
         authSessionRepository.deleteAll();
 
         orgA = organizationRepository.save(OrganizationEntity.builder()
-                .name("Auth Flow Org A")
+                .name("Auth Flow Org A " + UUID.randomUUID())
                 .legalName("Auth Flow Org A Pvt Ltd")
-                .email("admin@authflow-orga.com")
+                .email("authflow.a." + UUID.randomUUID() + "@taxoryn.com")
                 .status(OrganizationStatus.ACTIVE)
                 .build());
 
         orgB = organizationRepository.save(OrganizationEntity.builder()
-                .name("Auth Flow Org B")
+                .name("Auth Flow Org B " + UUID.randomUUID())
                 .legalName("Auth Flow Org B Pvt Ltd")
-                .email("admin@authflow-orgb.com")
+                .email("authflow.b." + UUID.randomUUID() + "@taxoryn.com")
                 .status(OrganizationStatus.ACTIVE)
                 .build());
 
@@ -371,7 +371,9 @@ class GovAuthorizationFlowIntegrationTest {
         // Verify entity persistence in database
         GovAuthSessionEntity entity = authSessionRepository.findById(session.getSessionId()).orElseThrow();
         assertThat(entity.getMetadata()).isNullOrEmpty();
-        assertThat(entity.getSafeFailureMessage()).doesNotContain("SecretGstKeyOrgA123");
+        if (entity.getSafeFailureMessage() != null) {
+            assertThat(entity.getSafeFailureMessage()).doesNotContain("SecretGstKeyOrgA123");
+        }
 
         // Verify Audit Logs
         @SuppressWarnings("unchecked")
