@@ -4,6 +4,7 @@ import com.taxoryn.core.exception.AppException;
 import com.taxoryn.core.security.TenantContext;
 import com.taxoryn.module.gov.dto.CreateGovConnectionRequest;
 import com.taxoryn.module.gov.dto.GovConnectionDto;
+import com.taxoryn.module.gov.dto.RegisterGovCredentialRequest;
 import com.taxoryn.module.gov.exception.GovConnectionNotFoundException;
 import com.taxoryn.module.gov.model.GovProviderType;
 import com.taxoryn.module.gov.service.GovernmentConnectionService;
@@ -63,6 +64,14 @@ public class TdsIntegrationTenantIsolationTest {
                 .providerType(GovProviderType.TDS)
                 .displayName("Org A TRACES Gateway")
                 .build());
+
+        govConnectionService.registerCredential(RegisterGovCredentialRequest.builder()
+                .connectionId(orgAConnection.getId())
+                .credentialType(com.taxoryn.module.gov.model.GovCredentialType.API_KEY)
+                .maskedIdentifier("traces_orgA_***")
+                .rawSecret("TracesSecretKeyOrgA123")
+                .build());
+
         govConnectionService.activateConnection(orgAConnection.getId());
     }
 

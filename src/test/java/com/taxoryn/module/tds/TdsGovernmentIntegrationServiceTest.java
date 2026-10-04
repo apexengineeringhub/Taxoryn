@@ -141,6 +141,13 @@ public class TdsGovernmentIntegrationServiceTest {
                 .displayName("GST Portal Gateway")
                 .build());
 
+        govConnectionService.registerCredential(RegisterGovCredentialRequest.builder()
+                .connectionId(nonTdsConn.getId())
+                .credentialType(GovCredentialType.API_KEY)
+                .maskedIdentifier("gst_test_***")
+                .rawSecret("GstSecretKey123")
+                .build());
+
         govConnectionService.activateConnection(nonTdsConn.getId());
 
         assertThatThrownBy(() -> tdsIntegrationService.executeTdsOperation(
