@@ -6,6 +6,7 @@ import com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto;
 import com.taxoryn.module.itr.integration.dto.ItrHandshakeResponseDto;
 import com.taxoryn.module.itr.integration.dto.ItrIntegrationResultDto;
 
+import com.taxoryn.module.itr.dto.ItrReturnStatusDto;
 import com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto;
 import com.taxoryn.module.itr.dto.ItrSubmitReturnRequest;
 
@@ -35,6 +36,12 @@ public interface ItrGovernmentIntegrationService {
     ItrReturnSubmissionResultDto submitReturn(ItrSubmitReturnRequest request);
 
     ItrReturnSubmissionResultDto submitReturn(UUID returnId, Map<String, Object> options);
+
+    ItrReturnStatusDto checkReturnStatus(UUID returnId);
+
+    ItrReturnStatusDto checkReturnStatus(UUID returnId, UUID connectionId, Map<String, Object> options);
+
+    ItrReturnStatusDto getReturnStatus(UUID returnId);
 
     ItrIntegrationResultDto executeItrOperation(UUID connectionId, String operationType, Map<String, Object> payload);
 }

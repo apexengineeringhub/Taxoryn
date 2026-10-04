@@ -287,13 +287,37 @@ public class ItrProviderAdapter implements GovernmentProviderAdapter {
     }
 
     private GovIntegrationResult executeReturnStatus(GovIntegrationRequest request, Map<String, Object> data) {
-        String mockStatus = "PROCESSED";
-        if (request.getRequestData() != null && request.getRequestData().containsKey("mockStatus")) {
-            mockStatus = String.valueOf(request.getRequestData().get("mockStatus")).toUpperCase();
+        String mockStatus = "FILED";
+        if (request.getRequestData() != null) {
+            if (request.getRequestData().containsKey("mockStatus")) {
+                mockStatus = String.valueOf(request.getRequestData().get("mockStatus")).toUpperCase();
+            } else if (request.getRequestData().containsKey("status")) {
+                mockStatus = String.valueOf(request.getRequestData().get("status")).toUpperCase();
+            }
         }
+
+        String ackNumber = request.getRequestData() != null && request.getRequestData().containsKey("acknowledgementNumber")
+                ? String.valueOf(request.getRequestData().get("acknowledgementNumber"))
+                : (request.getRequestData() != null && request.getRequestData().containsKey("ackNumber")
+                    ? String.valueOf(request.getRequestData().get("ackNumber"))
+                    : "ITD-ACK-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase());
+
+        String statusRef = "ITD-STATUS-REF-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
         data.put("filingStatus", mockStatus);
         data.put("providerStatus", mockStatus);
+        data.put("acknowledgementNumber", ackNumber);
+        data.put("providerReference", statusRef);
+        data.put("statusMessage", "ITD Portal Status: " + mockStatus);
+
+        if ("FILED".equalsIgnoreCase(mockStatus) || "PROCESSED".equalsIgnoreCase(mockStatus)) {
+            data.put("filingDate", java.time.LocalDate.now().toString());
+            data.put("verifiedAt", java.time.Instant.now().toString());
+        } else if ("REJECTED".equalsIgnoreCase(mockStatus)) {
+            data.put("rejectionReason", "Return rejected due to schema or calculation defect at e-filing gateway");
+        } else if ("FAILED".equalsIgnoreCase(mockStatus)) {
+            data.put("failureReason", "ITD e-filing gateway internal verification failed");
+        }
 
         return GovIntegrationResult.success(
                 null,
@@ -302,7 +326,7 @@ public class ItrProviderAdapter implements GovernmentProviderAdapter {
                 request.getOperationType(),
                 request.getCorrelationId(),
                 request.getIdempotencyKey(),
-                "ITD-STATUS-REF-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                statusRef,
                 data
         );
     }

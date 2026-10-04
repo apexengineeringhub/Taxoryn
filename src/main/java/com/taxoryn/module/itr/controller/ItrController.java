@@ -322,4 +322,30 @@ public class ItrController {
         com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto result = itrGovIntegrationService.submitReturn(request);
         return ResponseEntity.ok(ApiResponse.success("ITR return submission processed", result));
     }
+
+    // =========================================================================
+    // 8. ITR Filing Status Polling & Verification
+    // =========================================================================
+
+    @PostMapping("/returns/{id}/status-check")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Check ITR return filing status from Income Tax Department Gateway", description = "Authoritatively polls the e-filing gateway for real-time status and transitions return lifecycle accordingly.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnStatusDto>> checkReturnStatus(
+            @PathVariable UUID id,
+            @RequestBody(required = false) java.util.Map<String, Object> options) {
+        com.taxoryn.module.itr.dto.ItrReturnStatusDto statusDto = itrGovIntegrationService.checkReturnStatus(
+                id,
+                null,
+                options != null ? options : java.util.Collections.emptyMap()
+        );
+        return ResponseEntity.ok(ApiResponse.success("ITR filing status retrieved from gateway", statusDto));
+    }
+
+    @GetMapping("/returns/{id}/status")
+    @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get stored ITR return filing status", description = "Returns persisted status and acknowledgement metadata without making an external gateway call.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnStatusDto>> getReturnStatus(@PathVariable UUID id) {
+        com.taxoryn.module.itr.dto.ItrReturnStatusDto statusDto = itrGovIntegrationService.getReturnStatus(id);
+        return ResponseEntity.ok(ApiResponse.success("ITR return status retrieved successfully", statusDto));
+    }
 }
