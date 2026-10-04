@@ -380,4 +380,16 @@ public class TdsController {
         );
         return ResponseEntity.ok(ApiResponse.success("TAN deductor profile verified successfully", profile));
     }
+
+    // =========================================================================
+    // 9. Statutory Return Preparation & Payload Normalization
+    // =========================================================================
+
+    @PostMapping("/returns/prepare")
+    @PreAuthorize("hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Prepare statutory TDS return payload", description = "Validates financial figures, normalizes quarterly statement payload (Form 24Q/26Q/27Q/27EQ), calculates canonical SHA-256 fingerprint, and transitions filing status to READY_TO_FILE.")
+    public ResponseEntity<ApiResponse<TdsPreparedReturnDto>> prepareReturn(@Valid @RequestBody TdsPrepareReturnRequest request) {
+        TdsPreparedReturnDto prepared = tdsGovIntegrationService.prepareReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("TDS return prepared and validated successfully", prepared));
+    }
 }

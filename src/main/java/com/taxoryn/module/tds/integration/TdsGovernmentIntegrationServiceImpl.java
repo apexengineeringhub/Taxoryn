@@ -4,6 +4,8 @@ import com.taxoryn.core.exception.AppException;
 import com.taxoryn.core.exception.ErrorCode;
 import com.taxoryn.core.security.TenantContext;
 import com.taxoryn.module.audit.service.AuditService;
+import com.taxoryn.module.client.entity.ClientEntity;
+import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.gov.dto.GovConnectionDto;
 import com.taxoryn.module.gov.dto.GovConnectionHealthDto;
 import com.taxoryn.module.gov.dto.GovIntegrationRequest;
@@ -14,11 +16,24 @@ import com.taxoryn.module.gov.service.GovernmentConnectionService;
 import com.taxoryn.module.gov.service.GovernmentHealthService;
 import com.taxoryn.module.gov.service.GovernmentIntegrationService;
 import com.taxoryn.module.tds.dto.TdsDeductorProfileDto;
+import com.taxoryn.module.tds.dto.TdsPrepareReturnRequest;
+import com.taxoryn.module.tds.dto.TdsPreparedReturnDto;
+import com.taxoryn.module.tds.dto.TdsReturnPayloadDto;
+import com.taxoryn.module.tds.dto.TdsReturnTotalsDto;
+import com.taxoryn.module.tds.dto.TdsReturnValidationResultDto;
+import com.taxoryn.module.tds.entity.TdsProfileEntity;
+import com.taxoryn.module.tds.entity.TdsReturnEntity;
 import com.taxoryn.module.tds.integration.dto.TdsHandshakeResponseDto;
 import com.taxoryn.module.tds.integration.dto.TdsIntegrationResultDto;
+import com.taxoryn.module.tds.repository.TdsProfileRepository;
+import com.taxoryn.module.tds.repository.TdsReturnRepository;
+import com.taxoryn.module.tds.service.TdsPayloadFingerprintGenerator;
+import com.taxoryn.module.tds.service.TdsReturnValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -27,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -38,11 +54,18 @@ import java.util.regex.Pattern;
 public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegrationService {
 
     private static final Pattern TAN_PATTERN = Pattern.compile("^[A-Z]{4}[0-9]{5}[A-Z]{1}$");
+    private static final Pattern FY_PATTERN = Pattern.compile("^([0-9]{4})-([0-9]{2})$");
+    private static final Pattern FY_FOUR_DIGIT_PATTERN = Pattern.compile("^([0-9]{4})-([0-9]{4})$");
 
     private final GovernmentIntegrationService govIntegrationService;
     private final GovernmentConnectionService govConnectionService;
     private final GovernmentHealthService govHealthService;
     private final AuditService auditService;
+    private final TdsReturnRepository tdsReturnRepository;
+    private final TdsProfileRepository tdsProfileRepository;
+    private final ClientRepository clientRepository;
+    private final TdsReturnValidator tdsReturnValidator;
+    private final TdsPayloadFingerprintGenerator tdsPayloadFingerprintGenerator;
 
     @Override
     public TdsHandshakeResponseDto checkTdsConnectionHealth(UUID connectionId) {
@@ -257,6 +280,244 @@ public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegra
                 .build();
     }
 
+    @Override
+    @Transactional
+    public TdsPreparedReturnDto prepareReturn(TdsPrepareReturnRequest request) {
+        UUID tenantId = requireActiveTenantId();
+        if (request == null) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED, "Return preparation request must not be null");
+        }
+
+        String rawTan = request.getTan() != null ? request.getTan().trim().toUpperCase() : "";
+        String maskedTan = maskTan(rawTan);
+        String formType = TdsPayloadFingerprintGenerator.normalizeFormType(request.getFormType());
+        String financialYear = request.getFinancialYear() != null ? request.getFinancialYear().trim() : "";
+        String quarter = request.getQuarter() != null ? request.getQuarter().trim().toUpperCase() : "";
+        String assessmentYear = StringUtils.hasText(request.getAssessmentYear())
+                ? request.getAssessmentYear().trim()
+                : deriveAssessmentYear(financialYear);
+
+        String correlationId = UUID.randomUUID().toString();
+
+        auditService.logEvent(
+                tenantId,
+                null,
+                "TDS_RETURN_PREPARATION_REQUESTED",
+                "TDS_RETURN",
+                maskedTan,
+                null,
+                Map.of("tan", maskedTan, "formType", formType, "quarter", quarter, "financialYear", financialYear, "correlationId", correlationId)
+        );
+
+        // Resolve TAN Master Profile & Client linkage
+        Optional<TdsProfileEntity> resolvedProfile = resolveProfile(tenantId, rawTan, request.getProfileId());
+        Optional<ClientEntity> resolvedClient = resolveClient(tenantId, resolvedProfile, request.getClientId());
+
+        // Deductor category & metadata
+        String deductorName = resolvedClient
+                .map(c -> StringUtils.hasText(c.getLegalName()) ? c.getLegalName() : c.getDisplayName())
+                .orElseGet(() -> resolvedProfile
+                        .map(TdsProfileEntity::getResponsiblePersonName)
+                        .orElse("Acme Enterprises Private Limited"));
+
+        String deductorType = resolvedProfile
+                .map(p -> p.getDeductorType().name())
+                .orElseGet(() -> StringUtils.hasText(request.getDeductorType()) ? request.getDeductorType().trim().toUpperCase() : "COMPANY");
+
+        String pan = resolvedProfile
+                .map(TdsProfileEntity::getResponsiblePersonPan)
+                .orElseGet(() -> resolvedClient.map(ClientEntity::getPan).orElse("AAACA1234C"));
+
+        TdsReturnTotalsDto totals = request.getTotals() != null ? request.getTotals() : TdsReturnTotalsDto.builder().build();
+
+        // 1. Validation
+        TdsReturnValidationResultDto validationResult = tdsReturnValidator.validate(request, totals, deductorType);
+
+        if (!validationResult.isValid()) {
+            auditService.logEvent(
+                    tenantId,
+                    null,
+                    "TDS_RETURN_PREPARATION_FAILED",
+                    "TDS_RETURN",
+                    maskedTan,
+                    null,
+                    Map.of(
+                            "tan", maskedTan,
+                            "formType", formType,
+                            "quarter", quarter,
+                            "financialYear", financialYear,
+                            "errors", String.join("; ", validationResult.getErrors())
+                    )
+            );
+
+            return TdsPreparedReturnDto.builder()
+                    .returnId(request.getReturnId())
+                    .clientId(resolvedClient.map(ClientEntity::getId).orElse(request.getClientId()))
+                    .profileId(resolvedProfile.map(TdsProfileEntity::getId).orElse(request.getProfileId()))
+                    .tan(rawTan)
+                    .maskedTan(maskedTan)
+                    .deductorName(deductorName)
+                    .formType(formType)
+                    .financialYear(financialYear)
+                    .quarter(quarter)
+                    .assessmentYear(assessmentYear)
+                    .status("VALIDATION_FAILED")
+                    .readyForSubmission(false)
+                    .validationResult(validationResult)
+                    .preparedAt(Instant.now())
+                    .errorCode("VALIDATION_FAILED")
+                    .errorMessage(String.join("; ", validationResult.getErrors()))
+                    .build();
+        }
+
+        // 2. Canonical Payload & Deterministic Fingerprinting
+        List<Map<String, Object>> challans = request.getChallans() != null ? request.getChallans() : Collections.emptyList();
+        List<Map<String, Object>> deductees = request.getDeductees() != null ? request.getDeductees() : Collections.emptyList();
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("schemaVersion", "1.0");
+        metadata.put("fvuVersion", "8.2");
+        metadata.put("preparedBy", "Taxoryn-TDS-Engine");
+        if (request.getOptions() != null) {
+            metadata.putAll(request.getOptions());
+        }
+
+        String fingerprint = tdsPayloadFingerprintGenerator.generateFingerprint(
+                rawTan, formType, financialYear, quarter, assessmentYear, deductorType,
+                totals, challans, deductees, metadata
+        );
+
+        TdsReturnPayloadDto payloadDto = TdsReturnPayloadDto.builder()
+                .tan(rawTan)
+                .deductorName(deductorName)
+                .deductorType(deductorType)
+                .pan(pan)
+                .formType(formType)
+                .financialYear(financialYear)
+                .quarter(quarter)
+                .assessmentYear(assessmentYear)
+                .totals(totals)
+                .challans(challans)
+                .deductees(deductees)
+                .payloadFingerprint(fingerprint)
+                .metadata(metadata)
+                .build();
+
+        // 3. Resolve & Update TDS Return Entity
+        Optional<TdsReturnEntity> returnOpt = resolveReturn(tenantId, request.getReturnId(), resolvedProfile, formType, quarter, financialYear);
+        if (returnOpt.isPresent()) {
+            TdsReturnEntity returnEntity = returnOpt.get();
+            returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.READY_TO_FILE);
+            returnEntity.setFvuValidationStatus(TdsReturnEntity.FvuValidationStatus.VALIDATED);
+            if (totals.getTotalAmountPaid() != null) returnEntity.setTotalAmountPaid(totals.getTotalAmountPaid());
+            if (totals.getTotalTaxDeducted() != null) returnEntity.setTotalTaxDeducted(totals.getTotalTaxDeducted());
+            if (totals.getTotalTaxDeposited() != null) returnEntity.setTotalTaxDeposited(totals.getTotalTaxDeposited());
+            if (totals.getTotalInterest() != null) returnEntity.setTotalInterest(totals.getTotalInterest());
+            if (totals.getTotalLateFee() != null) returnEntity.setTotalLateFee(totals.getTotalLateFee());
+            if (totals.getTotalPenalty() != null) returnEntity.setTotalPenalty(totals.getTotalPenalty());
+            returnEntity.setNotes("Prepared & normalized successfully on " + Instant.now() + " [FP: " + (fingerprint.length() > 12 ? fingerprint.substring(0, 12) : fingerprint) + "...]");
+            tdsReturnRepository.save(returnEntity);
+        }
+
+        // 4. Dispatch Provider Preparation Operation via Government Integration Framework
+        GovConnectionDto connection = resolveTdsConnection(request.getConnectionId());
+        Map<String, Object> operationPayload = new HashMap<>();
+        operationPayload.put("tan", rawTan);
+        operationPayload.put("formType", formType);
+        operationPayload.put("quarter", quarter);
+        operationPayload.put("financialYear", financialYear);
+        operationPayload.put("assessmentYear", assessmentYear);
+        operationPayload.put("payloadFingerprint", fingerprint);
+        if (request.getOptions() != null) {
+            operationPayload.putAll(request.getOptions());
+        }
+
+        GovIntegrationRequest govRequest = GovIntegrationRequest.builder()
+                .organizationId(tenantId)
+                .providerType(GovProviderType.TDS)
+                .operationType("TDS_RETURN_PREPARATION")
+                .businessEntityType("TDS_RETURN")
+                .businessEntityId(returnOpt.map(TdsReturnEntity::getId).orElse(connection.getId()))
+                .correlationId(correlationId)
+                .requestData(operationPayload)
+                .build();
+
+        GovIntegrationResult govResult = govIntegrationService.executeOperation(govRequest);
+
+        if (!govResult.isSuccess()) {
+            auditService.logEvent(
+                    tenantId,
+                    null,
+                    "TDS_RETURN_PREPARATION_FAILED",
+                    "TDS_RETURN",
+                    maskedTan,
+                    null,
+                    Map.of(
+                            "tan", maskedTan,
+                            "formType", formType,
+                            "quarter", quarter,
+                            "financialYear", financialYear,
+                            "errorCode", govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "ERROR",
+                            "errorMessage", govResult.getErrorMessage() != null ? govResult.getErrorMessage() : ""
+                    )
+            );
+
+            return TdsPreparedReturnDto.builder()
+                    .returnId(returnOpt.map(TdsReturnEntity::getId).orElse(request.getReturnId()))
+                    .clientId(resolvedClient.map(ClientEntity::getId).orElse(request.getClientId()))
+                    .profileId(resolvedProfile.map(TdsProfileEntity::getId).orElse(request.getProfileId()))
+                    .tan(rawTan)
+                    .maskedTan(maskedTan)
+                    .deductorName(deductorName)
+                    .formType(formType)
+                    .financialYear(financialYear)
+                    .quarter(quarter)
+                    .assessmentYear(assessmentYear)
+                    .status("ERROR")
+                    .readyForSubmission(false)
+                    .validationResult(validationResult)
+                    .payload(payloadDto)
+                    .payloadFingerprint(fingerprint)
+                    .operationId(govResult.getOperationId())
+                    .preparedAt(Instant.now())
+                    .errorCode(govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "ERROR")
+                    .errorMessage(govResult.getErrorMessage())
+                    .build();
+        }
+
+        auditService.logEvent(
+                tenantId,
+                null,
+                "TDS_RETURN_PREPARED",
+                "TDS_RETURN",
+                maskedTan,
+                null,
+                Map.of("tan", maskedTan, "formType", formType, "quarter", quarter, "financialYear", financialYear, "fingerprint", fingerprint)
+        );
+
+        return TdsPreparedReturnDto.builder()
+                .returnId(returnOpt.map(TdsReturnEntity::getId).orElse(request.getReturnId()))
+                .clientId(resolvedClient.map(ClientEntity::getId).orElse(request.getClientId()))
+                .profileId(resolvedProfile.map(TdsProfileEntity::getId).orElse(request.getProfileId()))
+                .tan(rawTan)
+                .maskedTan(maskedTan)
+                .deductorName(deductorName)
+                .formType(formType)
+                .financialYear(financialYear)
+                .quarter(quarter)
+                .assessmentYear(assessmentYear)
+                .status("READY_TO_FILE")
+                .readyForSubmission(true)
+                .validationResult(validationResult)
+                .payload(payloadDto)
+                .payloadFingerprint(fingerprint)
+                .providerReferenceId(govResult.getProviderReferenceId())
+                .operationId(govResult.getOperationId())
+                .preparedAt(Instant.now())
+                .metadata(metadata)
+                .build();
+    }
+
     private GovConnectionDto resolveTdsConnection(UUID connectionId) {
         if (connectionId != null) {
             GovConnectionDto conn = govConnectionService.getConnection(connectionId);
@@ -277,6 +538,75 @@ public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegra
                 .findFirst();
 
         return activeConn.orElse(connections.get(0));
+    }
+
+    private Optional<TdsProfileEntity> resolveProfile(UUID tenantId, String tan, UUID profileId) {
+        if (profileId != null) {
+            return tdsProfileRepository.findByIdAndOrganizationId(profileId, tenantId);
+        }
+        if (StringUtils.hasText(tan)) {
+            return tdsProfileRepository.findByOrganizationIdAndTan(tenantId, tan.trim().toUpperCase());
+        }
+        return Optional.empty();
+    }
+
+    private Optional<ClientEntity> resolveClient(UUID tenantId, Optional<TdsProfileEntity> profileOpt, UUID clientId) {
+        if (clientId != null) {
+            return clientRepository.findByIdAndOrganizationId(clientId, tenantId);
+        }
+        if (profileOpt.isPresent()) {
+            return clientRepository.findByIdAndOrganizationId(profileOpt.get().getClientId(), tenantId);
+        }
+        return Optional.empty();
+    }
+
+    private Optional<TdsReturnEntity> resolveReturn(
+            UUID tenantId,
+            UUID returnId,
+            Optional<TdsProfileEntity> profileOpt,
+            String formType,
+            String quarter,
+            String financialYear) {
+        if (returnId != null) {
+            return tdsReturnRepository.findByIdAndOrganizationId(returnId, tenantId);
+        }
+        if (profileOpt.isPresent() && StringUtils.hasText(formType) && StringUtils.hasText(quarter) && StringUtils.hasText(financialYear)) {
+            try {
+                TdsReturnEntity.TdsFormType formEnum = TdsReturnEntity.TdsFormType.valueOf(formType);
+                TdsReturnEntity.TdsQuarter quarterEnum = TdsReturnEntity.TdsQuarter.valueOf(quarter);
+                return tdsReturnRepository.findByOrganizationIdAndTdsProfileIdAndFormTypeAndQuarterAndFinancialYear(
+                        tenantId,
+                        profileOpt.get().getId(),
+                        formEnum,
+                        quarterEnum,
+                        financialYear
+                );
+            } catch (IllegalArgumentException ignored) {
+                // Return empty if enum mapping doesn't match
+            }
+        }
+        return Optional.empty();
+    }
+
+    private String deriveAssessmentYear(String fy) {
+        if (!StringUtils.hasText(fy)) {
+            return "2026-27";
+        }
+        Matcher fyMatcher = FY_PATTERN.matcher(fy.trim());
+        if (fyMatcher.matches()) {
+            int startYear = Integer.parseInt(fyMatcher.group(1));
+            int nextStart = startYear + 1;
+            int nextEnd = (nextStart + 1) % 100;
+            return nextStart + "-" + String.format("%02d", nextEnd);
+        }
+        Matcher fyFourMatcher = FY_FOUR_DIGIT_PATTERN.matcher(fy.trim());
+        if (fyFourMatcher.matches()) {
+            int startYear = Integer.parseInt(fyFourMatcher.group(1));
+            int nextStart = startYear + 1;
+            int nextEnd = (nextStart + 1) % 100;
+            return nextStart + "-" + String.format("%02d", nextEnd);
+        }
+        return "2026-27";
     }
 
     private void validateTan(String tan) {

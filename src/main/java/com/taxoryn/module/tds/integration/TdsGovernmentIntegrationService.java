@@ -22,4 +22,6 @@ public interface TdsGovernmentIntegrationService {
     TdsDeductorProfileDto lookupDeductor(UUID connectionId, String tan, Map<String, Object> options);
 
     TdsIntegrationResultDto executeTdsOperation(UUID connectionId, String operationType, Map<String, Object> payload);
+ 
+    com.taxoryn.module.tds.dto.TdsPreparedReturnDto prepareReturn(com.taxoryn.module.tds.dto.TdsPrepareReturnRequest request);
 }

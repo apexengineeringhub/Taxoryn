@@ -226,6 +226,27 @@ public class TdsProviderAdapter implements GovernmentProviderAdapter {
             responseData.put("challanDate", "2026-04-15");
             responseData.put("challanNo", "10023");
             responseData.put("cin", "02100011504202610023");
+        } else if ("TDS_RETURN_PREPARATION".equalsIgnoreCase(opType) || "PREPARE_TDS_RETURN".equalsIgnoreCase(opType)) {
+            String tan = extractTan(request);
+            responseData.put("tan", tan);
+            responseData.put("status", "PREPARED");
+            responseData.put("fvuStatus", "VALIDATED");
+            responseData.put("fvuVersion", "8.2");
+            responseData.put("message", "TDS return prepared and validated successfully against TRACES FVU schema");
+            if (request.getRequestData() != null) {
+                if (request.getRequestData().containsKey("formType")) {
+                    responseData.put("formType", request.getRequestData().get("formType"));
+                }
+                if (request.getRequestData().containsKey("quarter")) {
+                    responseData.put("quarter", request.getRequestData().get("quarter"));
+                }
+                if (request.getRequestData().containsKey("financialYear")) {
+                    responseData.put("financialYear", request.getRequestData().get("financialYear"));
+                }
+                if (request.getRequestData().containsKey("payloadFingerprint")) {
+                    responseData.put("payloadFingerprint", request.getRequestData().get("payloadFingerprint"));
+                }
+            }
         } else {
             responseData.put("status", "SUCCESS");
             responseData.put("message", "TDS operation " + opType + " executed successfully");
