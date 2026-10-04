@@ -37,3 +37,9 @@ CREATE INDEX IF NOT EXISTS idx_udin_org_verification ON udin_register (organizat
 CREATE INDEX IF NOT EXISTS idx_udin_org_client ON udin_register (organization_id, client_id);
 CREATE INDEX IF NOT EXISTS idx_udin_org_gen_date ON udin_register (organization_id, generation_date);
 CREATE INDEX IF NOT EXISTS idx_udin_org_doc_type ON udin_register (organization_id, document_type);
+
+ALTER TABLE dsc_register
+ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE udin_register
+ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;

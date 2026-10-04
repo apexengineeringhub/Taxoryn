@@ -281,7 +281,23 @@ export const App: React.FC = () => {
                 }
               />
               <Route
+                path="/dsc"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <DscRegisterPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
                 path="/udin-register"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <UdinRegisterPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/udin"
                 element={
                   <ModuleRouteGuard moduleCode="CLIENTS">
                     <UdinRegisterPage />
