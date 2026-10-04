@@ -41,7 +41,8 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
     private final GovIntegrationOperationRepository operationRepository;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
-    private final Map<GovProviderType, GovernmentProviderAdapter> adapterRegistry = new ConcurrentHashMap<>();
+    private final Map<GovProviderType, Map<String, GovernmentProviderAdapter>> adapterRegistry = new ConcurrentHashMap<>();
+    private final List<GovernmentProviderAdapter> allAdapters = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     public GovernmentIntegrationServiceImpl(
             GovIntegrationOperationRepository operationRepository,
@@ -162,14 +163,7 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
         );
 
         // Lookup Provider Adapter
-        GovernmentProviderAdapter adapter = adapterRegistry.get(request.getProviderType());
-        if (adapter == null) {
-            // Fallback check: If MOCK provider is registered for any type, allow mock testing
-            adapter = adapterRegistry.values().stream()
-                    .filter(a -> "MOCK_PROVIDER".equals(a.getAdapterCode()))
-                    .findFirst()
-                    .orElse(null);
-        }
+        GovernmentProviderAdapter adapter = getAdapter(request.getProviderType()).orElse(null);
 
         if (adapter == null) {
             operation.transitionTo(GovOperationStatus.FAILED);
@@ -319,7 +313,9 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
     @Override
     public void registerAdapter(GovernmentProviderAdapter adapter) {
         if (adapter != null) {
-            adapterRegistry.put(adapter.getProviderType(), adapter);
+            allAdapters.add(adapter);
+            adapterRegistry.computeIfAbsent(adapter.getProviderType(), k -> new ConcurrentHashMap<>())
+                    .put(adapter.getAdapterCode().toUpperCase(), adapter);
             log.info("[GOV_ADAPTER_REGISTERED] Registered adapter '{}' for provider type {}",
                     adapter.getAdapterCode(), adapter.getProviderType());
         }
@@ -327,14 +323,30 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
 
     @Override
     public List<String> getAvailableAdapters() {
-        return new ArrayList<>(adapterRegistry.values().stream()
+        return allAdapters.stream()
                 .map(GovernmentProviderAdapter::getAdapterCode)
-                .toList());
+                .distinct()
+                .toList();
     }
 
     @Override
     public Optional<GovernmentProviderAdapter> getAdapter(GovProviderType providerType) {
-        return Optional.ofNullable(adapterRegistry.get(providerType));
+        if (providerType == null) {
+            return Optional.empty();
+        }
+        Map<String, GovernmentProviderAdapter> typeMap = adapterRegistry.get(providerType);
+        if (typeMap != null && !typeMap.isEmpty()) {
+            Optional<GovernmentProviderAdapter> dedicated = typeMap.values().stream()
+                    .filter(a -> !"MOCK_PROVIDER".equalsIgnoreCase(a.getAdapterCode()))
+                    .findFirst();
+            if (dedicated.isPresent()) {
+                return dedicated;
+            }
+            return Optional.of(typeMap.values().iterator().next());
+        }
+        return allAdapters.stream()
+                .filter(a -> "MOCK_PROVIDER".equalsIgnoreCase(a.getAdapterCode()))
+                .findFirst();
     }
 
     private UUID resolveAndEnforceTenant(UUID requestedTenantId) {

@@ -2,7 +2,7 @@ spring:
   application:
     name: taxoryn
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:prod}
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   config:
     import:
       - "optional:classpath:application-local.yml"
@@ -194,6 +194,12 @@ taxoryn:
       admin:
         enabled: ${GMAIL_CHANNEL_ADMIN_ENABLED:true}
         email: ${GMAIL_CHANNEL_ADMIN_EMAIL:admin@taxoryn.com}
+  reminder:
+    scheduler:
+      enabled: ${TAXORYN_REMINDER_SCHEDULER_ENABLED:true}
+      cron: ${TAXORYN_REMINDER_SCHEDULER_CRON:0 5 7 * * ?}
+      batch-size: ${TAXORYN_REMINDER_SCHEDULER_BATCH_SIZE:50}
+      max-attempts: ${TAXORYN_REMINDER_SCHEDULER_MAX_ATTEMPTS:3}
 
 # OpenAPI / Swagger
 springdoc:

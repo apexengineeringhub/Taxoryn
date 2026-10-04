@@ -49,6 +49,13 @@ public class GovernmentProviderRegistryImpl implements GovernmentProviderRegistr
         }
         Map<String, GovernmentProviderAdapter> adapters = registry.get(providerType);
         if (adapters != null && !adapters.isEmpty()) {
+            // Prefer dedicated provider adapter over generic mock
+            Optional<GovernmentProviderAdapter> dedicated = adapters.values().stream()
+                    .filter(a -> !"MOCK_PROVIDER".equalsIgnoreCase(a.getAdapterCode()))
+                    .findFirst();
+            if (dedicated.isPresent()) {
+                return dedicated;
+            }
             return Optional.of(adapters.values().iterator().next());
         }
 
