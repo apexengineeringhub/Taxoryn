@@ -15,6 +15,7 @@ import com.taxoryn.module.gov.auth.service.GovernmentAuthenticationService;
 import com.taxoryn.module.gov.dto.CreateGovConnectionRequest;
 import com.taxoryn.module.gov.dto.GovConnectionDto;
 import com.taxoryn.module.gov.dto.RegisterGovCredentialRequest;
+import com.taxoryn.module.gov.exception.GovConnectionNotFoundException;
 import com.taxoryn.module.gov.model.GovCredentialType;
 import com.taxoryn.module.gov.model.GovProviderType;
 import com.taxoryn.module.gov.service.GovernmentConnectionService;
@@ -120,6 +121,12 @@ public class GovAuthenticationIntegrationTest {
         connectionB = connectionService.createConnection(CreateGovConnectionRequest.builder()
                 .providerType(GovProviderType.INCOME_TAX)
                 .displayName("ITD Gateway Org B")
+                .build());
+        connectionService.registerCredential(RegisterGovCredentialRequest.builder()
+                .connectionId(connectionB.getId())
+                .credentialType(GovCredentialType.API_KEY)
+                .maskedIdentifier("itd_cred_***")
+                .rawSecret("SecretItdKeyOrgB123")
                 .build());
         connectionService.activateConnection(connectionB.getId());
 
@@ -304,7 +311,7 @@ public class GovAuthenticationIntegrationTest {
                 .connectionId(connectionB.getId())
                 .authMethod(GovAuthMethod.OAUTH2)
                 .build()))
-                .isInstanceOf(AppException.class)
+                .isInstanceOf(GovConnectionNotFoundException.class)
                 .hasMessageContaining("not found");
     }
 
