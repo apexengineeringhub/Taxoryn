@@ -567,9 +567,7 @@ public class EngagementWorkServiceImpl implements EngagementWorkService {
         }
 
         // Fetch tasks instantiated for this work instance
-        List<TaskEntity> tasks = taskRepository.findAll().stream()
-                .filter(t -> Objects.equals(t.getWorkInstanceId(), entity.getId()))
-                .collect(Collectors.toList());
+        List<TaskEntity> tasks = taskRepository.findAllByOrganizationIdAndWorkInstanceId(orgId, entity.getId());
 
         List<WorkInstanceTaskDto> taskDtos = tasks.stream().map(t -> {
             String taskAssignedName = t.getAssignedUserId() != null
@@ -578,6 +576,7 @@ public class EngagementWorkServiceImpl implements EngagementWorkService {
 
             return WorkInstanceTaskDto.builder()
                     .id(t.getId())
+                    .engagementId(t.getEngagementId())
                     .workInstanceId(t.getWorkInstanceId())
                     .workTemplateTaskId(t.getWorkTemplateTaskId())
                     .title(t.getTitle())

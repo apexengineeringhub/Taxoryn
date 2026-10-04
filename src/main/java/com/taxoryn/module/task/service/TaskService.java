@@ -37,4 +37,6 @@ public interface TaskService {
     java.util.List<com.taxoryn.module.task.dto.TaskCalendarDto> getCalendarTasks(com.taxoryn.module.task.dto.TaskCalendarFilterRequest filterRequest);
 
     java.util.List<com.taxoryn.module.task.dto.TeamWorkloadSummaryDto> getTeamWorkload();
+
+    java.util.List<TaskDto> getTasksByEngagementId(UUID engagementId);
 }

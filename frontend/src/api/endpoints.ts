@@ -3433,6 +3433,10 @@ export const engagementsApi = {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/engagements/${id}`);
     return res.data;
   },
+  getTasks: async (id: string) => {
+    const res = await apiClient.get<ApiResponse<Task[]>>(`/v1/engagements/${id}/tasks`);
+    return res.data.data;
+  },
 };
 
 // --- 29. Work Templates & Recurring Compliance (Stage 2.5 - P0.2) ---

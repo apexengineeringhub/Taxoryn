@@ -11,6 +11,8 @@ import com.taxoryn.module.engagement.dto.UpdateEngagementStatusRequest;
 import com.taxoryn.module.engagement.service.EngagementService;
 import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
+import com.taxoryn.module.task.dto.TaskDto;
+import com.taxoryn.module.task.service.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,6 +44,7 @@ import java.util.UUID;
 public class EngagementController {
 
     private final EngagementService engagementService;
+    private final TaskService taskService;
 
     @PostMapping
     @PreAuthorize("hasAuthority('CLIENT_CREATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL')")
@@ -100,6 +103,14 @@ public class EngagementController {
             @Valid @RequestBody UpdateEngagementAssignmentRequest request) {
         EngagementDto updated = engagementService.updateEngagementAssignment(id, request);
         return ResponseEntity.ok(ApiResponse.success("Engagement assignment updated successfully", updated));
+    }
+
+    @GetMapping("/{id}/tasks")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get tasks by engagement ID", description = "Retrieves all tasks associated with a specific engagement.")
+    public ResponseEntity<ApiResponse<List<TaskDto>>> getTasksByEngagementId(@PathVariable UUID id) {
+        List<TaskDto> tasks = taskService.getTasksByEngagementId(id);
+        return ResponseEntity.ok(ApiResponse.success("Engagement tasks retrieved successfully", tasks));
     }
 
     @DeleteMapping("/{id}")

@@ -19,6 +19,7 @@ import java.util.UUID;
 public class WorkInstanceTaskDto {
 
     private UUID id;
+    private UUID engagementId;
     private UUID workInstanceId;
     private UUID workTemplateTaskId;
     private String title;

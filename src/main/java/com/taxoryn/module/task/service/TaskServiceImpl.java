@@ -46,6 +46,11 @@ import org.springframework.util.StringUtils;
 import com.taxoryn.module.reminder.event.TaxorynBusinessEvent;
 import com.taxoryn.module.reminder.entity.AutomationEventType;
 
+import com.taxoryn.core.exception.BusinessValidationException;
+import com.taxoryn.module.worktemplate.repository.WorkInstanceRepository;
+import com.taxoryn.module.worktemplate.entity.WorkInstanceEntity;
+import com.taxoryn.module.engagement.entity.EngagementEntity;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -73,6 +78,7 @@ public class TaskServiceImpl implements TaskService {
     private final NotificationService notificationService;
     private final com.taxoryn.module.organization.repository.LocationRepository locationRepository;
     private final com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository;
+    private final WorkInstanceRepository workInstanceRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final com.taxoryn.module.reminder.repository.ReminderRepository reminderRepository;
 
@@ -90,7 +96,7 @@ public class TaskServiceImpl implements TaskService {
     ) {
         this(taskRepository, clientRepository, employeeRepository, userRepository,
                 complianceObligationRepository, documentRequestRepository, documentRequestItemRepository,
-                securityScopeEvaluator, taskMapper, notificationService, null, null, null, null);
+                securityScopeEvaluator, taskMapper, notificationService, null, null, null, null, null);
     }
 
     public TaskServiceImpl(
@@ -108,7 +114,7 @@ public class TaskServiceImpl implements TaskService {
     ) {
         this(taskRepository, clientRepository, employeeRepository, userRepository,
                 complianceObligationRepository, documentRequestRepository, documentRequestItemRepository,
-                securityScopeEvaluator, taskMapper, notificationService, null, engagementRepository, null, null);
+                securityScopeEvaluator, taskMapper, notificationService, null, engagementRepository, null, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -125,7 +131,10 @@ public class TaskServiceImpl implements TaskService {
             NotificationService notificationService,
             @org.springframework.beans.factory.annotation.Autowired(required = false)
             com.taxoryn.module.organization.repository.LocationRepository locationRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
             com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            WorkInstanceRepository workInstanceRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false)
             ApplicationEventPublisher applicationEventPublisher,
             @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -143,6 +152,7 @@ public class TaskServiceImpl implements TaskService {
         this.notificationService = notificationService;
         this.locationRepository = locationRepository;
         this.engagementRepository = engagementRepository;
+        this.workInstanceRepository = workInstanceRepository;
         this.applicationEventPublisher = applicationEventPublisher;
         this.reminderRepository = reminderRepository;
     }
@@ -347,33 +357,60 @@ public class TaskServiceImpl implements TaskService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
         UUID clientId = request.getClientId();
+        UUID engagementId = request.getEngagementId();
+        UUID workInstanceId = request.getWorkInstanceId();
         UUID locationId = request.getLocationId();
 
-        // If clientId is null but engagementId is provided, resolve from Engagement
-        if (clientId == null && request.getEngagementId() != null) {
-            var engOpt = engagementRepository.findByIdAndOrganizationId(request.getEngagementId(), organizationId);
-            if (engOpt.isPresent()) {
-                clientId = engOpt.get().getClientId();
+        // 1. If workInstanceId is provided -> authoritative engagement resolution & validation
+        if (workInstanceId != null) {
+            if (workInstanceRepository != null) {
+                WorkInstanceEntity workInstance = workInstanceRepository.findByIdAndOrganizationId(workInstanceId, organizationId)
+                        .orElseThrow(() -> new ResourceNotFoundException("WorkInstance", "id", workInstanceId));
+
+                engagementId = workInstance.getEngagementId();
+            }
+            if (engagementRepository != null && engagementId != null) {
+                final UUID finalEngId = engagementId;
+                EngagementEntity eng = engagementRepository.findByIdAndOrganizationId(finalEngId, organizationId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", finalEngId));
+                if (clientId != null && !clientId.equals(eng.getClientId())) {
+                    throw new BusinessValidationException("Provided clientId does not match the client of the work instance's engagement.");
+                }
+                clientId = eng.getClientId();
                 if (locationId == null) {
-                    locationId = engOpt.get().getLocationId();
+                    locationId = eng.getLocationId();
+                }
+            }
+        } else if (engagementId != null) {
+            // 2. Direct engagement task
+            if (engagementRepository != null) {
+                final UUID finalEngId = engagementId;
+                EngagementEntity eng = engagementRepository.findByIdAndOrganizationId(finalEngId, organizationId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", finalEngId));
+                if (clientId != null && !clientId.equals(eng.getClientId())) {
+                    throw new BusinessValidationException("Provided clientId does not match the engagement client.");
+                }
+                clientId = eng.getClientId();
+                if (locationId == null) {
+                    locationId = eng.getLocationId();
                 }
             }
         }
 
+        // Validate client exists in the tenant if clientId is specified/resolved
         if (clientId != null) {
-            clientRepository.findByIdAndOrganizationId(clientId, organizationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
+            final UUID finalClientId = clientId;
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(finalClientId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + finalClientId));
             if (locationId == null) {
-                locationId = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
-                        .map(ClientEntity::getLocationId)
-                        .orElse(null);
+                locationId = client.getLocationId();
             }
         }
 
         TaskEntity task = TaskEntity.builder()
                 .clientId(clientId)
-                .engagementId(request.getEngagementId())
-                .workInstanceId(request.getWorkInstanceId())
+                .engagementId(engagementId)
+                .workInstanceId(workInstanceId)
                 .locationId(locationId)
                 .workItemId(request.getWorkItemId())
                 .assignedTo(resolveAssigneeUserId(request.getAssignedTo(), organizationId))
@@ -458,13 +495,43 @@ public class TaskServiceImpl implements TaskService {
 
         UUID previousAssignee = task.getAssignedTo();
         TaskStatus previousStatus = task.getStatus();
-        if (request.getClientId() != null) {
+
+        // Relationship Invariant Validations
+        if (task.getWorkInstanceId() != null) {
+            if (request.getEngagementId() != null && !request.getEngagementId().equals(task.getEngagementId())) {
+                throw new BusinessValidationException("Cannot change the engagement of a task generated from a work instance.");
+            }
+            if (request.getClientId() != null && !request.getClientId().equals(task.getClientId())) {
+                throw new BusinessValidationException("Cannot change the client of a task generated from a work instance.");
+            }
+        } else if (request.getEngagementId() != null) {
+            if (engagementRepository != null) {
+                EngagementEntity eng = engagementRepository.findByIdAndOrganizationId(request.getEngagementId(), organizationId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", request.getEngagementId()));
+                if (request.getClientId() != null && !request.getClientId().equals(eng.getClientId())) {
+                    throw new BusinessValidationException("Provided clientId does not match the engagement client.");
+                }
+                if (request.getClientId() == null && task.getClientId() != null && !task.getClientId().equals(eng.getClientId())) {
+                    throw new BusinessValidationException("Task client does not match the engagement client.");
+                }
+                task.setEngagementId(eng.getId());
+                task.setClientId(eng.getClientId());
+                if (task.getLocationId() == null && eng.getLocationId() != null) {
+                    task.setLocationId(eng.getLocationId());
+                }
+            } else {
+                task.setEngagementId(request.getEngagementId());
+            }
+        } else if (request.getClientId() != null) {
+            if (task.getEngagementId() != null && engagementRepository != null) {
+                var engOpt = engagementRepository.findByIdAndOrganizationId(task.getEngagementId(), organizationId);
+                if (engOpt.isPresent() && !request.getClientId().equals(engOpt.get().getClientId())) {
+                    throw new BusinessValidationException("Cannot change task clientId to conflict with its engagement's client.");
+                }
+            }
             clientRepository.findByIdAndOrganizationId(request.getClientId(), organizationId)
                     .orElseThrow(() -> new ResourceNotFoundException("Client not found in the current practice with ID: " + request.getClientId()));
             task.setClientId(request.getClientId());
-        }
-        if (request.getEngagementId() != null) {
-            task.setEngagementId(request.getEngagementId());
         }
         if (Boolean.TRUE.equals(request.getUnassign())) {
             task.setAssignedTo(null);
@@ -1207,5 +1274,17 @@ public class TaskServiceImpl implements TaskService {
         } catch (Exception ex) {
             log.warn("Could not cancel pending reminders for task {}: {}", taskId, ex.getMessage());
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskDto> getTasksByEngagementId(UUID engagementId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (engagementRepository != null) {
+            engagementRepository.findByIdAndOrganizationId(engagementId, organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", engagementId));
+        }
+        List<TaskEntity> tasks = taskRepository.findAllByOrganizationIdAndEngagementId(organizationId, engagementId);
+        return tasks.stream().map(this::enrichDto).toList();
     }
 }

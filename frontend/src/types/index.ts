@@ -5506,6 +5506,7 @@ export interface GenerateWorkInstancePayload {
 
 export interface WorkInstanceTaskDto {
   id: string;
+  engagementId?: string;
   workInstanceId: string;
   workTemplateTaskId?: string;
   title: string;
