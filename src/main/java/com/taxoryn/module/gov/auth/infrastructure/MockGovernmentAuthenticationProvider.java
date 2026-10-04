@@ -4,6 +4,7 @@ import com.taxoryn.module.gov.auth.dto.GovAuthSessionDto;
 import com.taxoryn.module.gov.auth.entity.GovAuthSessionEntity;
 import com.taxoryn.module.gov.auth.model.GovAuthMethod;
 import com.taxoryn.module.gov.auth.model.GovAuthStatus;
+import com.taxoryn.module.gov.auth.model.GovAuthorizationState;
 import com.taxoryn.module.gov.auth.spi.GovernmentAuthenticationProvider;
 import com.taxoryn.module.gov.dto.GovConnectionDto;
 import com.taxoryn.module.gov.model.GovProviderType;
@@ -54,15 +55,20 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
 
         String directive = resolveDirective(options);
         Instant now = Instant.now();
+        String safeRef = buildSafeAuthReference(method, correlationId);
+        String providerRef = buildProviderSessionRef(correlationId);
 
         return switch (directive.toUpperCase()) {
-            case "PENDING", "AUTHENTICATION_PENDING", "OTP_SENT", "REQUIRES_ACTION" -> GovAuthSessionDto.builder()
+            case "PENDING", "AUTHENTICATION_PENDING", "OTP_SENT", "REQUIRES_ACTION", "AUTHORIZATION_REQUIRED" -> GovAuthSessionDto.builder()
                     .connectionId(connection.getId())
                     .providerType(connection.getProviderType())
                     .authMethod(method)
                     .status(GovAuthStatus.AUTHENTICATION_PENDING)
+                    .authorizationState(GovAuthorizationState.USER_ACTION_REQUIRED)
                     .requiresUserAction(true)
                     .actionPrompt(getActionPrompt(method))
+                    .safeAuthorizationReference(safeRef)
+                    .providerSessionReference(providerRef)
                     .expiresAt(now.plus(Duration.ofMinutes(15)))
                     .lastActivityAt(now)
                     .correlationId(correlationId)
@@ -73,6 +79,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .providerType(connection.getProviderType())
                     .authMethod(method)
                     .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
                     .failureCode("INVALID_CREDENTIALS")
                     .safeFailureMessage("Government portal authentication failed: Invalid credentials or rejected consent")
                     .lastActivityAt(now)
@@ -84,6 +91,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .providerType(connection.getProviderType())
                     .authMethod(method)
                     .status(GovAuthStatus.EXPIRED)
+                    .authorizationState(GovAuthorizationState.EXPIRED)
                     .failureCode("SESSION_EXPIRED")
                     .safeFailureMessage("Authentication session expired on government gateway")
                     .expiresAt(now.minusSeconds(60))
@@ -96,6 +104,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .providerType(connection.getProviderType())
                     .authMethod(method)
                     .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
                     .failureCode("PROVIDER_UNAVAILABLE")
                     .safeFailureMessage("Government authentication gateway is undergoing scheduled maintenance (HTTP 503)")
                     .lastActivityAt(now)
@@ -107,6 +116,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .providerType(connection.getProviderType())
                     .authMethod(method)
                     .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
                     .failureCode("TIMEOUT")
                     .safeFailureMessage("Government authentication gateway timed out")
                     .lastActivityAt(now)
@@ -118,7 +128,9 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .providerType(connection.getProviderType())
                     .authMethod(method)
                     .status(GovAuthStatus.AUTHENTICATED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_COMPLETED)
                     .requiresUserAction(false)
+                    .providerSessionReference(providerRef)
                     .authenticatedAt(now)
                     .expiresAt(now.plus(Duration.ofHours(8)))
                     .lastActivityAt(now)
@@ -138,6 +150,8 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
 
         String directive = resolveDirective(options);
         Instant now = Instant.now();
+        String safeRef = buildSafeAuthReference(session.getAuthMethod(), session.getCorrelationId());
+        String providerRef = buildProviderSessionRef(session.getCorrelationId());
 
         if ("EXPIRED".equalsIgnoreCase(directive) || session.isExpired()) {
             return GovAuthSessionDto.builder()
@@ -146,6 +160,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .providerType(session.getProviderType())
                     .authMethod(session.getAuthMethod())
                     .status(GovAuthStatus.EXPIRED)
+                    .authorizationState(GovAuthorizationState.EXPIRED)
                     .failureCode("SESSION_EXPIRED")
                     .safeFailureMessage("Government authentication session expired")
                     .expiresAt(session.getExpiresAt() != null ? session.getExpiresAt() : now)
@@ -154,28 +169,32 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .build();
         }
 
-        if ("PENDING".equalsIgnoreCase(directive)) {
+        if ("PENDING".equalsIgnoreCase(directive) || "USER_ACTION_REQUIRED".equalsIgnoreCase(directive)) {
             return GovAuthSessionDto.builder()
                     .sessionId(session.getId())
                     .connectionId(connection.getId())
                     .providerType(session.getProviderType())
                     .authMethod(session.getAuthMethod())
                     .status(GovAuthStatus.AUTHENTICATION_PENDING)
+                    .authorizationState(GovAuthorizationState.USER_ACTION_REQUIRED)
                     .requiresUserAction(true)
                     .actionPrompt(getActionPrompt(session.getAuthMethod()))
+                    .safeAuthorizationReference(safeRef)
+                    .providerSessionReference(providerRef)
                     .expiresAt(session.getExpiresAt() != null ? session.getExpiresAt() : now.plus(Duration.ofMinutes(15)))
                     .lastActivityAt(now)
                     .correlationId(session.getCorrelationId())
                     .build();
         }
 
-        if ("FAILED".equalsIgnoreCase(directive)) {
+        if ("FAILED".equalsIgnoreCase(directive) || "AUTHENTICATION_FAILED".equalsIgnoreCase(directive)) {
             return GovAuthSessionDto.builder()
                     .sessionId(session.getId())
                     .connectionId(connection.getId())
                     .providerType(session.getProviderType())
                     .authMethod(session.getAuthMethod())
                     .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
                     .failureCode("AUTHENTICATION_FAILED")
                     .safeFailureMessage("Government portal authentication failed")
                     .lastActivityAt(now)
@@ -190,12 +209,123 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                 .providerType(session.getProviderType())
                 .authMethod(session.getAuthMethod())
                 .status(GovAuthStatus.AUTHENTICATED)
+                .authorizationState(GovAuthorizationState.AUTHORIZATION_COMPLETED)
                 .requiresUserAction(false)
+                .providerSessionReference(providerRef)
                 .authenticatedAt(session.getAuthenticatedAt() != null ? session.getAuthenticatedAt() : now)
                 .expiresAt(session.getExpiresAt() != null ? session.getExpiresAt() : now.plus(Duration.ofHours(8)))
                 .lastActivityAt(now)
                 .correlationId(session.getCorrelationId())
                 .build();
+    }
+
+    @Override
+    public GovAuthSessionDto continueAuthorization(
+            GovConnectionDto connection,
+            GovAuthSessionEntity session,
+            String actionReference,
+            Map<String, Object> options) {
+
+        log.info("[MOCK_AUTH_PROVIDER] Continuing authorization for session id={}, connection id={}, actionRef={}",
+                session.getId(), connection.getId(), actionReference);
+
+        String directive = resolveDirective(options);
+        if ("SUCCESS".equalsIgnoreCase(directive) && actionReference != null) {
+            if ("FAIL".equalsIgnoreCase(actionReference) || "REJECT".equalsIgnoreCase(actionReference)) {
+                directive = "FAILED";
+            } else if ("EXPIRE".equalsIgnoreCase(actionReference)) {
+                directive = "EXPIRED";
+            }
+        }
+
+        Instant now = Instant.now();
+        String providerRef = buildProviderSessionRef(session.getCorrelationId());
+
+        return switch (directive.toUpperCase()) {
+            case "FAILED", "INVALID_CREDENTIALS", "REJECTED" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("INVALID_CREDENTIALS")
+                    .safeFailureMessage("User rejected authorization or invalid credentials")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "EXPIRED" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.EXPIRED)
+                    .authorizationState(GovAuthorizationState.EXPIRED)
+                    .failureCode("SESSION_EXPIRED")
+                    .safeFailureMessage("Authorization session expired on government gateway")
+                    .expiresAt(now.minusSeconds(60))
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "PROVIDER_UNAVAILABLE" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("PROVIDER_UNAVAILABLE")
+                    .safeFailureMessage("Government authentication gateway is undergoing scheduled maintenance (HTTP 503)")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "TIMEOUT" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("TIMEOUT")
+                    .safeFailureMessage("Government authentication gateway timed out")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "PENDING", "USER_ACTION_REQUIRED" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_PENDING)
+                    .authorizationState(GovAuthorizationState.USER_ACTION_REQUIRED)
+                    .requiresUserAction(true)
+                    .actionPrompt(getActionPrompt(session.getAuthMethod()))
+                    .safeAuthorizationReference(buildSafeAuthReference(session.getAuthMethod(), session.getCorrelationId()))
+                    .providerSessionReference(providerRef)
+                    .expiresAt(session.getExpiresAt() != null ? session.getExpiresAt() : now.plus(Duration.ofMinutes(15)))
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            default -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_COMPLETED)
+                    .requiresUserAction(false)
+                    .providerSessionReference(providerRef)
+                    .authenticatedAt(now)
+                    .expiresAt(now.plus(Duration.ofHours(8)))
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+        };
     }
 
     @Override
@@ -213,6 +343,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                 .providerType(session.getProviderType())
                 .authMethod(session.getAuthMethod())
                 .status(GovAuthStatus.REVOKED)
+                .authorizationState(GovAuthorizationState.CANCELLED)
                 .requiresUserAction(false)
                 .lastActivityAt(now)
                 .correlationId(session.getCorrelationId())
@@ -233,5 +364,23 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
             case EVC -> "Enter the Electronic Verification Code (EVC) generated for this session";
             case DSC -> "Attach digital signature token and authorize signing request";
         };
+    }
+
+    private String buildSafeAuthReference(GovAuthMethod method, String correlationId) {
+        String corr = correlationId != null ? correlationId : "default";
+        return switch (method) {
+            case OAUTH2 -> "https://mock-gov-portal.taxoryn.internal/oauth/authorize?flow_ref=" + corr;
+            case OTP -> "mock-otp-challenge-" + corr;
+            case EVC -> "mock-evc-challenge-" + corr;
+            case DSC -> "mock-dsc-challenge-" + corr;
+        };
+    }
+
+    private String buildProviderSessionRef(String correlationId) {
+        if (correlationId == null) {
+            return "mock-gov-sess-default";
+        }
+        String shortId = correlationId.length() > 8 ? correlationId.substring(0, 8) : correlationId;
+        return "mock-gov-sess-" + shortId;
     }
 }

@@ -1,8 +1,10 @@
 package com.taxoryn.module.gov.auth.controller;
 
 import com.taxoryn.core.response.ApiResponse;
+import com.taxoryn.module.gov.auth.dto.GovAuthContinueRequest;
 import com.taxoryn.module.gov.auth.dto.GovAuthSessionDto;
 import com.taxoryn.module.gov.auth.dto.GovAuthStartRequest;
+import com.taxoryn.module.gov.auth.model.GovAuthorizationState;
 import com.taxoryn.module.gov.auth.service.GovernmentAuthenticationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -19,7 +21,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/gov/auth")
 @RequiredArgsConstructor
-@Tag(name = "Government Authentication", description = "Endpoints for initiating, querying, and revoking government authentication sessions across GST, Income Tax, and TDS")
+@Tag(name = "Government Authentication", description = "Endpoints for initiating, querying, continuing, and revoking government authentication & authorization sessions across GST, Income Tax, and TDS")
 @SecurityRequirement(name = "BearerAuth")
 public class GovAuthController {
 
@@ -35,6 +37,16 @@ public class GovAuthController {
                 .body(ApiResponse.created("Government authentication session initiated", session));
     }
 
+    @PostMapping("/sessions/{sessionId}/authorize")
+    @PreAuthorize("hasAuthority('GOV_INTEGRATION_MANAGE') or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Continue/Complete authorization flow", description = "Submits authorization challenge action or continues interactive authorization stage.")
+    public ResponseEntity<ApiResponse<GovAuthSessionDto>> continueAuthorization(
+            @PathVariable UUID sessionId,
+            @RequestBody(required = false) GovAuthContinueRequest request) {
+        GovAuthSessionDto session = authService.continueAuthorization(sessionId, request);
+        return ResponseEntity.ok(ApiResponse.success("Government authorization flow continued", session));
+    }
+
     @GetMapping("/sessions/{sessionId}")
     @PreAuthorize("hasAuthority('GOV_INTEGRATION_VIEW') or hasAuthority('GOV_INTEGRATION_MANAGE') or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Get authentication session status", description = "Retrieves live or persisted authentication lifecycle status.")
@@ -46,6 +58,15 @@ public class GovAuthController {
                 : java.util.Collections.emptyMap();
         GovAuthSessionDto session = authService.getAuthenticationStatus(sessionId, options);
         return ResponseEntity.ok(ApiResponse.success("Authentication session status retrieved", session));
+    }
+
+    @GetMapping("/sessions/{sessionId}/authorization")
+    @PreAuthorize("hasAuthority('GOV_INTEGRATION_VIEW') or hasAuthority('GOV_INTEGRATION_MANAGE') or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get authorization session state", description = "Retrieves the fine-grained authorization interaction state for the session.")
+    public ResponseEntity<ApiResponse<GovAuthSessionDto>> getAuthorizationSession(
+            @PathVariable UUID sessionId) {
+        GovAuthSessionDto session = authService.getAuthenticationStatus(sessionId);
+        return ResponseEntity.ok(ApiResponse.success("Government authorization session state retrieved", session));
     }
 
     @PostMapping("/sessions/{sessionId}/revoke")

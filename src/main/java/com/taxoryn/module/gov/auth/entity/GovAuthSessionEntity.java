@@ -3,6 +3,7 @@ package com.taxoryn.module.gov.auth.entity;
 import com.taxoryn.core.domain.TenantAuditableEntity;
 import com.taxoryn.module.gov.auth.model.GovAuthMethod;
 import com.taxoryn.module.gov.auth.model.GovAuthStatus;
+import com.taxoryn.module.gov.auth.model.GovAuthorizationState;
 import com.taxoryn.module.gov.exception.GovIntegrationException;
 import com.taxoryn.module.gov.model.GovErrorCode;
 import com.taxoryn.module.gov.model.GovProviderType;
@@ -80,6 +81,31 @@ public class GovAuthSessionEntity extends TenantAuditableEntity {
 
     public boolean isExpired() {
         return expiresAt != null && Instant.now().isAfter(expiresAt);
+    }
+
+    public GovAuthorizationState getAuthorizationState() {
+        if (status == GovAuthStatus.AUTHENTICATED) {
+            return GovAuthorizationState.AUTHORIZATION_COMPLETED;
+        }
+        if (status == GovAuthStatus.AUTHENTICATION_FAILED) {
+            return GovAuthorizationState.AUTHORIZATION_FAILED;
+        }
+        if (status == GovAuthStatus.EXPIRED || isExpired()) {
+            return GovAuthorizationState.EXPIRED;
+        }
+        if (status == GovAuthStatus.REVOKED) {
+            return GovAuthorizationState.CANCELLED;
+        }
+        if (requiresUserAction) {
+            return GovAuthorizationState.USER_ACTION_REQUIRED;
+        }
+        if (status == GovAuthStatus.AUTHENTICATION_STARTED) {
+            return GovAuthorizationState.AUTHORIZATION_REQUIRED;
+        }
+        if (status == GovAuthStatus.AUTHENTICATION_PENDING) {
+            return GovAuthorizationState.AUTHORIZATION_IN_PROGRESS;
+        }
+        return GovAuthorizationState.NOT_STARTED;
     }
 
     public void transitionTo(GovAuthStatus targetStatus) {

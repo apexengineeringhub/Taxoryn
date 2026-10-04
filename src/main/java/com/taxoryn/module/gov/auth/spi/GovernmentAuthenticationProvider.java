@@ -44,6 +44,16 @@ public interface GovernmentAuthenticationProvider {
     );
 
     /**
+     * Continues or completes an interactive authorization flow (e.g., following user action / challenge response).
+     */
+    GovAuthSessionDto continueAuthorization(
+            GovConnectionDto connection,
+            GovAuthSessionEntity session,
+            String actionReference,
+            Map<String, Object> options
+    );
+
+    /**
      * Revokes or logs out the active session with the provider gateway.
      */
     GovAuthSessionDto revokeAuthentication(

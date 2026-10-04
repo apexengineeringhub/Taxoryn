@@ -2,6 +2,7 @@ package com.taxoryn.module.gov.auth.dto;
 
 import com.taxoryn.module.gov.auth.model.GovAuthMethod;
 import com.taxoryn.module.gov.auth.model.GovAuthStatus;
+import com.taxoryn.module.gov.auth.model.GovAuthorizationState;
 import com.taxoryn.module.gov.model.GovProviderType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -35,11 +36,20 @@ public class GovAuthSessionDto {
     @Schema(description = "Current Authentication Lifecycle Status")
     private GovAuthStatus status;
 
+    @Schema(description = "Current Interactive Authorization Flow State")
+    private GovAuthorizationState authorizationState;
+
     @Schema(description = "Whether interactive user action is required (e.g., OTP entry, OAuth login redirect)")
     private boolean requiresUserAction;
 
     @Schema(description = "Safe human-readable instructions or portal redirect prompt")
     private String actionPrompt;
+
+    @Schema(description = "Safe non-secret authorization URL or challenge reference")
+    private String safeAuthorizationReference;
+
+    @Schema(description = "Non-secret provider gateway session reference")
+    private String providerSessionReference;
 
     @Schema(description = "Session Expiration Timestamp")
     private Instant expiresAt;
