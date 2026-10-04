@@ -59,7 +59,8 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
         String providerRef = buildProviderSessionRef(correlationId, options);
 
         return switch (directive.toUpperCase()) {
-            case "PENDING", "AUTHENTICATION_PENDING", "OTP_SENT", "REQUIRES_ACTION", "AUTHORIZATION_REQUIRED" -> GovAuthSessionDto.builder()
+            case "PENDING", "AUTHENTICATION_PENDING", "OTP_SENT", "REQUIRES_ACTION", "AUTHORIZATION_REQUIRED",
+                 "CHALLENGE_CREATED", "EVC_PENDING", "SIGNING_PENDING", "SIGN_REQUESTED", "USER_ACTION_REQUIRED" -> GovAuthSessionDto.builder()
                     .connectionId(connection.getId())
                     .providerType(connection.getProviderType())
                     .authMethod(method)
@@ -68,6 +69,20 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .requiresUserAction(true)
                     .actionPrompt(getActionPrompt(method))
                     .safeAuthorizationReference(safeRef)
+                    .providerSessionReference(providerRef)
+                    .expiresAt(now.plus(Duration.ofMinutes(15)))
+                    .lastActivityAt(now)
+                    .correlationId(correlationId)
+                    .build();
+
+            case "SIGNATURE_CREATED" -> GovAuthSessionDto.builder()
+                    .connectionId(connection.getId())
+                    .providerType(connection.getProviderType())
+                    .authMethod(method)
+                    .status(GovAuthStatus.AUTHENTICATION_PENDING)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_IN_PROGRESS)
+                    .requiresUserAction(false)
+                    .safeAuthorizationReference("MOCK_DSC_SIGNATURE_" + (correlationId != null && correlationId.length() > 8 ? correlationId.substring(0, 8) : correlationId))
                     .providerSessionReference(providerRef)
                     .expiresAt(now.plus(Duration.ofMinutes(15)))
                     .lastActivityAt(now)
@@ -86,7 +101,55 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .correlationId(correlationId)
                     .build();
 
-            case "EXPIRED", "SESSION_EXPIRED" -> GovAuthSessionDto.builder()
+            case "INVALID_EVC", "INVALID" -> GovAuthSessionDto.builder()
+                    .connectionId(connection.getId())
+                    .providerType(connection.getProviderType())
+                    .authMethod(method)
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("INVALID_EVC")
+                    .safeFailureMessage("The entered Electronic Verification Code (EVC) is invalid or incorrect")
+                    .lastActivityAt(now)
+                    .correlationId(correlationId)
+                    .build();
+
+            case "INVALID_SIGNATURE", "SIGNATURE_INVALID" -> GovAuthSessionDto.builder()
+                    .connectionId(connection.getId())
+                    .providerType(connection.getProviderType())
+                    .authMethod(method)
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("INVALID_SIGNATURE")
+                    .safeFailureMessage("Digital signature verification failed or signature does not match payload digest")
+                    .lastActivityAt(now)
+                    .correlationId(correlationId)
+                    .build();
+
+            case "CERTIFICATE_EXPIRED", "CERT_EXPIRED" -> GovAuthSessionDto.builder()
+                    .connectionId(connection.getId())
+                    .providerType(connection.getProviderType())
+                    .authMethod(method)
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("CERTIFICATE_EXPIRED")
+                    .safeFailureMessage("Digital Signature Certificate (DSC) has expired")
+                    .lastActivityAt(now)
+                    .correlationId(correlationId)
+                    .build();
+
+            case "MAX_ATTEMPTS", "ATTEMPTS_EXCEEDED", "MAX_ATTEMPTS_EXCEEDED" -> GovAuthSessionDto.builder()
+                    .connectionId(connection.getId())
+                    .providerType(connection.getProviderType())
+                    .authMethod(method)
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("MAX_ATTEMPTS_EXCEEDED")
+                    .safeFailureMessage("Maximum verification attempts exceeded for this challenge")
+                    .lastActivityAt(now)
+                    .correlationId(correlationId)
+                    .build();
+
+            case "EXPIRED", "SESSION_EXPIRED", "EVC_EXPIRED" -> GovAuthSessionDto.builder()
                     .connectionId(connection.getId())
                     .providerType(connection.getProviderType())
                     .authMethod(method)
@@ -169,7 +232,8 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .build();
         }
 
-        if ("PENDING".equalsIgnoreCase(directive) || "USER_ACTION_REQUIRED".equalsIgnoreCase(directive)) {
+        if ("PENDING".equalsIgnoreCase(directive) || "USER_ACTION_REQUIRED".equalsIgnoreCase(directive)
+                || "CHALLENGE_CREATED".equalsIgnoreCase(directive) || "SIGNING_PENDING".equalsIgnoreCase(directive)) {
             return GovAuthSessionDto.builder()
                     .sessionId(session.getId())
                     .connectionId(connection.getId())
@@ -197,6 +261,25 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
                     .failureCode("AUTHENTICATION_FAILED")
                     .safeFailureMessage("Government portal authentication failed")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+        }
+
+        // Default: If session was pending and no outcome directive given, keep pending
+        if (session.getStatus() == GovAuthStatus.AUTHENTICATION_PENDING && (options == null || !options.containsKey("mockOutcome"))) {
+            return GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_PENDING)
+                    .authorizationState(GovAuthorizationState.USER_ACTION_REQUIRED)
+                    .requiresUserAction(true)
+                    .actionPrompt(getActionPrompt(session.getAuthMethod()))
+                    .safeAuthorizationReference(safeRef)
+                    .providerSessionReference(providerRef)
+                    .expiresAt(session.getExpiresAt() != null ? session.getExpiresAt() : now.plus(Duration.ofMinutes(15)))
                     .lastActivityAt(now)
                     .correlationId(session.getCorrelationId())
                     .build();
@@ -231,10 +314,21 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
 
         String directive = resolveDirective(options);
         if ("SUCCESS".equalsIgnoreCase(directive) && actionReference != null) {
-            if ("FAIL".equalsIgnoreCase(actionReference) || "REJECT".equalsIgnoreCase(actionReference)) {
-                directive = "FAILED";
-            } else if ("EXPIRE".equalsIgnoreCase(actionReference)) {
+            String refUpper = actionReference.toUpperCase();
+            if (refUpper.contains("FAIL") || refUpper.contains("REJECT") || refUpper.equals("INVALID") || refUpper.equals("INVALID_EVC")) {
+                directive = "INVALID_EVC";
+            } else if (refUpper.contains("INVALID_SIGNATURE") || refUpper.equals("SIGNATURE_INVALID")) {
+                directive = "INVALID_SIGNATURE";
+            } else if (refUpper.contains("CERT_EXPIRED") || refUpper.contains("CERTIFICATE_EXPIRED")) {
+                directive = "CERTIFICATE_EXPIRED";
+            } else if (refUpper.contains("MAX_ATTEMPT") || refUpper.contains("ATTEMPTS_EXCEEDED")) {
+                directive = "MAX_ATTEMPTS";
+            } else if (refUpper.contains("EXPIRE")) {
                 directive = "EXPIRED";
+            } else if (refUpper.contains("UNAVAILABLE")) {
+                directive = "PROVIDER_UNAVAILABLE";
+            } else if (refUpper.contains("TIMEOUT")) {
+                directive = "TIMEOUT";
             }
         }
 
@@ -251,6 +345,58 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
                     .failureCode("INVALID_CREDENTIALS")
                     .safeFailureMessage("User rejected authorization or invalid credentials")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "INVALID_EVC", "INVALID" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("INVALID_EVC")
+                    .safeFailureMessage("The entered Electronic Verification Code (EVC) is invalid or incorrect")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "INVALID_SIGNATURE", "SIGNATURE_INVALID" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("INVALID_SIGNATURE")
+                    .safeFailureMessage("Digital signature verification failed or signature does not match payload digest")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "CERTIFICATE_EXPIRED", "CERT_EXPIRED" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("CERTIFICATE_EXPIRED")
+                    .safeFailureMessage("Digital Signature Certificate (DSC) has expired")
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
+            case "MAX_ATTEMPTS", "ATTEMPTS_EXCEEDED", "MAX_ATTEMPTS_EXCEEDED" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATION_FAILED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_FAILED)
+                    .failureCode("MAX_ATTEMPTS_EXCEEDED")
+                    .safeFailureMessage("Maximum verification attempts exceeded for this challenge")
                     .lastActivityAt(now)
                     .correlationId(session.getCorrelationId())
                     .build();
@@ -376,7 +522,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
         return switch (method) {
             case OAUTH2 -> "Please authenticate via the government OAuth redirect portal";
             case OTP -> "Enter the 6-digit OTP sent to the registered mobile/email on the government portal";
-            case EVC -> "Enter the Electronic Verification Code (EVC) generated for this session";
+            case EVC -> "Enter the Electronic Verification Code (EVC) sent to the registered mobile/email on the government portal";
             case DSC -> "Attach digital signature token and authorize signing request";
         };
     }
@@ -405,6 +551,10 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
             return switch (purpose) {
                 case "EWAY_BILL" -> "MOCK_EWAY_SESSION_" + shortId;
                 case "E_INVOICE" -> "MOCK_EINV_SESSION_" + shortId;
+                case "ITR_EVC" -> "MOCK_ITR_EVC_SESSION_" + shortId;
+                case "ITR_DSC" -> "MOCK_ITR_DSC_SESSION_" + shortId;
+                case "TDS_EVC" -> "MOCK_TDS_EVC_SESSION_" + shortId;
+                case "TDS_DSC" -> "MOCK_TDS_DSC_SESSION_" + shortId;
                 default -> "MOCK_GST_SESSION_" + shortId;
             };
         }

@@ -77,4 +77,8 @@ public class GovAuthSessionDto {
 
     @Schema(description = "Non-sensitive Session Metadata")
     private Map<String, Object> metadata;
+
+    public boolean isExpired() {
+        return expiresAt != null && Instant.now().isAfter(expiresAt);
+    }
 }

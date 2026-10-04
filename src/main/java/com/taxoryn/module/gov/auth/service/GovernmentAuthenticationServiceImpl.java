@@ -167,8 +167,13 @@ public class GovernmentAuthenticationServiceImpl implements GovernmentAuthentica
                     "Authentication session does not belong to current organization");
         }
 
+        // If session was revoked, return directly
+        if (session.getStatus() == GovAuthStatus.REVOKED) {
+            return mapToDto(session);
+        }
+
         // Check if session has expired locally
-        if (session.isExpired() && session.getStatus() != GovAuthStatus.EXPIRED && session.getStatus() != GovAuthStatus.REVOKED) {
+        if (session.isExpired() && session.getStatus() != GovAuthStatus.EXPIRED) {
             session.transitionTo(GovAuthStatus.EXPIRED);
             session.setFailureCode("SESSION_EXPIRED");
             session.setSafeFailureMessage("Government authentication session expired");
