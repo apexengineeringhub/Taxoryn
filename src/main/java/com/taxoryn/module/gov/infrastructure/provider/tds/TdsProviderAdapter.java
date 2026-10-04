@@ -168,6 +168,25 @@ public class TdsProviderAdapter implements GovernmentProviderAdapter {
             );
         }
 
+        if ("DUPLICATE_SUBMISSION".equalsIgnoreCase(directive)) {
+            String tan = extractTan(request);
+            String existingAck = "TRACES-ACK-DUP-" + tan + "-001";
+            responseData.put("existingAckNumber", existingAck);
+            responseData.put("submissionStatus", "DUPLICATE_SUBMISSION");
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.DUPLICATE_SUBMISSION,
+                    "A return with identical payload has already been submitted to TRACES gateway",
+                    false,
+                    responseData
+            );
+        }
+
         String opType = request.getOperationType() != null ? request.getOperationType().toUpperCase() : "UNKNOWN";
         String providerReference = "TRACES-" + opType + "-ACK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
@@ -247,6 +266,34 @@ public class TdsProviderAdapter implements GovernmentProviderAdapter {
                     responseData.put("payloadFingerprint", request.getRequestData().get("payloadFingerprint"));
                 }
             }
+        } else if ("TDS_RETURN_SUBMISSION".equalsIgnoreCase(opType) || "SUBMIT_TDS_RETURN".equalsIgnoreCase(opType)) {
+            String tan = extractTan(request);
+            String formType = request.getRequestData() != null && request.getRequestData().containsKey("formType")
+                    ? String.valueOf(request.getRequestData().get("formType")) : "FORM_26Q";
+            String quarter = request.getRequestData() != null && request.getRequestData().containsKey("quarter")
+                    ? String.valueOf(request.getRequestData().get("quarter")) : "Q1";
+            String financialYear = request.getRequestData() != null && request.getRequestData().containsKey("financialYear")
+                    ? String.valueOf(request.getRequestData().get("financialYear")) : "2025-26";
+            String payloadFingerprint = request.getRequestData() != null && request.getRequestData().containsKey("payloadFingerprint")
+                    ? String.valueOf(request.getRequestData().get("payloadFingerprint")) : null;
+
+            String hashSuffix = payloadFingerprint != null && payloadFingerprint.length() >= 8
+                    ? payloadFingerprint.substring(0, 8).toUpperCase()
+                    : UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+            String ackNumber = "TRACES-ACK-" + tan + "-" + quarter + "-" + financialYear.replace("-", "") + "-" + hashSuffix;
+            String submissionRef = "TRACES-SUB-" + hashSuffix;
+
+            responseData.put("tan", tan);
+            responseData.put("formType", formType);
+            responseData.put("quarter", quarter);
+            responseData.put("financialYear", financialYear);
+            responseData.put("status", "SUBMITTED");
+            responseData.put("acknowledgementNumber", ackNumber);
+            responseData.put("submissionReference", submissionRef);
+            responseData.put("payloadFingerprint", payloadFingerprint);
+            responseData.put("message", "TDS quarterly statement submitted successfully to TRACES gateway");
+            providerReference = ackNumber;
         } else {
             responseData.put("status", "SUCCESS");
             responseData.put("message", "TDS operation " + opType + " executed successfully");

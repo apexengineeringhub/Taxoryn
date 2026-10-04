@@ -130,6 +130,8 @@ public class TdsReturnEntity extends TenantAuditableEntity {
         CHALLANS_ATTACHED,
         UNDER_REVIEW,
         READY_TO_FILE,
+        SUBMISSION_IN_PROGRESS,
+        SUBMITTED,
         FILED,
         OVERDUE,
         CANCELLED

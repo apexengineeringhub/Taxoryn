@@ -24,4 +24,8 @@ public interface TdsGovernmentIntegrationService {
     TdsIntegrationResultDto executeTdsOperation(UUID connectionId, String operationType, Map<String, Object> payload);
  
     com.taxoryn.module.tds.dto.TdsPreparedReturnDto prepareReturn(com.taxoryn.module.tds.dto.TdsPrepareReturnRequest request);
+
+    com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto submitReturn(UUID returnId, Map<String, Object> options);
+
+    com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto submitReturn(com.taxoryn.module.tds.dto.TdsSubmitReturnRequest request);
 }

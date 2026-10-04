@@ -392,4 +392,31 @@ public class TdsController {
         TdsPreparedReturnDto prepared = tdsGovIntegrationService.prepareReturn(request);
         return ResponseEntity.ok(ApiResponse.success("TDS return prepared and validated successfully", prepared));
     }
+
+    // =========================================================================
+    // 10. Statutory Return Submission & Gateway Lifecycle
+    // =========================================================================
+
+    @PostMapping("/returns/{returnId}/submit")
+    @PreAuthorize("hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit prepared TDS return to TRACES gateway", description = "Submits a prepared TDS return statement (Form 24Q/26Q/27Q/27EQ) in READY_TO_FILE status to the TRACES / Income Tax Gateway via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<TdsReturnSubmissionResultDto>> submitReturn(
+            @PathVariable UUID returnId,
+            @RequestBody(required = false) TdsSubmitReturnRequest request) {
+        if (request == null) {
+            request = new TdsSubmitReturnRequest();
+        }
+        request.setReturnId(returnId);
+        TdsReturnSubmissionResultDto result = tdsGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("TDS return submitted successfully", result));
+    }
+
+    @PostMapping("/returns/submit")
+    @PreAuthorize("hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit prepared TDS return statement", description = "Submits a prepared TDS return statement directly to the TRACES / Income Tax Gateway via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<TdsReturnSubmissionResultDto>> submitReturnDirect(
+            @Valid @RequestBody TdsSubmitReturnRequest request) {
+        TdsReturnSubmissionResultDto result = tdsGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("TDS return submitted successfully", result));
+    }
 }

@@ -11,6 +11,7 @@ import com.taxoryn.module.gov.dto.GovConnectionHealthDto;
 import com.taxoryn.module.gov.dto.GovIntegrationRequest;
 import com.taxoryn.module.gov.dto.GovIntegrationResult;
 import com.taxoryn.module.gov.model.GovConnectionStatus;
+import com.taxoryn.module.gov.model.GovErrorCode;
 import com.taxoryn.module.gov.model.GovProviderType;
 import com.taxoryn.module.gov.service.GovernmentConnectionService;
 import com.taxoryn.module.gov.service.GovernmentHealthService;
@@ -515,6 +516,337 @@ public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegra
                 .operationId(govResult.getOperationId())
                 .preparedAt(Instant.now())
                 .metadata(metadata)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto submitReturn(UUID returnId, Map<String, Object> options) {
+        return submitReturn(com.taxoryn.module.tds.dto.TdsSubmitReturnRequest.builder()
+                .returnId(returnId)
+                .options(options)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto submitReturn(com.taxoryn.module.tds.dto.TdsSubmitReturnRequest request) {
+        if (request == null) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED, "Submission request must not be null");
+        }
+
+        UUID tenantId = requireActiveTenantId();
+        TdsReturnEntity returnEntity = null;
+        String rawTan = request.getTan();
+        String formType = request.getFormType();
+        String quarter = request.getQuarter();
+        String financialYear = request.getFinancialYear();
+        String assessmentYear = request.getAssessmentYear();
+
+        if (request.getReturnId() != null) {
+            returnEntity = tdsReturnRepository.findById(request.getReturnId())
+                    .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND,
+                            "TDS return record not found for id: " + request.getReturnId()));
+
+            if (!returnEntity.getOrganizationId().equals(tenantId)) {
+                throw new AppException(ErrorCode.TENANT_MISMATCH, "TDS return does not belong to current organization");
+            }
+
+            // Guard against already filed returns
+            if (returnEntity.getFilingStatus() == TdsReturnEntity.TdsFilingStatus.FILED) {
+                throw new AppException(ErrorCode.VALIDATION_FAILED,
+                        "Cannot submit return in status 'FILED'. Filed returns are terminal and immutable.");
+            }
+
+            // Guard against duplicate submission of already submitted return
+            if (returnEntity.getFilingStatus() == TdsReturnEntity.TdsFilingStatus.SUBMITTED) {
+                if (StringUtils.hasText(returnEntity.getReceiptNumber()) || StringUtils.hasText(returnEntity.getTokenNumber())) {
+                    String ack = StringUtils.hasText(returnEntity.getReceiptNumber()) ? returnEntity.getReceiptNumber() : returnEntity.getTokenNumber();
+                    log.info("[TDS_SUBMISSION_ALREADY_SUBMITTED] Return id={} is already submitted with ACK={}",
+                            returnEntity.getId(), ack);
+
+                    auditService.logEvent(
+                            tenantId,
+                            null,
+                            "TDS_RETURN_SUBMISSION_DUPLICATE",
+                            "TDS_RETURN",
+                            returnEntity.getId().toString(),
+                            null,
+                            Map.of("tan", maskTan(rawTan), "ackNumber", ack, "status", returnEntity.getFilingStatus().name())
+                    );
+
+                    return com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto.builder()
+                            .returnId(returnEntity.getId())
+                            .tan(rawTan)
+                            .maskedTan(maskTan(rawTan))
+                            .formType(formType != null ? formType : (returnEntity.getFormType() != null ? returnEntity.getFormType().name() : "FORM_26Q"))
+                            .quarter(quarter != null ? quarter : (returnEntity.getQuarter() != null ? returnEntity.getQuarter().name() : "Q1"))
+                            .financialYear(financialYear != null ? financialYear : returnEntity.getFinancialYear())
+                            .assessmentYear(assessmentYear != null ? assessmentYear : returnEntity.getAssessmentYear())
+                            .submissionStatus("SUBMITTED")
+                            .success(true)
+                            .acknowledgementNumber(ack)
+                            .submittedAt(Instant.now())
+                            .message("Return is already submitted with acknowledgment number " + ack)
+                            .build();
+                }
+            }
+
+            // Return must be in READY_TO_FILE or SUBMISSION_IN_PROGRESS state
+            if (returnEntity.getFilingStatus() != TdsReturnEntity.TdsFilingStatus.READY_TO_FILE
+                    && returnEntity.getFilingStatus() != TdsReturnEntity.TdsFilingStatus.SUBMISSION_IN_PROGRESS) {
+                throw new AppException(ErrorCode.VALIDATION_FAILED,
+                        "Cannot submit return in status '" + returnEntity.getFilingStatus() + "'. Return must be prepared and in READY_TO_FILE status before submission.");
+            }
+
+            formType = StringUtils.hasText(formType) ? formType : (returnEntity.getFormType() != null ? returnEntity.getFormType().name() : "FORM_26Q");
+            quarter = StringUtils.hasText(quarter) ? quarter : (returnEntity.getQuarter() != null ? returnEntity.getQuarter().name() : "Q1");
+            financialYear = StringUtils.hasText(financialYear) ? financialYear : returnEntity.getFinancialYear();
+            assessmentYear = StringUtils.hasText(assessmentYear) ? assessmentYear : returnEntity.getAssessmentYear();
+
+            if (!StringUtils.hasText(rawTan)) {
+                if (returnEntity.getTdsProfileId() != null) {
+                    rawTan = tdsProfileRepository.findById(returnEntity.getTdsProfileId())
+                            .filter(p -> p.getOrganizationId().equals(tenantId))
+                            .map(TdsProfileEntity::getTan)
+                            .orElse(null);
+                }
+            }
+        }
+
+        validateTan(rawTan);
+        rawTan = rawTan.trim().toUpperCase();
+        String maskedTan = maskTan(rawTan);
+
+        formType = TdsPayloadFingerprintGenerator.normalizeFormType(formType != null ? formType : "FORM_26Q");
+        quarter = StringUtils.hasText(quarter) ? quarter.trim().toUpperCase() : "Q1";
+        if (!StringUtils.hasText(financialYear)) {
+            financialYear = "2025-26";
+        }
+        if (!StringUtils.hasText(assessmentYear)) {
+            assessmentYear = deriveAssessmentYear(financialYear);
+        }
+
+        // Verify TAN belongs to current organization
+        boolean tanBelongsToOrg = tdsProfileRepository.findByOrganizationIdAndTan(tenantId, rawTan).isPresent();
+        if (!tanBelongsToOrg) {
+            throw new AppException(ErrorCode.FORBIDDEN,
+                    "TAN " + maskedTan + " is not registered under current organization");
+        }
+
+        GovConnectionDto connection = resolveTdsConnection(request.getConnectionId());
+
+        String fingerprint = request.getPayloadFingerprint();
+        if (!StringUtils.hasText(fingerprint) && request.getPayload() != null) {
+            fingerprint = request.getPayload().getPayloadFingerprint();
+        }
+        if (!StringUtils.hasText(fingerprint)) {
+            TdsReturnTotalsDto totals = returnEntity != null ? TdsReturnTotalsDto.builder()
+                    .totalAmountPaid(returnEntity.getTotalAmountPaid())
+                    .totalTaxDeducted(returnEntity.getTotalTaxDeducted())
+                    .totalTaxDeposited(returnEntity.getTotalTaxDeposited())
+                    .totalInterest(returnEntity.getTotalInterest())
+                    .totalLateFee(returnEntity.getTotalLateFee())
+                    .totalPenalty(returnEntity.getTotalPenalty())
+                    .build() : TdsReturnTotalsDto.builder().build();
+
+            fingerprint = tdsPayloadFingerprintGenerator.generateFingerprint(
+                    rawTan, formType, financialYear, quarter, assessmentYear, "COMPANY",
+                    totals, Collections.emptyList(), Collections.emptyList(), Collections.emptyMap()
+            );
+        }
+
+        // Fingerprint verification check if expectedFingerprint was provided
+        if (StringUtils.hasText(request.getExpectedFingerprint()) && !request.getExpectedFingerprint().equalsIgnoreCase(fingerprint)) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED,
+                    "Prepared return payload fingerprint mismatch. Expected " + request.getExpectedFingerprint() + " but found " + fingerprint + ". The return data has changed or is stale.");
+        }
+
+        // Transition to SUBMISSION_IN_PROGRESS
+        if (returnEntity != null) {
+            returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.SUBMISSION_IN_PROGRESS);
+            tdsReturnRepository.save(returnEntity);
+        }
+
+        String correlationId = UUID.randomUUID().toString();
+
+        auditService.logEvent(
+                tenantId,
+                null,
+                "TDS_RETURN_SUBMISSION_REQUESTED",
+                "TDS_RETURN",
+                returnEntity != null ? returnEntity.getId().toString() : maskedTan,
+                null,
+                Map.of("tan", maskedTan, "formType", formType, "quarter", quarter, "financialYear", financialYear, "fingerprint", fingerprint, "correlationId", correlationId)
+        );
+
+        Map<String, Object> govPayload = new HashMap<>();
+        govPayload.put("tan", rawTan);
+        govPayload.put("formType", formType);
+        govPayload.put("quarter", quarter);
+        govPayload.put("financialYear", financialYear);
+        govPayload.put("assessmentYear", assessmentYear);
+        govPayload.put("payloadFingerprint", fingerprint);
+        if (request.getOptions() != null) {
+            govPayload.putAll(request.getOptions());
+        }
+
+        GovIntegrationRequest govRequest = GovIntegrationRequest.builder()
+                .organizationId(tenantId)
+                .providerType(GovProviderType.TDS)
+                .operationType("TDS_RETURN_SUBMISSION")
+                .businessEntityType("TDS_RETURN")
+                .businessEntityId(returnEntity != null ? returnEntity.getId() : connection.getId())
+                .payloadFingerprint(fingerprint)
+                .correlationId(correlationId)
+                .requestData(govPayload)
+                .build();
+
+        GovIntegrationResult govResult = govIntegrationService.executeOperation(govRequest);
+
+        if (govResult.isSuccess()) {
+            String ackNumber = govResult.getResponseMetadata() != null && govResult.getResponseMetadata().containsKey("acknowledgementNumber")
+                    ? String.valueOf(govResult.getResponseMetadata().get("acknowledgementNumber"))
+                    : govResult.getProviderReferenceId();
+            if (!StringUtils.hasText(ackNumber)) {
+                ackNumber = "TRACES-ACK-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
+            }
+
+            String providerRef = govResult.getResponseMetadata() != null && govResult.getResponseMetadata().containsKey("submissionReference")
+                    ? String.valueOf(govResult.getResponseMetadata().get("submissionReference"))
+                    : "TRACES-SUB-" + correlationId.substring(0, Math.min(8, correlationId.length())).toUpperCase();
+
+            if (returnEntity != null) {
+                returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.SUBMITTED);
+                returnEntity.setReceiptNumber(ackNumber);
+                returnEntity.setTokenNumber(ackNumber.length() <= 20 ? ackNumber : ackNumber.substring(0, 20));
+                returnEntity.setNotes("Submitted to TRACES Gateway on " + Instant.now() + " [ACK: " + ackNumber + "]");
+                // NOTE: filingDate MUST NOT be set here. SUBMITTED != FILED.
+                tdsReturnRepository.save(returnEntity);
+            }
+
+            auditService.logEvent(
+                    tenantId,
+                    null,
+                    "TDS_RETURN_SUBMITTED",
+                    "TDS_RETURN",
+                    returnEntity != null ? returnEntity.getId().toString() : maskedTan,
+                    null,
+                    Map.of(
+                            "tan", maskedTan,
+                            "formType", formType,
+                            "quarter", quarter,
+                            "financialYear", financialYear,
+                            "ackNumber", ackNumber != null ? ackNumber : "",
+                            "operationId", govResult.getOperationId() != null ? govResult.getOperationId().toString() : ""
+                    )
+            );
+
+            return com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto.builder()
+                    .returnId(returnEntity != null ? returnEntity.getId() : request.getReturnId())
+                    .tan(rawTan)
+                    .maskedTan(maskedTan)
+                    .formType(formType)
+                    .quarter(quarter)
+                    .financialYear(financialYear)
+                    .assessmentYear(assessmentYear)
+                    .submissionStatus("SUBMITTED")
+                    .success(true)
+                    .acknowledgementNumber(ackNumber)
+                    .providerReference(providerRef)
+                    .submittedAt(Instant.now())
+                    .operationId(govResult.getOperationId())
+                    .payloadFingerprint(fingerprint)
+                    .message("TDS statement submitted successfully to TRACES gateway")
+                    .metadata(govResult.getResponseMetadata())
+                    .build();
+        }
+
+        if (govResult.getErrorCode() == GovErrorCode.DUPLICATE_SUBMISSION) {
+            String existingAck = govResult.getResponseMetadata() != null && govResult.getResponseMetadata().containsKey("existingAckNumber")
+                    ? String.valueOf(govResult.getResponseMetadata().get("existingAckNumber"))
+                    : null;
+
+            if (returnEntity != null) {
+                if (existingAck != null) {
+                    returnEntity.setReceiptNumber(existingAck);
+                }
+                returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.SUBMITTED);
+                tdsReturnRepository.save(returnEntity);
+            }
+
+            auditService.logEvent(
+                    tenantId,
+                    null,
+                    "TDS_RETURN_SUBMISSION_DUPLICATE",
+                    "TDS_RETURN",
+                    returnEntity != null ? returnEntity.getId().toString() : maskedTan,
+                    null,
+                    Map.of(
+                            "tan", maskedTan,
+                            "errorCode", "DUPLICATE_SUBMISSION",
+                            "errorMessage", govResult.getErrorMessage() != null ? govResult.getErrorMessage() : "",
+                            "existingAck", existingAck != null ? existingAck : ""
+                    )
+            );
+
+            return com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto.builder()
+                    .returnId(returnEntity != null ? returnEntity.getId() : request.getReturnId())
+                    .tan(rawTan)
+                    .maskedTan(maskedTan)
+                    .formType(formType)
+                    .quarter(quarter)
+                    .financialYear(financialYear)
+                    .assessmentYear(assessmentYear)
+                    .submissionStatus("DUPLICATE_SUBMISSION")
+                    .success(false)
+                    .acknowledgementNumber(existingAck)
+                    .errorCode("DUPLICATE_SUBMISSION")
+                    .errorMessage(govResult.getErrorMessage())
+                    .operationId(govResult.getOperationId())
+                    .payloadFingerprint(fingerprint)
+                    .metadata(govResult.getResponseMetadata())
+                    .build();
+        }
+
+        // Non-success failure handling: restore status to READY_TO_FILE
+        if (returnEntity != null) {
+            returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.READY_TO_FILE);
+            tdsReturnRepository.save(returnEntity);
+        }
+
+        auditService.logEvent(
+                tenantId,
+                null,
+                "TDS_RETURN_SUBMISSION_FAILED",
+                "TDS_RETURN",
+                returnEntity != null ? returnEntity.getId().toString() : maskedTan,
+                null,
+                Map.of(
+                        "tan", maskedTan,
+                        "formType", formType,
+                        "quarter", quarter,
+                        "financialYear", financialYear,
+                        "errorCode", govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "ERROR",
+                        "errorMessage", govResult.getErrorMessage() != null ? govResult.getErrorMessage() : ""
+                )
+        );
+
+        return com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto.builder()
+                .returnId(returnEntity != null ? returnEntity.getId() : request.getReturnId())
+                .tan(rawTan)
+                .maskedTan(maskedTan)
+                .formType(formType)
+                .quarter(quarter)
+                .financialYear(financialYear)
+                .assessmentYear(assessmentYear)
+                .submissionStatus("FAILED")
+                .success(false)
+                .errorCode(govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "ERROR")
+                .errorMessage(govResult.getErrorMessage())
+                .operationId(govResult.getOperationId())
+                .payloadFingerprint(fingerprint)
+                .metadata(govResult.getResponseMetadata())
                 .build();
     }
 
