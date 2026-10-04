@@ -1,5 +1,6 @@
 package com.taxoryn.module.tds.integration;
 
+import com.taxoryn.module.tds.dto.TdsDeductorProfileDto;
 import com.taxoryn.module.tds.integration.dto.TdsHandshakeResponseDto;
 import com.taxoryn.module.tds.integration.dto.TdsIntegrationResultDto;
 
@@ -15,6 +16,10 @@ public interface TdsGovernmentIntegrationService {
     TdsHandshakeResponseDto checkTdsConnectionHealth(UUID connectionId);
 
     TdsHandshakeResponseDto checkTdsConnectionHealth(UUID connectionId, Map<String, Object> directives);
+
+    TdsDeductorProfileDto lookupDeductor(String tan);
+
+    TdsDeductorProfileDto lookupDeductor(UUID connectionId, String tan, Map<String, Object> options);
 
     TdsIntegrationResultDto executeTdsOperation(UUID connectionId, String operationType, Map<String, Object> payload);
 }

@@ -363,4 +363,21 @@ public class TdsController {
                 connectionId, directives != null ? directives : java.util.Collections.emptyMap());
         return ResponseEntity.ok(ApiResponse.success("TDS connection health verified", response));
     }
+
+    // =========================================================================
+    // 8. Government Deductor TAN Lookup & Verification
+    // =========================================================================
+
+    @PostMapping("/deductors/verify-tan")
+    @PreAuthorize("hasAuthority('TDS_VIEW') or hasAuthority('TDS_READ') or hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Verify TAN deductor profile", description = "Performs real-time TAN lookup and deductor verification against the Government TRACES / TDS portal via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.tds.dto.TdsDeductorProfileDto>> verifyTan(
+            @Valid @RequestBody com.taxoryn.module.tds.dto.TdsTanVerificationRequest request) {
+        com.taxoryn.module.tds.dto.TdsDeductorProfileDto profile = tdsGovIntegrationService.lookupDeductor(
+                request.getConnectionId(),
+                request.getTan(),
+                request.getOptions()
+        );
+        return ResponseEntity.ok(ApiResponse.success("TAN deductor profile verified successfully", profile));
+    }
 }

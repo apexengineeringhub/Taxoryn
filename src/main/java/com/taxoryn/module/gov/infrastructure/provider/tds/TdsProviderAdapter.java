@@ -136,7 +136,9 @@ public class TdsProviderAdapter implements GovernmentProviderAdapter {
             );
         }
 
-        if ("VALIDATION_FAILED".equalsIgnoreCase(directive) || "SCHEMA_VALIDATION_FAILED".equalsIgnoreCase(directive)) {
+        if ("VALIDATION_FAILED".equalsIgnoreCase(directive)
+                || "SCHEMA_VALIDATION_FAILED".equalsIgnoreCase(directive)
+                || "INVALID_TAN".equalsIgnoreCase(directive)) {
             return GovIntegrationResult.failure(
                     null,
                     request.getOrganizationId(),
@@ -145,7 +147,22 @@ public class TdsProviderAdapter implements GovernmentProviderAdapter {
                     request.getCorrelationId(),
                     request.getIdempotencyKey(),
                     GovErrorCode.VALIDATION_FAILED,
-                    "Payload schema validation error against TRACES FVU specifications",
+                    "TAN format or checksum rejected by TRACES portal",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("NOT_FOUND".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.NOT_FOUND,
+                    "TAN record not found in TRACES deductor database",
                     false,
                     responseData
             );
@@ -156,15 +173,53 @@ public class TdsProviderAdapter implements GovernmentProviderAdapter {
 
         if ("VERIFY_TAN".equalsIgnoreCase(opType)) {
             String tan = extractTan(request);
+            if ("XXXX99999Z".equalsIgnoreCase(tan) || tan.startsWith("ZZZZ")) {
+                return GovIntegrationResult.failure(
+                        null,
+                        request.getOrganizationId(),
+                        GovProviderType.TDS,
+                        request.getOperationType(),
+                        request.getCorrelationId(),
+                        request.getIdempotencyKey(),
+                        GovErrorCode.NOT_FOUND,
+                        "TAN record " + tan + " not found in TRACES deductor database",
+                        false,
+                        responseData
+                );
+            }
+
             responseData.put("tan", tan);
-            responseData.put("deductorName", "ACME ENTERPRISES PRIVATE LIMITED");
-            responseData.put("category", "COMPANY");
-            responseData.put("status", "ACTIVE");
-            responseData.put("tanStatus", "VALID");
-            responseData.put("tracesStatus", "REGISTERED_ACTIVE");
-            responseData.put("pan", "AAACA1234C");
-            responseData.put("state", "MAHARASHTRA");
-            responseData.put("pinCode", "400001");
+            if (tan.startsWith("BLRN")) {
+                responseData.put("deductorName", "Bangalore Tech Corp Limited");
+                responseData.put("category", "COMPANY");
+                responseData.put("status", "ACTIVE");
+                responseData.put("tanStatus", "VALID");
+                responseData.put("tracesStatus", "REGISTERED_ACTIVE");
+                responseData.put("pan", "AABCB5678D");
+                responseData.put("state", "KARNATAKA");
+                responseData.put("pinCode", "560001");
+                responseData.put("address", "100 MG Road, Bangalore, Karnataka 560001");
+            } else if (tan.startsWith("DELA")) {
+                responseData.put("deductorName", "Delhi Consulting Services Private Limited");
+                responseData.put("category", "COMPANY");
+                responseData.put("status", "ACTIVE");
+                responseData.put("tanStatus", "VALID");
+                responseData.put("tracesStatus", "REGISTERED_ACTIVE");
+                responseData.put("pan", "AADCD9988E");
+                responseData.put("state", "DELHI");
+                responseData.put("pinCode", "110001");
+                responseData.put("address", "Connaught Place, New Delhi 110001");
+            } else {
+                responseData.put("deductorName", "Acme Enterprises Private Limited");
+                responseData.put("category", "COMPANY");
+                responseData.put("status", "ACTIVE");
+                responseData.put("tanStatus", "VALID");
+                responseData.put("tracesStatus", "REGISTERED_ACTIVE");
+                responseData.put("pan", "AAACA1234C");
+                responseData.put("state", "MAHARASHTRA");
+                responseData.put("pinCode", "400001");
+                responseData.put("address", "Plot 42, Bandra Kurla Complex, Mumbai, Maharashtra 400001");
+            }
         } else if ("CHALLAN_STATUS".equalsIgnoreCase(opType)) {
             responseData.put("status", "MATCHED");
             responseData.put("bsrCode", "0210001");
