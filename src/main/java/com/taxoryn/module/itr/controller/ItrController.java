@@ -49,6 +49,7 @@ import java.util.UUID;
 public class ItrController {
 
     private final ItrService itrService;
+    private final com.taxoryn.module.itr.integration.ItrGovernmentIntegrationService itrGovIntegrationService;
 
     // =========================================================================
     // 1. ITR Profiles
@@ -247,5 +248,20 @@ public class ItrController {
             @RequestParam(required = false) UUID assignedEmployeeId) {
         ItrWorkloadDashboardDto dashboard = itrService.getWorkloadDashboard(assessmentYear, assignedEmployeeId);
         return ResponseEntity.ok(ApiResponse.success("ITR workload dashboard retrieved successfully", dashboard));
+    }
+
+    // =========================================================================
+    // 4. Government Integration Handshake & Health
+    // =========================================================================
+
+    @PostMapping("/connections/{connectionId}/handshake")
+    @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "ITR Government Connection Handshake", description = "Validates active connectivity and credentials for Income Tax Department gateway.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.integration.dto.ItrHandshakeResponseDto>> checkConnectionHealth(
+            @PathVariable UUID connectionId,
+            @RequestBody(required = false) java.util.Map<String, Object> directives) {
+        com.taxoryn.module.itr.integration.dto.ItrHandshakeResponseDto response = itrGovIntegrationService.checkItrConnectionHealth(
+                connectionId, directives != null ? directives : java.util.Collections.emptyMap());
+        return ResponseEntity.ok(ApiResponse.success("ITR connection health verified", response));
     }
 }
