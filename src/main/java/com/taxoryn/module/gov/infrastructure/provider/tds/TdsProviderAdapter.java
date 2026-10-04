@@ -294,6 +294,64 @@ public class TdsProviderAdapter implements GovernmentProviderAdapter {
             responseData.put("payloadFingerprint", payloadFingerprint);
             responseData.put("message", "TDS quarterly statement submitted successfully to TRACES gateway");
             providerReference = ackNumber;
+        } else if ("TDS_RETURN_STATUS".equalsIgnoreCase(opType) || "CHECK_TDS_RETURN_STATUS".equalsIgnoreCase(opType) || "RETURN_STATUS".equalsIgnoreCase(opType)) {
+            String tan = extractTan(request);
+            String formType = request.getRequestData() != null && request.getRequestData().containsKey("formType")
+                    ? String.valueOf(request.getRequestData().get("formType")) : "FORM_26Q";
+            String quarter = request.getRequestData() != null && request.getRequestData().containsKey("quarter")
+                    ? String.valueOf(request.getRequestData().get("quarter")) : "Q1";
+            String financialYear = request.getRequestData() != null && request.getRequestData().containsKey("financialYear")
+                    ? String.valueOf(request.getRequestData().get("financialYear")) : "2025-26";
+            String existingAck = request.getRequestData() != null && request.getRequestData().containsKey("acknowledgementNumber")
+                    ? String.valueOf(request.getRequestData().get("acknowledgementNumber"))
+                    : "TRACES-ACK-" + tan + "-" + quarter + "-" + financialYear.replace("-", "") + "-001";
+
+            responseData.put("tan", tan);
+            responseData.put("formType", formType);
+            responseData.put("quarter", quarter);
+            responseData.put("financialYear", financialYear);
+            responseData.put("acknowledgementNumber", existingAck);
+            responseData.put("receiptNumber", existingAck);
+            responseData.put("tokenNumber", "010022300045678");
+
+            if ("PROCESSING".equalsIgnoreCase(directive) || "UNDER_PROCESSING".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "PROCESSING");
+                responseData.put("filingStatus", "PROCESSING");
+                responseData.put("message", "TDS statement under processing at TRACES portal");
+            } else if ("PENDING".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "PENDING");
+                responseData.put("filingStatus", "PENDING");
+                responseData.put("message", "TDS statement queued for verification at TRACES portal");
+            } else if ("REJECTED".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "REJECTED");
+                responseData.put("filingStatus", "REJECTED");
+                responseData.put("rejectionReason", "FVU checksum mismatch or defective challan sequence");
+                responseData.put("message", "TDS statement rejected by TRACES gateway");
+            } else if ("FAILED".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "FAILED");
+                responseData.put("filingStatus", "FAILED");
+                responseData.put("errorMessage", "TRACES backend processing failed");
+                responseData.put("message", "TRACES portal internal processing error");
+            } else {
+                // Default: FILED / PROCESSED
+                responseData.put("providerStatus", "FILED");
+                responseData.put("filingStatus", "FILED");
+                responseData.put("filingDate", java.time.LocalDate.now().toString());
+                responseData.put("message", "TDS statement filed and processed successfully on TRACES portal");
+
+                java.util.List<Map<String, Object>> challans = java.util.List.of(
+                        Map.of(
+                                "bsrCode", "0210001",
+                                "challanSerialNo", "10023",
+                                "cin", "02100011504202610023",
+                                "amount", 50000.00,
+                                "status", "MATCHED",
+                                "remarks", "Challan OLTAS matched with TRACES portal"
+                        )
+                );
+                responseData.put("challans", challans);
+            }
+            providerReference = existingAck;
         } else {
             responseData.put("status", "SUCCESS");
             responseData.put("message", "TDS operation " + opType + " executed successfully");

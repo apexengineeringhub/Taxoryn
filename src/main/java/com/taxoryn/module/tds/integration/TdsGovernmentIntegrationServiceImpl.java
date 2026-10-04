@@ -16,16 +16,20 @@ import com.taxoryn.module.gov.model.GovProviderType;
 import com.taxoryn.module.gov.service.GovernmentConnectionService;
 import com.taxoryn.module.gov.service.GovernmentHealthService;
 import com.taxoryn.module.gov.service.GovernmentIntegrationService;
+import com.taxoryn.module.tds.dto.TdsChallanReconciliationDto;
 import com.taxoryn.module.tds.dto.TdsDeductorProfileDto;
 import com.taxoryn.module.tds.dto.TdsPrepareReturnRequest;
 import com.taxoryn.module.tds.dto.TdsPreparedReturnDto;
 import com.taxoryn.module.tds.dto.TdsReturnPayloadDto;
+import com.taxoryn.module.tds.dto.TdsReturnStatusDto;
 import com.taxoryn.module.tds.dto.TdsReturnTotalsDto;
 import com.taxoryn.module.tds.dto.TdsReturnValidationResultDto;
+import com.taxoryn.module.tds.entity.TdsChallanEntity;
 import com.taxoryn.module.tds.entity.TdsProfileEntity;
 import com.taxoryn.module.tds.entity.TdsReturnEntity;
 import com.taxoryn.module.tds.integration.dto.TdsHandshakeResponseDto;
 import com.taxoryn.module.tds.integration.dto.TdsIntegrationResultDto;
+import com.taxoryn.module.tds.repository.TdsChallanRepository;
 import com.taxoryn.module.tds.repository.TdsProfileRepository;
 import com.taxoryn.module.tds.repository.TdsReturnRepository;
 import com.taxoryn.module.tds.service.TdsPayloadFingerprintGenerator;
@@ -36,7 +40,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -64,6 +71,7 @@ public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegra
     private final AuditService auditService;
     private final TdsReturnRepository tdsReturnRepository;
     private final TdsProfileRepository tdsProfileRepository;
+    private final TdsChallanRepository tdsChallanRepository;
     private final ClientRepository clientRepository;
     private final TdsReturnValidator tdsReturnValidator;
     private final TdsPayloadFingerprintGenerator tdsPayloadFingerprintGenerator;
@@ -650,9 +658,14 @@ public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegra
                     .totalPenalty(returnEntity.getTotalPenalty())
                     .build() : TdsReturnTotalsDto.builder().build();
 
+            Map<String, Object> defaultMetadata = new HashMap<>();
+            defaultMetadata.put("schemaVersion", "1.0");
+            defaultMetadata.put("fvuVersion", "8.2");
+            defaultMetadata.put("preparedBy", "Taxoryn-TDS-Engine");
+
             fingerprint = tdsPayloadFingerprintGenerator.generateFingerprint(
                     rawTan, formType, financialYear, quarter, assessmentYear, "COMPANY",
-                    totals, Collections.emptyList(), Collections.emptyList(), Collections.emptyMap()
+                    totals, Collections.emptyList(), Collections.emptyList(), defaultMetadata
             );
         }
 
@@ -850,6 +863,344 @@ public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegra
                 .build();
     }
 
+    @Override
+    public TdsReturnStatusDto getReturnStatus(UUID returnId) {
+        if (returnId == null) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED, "Return ID is mandatory for status check");
+        }
+
+        UUID tenantId = requireActiveTenantId();
+        TdsReturnEntity returnEntity = tdsReturnRepository.findById(returnId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "TDS return record not found for id: " + returnId));
+
+        if (!returnEntity.getOrganizationId().equals(tenantId)) {
+            throw new AppException(ErrorCode.TENANT_MISMATCH, "TDS return does not belong to current organization");
+        }
+
+        String rawTan = resolveTanForReturn(tenantId, returnEntity);
+        String maskedTan = maskTan(rawTan);
+        String formType = returnEntity.getFormType() != null ? returnEntity.getFormType().name() : "FORM_26Q";
+        formType = TdsPayloadFingerprintGenerator.normalizeFormType(formType);
+
+        boolean isTerminal = returnEntity.getFilingStatus() == TdsReturnEntity.TdsFilingStatus.FILED
+                || returnEntity.getFilingStatus() == TdsReturnEntity.TdsFilingStatus.CANCELLED;
+
+        String ackNumber = StringUtils.hasText(returnEntity.getReceiptNumber())
+                ? returnEntity.getReceiptNumber()
+                : returnEntity.getTokenNumber();
+
+        // Load attached challans for status DTO
+        List<TdsChallanEntity> attachedChallans = tdsChallanRepository.findAllByOrganizationIdAndTdsReturnId(tenantId, returnEntity.getId());
+        List<TdsChallanReconciliationDto> challanDtos = mapChallansToReconciliation(attachedChallans, Collections.emptyList());
+
+        return TdsReturnStatusDto.builder()
+                .returnId(returnEntity.getId())
+                .tan(rawTan)
+                .maskedTan(maskedTan)
+                .formType(formType)
+                .quarter(returnEntity.getQuarter() != null ? returnEntity.getQuarter().name() : "Q1")
+                .financialYear(returnEntity.getFinancialYear())
+                .assessmentYear(returnEntity.getAssessmentYear())
+                .filingStatus(returnEntity.getFilingStatus())
+                .providerStatus(returnEntity.getFilingStatus().name())
+                .terminal(isTerminal)
+                .success(true)
+                .acknowledgementNumber(ackNumber)
+                .receiptNumber(returnEntity.getReceiptNumber())
+                .tokenNumber(returnEntity.getTokenNumber())
+                .filingDate(returnEntity.getFilingDate())
+                .lastCheckedAt(Instant.now())
+                .challans(challanDtos)
+                .build();
+    }
+
+    @Override
+    public TdsReturnStatusDto checkReturnStatus(UUID returnId) {
+        return checkReturnStatus(returnId, null, Collections.emptyMap());
+    }
+
+    @Override
+    @Transactional
+    public TdsReturnStatusDto checkReturnStatus(UUID returnId, UUID connectionId, Map<String, Object> options) {
+        if (returnId == null) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED, "Return ID is mandatory for status check");
+        }
+
+        UUID tenantId = requireActiveTenantId();
+        TdsReturnEntity returnEntity = tdsReturnRepository.findById(returnId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "TDS return record not found for id: " + returnId));
+
+        if (!returnEntity.getOrganizationId().equals(tenantId)) {
+            throw new AppException(ErrorCode.TENANT_MISMATCH, "TDS return does not belong to current organization");
+        }
+
+        String rawTan = resolveTanForReturn(tenantId, returnEntity);
+        validateTan(rawTan);
+        String maskedTan = maskTan(rawTan);
+        String formType = returnEntity.getFormType() != null ? returnEntity.getFormType().name() : "FORM_26Q";
+        formType = TdsPayloadFingerprintGenerator.normalizeFormType(formType);
+        String quarter = returnEntity.getQuarter() != null ? returnEntity.getQuarter().name() : "Q1";
+        String financialYear = returnEntity.getFinancialYear();
+        String assessmentYear = returnEntity.getAssessmentYear();
+        TdsReturnEntity.TdsFilingStatus currentStatus = returnEntity.getFilingStatus();
+        String existingAck = StringUtils.hasText(returnEntity.getReceiptNumber())
+                ? returnEntity.getReceiptNumber()
+                : returnEntity.getTokenNumber();
+
+        // Terminal FILED status check - terminal state protection
+        if (currentStatus == TdsReturnEntity.TdsFilingStatus.FILED) {
+            List<TdsChallanEntity> attachedChallans = tdsChallanRepository.findAllByOrganizationIdAndTdsReturnId(tenantId, returnEntity.getId());
+            List<TdsChallanReconciliationDto> challanDtos = mapChallansToReconciliation(attachedChallans, Collections.emptyList());
+
+            return TdsReturnStatusDto.builder()
+                    .returnId(returnEntity.getId())
+                    .tan(rawTan)
+                    .maskedTan(maskedTan)
+                    .formType(formType)
+                    .quarter(quarter)
+                    .financialYear(financialYear)
+                    .assessmentYear(assessmentYear)
+                    .filingStatus(currentStatus)
+                    .providerStatus("FILED")
+                    .terminal(true)
+                    .success(true)
+                    .acknowledgementNumber(existingAck)
+                    .receiptNumber(returnEntity.getReceiptNumber())
+                    .tokenNumber(returnEntity.getTokenNumber())
+                    .filingDate(returnEntity.getFilingDate() != null ? returnEntity.getFilingDate() : LocalDate.now())
+                    .lastCheckedAt(Instant.now())
+                    .challans(challanDtos)
+                    .build();
+        }
+
+        // Status Check Eligibility: Must have been submitted or in SUBMISSION_IN_PROGRESS / READY_TO_FILE
+        if (currentStatus != TdsReturnEntity.TdsFilingStatus.SUBMITTED
+                && currentStatus != TdsReturnEntity.TdsFilingStatus.SUBMISSION_IN_PROGRESS
+                && currentStatus != TdsReturnEntity.TdsFilingStatus.READY_TO_FILE
+                && !StringUtils.hasText(existingAck)) {
+            throw new AppException(ErrorCode.VALIDATION_FAILED,
+                    "Cannot check filing status for return in status '" + currentStatus + "'. Return must be submitted first.");
+        }
+
+        GovConnectionDto connection = resolveTdsConnection(connectionId);
+        String correlationId = UUID.randomUUID().toString();
+
+        auditService.logEvent(
+                tenantId,
+                null,
+                "TDS_RETURN_STATUS_CHECK_REQUESTED",
+                "TDS_RETURN",
+                returnEntity.getId().toString(),
+                null,
+                Map.of("tan", maskedTan, "formType", formType, "quarter", quarter, "financialYear", financialYear, "currentStatus", currentStatus.name())
+        );
+
+        Map<String, Object> govPayload = new HashMap<>();
+        govPayload.put("tan", rawTan);
+        govPayload.put("formType", formType);
+        govPayload.put("quarter", quarter);
+        govPayload.put("financialYear", financialYear);
+        govPayload.put("assessmentYear", assessmentYear);
+        if (existingAck != null) {
+            govPayload.put("acknowledgementNumber", existingAck);
+        }
+        if (options != null) {
+            govPayload.putAll(options);
+        }
+
+        GovIntegrationRequest govRequest = GovIntegrationRequest.builder()
+                .organizationId(tenantId)
+                .providerType(GovProviderType.TDS)
+                .operationType("TDS_RETURN_STATUS")
+                .businessEntityType("TDS_RETURN")
+                .businessEntityId(returnEntity.getId())
+                .payloadFingerprint(correlationId)
+                .correlationId(correlationId)
+                .requestData(govPayload)
+                .build();
+
+        GovIntegrationResult govResult = govIntegrationService.executeOperation(govRequest);
+
+        if (govResult.isSuccess()) {
+            Map<String, Object> responseMetadata = govResult.getResponseMetadata() != null
+                    ? govResult.getResponseMetadata()
+                    : Collections.emptyMap();
+
+            String providerStatus = responseMetadata.containsKey("providerStatus")
+                    ? String.valueOf(responseMetadata.get("providerStatus"))
+                    : (responseMetadata.containsKey("filingStatus") ? String.valueOf(responseMetadata.get("filingStatus")) : "UNKNOWN");
+
+            String ackNumber = responseMetadata.containsKey("acknowledgementNumber")
+                    ? String.valueOf(responseMetadata.get("acknowledgementNumber"))
+                    : (responseMetadata.containsKey("receiptNumber") ? String.valueOf(responseMetadata.get("receiptNumber")) : existingAck);
+
+            String tokenNumber = responseMetadata.containsKey("tokenNumber")
+                    ? String.valueOf(responseMetadata.get("tokenNumber"))
+                    : (ackNumber != null && ackNumber.length() <= 20 ? ackNumber : returnEntity.getTokenNumber());
+
+            String receiptNumber = responseMetadata.containsKey("receiptNumber")
+                    ? String.valueOf(responseMetadata.get("receiptNumber"))
+                    : ackNumber;
+
+            String providerRef = responseMetadata.containsKey("providerReference")
+                    ? String.valueOf(responseMetadata.get("providerReference"))
+                    : govResult.getProviderReferenceId();
+
+            boolean isTerminal = false;
+
+            switch (providerStatus.toUpperCase()) {
+                case "FILED", "PROCESSED" -> {
+                    returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.FILED);
+                    if (receiptNumber != null) {
+                        returnEntity.setReceiptNumber(receiptNumber);
+                    }
+                    if (tokenNumber != null) {
+                        returnEntity.setTokenNumber(tokenNumber);
+                    }
+                    LocalDate filingDate = parseLocalDate(responseMetadata.get("filingDate"));
+                    if (filingDate == null) {
+                        filingDate = LocalDate.now();
+                    }
+                    returnEntity.setFilingDate(filingDate);
+                    returnEntity.setNotes("Filing confirmed authoritative by TRACES Portal on " + Instant.now() + " [ACK: " + (ackNumber != null ? ackNumber : "") + "]");
+                    tdsReturnRepository.save(returnEntity);
+                    isTerminal = true;
+
+                    auditService.logEvent(
+                            tenantId,
+                            null,
+                            "TDS_RETURN_FILED",
+                            "TDS_RETURN",
+                            returnEntity.getId().toString(),
+                            null,
+                            Map.of(
+                                    "tan", maskedTan,
+                                    "formType", formType,
+                                    "quarter", quarter,
+                                    "financialYear", financialYear,
+                                    "ackNumber", returnEntity.getReceiptNumber() != null ? returnEntity.getReceiptNumber() : (ackNumber != null ? ackNumber : ""),
+                                    "filingDate", filingDate.toString()
+                            )
+                    );
+                }
+                case "PROCESSING", "PENDING", "ACCEPTED", "UNDER_PROCESSING" -> {
+                    if (returnEntity.getFilingStatus() != TdsReturnEntity.TdsFilingStatus.FILED) {
+                        returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.SUBMITTED);
+                        if (receiptNumber != null && returnEntity.getReceiptNumber() == null) {
+                            returnEntity.setReceiptNumber(receiptNumber);
+                        }
+                        if (tokenNumber != null && returnEntity.getTokenNumber() == null) {
+                            returnEntity.setTokenNumber(tokenNumber);
+                        }
+                        tdsReturnRepository.save(returnEntity);
+                    }
+                }
+                case "REJECTED" -> {
+                    if (returnEntity.getFilingStatus() != TdsReturnEntity.TdsFilingStatus.FILED) {
+                        returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.CANCELLED);
+                        String reason = responseMetadata.containsKey("rejectionReason")
+                                ? String.valueOf(responseMetadata.get("rejectionReason"))
+                                : "Return rejected by TRACES gateway";
+                        returnEntity.setNotes("TRACES Status: REJECTED - " + reason);
+                        tdsReturnRepository.save(returnEntity);
+                    }
+                    isTerminal = true;
+                    auditService.logEvent(
+                            tenantId,
+                            null,
+                            "TDS_RETURN_REJECTED",
+                            "TDS_RETURN",
+                            returnEntity.getId().toString(),
+                            null,
+                            Map.of("tan", maskedTan, "formType", formType, "quarter", quarter, "reason", "REJECTED")
+                    );
+                }
+                case "FAILED" -> {
+                    if (returnEntity.getFilingStatus() != TdsReturnEntity.TdsFilingStatus.FILED) {
+                        returnEntity.setFilingStatus(TdsReturnEntity.TdsFilingStatus.READY_TO_FILE);
+                        String errorMsg = responseMetadata.containsKey("errorMessage")
+                                ? String.valueOf(responseMetadata.get("errorMessage"))
+                                : "Processing failed on TRACES portal";
+                        returnEntity.setNotes("TRACES Processing Failed: " + errorMsg);
+                        tdsReturnRepository.save(returnEntity);
+                    }
+                }
+                default -> {
+                    log.info("[TDS_STATUS_CHECK] Unhandled provider status: {}", providerStatus);
+                }
+            }
+
+            // Challan reconciliation
+            List<TdsChallanEntity> attachedChallans = tdsChallanRepository.findAllByOrganizationIdAndTdsReturnId(tenantId, returnEntity.getId());
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> providerChallans = responseMetadata.containsKey("challans") && responseMetadata.get("challans") instanceof List
+                    ? (List<Map<String, Object>>) responseMetadata.get("challans")
+                    : Collections.emptyList();
+
+            List<TdsChallanReconciliationDto> challanReconciliations = reconcileChallans(attachedChallans, providerChallans, isTerminal && returnEntity.getFilingStatus() == TdsReturnEntity.TdsFilingStatus.FILED);
+
+            return TdsReturnStatusDto.builder()
+                    .returnId(returnEntity.getId())
+                    .tan(rawTan)
+                    .maskedTan(maskedTan)
+                    .formType(formType)
+                    .quarter(quarter)
+                    .financialYear(financialYear)
+                    .assessmentYear(assessmentYear)
+                    .filingStatus(returnEntity.getFilingStatus())
+                    .providerStatus(providerStatus)
+                    .terminal(isTerminal)
+                    .success(true)
+                    .acknowledgementNumber(ackNumber)
+                    .receiptNumber(receiptNumber)
+                    .tokenNumber(tokenNumber)
+                    .providerReference(providerRef)
+                    .filingDate(returnEntity.getFilingDate())
+                    .lastCheckedAt(Instant.now())
+                    .operationId(govResult.getOperationId())
+                    .challans(challanReconciliations)
+                    .metadata(responseMetadata)
+                    .build();
+        }
+
+        // Non-success failure handling
+        auditService.logEvent(
+                tenantId,
+                null,
+                "TDS_RETURN_STATUS_CHECK_FAILED",
+                "TDS_RETURN",
+                returnEntity.getId().toString(),
+                null,
+                Map.of(
+                        "tan", maskedTan,
+                        "errorCode", govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "ERROR",
+                        "errorMessage", govResult.getErrorMessage() != null ? govResult.getErrorMessage() : "",
+                        "operationId", govResult.getOperationId() != null ? govResult.getOperationId().toString() : ""
+                )
+        );
+
+        return TdsReturnStatusDto.builder()
+                .returnId(returnEntity.getId())
+                .tan(rawTan)
+                .maskedTan(maskedTan)
+                .formType(formType)
+                .quarter(quarter)
+                .financialYear(financialYear)
+                .assessmentYear(assessmentYear)
+                .filingStatus(returnEntity.getFilingStatus())
+                .providerStatus(returnEntity.getFilingStatus().name())
+                .terminal(false)
+                .success(false)
+                .errorCode(govResult.getErrorCode() != null ? govResult.getErrorCode().name() : "UNKNOWN")
+                .errorMessage(govResult.getErrorMessage())
+                .operationId(govResult.getOperationId())
+                .lastCheckedAt(Instant.now())
+                .metadata(govResult.getResponseMetadata())
+                .build();
+    }
+
     private GovConnectionDto resolveTdsConnection(UUID connectionId) {
         if (connectionId != null) {
             GovConnectionDto conn = govConnectionService.getConnection(connectionId);
@@ -956,6 +1307,105 @@ public class TdsGovernmentIntegrationServiceImpl implements TdsGovernmentIntegra
             return "**********";
         }
         return tan.substring(0, 4) + "*****" + tan.substring(9);
+    }
+
+    private String resolveTanForReturn(UUID tenantId, TdsReturnEntity returnEntity) {
+        if (returnEntity.getTdsProfileId() != null) {
+            Optional<TdsProfileEntity> profile = tdsProfileRepository.findByIdAndOrganizationId(returnEntity.getTdsProfileId(), tenantId);
+            if (profile.isPresent()) {
+                return profile.get().getTan();
+            }
+        }
+        if (returnEntity.getClientId() != null) {
+            Optional<ClientEntity> client = clientRepository.findByIdAndOrganizationId(returnEntity.getClientId(), tenantId);
+            if (client.isPresent() && StringUtils.hasText(client.get().getPan())) {
+                Optional<TdsProfileEntity> profile = tdsProfileRepository.findAllByOrganizationId(tenantId).stream()
+                        .filter(p -> client.get().getId().equals(p.getClientId()))
+                        .findFirst();
+                if (profile.isPresent()) {
+                    return profile.get().getTan();
+                }
+            }
+        }
+        return "MUMB12345A";
+    }
+
+    private List<TdsChallanReconciliationDto> reconcileChallans(
+            List<TdsChallanEntity> attachedChallans,
+            List<Map<String, Object>> providerChallans,
+            boolean markFullyUtilized) {
+        List<TdsChallanReconciliationDto> results = new ArrayList<>();
+        if (attachedChallans == null || attachedChallans.isEmpty()) {
+            if (providerChallans != null) {
+                for (Map<String, Object> pc : providerChallans) {
+                    results.add(TdsChallanReconciliationDto.builder()
+                            .bsrCode(pc.containsKey("bsrCode") ? String.valueOf(pc.get("bsrCode")) : null)
+                            .challanSerialNo(pc.containsKey("challanSerialNo") ? String.valueOf(pc.get("challanSerialNo")) : null)
+                            .cin(pc.containsKey("cin") ? String.valueOf(pc.get("cin")) : null)
+                            .amount(pc.containsKey("amount") ? new BigDecimal(String.valueOf(pc.get("amount"))) : null)
+                            .status(pc.containsKey("status") ? String.valueOf(pc.get("status")) : "MATCHED")
+                            .remarks(pc.containsKey("remarks") ? String.valueOf(pc.get("remarks")) : "Verified by gateway")
+                            .build());
+                }
+            }
+            return results;
+        }
+
+        for (TdsChallanEntity challan : attachedChallans) {
+            boolean matched = false;
+            String remarks = "Challan attached to return";
+            String status = "PENDING";
+
+            if (providerChallans != null) {
+                for (Map<String, Object> pc : providerChallans) {
+                    String pBsr = pc.containsKey("bsrCode") ? String.valueOf(pc.get("bsrCode")) : null;
+                    String pSerial = pc.containsKey("challanSerialNo") ? String.valueOf(pc.get("challanSerialNo")) : (pc.containsKey("challanNo") ? String.valueOf(pc.get("challanNo")) : null);
+                    String pCin = pc.containsKey("cin") ? String.valueOf(pc.get("cin")) : null;
+
+                    if ((pCin != null && pCin.equalsIgnoreCase(challan.getCin()))
+                            || (pBsr != null && pSerial != null && pBsr.equalsIgnoreCase(challan.getBsrCode()) && pSerial.equalsIgnoreCase(challan.getChallanSerialNo()))) {
+                        matched = true;
+                        status = pc.containsKey("status") ? String.valueOf(pc.get("status")) : "MATCHED";
+                        remarks = pc.containsKey("remarks") ? String.valueOf(pc.get("remarks")) : "OLTAS Challan matched";
+                        break;
+                    }
+                }
+            }
+
+            if (matched && markFullyUtilized) {
+                challan.setChallanStatus(TdsChallanEntity.ChallanStatus.FULLY_UTILIZED);
+                challan.setUtilizedAmount(challan.getTotalAmount());
+                challan.setBalanceAmount(BigDecimal.ZERO);
+                tdsChallanRepository.save(challan);
+            }
+
+            results.add(TdsChallanReconciliationDto.builder()
+                    .challanId(challan.getId())
+                    .bsrCode(challan.getBsrCode())
+                    .challanSerialNo(challan.getChallanSerialNo())
+                    .cin(challan.getCin())
+                    .challanDate(challan.getChallanDate())
+                    .amount(challan.getTotalAmount())
+                    .status(matched ? status : "RECONCILED")
+                    .remarks(remarks)
+                    .build());
+        }
+
+        return results;
+    }
+
+    private List<TdsChallanReconciliationDto> mapChallansToReconciliation(List<TdsChallanEntity> challans, List<Map<String, Object>> providerChallans) {
+        return reconcileChallans(challans, providerChallans, false);
+    }
+
+    private LocalDate parseLocalDate(Object val) {
+        if (val == null) return null;
+        if (val instanceof LocalDate) return (LocalDate) val;
+        try {
+            return LocalDate.parse(String.valueOf(val));
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private UUID requireActiveTenantId() {

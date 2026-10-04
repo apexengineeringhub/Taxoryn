@@ -43,6 +43,8 @@ public interface TdsReturnRepository extends JpaRepository<TdsReturnEntity, UUID
 
     long countByOrganizationIdAndFilingStatusNotIn(UUID organizationId, java.util.Collection<TdsFilingStatus> excludedStatuses);
 
+    List<TdsReturnEntity> findAllByFilingStatusIn(java.util.Collection<TdsFilingStatus> filingStatuses);
+
     List<TdsReturnEntity> findAllByOrganizationIdAndClientIdIn(UUID organizationId, java.util.Collection<UUID> clientIds);
 
     List<TdsReturnEntity> findAllByOrganizationIdAndDueDateBetweenAndFilingStatusNotIn(

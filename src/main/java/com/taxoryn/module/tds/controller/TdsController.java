@@ -419,4 +419,30 @@ public class TdsController {
         TdsReturnSubmissionResultDto result = tdsGovIntegrationService.submitReturn(request);
         return ResponseEntity.ok(ApiResponse.success("TDS return submitted successfully", result));
     }
+
+    // =========================================================================
+    // 11. TDS Return Filing Status Polling, Verification & Challan Reconciliation
+    // =========================================================================
+
+    @PostMapping("/returns/{returnId}/status-check")
+    @PreAuthorize("hasAuthority('TDS_UPDATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Check TDS return filing status & reconcile challans", description = "Authoritatively polls TRACES / Income Tax Gateway for real-time TDS return status and reconciles deposit challans.")
+    public ResponseEntity<ApiResponse<TdsReturnStatusDto>> checkReturnStatus(
+            @PathVariable UUID returnId,
+            @RequestBody(required = false) java.util.Map<String, Object> options) {
+        TdsReturnStatusDto statusDto = tdsGovIntegrationService.checkReturnStatus(
+                returnId,
+                null,
+                options != null ? options : java.util.Collections.emptyMap()
+        );
+        return ResponseEntity.ok(ApiResponse.success("TDS filing status retrieved from gateway", statusDto));
+    }
+
+    @GetMapping("/returns/{returnId}/status")
+    @PreAuthorize("hasAuthority('TDS_VIEW') or hasAuthority('TDS_READ') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get stored TDS return filing status", description = "Returns persisted status, acknowledgment metadata, and challan reconciliation without making an external gateway call.")
+    public ResponseEntity<ApiResponse<TdsReturnStatusDto>> getReturnStatus(@PathVariable UUID returnId) {
+        TdsReturnStatusDto statusDto = tdsGovIntegrationService.getReturnStatus(returnId);
+        return ResponseEntity.ok(ApiResponse.success("TDS return status retrieved successfully", statusDto));
+    }
 }

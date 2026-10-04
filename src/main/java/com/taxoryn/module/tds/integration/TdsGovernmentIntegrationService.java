@@ -28,4 +28,10 @@ public interface TdsGovernmentIntegrationService {
     com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto submitReturn(UUID returnId, Map<String, Object> options);
 
     com.taxoryn.module.tds.dto.TdsReturnSubmissionResultDto submitReturn(com.taxoryn.module.tds.dto.TdsSubmitReturnRequest request);
+
+    com.taxoryn.module.tds.dto.TdsReturnStatusDto getReturnStatus(UUID returnId);
+
+    com.taxoryn.module.tds.dto.TdsReturnStatusDto checkReturnStatus(UUID returnId);
+
+    com.taxoryn.module.tds.dto.TdsReturnStatusDto checkReturnStatus(UUID returnId, UUID connectionId, Map<String, Object> options);
 }
