@@ -1160,6 +1160,7 @@ public class TaskServiceImpl implements TaskService {
         dto.setEstimatedMinutes(entity.getEstimatedMinutes());
         dto.setActualMinutes(entity.getActualMinutes());
         dto.setCompletedBy(entity.getCompletedBy());
+        dto.setCompletedAt(entity.getCompletedAt());
 
         if (entity.getEngagementId() != null) {
             engagementRepository.findByIdAndOrganizationId(entity.getEngagementId(), entity.getOrganizationId())

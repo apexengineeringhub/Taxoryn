@@ -31,5 +31,7 @@ public class WorkInstanceTaskDto {
     private UUID assignedUserId;
     private String assignedUserName;
     private Instant completedAt;
+    private UUID completedBy;
+    private String completedByName;
     private String notes;
 }

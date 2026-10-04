@@ -634,12 +634,23 @@ public class ComplianceServiceImpl implements ComplianceService {
         }
 
         // Synchronize linked task if present
-        if (obligation.getTaskId() != null && targetStatus == ComplianceObligationStatus.COMPLETED) {
-            taskRepository.findByIdAndOrganizationId(obligation.getTaskId(), organizationId)
-                    .ifPresent(task -> {
-                        task.setStatus(TaskStatus.COMPLETED);
-                        taskRepository.save(task);
-                    });
+        if (obligation.getTaskId() != null) {
+            if (targetStatus == ComplianceObligationStatus.COMPLETED) {
+                taskRepository.findByIdAndOrganizationId(obligation.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setStatus(TaskStatus.COMPLETED);
+                            task.setCompletedAt(java.time.Instant.now());
+                            task.setCompletedBy(userId);
+                            taskRepository.save(task);
+                        });
+            } else if (currentStatus == ComplianceObligationStatus.COMPLETED) {
+                taskRepository.findByIdAndOrganizationId(obligation.getTaskId(), organizationId)
+                        .ifPresent(task -> {
+                            task.setCompletedAt(null);
+                            task.setCompletedBy(null);
+                            taskRepository.save(task);
+                        });
+            }
         }
 
         obligation.syncLegacyFields();

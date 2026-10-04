@@ -573,6 +573,9 @@ public class EngagementWorkServiceImpl implements EngagementWorkService {
             String taskAssignedName = t.getAssignedUserId() != null
                     ? userRepository.findById(t.getAssignedUserId()).map(UserEntity::getFullName).orElse(null)
                     : null;
+            String taskCompletedByName = t.getCompletedBy() != null
+                    ? userRepository.findById(t.getCompletedBy()).map(UserEntity::getFullName).orElse(null)
+                    : null;
 
             return WorkInstanceTaskDto.builder()
                     .id(t.getId())
@@ -588,6 +591,8 @@ public class EngagementWorkServiceImpl implements EngagementWorkService {
                     .assignedUserId(t.getAssignedUserId())
                     .assignedUserName(taskAssignedName)
                     .completedAt(t.getCompletedAt())
+                    .completedBy(t.getCompletedBy())
+                    .completedByName(taskCompletedByName)
                     .notes(t.getNotes())
                     .build();
         }).collect(Collectors.toList());

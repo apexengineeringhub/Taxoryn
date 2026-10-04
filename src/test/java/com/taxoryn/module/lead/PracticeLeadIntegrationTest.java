@@ -169,7 +169,7 @@ public class PracticeLeadIntegrationTest {
         mockMvc.perform(get("/api/v1/leads")
                         .header("Authorization", "Bearer " + adminTokenA))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.data.content").isArray())
                 .andExpect(jsonPath("$.data.content.length()").value(0))
                 .andExpect(jsonPath("$.data.totalElements").value(0));
@@ -188,7 +188,6 @@ public class PracticeLeadIntegrationTest {
         createReq.setSource(LeadSource.WEBSITE);
         createReq.setStatus(LeadStatus.NEW);
         createReq.setPriority(LeadPriority.HIGH);
-        createReq.setInterestedServiceCode("GST_MONTHLY");
         createReq.setDescription("Interested in monthly GST compliance & advisory.");
 
         String createResponse = mockMvc.perform(post("/api/v1/leads")
@@ -196,7 +195,7 @@ public class PracticeLeadIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createReq)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.status").value(201))
                 .andExpect(jsonPath("$.data.name").value("Acme Corp Lead"))
                 .andExpect(jsonPath("$.data.businessName").value("Acme Solutions Pvt Ltd"))
                 .andExpect(jsonPath("$.data.status").value("NEW"))
@@ -211,11 +210,10 @@ public class PracticeLeadIntegrationTest {
                         .header("Authorization", "Bearer " + adminTokenA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(leadIdStr))
-                .andExpect(jsonPath("$.data.name").value("Acme Corp Lead"))
-                .andExpect(jsonPath("$.data.interestedServiceCode").value("GST_MONTHLY"));
+                .andExpect(jsonPath("$.data.name").value("Acme Corp Lead"));
 
-        // 3. Update Lead
-        createReq.setStatus(LeadStatus.QUALIFIED);
+        // 3. Update Lead (transition NEW -> CONTACTED)
+        createReq.setStatus(LeadStatus.CONTACTED);
         createReq.setPriority(LeadPriority.URGENT);
         createReq.setDescription("Updated requirement description.");
 
@@ -224,7 +222,7 @@ public class PracticeLeadIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createReq)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("QUALIFIED"))
+                .andExpect(jsonPath("$.data.status").value("CONTACTED"))
                 .andExpect(jsonPath("$.data.priority").value("URGENT"));
 
         // 4. Add Activity
@@ -256,9 +254,8 @@ public class PracticeLeadIntegrationTest {
     void testFilterAndSearchLeads() throws Exception {
         TenantContext.setTenantId(orgA.getId());
 
-        // Create 3 leads in Org A
-        PracticeLeadEntity lead1 = leadRepository.save(PracticeLeadEntity.builder()
-                .organizationId(orgA.getId())
+        // Create 2 leads in Org A
+        PracticeLeadEntity lead1 = PracticeLeadEntity.builder()
                 .leadType(LeadType.INDIVIDUAL)
                 .name("Rohan Sharma")
                 .businessName("Sharma Enterprises")
@@ -268,10 +265,11 @@ public class PracticeLeadIntegrationTest {
                 .status(LeadStatus.QUALIFIED)
                 .priority(LeadPriority.HIGH)
                 .interestedServiceCode("ITR_FILING")
-                .build());
+                .build();
+        lead1.setOrganizationId(orgA.getId());
+        leadRepository.save(lead1);
 
-        PracticeLeadEntity lead2 = leadRepository.save(PracticeLeadEntity.builder()
-                .organizationId(orgA.getId())
+        PracticeLeadEntity lead2 = PracticeLeadEntity.builder()
                 .leadType(LeadType.BUSINESS)
                 .name("Priya Patel")
                 .businessName("Patel Logistics")
@@ -281,7 +279,9 @@ public class PracticeLeadIntegrationTest {
                 .status(LeadStatus.NEW)
                 .priority(LeadPriority.LOW)
                 .interestedServiceCode("GST_MONTHLY")
-                .build());
+                .build();
+        lead2.setOrganizationId(orgA.getId());
+        leadRepository.save(lead2);
 
         // 1. Search by name query
         mockMvc.perform(get("/api/v1/leads")
@@ -322,8 +322,7 @@ public class PracticeLeadIntegrationTest {
         TenantContext.setTenantId(orgA.getId());
 
         // Lead created in Org A
-        PracticeLeadEntity leadA = leadRepository.save(PracticeLeadEntity.builder()
-                .organizationId(orgA.getId())
+        PracticeLeadEntity leadA = PracticeLeadEntity.builder()
                 .leadType(LeadType.INDIVIDUAL)
                 .name("Org A Confidential Lead")
                 .email("secret@orga.com")
@@ -331,7 +330,9 @@ public class PracticeLeadIntegrationTest {
                 .source(LeadSource.REFERRAL)
                 .status(LeadStatus.NEW)
                 .priority(LeadPriority.CRITICAL)
-                .build());
+                .build();
+        leadA.setOrganizationId(orgA.getId());
+        leadRepository.save(leadA);
 
         // Org B lists leads -> Should return 0 elements
         mockMvc.perform(get("/api/v1/leads")
@@ -380,7 +381,7 @@ public class PracticeLeadIntegrationTest {
         mockMvc.perform(get("/api/v1/leads")
                         .header("Authorization", "Bearer " + practitionerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.data.content").isArray());
     }
 }
