@@ -18,5 +18,10 @@ public enum GovProviderType {
     /**
      * TDS Reconciliation Analysis and Correction Enabling System / TRACES.
      */
-    TRACES
+    TRACES,
+
+    /**
+     * Tax Deducted at Source (TDS/TCS) Government Gateway.
+     */
+    TDS
 }

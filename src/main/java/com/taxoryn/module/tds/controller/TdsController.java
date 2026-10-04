@@ -28,6 +28,7 @@ import java.util.UUID;
 public class TdsController {
 
     private final TdsService tdsService;
+    private final com.taxoryn.module.tds.integration.TdsGovernmentIntegrationService tdsGovIntegrationService;
 
     // =========================================================================
     // 1. TDS Profiles (TAN Master)
@@ -346,5 +347,20 @@ public class TdsController {
     public ResponseEntity<ApiResponse<List<TdsSectionRateDto>>> getSectionRates() {
         List<TdsSectionRateDto> rates = tdsService.getSectionRates();
         return ResponseEntity.ok(ApiResponse.success("TDS section rates retrieved successfully", rates));
+    }
+
+    // =========================================================================
+    // 7. Government Integration Handshake & Health
+    // =========================================================================
+
+    @PostMapping("/connections/{connectionId}/handshake")
+    @PreAuthorize("hasAuthority('TDS_VIEW') or hasAuthority('TDS_READ') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "TDS Government Connection Handshake", description = "Validates active connectivity and credentials for TDS TRACES portal gateway.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.tds.integration.dto.TdsHandshakeResponseDto>> checkConnectionHealth(
+            @PathVariable UUID connectionId,
+            @RequestBody(required = false) java.util.Map<String, Object> directives) {
+        com.taxoryn.module.tds.integration.dto.TdsHandshakeResponseDto response = tdsGovIntegrationService.checkTdsConnectionHealth(
+                connectionId, directives != null ? directives : java.util.Collections.emptyMap());
+        return ResponseEntity.ok(ApiResponse.success("TDS connection health verified", response));
     }
 }
