@@ -55,6 +55,29 @@ public class GovConnectionEntity extends TenantAuditableEntity {
     @Column(name = "metadata", columnDefinition = "TEXT")
     private String metadata;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "health_status", nullable = false, length = 50)
+    @Builder.Default
+    private com.taxoryn.module.gov.model.GovConnectionHealthStatus healthStatus = com.taxoryn.module.gov.model.GovConnectionHealthStatus.UNKNOWN;
+
+    @Column(name = "last_health_check_at")
+    private java.time.Instant lastHealthCheckAt;
+
+    @Column(name = "health_message", length = 1000)
+    private String healthMessage;
+
+    @Column(name = "health_latency_ms")
+    private Long healthLatencyMs;
+
+    public void updateHealth(com.taxoryn.module.gov.dto.GovHandshakeResult result) {
+        if (result != null) {
+            this.healthStatus = result.getHealthStatus();
+            this.lastHealthCheckAt = result.getTimestamp() != null ? result.getTimestamp() : java.time.Instant.now();
+            this.healthMessage = result.getMessage();
+            this.healthLatencyMs = result.getLatencyMs();
+        }
+    }
+
     /**
      * Validates and executes state transitions for the government connection lifecycle.
      */

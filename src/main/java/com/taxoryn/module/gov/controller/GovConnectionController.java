@@ -36,6 +36,23 @@ import java.util.UUID;
 public class GovConnectionController {
 
     private final GovernmentConnectionService connectionService;
+    private final com.taxoryn.module.gov.service.GovernmentHealthService healthService;
+
+    @PostMapping("/{id}/health-check")
+    @PreAuthorize("hasAuthority('GOV_INTEGRATION_VIEW') or hasAuthority('GOV_INTEGRATION_MANAGE') or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Check connection health", description = "Executes a provider-neutral gateway handshake to determine connection health.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.gov.dto.GovConnectionHealthDto>> checkConnectionHealth(@PathVariable UUID id) {
+        com.taxoryn.module.gov.dto.GovConnectionHealthDto health = healthService.checkConnectionHealth(id);
+        return ResponseEntity.ok(ApiResponse.success("Government connection health check completed", health));
+    }
+
+    @PostMapping("/health-check/all")
+    @PreAuthorize("hasAuthority('GOV_INTEGRATION_VIEW') or hasAuthority('GOV_INTEGRATION_MANAGE') or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Poll active connection health", description = "Polls and checks health across all active government connections for the tenant.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.gov.dto.GovConnectionHealthDto>>> checkAllActiveConnections() {
+        List<com.taxoryn.module.gov.dto.GovConnectionHealthDto> results = healthService.checkAllActiveConnections();
+        return ResponseEntity.ok(ApiResponse.success("Active connections health poll completed", results));
+    }
 
     @PostMapping
     @PreAuthorize("hasAuthority('GOV_INTEGRATION_MANAGE') or hasRole('ORG_ADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('SUPER_ADMIN')")

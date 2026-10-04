@@ -28,6 +28,10 @@ public class GovConnectionDto {
     private GovConnectionStatus status;
     private UUID credentialReferenceId;
     private String metadata;
+    private com.taxoryn.module.gov.model.GovConnectionHealthStatus healthStatus;
+    private Instant lastHealthCheckAt;
+    private String healthMessage;
+    private Long healthLatencyMs;
     private Instant createdAt;
     private Instant updatedAt;
     private String createdBy;

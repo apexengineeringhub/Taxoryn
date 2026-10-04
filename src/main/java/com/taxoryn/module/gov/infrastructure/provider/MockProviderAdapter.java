@@ -141,6 +141,27 @@ public class MockProviderAdapter implements GovernmentProviderAdapter {
         return GovProviderHealth.up(GovProviderType.GST, ADAPTER_CODE, "Mock provider adapter is fully operational");
     }
 
+    @Override
+    public com.taxoryn.module.gov.dto.GovHandshakeResult handshake(com.taxoryn.module.gov.dto.GovHandshakeRequest request) {
+        String directive = "SUCCESS";
+        if (request != null && request.getMetadata() != null && request.getMetadata().containsKey("mockOutcome")) {
+            directive = String.valueOf(request.getMetadata().get("mockOutcome"));
+        }
+
+        GovProviderType pType = request != null && request.getProviderType() != null ? request.getProviderType() : GovProviderType.GST;
+
+        return switch (directive.toUpperCase()) {
+            case "AUTH_REQUIRED" -> com.taxoryn.module.gov.dto.GovHandshakeResult.authRequired(
+                    pType, ADAPTER_CODE, "Mock Handshake: Session expired or OTP re-authentication required");
+            case "PROVIDER_UNAVAILABLE" -> com.taxoryn.module.gov.dto.GovHandshakeResult.unavailable(
+                    pType, ADAPTER_CODE, "Mock Handshake: Provider gateway is currently unavailable");
+            case "TIMEOUT", "ERROR" -> com.taxoryn.module.gov.dto.GovHandshakeResult.error(
+                    pType, ADAPTER_CODE, GovErrorCode.TIMEOUT, "Mock Handshake: Handshake timed out after 30000ms");
+            default -> com.taxoryn.module.gov.dto.GovHandshakeResult.healthy(
+                    pType, ADAPTER_CODE, 15L, "Mock gateway handshake successful and operational");
+        };
+    }
+
     private String resolveDirective(GovIntegrationRequest request) {
         if (request.getRequestData() != null && request.getRequestData().containsKey("mockOutcome")) {
             return String.valueOf(request.getRequestData().get("mockOutcome"));

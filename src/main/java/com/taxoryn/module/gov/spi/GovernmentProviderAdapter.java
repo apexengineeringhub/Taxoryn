@@ -1,5 +1,7 @@
 package com.taxoryn.module.gov.spi;
 
+import com.taxoryn.module.gov.dto.GovHandshakeRequest;
+import com.taxoryn.module.gov.dto.GovHandshakeResult;
 import com.taxoryn.module.gov.dto.GovIntegrationRequest;
 import com.taxoryn.module.gov.dto.GovIntegrationResult;
 import com.taxoryn.module.gov.model.GovProviderHealth;
@@ -30,4 +32,16 @@ public interface GovernmentProviderAdapter {
      * Performs a liveness/readiness health check against the provider gateway.
      */
     GovProviderHealth checkHealth();
+
+    /**
+     * Performs a provider-neutral handshake or connection-level health probe.
+     */
+    default GovHandshakeResult handshake(GovHandshakeRequest request) {
+        GovProviderHealth health = checkHealth();
+        if (health != null && health.getStatus() == GovProviderHealth.Status.UP) {
+            return GovHandshakeResult.healthy(getProviderType(), getAdapterCode(), health.getLatencyMs(), health.getMessage());
+        }
+        return GovHandshakeResult.unavailable(getProviderType(), getAdapterCode(),
+                health != null ? health.getMessage() : "Provider gateway is unreachable");
+    }
 }
