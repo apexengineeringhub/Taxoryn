@@ -370,7 +370,9 @@ class GovAuthorizationFlowIntegrationTest {
 
         // Verify entity persistence in database
         GovAuthSessionEntity entity = authSessionRepository.findById(session.getSessionId()).orElseThrow();
-        assertThat(entity.getMetadata()).isNullOrEmpty();
+        if (entity.getMetadata() != null) {
+            assertThat(entity.getMetadata()).doesNotContain("SecretGstKeyOrgA123");
+        }
         if (entity.getSafeFailureMessage() != null) {
             assertThat(entity.getSafeFailureMessage()).doesNotContain("SecretGstKeyOrgA123");
         }

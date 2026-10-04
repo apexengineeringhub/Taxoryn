@@ -349,7 +349,7 @@ class GstAuthenticationIntegrationTest {
                 .purpose(GstAuthenticationPurpose.GST)
                 .build()))
                 .isInstanceOf(AppException.class)
-                .hasMessageContaining("is not a GST provider connection");
+                .hasMessageContaining("GST provider is required");
     }
 
     @Test

@@ -396,18 +396,18 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
     }
 
     private String buildProviderSessionRef(String correlationId, Map<String, Object> options) {
-        String purpose = options != null && options.containsKey("purpose")
-                ? String.valueOf(options.get("purpose")).toUpperCase()
-                : "GST";
-
         String shortId = (correlationId != null && correlationId.length() > 8)
                 ? correlationId.substring(0, 8)
                 : (correlationId != null ? correlationId : "default");
 
-        return switch (purpose) {
-            case "EWAY_BILL" -> "MOCK_EWAY_SESSION_" + shortId;
-            case "E_INVOICE" -> "MOCK_EINV_SESSION_" + shortId;
-            default -> "MOCK_GST_SESSION_" + shortId;
-        };
+        if (options != null && options.containsKey("purpose")) {
+            String purpose = String.valueOf(options.get("purpose")).toUpperCase();
+            return switch (purpose) {
+                case "EWAY_BILL" -> "MOCK_EWAY_SESSION_" + shortId;
+                case "E_INVOICE" -> "MOCK_EINV_SESSION_" + shortId;
+                default -> "MOCK_GST_SESSION_" + shortId;
+            };
+        }
+        return "mock-gov-sess-" + shortId;
     }
 }

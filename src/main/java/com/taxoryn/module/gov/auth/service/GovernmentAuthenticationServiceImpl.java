@@ -104,6 +104,7 @@ public class GovernmentAuthenticationServiceImpl implements GovernmentAuthentica
                 .expiresAt(providerResult.getExpiresAt())
                 .authenticatedAt(providerResult.getAuthenticatedAt())
                 .lastActivityAt(Instant.now())
+                .metadata(providerResult.getProviderSessionReference())
                 .failureCode(providerResult.getFailureCode())
                 .safeFailureMessage(providerResult.getSafeFailureMessage())
                 .correlationId(correlationId)
@@ -354,6 +355,10 @@ public class GovernmentAuthenticationServiceImpl implements GovernmentAuthentica
             session.setActionPrompt(providerResult.getActionPrompt());
         }
 
+        if (providerResult.getProviderSessionReference() != null) {
+            session.setMetadata(providerResult.getProviderSessionReference());
+        }
+
         GovAuthSessionEntity saved = authSessionRepository.save(session);
         return mapToDto(saved);
     }
@@ -446,7 +451,7 @@ public class GovernmentAuthenticationServiceImpl implements GovernmentAuthentica
 
     private GovAuthSessionDto mapToDto(GovAuthSessionEntity entity) {
         String safeRef = null;
-        String providerRef = null;
+        String providerRef = entity.getMetadata();
         if (entity.getCorrelationId() != null) {
             String corr = entity.getCorrelationId();
             safeRef = switch (entity.getAuthMethod()) {
@@ -455,8 +460,10 @@ public class GovernmentAuthenticationServiceImpl implements GovernmentAuthentica
                 case EVC -> "mock-evc-challenge-" + corr;
                 case DSC -> "mock-dsc-challenge-" + corr;
             };
-            String shortId = corr.length() > 8 ? corr.substring(0, 8) : corr;
-            providerRef = "mock-gov-sess-" + shortId;
+            if (!StringUtils.hasText(providerRef)) {
+                String shortId = corr.length() > 8 ? corr.substring(0, 8) : corr;
+                providerRef = "mock-gov-sess-" + shortId;
+            }
         }
 
         return GovAuthSessionDto.builder()
