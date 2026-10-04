@@ -56,7 +56,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
         String directive = resolveDirective(options);
         Instant now = Instant.now();
         String safeRef = buildSafeAuthReference(method, correlationId);
-        String providerRef = buildProviderSessionRef(correlationId);
+        String providerRef = buildProviderSessionRef(correlationId, options);
 
         return switch (directive.toUpperCase()) {
             case "PENDING", "AUTHENTICATION_PENDING", "OTP_SENT", "REQUIRES_ACTION", "AUTHORIZATION_REQUIRED" -> GovAuthSessionDto.builder()
@@ -151,7 +151,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
         String directive = resolveDirective(options);
         Instant now = Instant.now();
         String safeRef = buildSafeAuthReference(session.getAuthMethod(), session.getCorrelationId());
-        String providerRef = buildProviderSessionRef(session.getCorrelationId());
+        String providerRef = buildProviderSessionRef(session.getCorrelationId(), options);
 
         if ("EXPIRED".equalsIgnoreCase(directive) || session.isExpired()) {
             return GovAuthSessionDto.builder()
@@ -239,7 +239,7 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
         }
 
         Instant now = Instant.now();
-        String providerRef = buildProviderSessionRef(session.getCorrelationId());
+        String providerRef = buildProviderSessionRef(session.getCorrelationId(), options);
 
         return switch (directive.toUpperCase()) {
             case "FAILED", "INVALID_CREDENTIALS", "REJECTED" -> GovAuthSessionDto.builder()
@@ -311,6 +311,21 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
                     .correlationId(session.getCorrelationId())
                     .build();
 
+            case "REFRESH_SUCCESS" -> GovAuthSessionDto.builder()
+                    .sessionId(session.getId())
+                    .connectionId(connection.getId())
+                    .providerType(session.getProviderType())
+                    .authMethod(session.getAuthMethod())
+                    .status(GovAuthStatus.AUTHENTICATED)
+                    .authorizationState(GovAuthorizationState.AUTHORIZATION_COMPLETED)
+                    .requiresUserAction(false)
+                    .providerSessionReference(providerRef + "_ROTATED")
+                    .authenticatedAt(now)
+                    .expiresAt(now.plus(Duration.ofHours(8)))
+                    .lastActivityAt(now)
+                    .correlationId(session.getCorrelationId())
+                    .build();
+
             default -> GovAuthSessionDto.builder()
                     .sessionId(session.getId())
                     .connectionId(connection.getId())
@@ -377,10 +392,22 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
     }
 
     private String buildProviderSessionRef(String correlationId) {
-        if (correlationId == null) {
-            return "mock-gov-sess-default";
-        }
-        String shortId = correlationId.length() > 8 ? correlationId.substring(0, 8) : correlationId;
-        return "mock-gov-sess-" + shortId;
+        return buildProviderSessionRef(correlationId, Collections.emptyMap());
+    }
+
+    private String buildProviderSessionRef(String correlationId, Map<String, Object> options) {
+        String purpose = options != null && options.containsKey("purpose")
+                ? String.valueOf(options.get("purpose")).toUpperCase()
+                : "GST";
+
+        String shortId = (correlationId != null && correlationId.length() > 8)
+                ? correlationId.substring(0, 8)
+                : (correlationId != null ? correlationId : "default");
+
+        return switch (purpose) {
+            case "EWAY_BILL" -> "MOCK_EWAY_SESSION_" + shortId;
+            case "E_INVOICE" -> "MOCK_EINV_SESSION_" + shortId;
+            default -> "MOCK_GST_SESSION_" + shortId;
+        };
     }
 }
