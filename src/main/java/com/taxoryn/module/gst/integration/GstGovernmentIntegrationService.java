@@ -27,5 +27,11 @@ public interface GstGovernmentIntegrationService {
 
     com.taxoryn.module.gst.dto.GstPreparedReturnDto prepareReturn(com.taxoryn.module.gst.dto.GstPrepareReturnRequest request);
 
+    com.taxoryn.module.gst.dto.GstReturnSubmissionResultDto submitReturn(com.taxoryn.module.gst.dto.GstSubmitReturnRequest request);
+
+    com.taxoryn.module.gst.dto.GstReturnStatusDto checkReturnStatus(UUID filingId);
+
+    com.taxoryn.module.gst.dto.GstReturnStatusDto checkReturnStatus(UUID filingId, UUID connectionId, Map<String, Object> options);
+
     GstIntegrationResultDto executeGstOperation(UUID connectionId, String operationType, Map<String, Object> payload);
 }

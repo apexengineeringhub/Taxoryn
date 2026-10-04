@@ -40,6 +40,11 @@ public enum GovErrorCode {
     TIMEOUT(true),
 
     /**
+     * Duplicate submission detected by provider (e.g. return already filed for tax period).
+     */
+    DUPLICATE_SUBMISSION(false),
+
+    /**
      * Unclassified or unexpected provider exception.
      */
     UNKNOWN(false);

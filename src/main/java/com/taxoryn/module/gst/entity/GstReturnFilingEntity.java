@@ -104,8 +104,15 @@ public class GstReturnFilingEntity extends TenantAuditableEntity {
     public enum GstFilingStatus {
         PENDING,
         PREPARED,
-        UNDER_REVIEW,
+        READY_FOR_SUBMISSION,
+        SUBMISSION_IN_PROGRESS,
+        SUBMITTED,
+        PROCESSING,
         FILED,
+        REJECTED,
+        FAILED,
+        SUBMISSION_FAILED,
+        UNDER_REVIEW,
         OVERDUE,
         CANCELLED
     }

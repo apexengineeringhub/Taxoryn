@@ -177,10 +177,160 @@ public class GstProviderAdapter implements GovernmentProviderAdapter {
             );
         }
 
+        if ("DUPLICATE_SUBMISSION".equalsIgnoreCase(directive)) {
+            String duplicateAck = "MOCK-GST-ACK-DUP-" + (request.getCorrelationId() != null
+                    ? request.getCorrelationId().substring(0, Math.min(8, request.getCorrelationId().length())).toUpperCase()
+                    : "00000000");
+            responseData.put("existingAckNumber", duplicateAck);
+            responseData.put("status", "DUPLICATE");
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.GST,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.DUPLICATE_SUBMISSION,
+                    "GST return already submitted for this GSTIN and return period",
+                    false,
+                    responseData
+            );
+        }
+
         // Default: Mock Successful Response
         String gstin = request.getRequestData() != null && request.getRequestData().containsKey("gstin")
                 ? String.valueOf(request.getRequestData().get("gstin"))
                 : "27AAAAA0000A1Z5";
+
+        if ("GST_RETURN_SUBMISSION".equalsIgnoreCase(request.getOperationType())
+                || "SUBMIT_GST_RETURN".equalsIgnoreCase(request.getOperationType())) {
+            String returnType = request.getRequestData() != null && request.getRequestData().containsKey("returnType")
+                    ? String.valueOf(request.getRequestData().get("returnType")) : "GSTR1";
+            String returnPeriod = request.getRequestData() != null && request.getRequestData().containsKey("returnPeriod")
+                    ? String.valueOf(request.getRequestData().get("returnPeriod")) : "042026";
+            String fingerprint = request.getRequestData() != null && request.getRequestData().containsKey("payloadFingerprint")
+                    ? String.valueOf(request.getRequestData().get("payloadFingerprint")) : null;
+
+            String ackSeed = fingerprint != null && fingerprint.length() >= 8
+                    ? fingerprint.substring(0, 8).toUpperCase()
+                    : (request.getCorrelationId() != null
+                    ? request.getCorrelationId().substring(0, Math.min(8, request.getCorrelationId().length())).toUpperCase()
+                    : UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            String simulatedAck = "MOCK-GST-ACK-" + ackSeed;
+            String providerRef = "REF-GST-SUB-" + ackSeed;
+
+            responseData.put("gstin", gstin);
+            responseData.put("returnType", returnType);
+            responseData.put("returnPeriod", returnPeriod);
+            responseData.put("ackNumber", simulatedAck);
+            responseData.put("providerReference", providerRef);
+            responseData.put("status", "SUBMITTED");
+            responseData.put("submissionTimestamp", System.currentTimeMillis());
+            responseData.put("payloadFingerprint", fingerprint);
+
+            return GovIntegrationResult.success(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.GST,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    simulatedAck,
+                    responseData
+            );
+        }
+
+        if ("GST_RETURN_STATUS".equalsIgnoreCase(request.getOperationType())
+                || "CHECK_GST_RETURN_STATUS".equalsIgnoreCase(request.getOperationType())
+                || "GET_GST_RETURN_STATUS".equalsIgnoreCase(request.getOperationType())) {
+            String returnType = request.getRequestData() != null && request.getRequestData().containsKey("returnType")
+                    ? String.valueOf(request.getRequestData().get("returnType")) : "GSTR1";
+            String returnPeriod = request.getRequestData() != null && request.getRequestData().containsKey("returnPeriod")
+                    ? String.valueOf(request.getRequestData().get("returnPeriod")) : "042026";
+            String ackNumber = request.getRequestData() != null && request.getRequestData().containsKey("ackNumber")
+                    ? String.valueOf(request.getRequestData().get("ackNumber")) : null;
+
+            String statusDirective = "FILED";
+            if (request.getRequestData() != null && request.getRequestData().containsKey("mockStatus")) {
+                statusDirective = String.valueOf(request.getRequestData().get("mockStatus"));
+            } else if (request.getMetadata() != null && request.getMetadata().containsKey("mockStatus")) {
+                statusDirective = request.getMetadata().get("mockStatus");
+            }
+
+            String ackSeed = ackNumber != null ? ackNumber.replace("MOCK-GST-ACK-", "")
+                    : (request.getCorrelationId() != null
+                    ? request.getCorrelationId().substring(0, Math.min(8, request.getCorrelationId().length())).toUpperCase()
+                    : UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            String finalAck = ackNumber != null ? ackNumber : ("MOCK-GST-ACK-" + ackSeed);
+            String providerRef = "REF-GST-STAT-" + ackSeed;
+
+            responseData.put("gstin", gstin);
+            responseData.put("returnType", returnType);
+            responseData.put("returnPeriod", returnPeriod);
+            responseData.put("providerStatus", statusDirective.toUpperCase());
+            responseData.put("providerReference", providerRef);
+            responseData.put("statusCheckedAt", System.currentTimeMillis());
+
+            switch (statusDirective.toUpperCase()) {
+                case "PENDING" -> {
+                    responseData.put("message", "Filing received and queued for processing");
+                    responseData.put("terminal", false);
+                    return GovIntegrationResult.success(
+                            null, request.getOrganizationId(), GovProviderType.GST,
+                            request.getOperationType(), request.getCorrelationId(),
+                            request.getIdempotencyKey(), providerRef, responseData
+                    );
+                }
+                case "PROCESSING" -> {
+                    responseData.put("message", "Filing is actively being processed by GSTN");
+                    responseData.put("terminal", false);
+                    return GovIntegrationResult.success(
+                            null, request.getOrganizationId(), GovProviderType.GST,
+                            request.getOperationType(), request.getCorrelationId(),
+                            request.getIdempotencyKey(), providerRef, responseData
+                    );
+                }
+                case "REJECTED" -> {
+                    responseData.put("message", "Return validation failed: Section 8 summary mismatch");
+                    responseData.put("terminal", true);
+                    return GovIntegrationResult.success(
+                            null, request.getOrganizationId(), GovProviderType.GST,
+                            request.getOperationType(), request.getCorrelationId(),
+                            request.getIdempotencyKey(), providerRef, responseData
+                    );
+                }
+                case "FAILED" -> {
+                    responseData.put("message", "Processing failed on GST portal");
+                    responseData.put("terminal", true);
+                    return GovIntegrationResult.success(
+                            null, request.getOrganizationId(), GovProviderType.GST,
+                            request.getOperationType(), request.getCorrelationId(),
+                            request.getIdempotencyKey(), providerRef, responseData
+                    );
+                }
+                case "UNKNOWN" -> {
+                    responseData.put("message", "Unrecognized status from GST portal");
+                    responseData.put("terminal", false);
+                    return GovIntegrationResult.success(
+                            null, request.getOrganizationId(), GovProviderType.GST,
+                            request.getOperationType(), request.getCorrelationId(),
+                            request.getIdempotencyKey(), providerRef, responseData
+                    );
+                }
+                default -> { // "FILED"
+                    responseData.put("providerStatus", "FILED");
+                    responseData.put("ackNumber", finalAck);
+                    responseData.put("filingDate", java.time.LocalDate.now().toString());
+                    responseData.put("message", "Return successfully filed and confirmed on GST portal");
+                    responseData.put("terminal", true);
+                    return GovIntegrationResult.success(
+                            null, request.getOrganizationId(), GovProviderType.GST,
+                            request.getOperationType(), request.getCorrelationId(),
+                            request.getIdempotencyKey(), finalAck, responseData
+                    );
+                }
+            }
+        }
 
         if ("GST_RETURN_PREPARATION".equalsIgnoreCase(request.getOperationType())
                 || "PREPARE_GST_RETURN".equalsIgnoreCase(request.getOperationType())) {

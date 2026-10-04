@@ -17,6 +17,9 @@ import com.taxoryn.module.gst.dto.UpdateGstProfileRequest;
 import com.taxoryn.module.gst.dto.UpdateGstProfileStatusRequest;
 import com.taxoryn.module.gst.dto.GstPrepareReturnRequest;
 import com.taxoryn.module.gst.dto.GstPreparedReturnDto;
+import com.taxoryn.module.gst.dto.GstReturnStatusDto;
+import com.taxoryn.module.gst.dto.GstReturnSubmissionResultDto;
+import com.taxoryn.module.gst.dto.GstSubmitReturnRequest;
 import com.taxoryn.module.gst.integration.GstGovernmentIntegrationService;
 import com.taxoryn.module.gst.service.GstService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -192,6 +195,44 @@ public class GstController {
 
         GstPreparedReturnDto prepared = gstGovIntegrationService.prepareReturn(builder.build());
         return ResponseEntity.ok(ApiResponse.success("GST filing prepared successfully", prepared));
+    }
+
+    @PostMapping("/returns/submit")
+    @PreAuthorize("hasAuthority('GST_CREATE') or hasAuthority('GST_UPDATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit prepared GST return payload", description = "Submits a normalized GST return payload to the Government Integration Framework with idempotency and acknowledgement tracking.")
+    public ResponseEntity<ApiResponse<GstReturnSubmissionResultDto>> submitReturn(@Valid @RequestBody GstSubmitReturnRequest request) {
+        GstReturnSubmissionResultDto result = gstGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("GST return submission processed", result));
+    }
+
+    @PostMapping("/filings/{id}/submit")
+    @PreAuthorize("hasAuthority('GST_CREATE') or hasAuthority('GST_UPDATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit scheduled GST return filing", description = "Submits a prepared scheduled GST return filing to the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<GstReturnSubmissionResultDto>> submitFilingReturn(
+            @PathVariable UUID id,
+            @RequestBody(required = false) GstSubmitReturnRequest request) {
+        GstSubmitReturnRequest submitRequest = request != null ? request : new GstSubmitReturnRequest();
+        submitRequest.setFilingId(id);
+        GstReturnSubmissionResultDto result = gstGovIntegrationService.submitReturn(submitRequest);
+        return ResponseEntity.ok(ApiResponse.success("GST return submission processed", result));
+    }
+
+    @PostMapping("/filings/{id}/status-check")
+    @PreAuthorize("hasAuthority('GST_VIEW') or hasAuthority('GST_READ') or hasAuthority('GST_UPDATE') or hasAuthority('GST_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Check GST return status with provider", description = "Explicitly queries the GST provider for updated return status (PENDING, PROCESSING, FILED, REJECTED).")
+    public ResponseEntity<ApiResponse<GstReturnStatusDto>> checkFilingStatus(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID connectionId) {
+        GstReturnStatusDto status = gstGovIntegrationService.checkReturnStatus(id, connectionId, java.util.Collections.emptyMap());
+        return ResponseEntity.ok(ApiResponse.success("GST filing status verified", status));
+    }
+
+    @GetMapping("/filings/{id}/status")
+    @PreAuthorize("hasAuthority('GST_VIEW') or hasAuthority('GST_READ') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get current GST return filing status", description = "Retrieves current filing lifecycle and provider tracking status.")
+    public ResponseEntity<ApiResponse<GstReturnStatusDto>> getFilingStatus(@PathVariable UUID id) {
+        GstReturnStatusDto status = gstGovIntegrationService.checkReturnStatus(id);
+        return ResponseEntity.ok(ApiResponse.success("GST filing status retrieved", status));
     }
 
     @PostMapping("/filings/batch-generate")
