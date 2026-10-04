@@ -251,9 +251,14 @@ class ContentStudioIntegrationTest {
         UUID mediaId = UUID.fromString(objectMapper.readTree(uploadRes).path("data").path("id").asText());
 
         // 2. Stream Public Binary Media
-        mockMvc.perform(get("/api/v1/public/media/{id}", mediaId))
+        org.springframework.test.web.servlet.MvcResult mvcResult = mockMvc.perform(get("/api/v1/public/media/{id}", mediaId))
+                .andExpect(request().asyncStarted())
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", containsString("image/png")))
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
+                .andExpect(status().isOk())
                 .andExpect(content().bytes(dummyPngBytes));
 
         // 3. Update Alt Text
