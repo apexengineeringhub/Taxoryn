@@ -67,9 +67,33 @@ public class ClientContextSummaryDto {
     @Schema(description = "Primary contact phone")
     private String phone;
 
+    @Schema(description = "Business activity description")
+    private String businessActivity;
+
+    @Schema(description = "Industry or sector")
+    private String industry;
+
+    @Schema(description = "Business scale (MICRO, SMALL, MEDIUM, LARGE, INDIVIDUAL)")
+    private String businessScale;
+
+    @Schema(description = "City")
+    private String city;
+
+    @Schema(description = "State")
+    private String state;
+
+    @Schema(description = "2-digit GST state code")
+    private String stateCode;
+
+    @Schema(description = "PIN Code")
+    private String pincode;
+
     @Schema(description = "Primary practice location ID")
     private UUID locationId;
 
     @Schema(description = "Assigned primary practitioner / employee ID")
     private UUID assignedEmployeeId;
+
+    @Schema(description = "Client profile completeness assessment")
+    private ClientProfileCompletenessDto completeness;
 }

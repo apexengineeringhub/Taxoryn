@@ -51,4 +51,10 @@ public class Client360Dto {
 
     @Schema(description = "Client lifecycle status")
     private ClientStatus status;
+
+    @Schema(description = "Comprehensive Client Business Profile")
+    private ClientProfileDto profile;
+
+    @Schema(description = "Client profile completeness assessment")
+    private ClientProfileCompletenessDto completeness;
 }

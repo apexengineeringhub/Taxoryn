@@ -25,6 +25,7 @@ import java.util.UUID;
 public class ClientContextServiceImpl implements ClientContextService {
 
     private final ClientRepository clientRepository;
+    private final ClientProfileCompletenessEvaluator completenessEvaluator;
 
     @Override
     public Optional<ClientContextSummaryDto> findClientContext(UUID organizationId, UUID clientId) {
@@ -94,6 +95,14 @@ public class ClientContextServiceImpl implements ClientContextService {
                 .cin(entity.getCin())
                 .email(entity.getEmail())
                 .phone(entity.getPhone())
+                .city(entity.getCity())
+                .state(entity.getState())
+                .stateCode(entity.getStateCode())
+                .pincode(entity.getPincode())
+                .businessActivity(entity.getBusinessActivity())
+                .industry(entity.getIndustry())
+                .businessScale(entity.getBusinessScale())
+                .completeness(completenessEvaluator.evaluate(entity))
                 .locationId(entity.getLocationId())
                 .assignedEmployeeId(entity.getAssignedEmployeeId())
                 .build();

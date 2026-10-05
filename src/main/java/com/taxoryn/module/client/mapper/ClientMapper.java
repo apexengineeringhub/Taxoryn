@@ -16,6 +16,8 @@ public interface ClientMapper {
 
     List<ClientDto> toDtoList(List<ClientEntity> entities);
 
+    com.taxoryn.module.client.dto.ClientProfileDto toProfileDto(ClientEntity entity);
+
     ClientNoteDto toNoteDto(ClientNoteEntity entity);
 
     List<ClientNoteDto> toNoteDtoList(List<ClientNoteEntity> entities);

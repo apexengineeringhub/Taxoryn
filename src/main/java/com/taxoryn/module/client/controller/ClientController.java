@@ -7,10 +7,13 @@ import com.taxoryn.module.client.dto.ClientDto;
 import com.taxoryn.module.client.dto.ClientFilterRequest;
 import com.taxoryn.module.client.dto.ClientNoteDto;
 import com.taxoryn.module.client.dto.ClientOverviewDto;
+import com.taxoryn.module.client.dto.ClientProfileCompletenessDto;
+import com.taxoryn.module.client.dto.ClientProfileDto;
 import com.taxoryn.module.client.dto.CreateClientNoteRequest;
 import com.taxoryn.module.client.dto.CreateClientRequest;
 import com.taxoryn.module.client.dto.ClientCommunicationDto;
 import com.taxoryn.module.client.dto.ClientCommunicationRequest;
+import com.taxoryn.module.client.dto.UpdateClientProfileRequest;
 import com.taxoryn.module.client.entity.ClientNoteEntity.NoteType;
 import com.taxoryn.module.client.service.ClientCommunicationTimelineService;
 import com.taxoryn.module.client.dto.UpdateClientRequest;
@@ -104,6 +107,32 @@ public class ClientController {
     public ResponseEntity<ApiResponse<ClientDto>> updateClient(@PathVariable UUID clientId, @Valid @RequestBody UpdateClientRequest request) {
         ClientDto updated = clientService.updateClient(clientId, request);
         return ResponseEntity.ok(ApiResponse.success("Client updated successfully", updated));
+    }
+
+    @GetMapping("/{clientId}/profile")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get client business profile", description = "Retrieves structured client business profile including entity classification, statutory info, and completeness score.")
+    public ResponseEntity<ApiResponse<ClientProfileDto>> getClientProfile(@PathVariable UUID clientId) {
+        ClientProfileDto profile = clientService.getClientProfile(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client profile retrieved successfully", profile));
+    }
+
+    @PutMapping("/{clientId}/profile")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
+    @Operation(summary = "Update client business profile", description = "Updates structured client business profile details within the authenticated tenant.")
+    public ResponseEntity<ApiResponse<ClientProfileDto>> updateClientProfile(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody UpdateClientProfileRequest request) {
+        ClientProfileDto updated = clientService.updateClientProfile(clientId, request);
+        return ResponseEntity.ok(ApiResponse.success("Client profile updated successfully", updated));
+    }
+
+    @GetMapping("/{clientId}/profile/completeness")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get client profile completeness", description = "Retrieves deterministic profile completeness evaluation across identity, contact, address, statutory, and business dimensions.")
+    public ResponseEntity<ApiResponse<ClientProfileCompletenessDto>> getProfileCompleteness(@PathVariable UUID clientId) {
+        ClientProfileCompletenessDto completeness = clientService.getProfileCompleteness(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client profile completeness evaluated successfully", completeness));
     }
 
     @PatchMapping("/{clientId}/status")
