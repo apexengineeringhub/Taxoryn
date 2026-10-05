@@ -853,6 +853,165 @@ export interface Client360Overview {
   activityTimeline: ClientActivityItem[];
 }
 
+export type ContactRole =
+  | 'PRIMARY'
+  | 'AUTHORIZED_REPRESENTATIVE'
+  | 'BILLING'
+  | 'COMPLIANCE'
+  | 'FINANCE'
+  | 'HR'
+  | 'DIRECTOR'
+  | 'PARTNER'
+  | 'OTHER';
+
+export interface ClientContactDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  firstName: string;
+  lastName?: string;
+  displayName: string;
+  designation?: string;
+  email?: string;
+  phone?: string;
+  altPhone?: string;
+  contactRole: ContactRole;
+  primaryContact: boolean;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClientContactRequest {
+  firstName: string;
+  lastName?: string;
+  displayName?: string;
+  designation?: string;
+  email?: string;
+  phone?: string;
+  altPhone?: string;
+  contactRole?: ContactRole;
+  primaryContact?: boolean;
+  notes?: string;
+}
+
+export interface UpdateClientContactRequest {
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  designation?: string;
+  email?: string;
+  phone?: string;
+  altPhone?: string;
+  contactRole?: ContactRole;
+  primaryContact?: boolean;
+  active?: boolean;
+  notes?: string;
+}
+
+export type ClientBranchType =
+  | 'REGISTERED_OFFICE'
+  | 'PRINCIPAL_PLACE_OF_BUSINESS'
+  | 'BRANCH'
+  | 'WAREHOUSE'
+  | 'FACTORY'
+  | 'OTHER';
+
+export interface ClientBranchDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  branchName: string;
+  branchCode?: string;
+  branchType: ClientBranchType;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  country?: string;
+  pincode?: string;
+  gstin?: string;
+  phone?: string;
+  email?: string;
+  primaryBranch: boolean;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClientBranchRequest {
+  branchName: string;
+  branchCode?: string;
+  branchType?: ClientBranchType;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  country?: string;
+  pincode?: string;
+  gstin?: string;
+  phone?: string;
+  email?: string;
+  primaryBranch?: boolean;
+  notes?: string;
+}
+
+export interface UpdateClientBranchRequest {
+  branchName?: string;
+  branchCode?: string;
+  branchType?: ClientBranchType;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  country?: string;
+  pincode?: string;
+  gstin?: string;
+  phone?: string;
+  email?: string;
+  primaryBranch?: boolean;
+  active?: boolean;
+  notes?: string;
+}
+
+export type ClientRelationshipType =
+  | 'PARENT'
+  | 'SUBSIDIARY'
+  | 'SISTER_COMPANY'
+  | 'GROUP_MEMBER'
+  | 'HOLDING_COMPANY'
+  | 'DIRECTOR_AFFILIATE'
+  | 'RELATED_ENTITY';
+
+export interface ClientRelationshipDto {
+  id: string;
+  organizationId: string;
+  sourceClientId: string;
+  sourceClientDisplayName?: string;
+  targetClientId: string;
+  targetClientDisplayName?: string;
+  targetClientLegalName?: string;
+  targetClientCode?: string;
+  targetClientType?: string;
+  targetClientPan?: string;
+  relationshipType: ClientRelationshipType;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClientRelationshipRequest {
+  targetClientId: string;
+  relationshipType: ClientRelationshipType;
+  notes?: string;
+}
+
 export interface ClientContact {
   id?: string;
   name: string;

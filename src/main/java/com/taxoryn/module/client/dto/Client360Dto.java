@@ -63,4 +63,25 @@ public class Client360Dto {
 
     @Schema(description = "Client profile completeness assessment")
     private ClientProfileCompletenessDto completeness;
+
+    @Schema(description = "Primary client contact person")
+    private ClientContactDto primaryContact;
+
+    @Schema(description = "Total contacts count")
+    private Long contactsCount;
+
+    @Schema(description = "Active contacts count")
+    private Long activeContactsCount;
+
+    @Schema(description = "Primary client branch / registered office")
+    private ClientBranchDto primaryBranch;
+
+    @Schema(description = "Total client branches count")
+    private Long branchesCount;
+
+    @Schema(description = "Active client branches count")
+    private Long activeBranchesCount;
+
+    @Schema(description = "Total related clients / group relationships count")
+    private Long relationshipsCount;
 }

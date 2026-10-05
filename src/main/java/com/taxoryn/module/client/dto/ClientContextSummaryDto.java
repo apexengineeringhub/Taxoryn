@@ -103,6 +103,21 @@ public class ClientContextSummaryDto {
     @Schema(description = "Count of active service engagements")
     private Long activeServicesCount;
 
+    @Schema(description = "Primary contact ID")
+    private UUID primaryContactId;
+
+    @Schema(description = "Primary branch ID")
+    private UUID primaryBranchId;
+
+    @Schema(description = "Total contacts count")
+    private Long contactsCount;
+
+    @Schema(description = "Total branches count")
+    private Long branchesCount;
+
+    @Schema(description = "Total relationships count")
+    private Long relationshipsCount;
+
     @Schema(description = "Client profile completeness assessment")
     private ClientProfileCompletenessDto completeness;
 }

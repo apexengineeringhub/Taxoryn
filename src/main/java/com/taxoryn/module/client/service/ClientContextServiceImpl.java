@@ -28,6 +28,9 @@ public class ClientContextServiceImpl implements ClientContextService {
 
     private final ClientRepository clientRepository;
     private final ClientServiceRepository clientServiceRepository;
+    private final com.taxoryn.module.client.repository.ClientContactRepository clientContactRepository;
+    private final com.taxoryn.module.client.repository.ClientBranchRepository clientBranchRepository;
+    private final com.taxoryn.module.client.repository.ClientRelationshipRepository clientRelationshipRepository;
     private final ClientProfileCompletenessEvaluator completenessEvaluator;
 
     @Override
@@ -83,9 +86,33 @@ public class ClientContextServiceImpl implements ClientContextService {
 
     private ClientContextSummaryDto toSummaryDto(ClientEntity entity) {
         Long activeServicesCount = null;
-        if (clientServiceRepository != null && entity.getOrganizationId() != null && entity.getId() != null) {
-            activeServicesCount = clientServiceRepository.countByOrganizationIdAndClientIdAndStatus(
-                    entity.getOrganizationId(), entity.getId(), ClientServiceStatus.ACTIVE);
+        UUID primaryContactId = null;
+        UUID primaryBranchId = null;
+        Long contactsCount = null;
+        Long branchesCount = null;
+        Long relationshipsCount = null;
+
+        if (entity.getOrganizationId() != null && entity.getId() != null) {
+            if (clientServiceRepository != null) {
+                activeServicesCount = clientServiceRepository.countByOrganizationIdAndClientIdAndStatus(
+                        entity.getOrganizationId(), entity.getId(), ClientServiceStatus.ACTIVE);
+            }
+            if (clientContactRepository != null) {
+                primaryContactId = clientContactRepository.findByOrganizationIdAndClientIdAndPrimaryContactTrue(
+                        entity.getOrganizationId(), entity.getId()).map(c -> c.getId()).orElse(null);
+                contactsCount = clientContactRepository.countByOrganizationIdAndClientId(
+                        entity.getOrganizationId(), entity.getId());
+            }
+            if (clientBranchRepository != null) {
+                primaryBranchId = clientBranchRepository.findByOrganizationIdAndClientIdAndPrimaryBranchTrue(
+                        entity.getOrganizationId(), entity.getId()).map(b -> b.getId()).orElse(null);
+                branchesCount = clientBranchRepository.countByOrganizationIdAndClientId(
+                        entity.getOrganizationId(), entity.getId());
+            }
+            if (clientRelationshipRepository != null) {
+                relationshipsCount = clientRelationshipRepository.countAllForClient(
+                        entity.getOrganizationId(), entity.getId());
+            }
         }
 
         return ClientContextSummaryDto.builder()
@@ -117,6 +144,11 @@ public class ClientContextServiceImpl implements ClientContextService {
                 .locationId(entity.getLocationId())
                 .assignedEmployeeId(entity.getAssignedEmployeeId())
                 .activeServicesCount(activeServicesCount)
+                .primaryContactId(primaryContactId)
+                .primaryBranchId(primaryBranchId)
+                .contactsCount(contactsCount)
+                .branchesCount(branchesCount)
+                .relationshipsCount(relationshipsCount)
                 .build();
     }
 }

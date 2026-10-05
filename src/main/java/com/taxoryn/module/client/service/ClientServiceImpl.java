@@ -133,6 +133,15 @@ public class ClientServiceImpl implements ClientService {
     private final ClientProfileCompletenessEvaluator completenessEvaluator;
     private ClientLifecycleService clientLifecycleService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.repository.ClientContactRepository clientContactRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.repository.ClientBranchRepository clientBranchRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.repository.ClientRelationshipRepository clientRelationshipRepository;
+
     @org.springframework.beans.factory.annotation.Autowired
     public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
         this.clientLifecycleService = clientLifecycleService;
@@ -1575,6 +1584,72 @@ public class ClientServiceImpl implements ClientService {
         com.taxoryn.module.client.dto.ClientProfileCompletenessDto completeness = completenessEvaluator.evaluate(client);
         profileDto.setCompleteness(completeness);
 
+        com.taxoryn.module.client.dto.ClientContactDto primaryContactDto = null;
+        Long contactsCount = null;
+        Long activeContactsCount = null;
+        if (clientContactRepository != null) {
+            primaryContactDto = clientContactRepository.findByOrganizationIdAndClientIdAndPrimaryContactTrue(organizationId, clientId)
+                    .map(c -> com.taxoryn.module.client.dto.ClientContactDto.builder()
+                            .id(c.getId())
+                            .organizationId(c.getOrganizationId())
+                            .clientId(c.getClientId())
+                            .firstName(c.getFirstName())
+                            .lastName(c.getLastName())
+                            .displayName(c.getDisplayName())
+                            .designation(c.getDesignation())
+                            .email(c.getEmail())
+                            .phone(c.getPhone())
+                            .altPhone(c.getAltPhone())
+                            .contactRole(c.getContactRole())
+                            .primaryContact(c.isPrimaryContact())
+                            .active(c.isActive())
+                            .notes(c.getNotes())
+                            .createdAt(c.getCreatedAt())
+                            .updatedAt(c.getUpdatedAt())
+                            .build())
+                    .orElse(null);
+            contactsCount = clientContactRepository.countByOrganizationIdAndClientId(organizationId, clientId);
+            activeContactsCount = clientContactRepository.countByOrganizationIdAndClientIdAndActive(organizationId, clientId, true);
+        }
+
+        com.taxoryn.module.client.dto.ClientBranchDto primaryBranchDto = null;
+        Long branchesCount = null;
+        Long activeBranchesCount = null;
+        if (clientBranchRepository != null) {
+            primaryBranchDto = clientBranchRepository.findByOrganizationIdAndClientIdAndPrimaryBranchTrue(organizationId, clientId)
+                    .map(b -> com.taxoryn.module.client.dto.ClientBranchDto.builder()
+                            .id(b.getId())
+                            .organizationId(b.getOrganizationId())
+                            .clientId(b.getClientId())
+                            .branchName(b.getBranchName())
+                            .branchCode(b.getBranchCode())
+                            .branchType(b.getBranchType())
+                            .addressLine1(b.getAddressLine1())
+                            .addressLine2(b.getAddressLine2())
+                            .city(b.getCity())
+                            .state(b.getState())
+                            .stateCode(b.getStateCode())
+                            .country(b.getCountry())
+                            .pincode(b.getPincode())
+                            .gstin(b.getGstin())
+                            .phone(b.getPhone())
+                            .email(b.getEmail())
+                            .primaryBranch(b.isPrimaryBranch())
+                            .active(b.isActive())
+                            .notes(b.getNotes())
+                            .createdAt(b.getCreatedAt())
+                            .updatedAt(b.getUpdatedAt())
+                            .build())
+                    .orElse(null);
+            branchesCount = clientBranchRepository.countByOrganizationIdAndClientId(organizationId, clientId);
+            activeBranchesCount = clientBranchRepository.countByOrganizationIdAndClientIdAndActive(organizationId, clientId, true);
+        }
+
+        Long relationshipsCount = null;
+        if (clientRelationshipRepository != null) {
+            relationshipsCount = clientRelationshipRepository.countAllForClient(organizationId, clientId);
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1592,6 +1667,13 @@ public class ClientServiceImpl implements ClientService {
                 .statusChangeReason(client.getStatusChangeReason())
                 .profile(profileDto)
                 .completeness(completeness)
+                .primaryContact(primaryContactDto)
+                .contactsCount(contactsCount)
+                .activeContactsCount(activeContactsCount)
+                .primaryBranch(primaryBranchDto)
+                .branchesCount(branchesCount)
+                .activeBranchesCount(activeBranchesCount)
+                .relationshipsCount(relationshipsCount)
                 .build();
     }
 

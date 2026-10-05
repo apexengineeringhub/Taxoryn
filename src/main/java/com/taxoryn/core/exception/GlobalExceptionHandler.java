@@ -116,6 +116,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_ARGUMENT.getCode(), "Required request parameter missing: " + ex.getParameterName(), null, request);
     }
 
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    public ResponseEntity<ErrorResponse> handleIllegalStateAndArgument(RuntimeException ex, HttpServletRequest request) {
+        log.warn("Invalid request argument or state at {}: {}", request.getRequestURI(), ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_ARGUMENT.getCode(), ex.getMessage(), null, request);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
         String detail = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
