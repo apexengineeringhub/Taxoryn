@@ -201,11 +201,14 @@ public class GovernmentOperationReconciliationServiceImpl implements GovernmentO
                 "Starting reconciliation for " + op.getOperationType()
         );
 
+        reliabilityMetrics.recordReconciliationAttempt();
+
         Optional<GovernmentProviderAdapter> adapterOpt = providerRegistry.getAdapter(op.getProviderType());
         if (adapterOpt.isEmpty()) {
             log.warn("[GOV_RECONCILIATION_NO_ADAPTER] No provider adapter found for provider {}", op.getProviderType());
             op.recordReconciliationAttempt(Instant.now().plus(Duration.ofMinutes(10)));
             operationRepository.save(op);
+            reliabilityMetrics.recordReconciliationFailure();
             return buildResult(op, previousStatus, previousStatus, GovAuthoritativeStatus.UNKNOWN, false, "No adapter registered for " + op.getProviderType());
         }
 
@@ -262,6 +265,7 @@ public class GovernmentOperationReconciliationServiceImpl implements GovernmentO
         GovIntegrationOperationEntity saved = operationRepository.save(op);
 
         if (changed) {
+            reliabilityMetrics.recordReconciliationStatusChanged();
             auditService.logEvent(
                     saved.getOrganizationId(),
                     null,
@@ -271,6 +275,14 @@ public class GovernmentOperationReconciliationServiceImpl implements GovernmentO
                     previousStatus.name(),
                     saved.getStatus().name()
             );
+        }
+
+        if (saved.getStatus() == GovOperationStatus.SUCCEEDED) {
+            reliabilityMetrics.recordReconciliationSuccess();
+        } else if (saved.getStatus() == GovOperationStatus.FAILED) {
+            reliabilityMetrics.recordReconciliationFailure();
+        } else {
+            reliabilityMetrics.recordReconciliationSuccess();
         }
 
         String completionAuditAction = saved.getStatus() == GovOperationStatus.SUCCEEDED

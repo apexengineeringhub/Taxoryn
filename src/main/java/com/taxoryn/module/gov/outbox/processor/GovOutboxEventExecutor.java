@@ -32,6 +32,7 @@ public class GovOutboxEventExecutor {
     private final GovOutboxEventRepository outboxRepository;
     private final List<GovOutboxHandler> handlers;
     private final AuditService auditService;
+    private final com.taxoryn.module.gov.reliability.metrics.GovReliabilityMetrics reliabilityMetrics;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean executeClaimedEvent(UUID eventId) {
@@ -59,6 +60,7 @@ public class GovOutboxEventExecutor {
                 log.error("[GOV_OUTBOX_NO_HANDLER] eventId={}, type={}", event.getId(), event.getEventType());
                 event.recordFailure("NO_HANDLER", error, false, null);
                 outboxRepository.save(event);
+                reliabilityMetrics.recordOutboxFailed();
                 return false;
             }
 
@@ -69,6 +71,7 @@ public class GovOutboxEventExecutor {
 
             event.markCompleted();
             outboxRepository.save(event);
+            reliabilityMetrics.recordOutboxCompleted();
 
             auditService.logEvent(
                     event.getOrganizationId(),
@@ -105,6 +108,7 @@ public class GovOutboxEventExecutor {
 
             event.recordFailure(errorCode, sanitizedMsg, willRetry, nextAvailableAt);
             outboxRepository.save(event);
+            reliabilityMetrics.recordOutboxFailed();
 
             auditService.logEvent(
                     event.getOrganizationId(),

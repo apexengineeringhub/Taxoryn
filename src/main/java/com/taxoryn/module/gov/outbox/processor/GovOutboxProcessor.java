@@ -25,6 +25,7 @@ public class GovOutboxProcessor {
 
     private final GovOutboxEventRepository outboxRepository;
     private final GovOutboxEventExecutor eventExecutor;
+    private final com.taxoryn.module.gov.reliability.metrics.GovReliabilityMetrics reliabilityMetrics;
 
     @Value("${taxoryn.gov.outbox.enabled:true}")
     private boolean outboxEnabled;
@@ -136,6 +137,7 @@ public class GovOutboxProcessor {
                 boolean recovered = eventExecutor.resetStaleEvent(staleCandidate.getId());
                 if (recovered) {
                     recoveredCount++;
+                    reliabilityMetrics.recordOutboxStaleRecovered();
                 }
             } catch (Exception e) {
                 log.error("[GOV_OUTBOX_STALE_RECOVERY_ERROR] Failed to recover stale event {}: {}",

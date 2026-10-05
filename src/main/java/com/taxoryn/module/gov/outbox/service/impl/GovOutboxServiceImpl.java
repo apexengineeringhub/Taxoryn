@@ -36,6 +36,7 @@ public class GovOutboxServiceImpl implements GovOutboxService {
 
     private final GovOutboxEventRepository outboxRepository;
     private final AuditService auditService;
+    private final com.taxoryn.module.gov.reliability.metrics.GovReliabilityMetrics reliabilityMetrics;
 
     @Override
     @Transactional
@@ -84,6 +85,7 @@ public class GovOutboxServiceImpl implements GovOutboxService {
 
         entity.setOrganizationId(orgId);
         GovOutboxEventEntity saved = outboxRepository.save(entity);
+        reliabilityMetrics.recordOutboxEnqueued();
 
         auditService.logEvent(
                 orgId,

@@ -53,6 +53,10 @@ public interface GovIntegrationOperationRepository extends JpaRepository<GovInte
             Pageable pageable
     );
 
+    long countByOrganizationId(UUID organizationId);
+
+    long countByOrganizationIdAndStatus(UUID organizationId, GovOperationStatus status);
+
     @Transactional
     @Modifying
     @Query("UPDATE GovIntegrationOperationEntity op SET op.nextReconciliationAt = :lockUntil, " +
