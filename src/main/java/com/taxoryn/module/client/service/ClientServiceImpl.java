@@ -142,6 +142,14 @@ public class ClientServiceImpl implements ClientService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.taxoryn.module.client.repository.ClientRelationshipRepository clientRelationshipRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private ClientIntelligenceService clientIntelligenceService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private ClientTimelineService clientTimelineService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
         this.clientLifecycleService = clientLifecycleService;
@@ -1650,6 +1658,24 @@ public class ClientServiceImpl implements ClientService {
             relationshipsCount = clientRelationshipRepository.countAllForClient(organizationId, clientId);
         }
 
+        com.taxoryn.module.client.dto.ClientIntelligenceSummaryDto intelligenceSummary = null;
+        if (clientIntelligenceService != null) {
+            try {
+                intelligenceSummary = clientIntelligenceService.evaluateClient(organizationId, clientId);
+            } catch (Exception ex) {
+                log.debug("Could not evaluate client intelligence for {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        List<com.taxoryn.module.client.dto.ClientTimelineItemDto> recentTimeline = null;
+        if (clientTimelineService != null) {
+            try {
+                recentTimeline = clientTimelineService.getRecentTimeline(organizationId, clientId, 10);
+            } catch (Exception ex) {
+                log.debug("Could not fetch recent timeline for {}: {}", clientId, ex.getMessage());
+            }
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1674,6 +1700,8 @@ public class ClientServiceImpl implements ClientService {
                 .branchesCount(branchesCount)
                 .activeBranchesCount(activeBranchesCount)
                 .relationshipsCount(relationshipsCount)
+                .intelligenceSummary(intelligenceSummary)
+                .recentTimeline(recentTimeline)
                 .build();
     }
 

@@ -32,6 +32,7 @@ public class ClientContextServiceImpl implements ClientContextService {
     private final com.taxoryn.module.client.repository.ClientBranchRepository clientBranchRepository;
     private final com.taxoryn.module.client.repository.ClientRelationshipRepository clientRelationshipRepository;
     private final ClientProfileCompletenessEvaluator completenessEvaluator;
+    private final ClientIntelligenceService clientIntelligenceService;
 
     @Override
     public Optional<ClientContextSummaryDto> findClientContext(UUID organizationId, UUID clientId) {
@@ -91,6 +92,8 @@ public class ClientContextServiceImpl implements ClientContextService {
         Long contactsCount = null;
         Long branchesCount = null;
         Long relationshipsCount = null;
+        Integer attentionSignalsCount = null;
+        Integer highPrioritySignalsCount = null;
 
         if (entity.getOrganizationId() != null && entity.getId() != null) {
             if (clientServiceRepository != null) {
@@ -112,6 +115,16 @@ public class ClientContextServiceImpl implements ClientContextService {
             if (clientRelationshipRepository != null) {
                 relationshipsCount = clientRelationshipRepository.countAllForClient(
                         entity.getOrganizationId(), entity.getId());
+            }
+            if (clientIntelligenceService != null) {
+                try {
+                    attentionSignalsCount = clientIntelligenceService.countAttentionSignals(
+                            entity.getOrganizationId(), entity.getId());
+                    highPrioritySignalsCount = clientIntelligenceService.countHighPrioritySignals(
+                            entity.getOrganizationId(), entity.getId());
+                } catch (Exception ex) {
+                    log.debug("Could not calculate intelligence signals count: {}", ex.getMessage());
+                }
             }
         }
 
@@ -149,6 +162,8 @@ public class ClientContextServiceImpl implements ClientContextService {
                 .contactsCount(contactsCount)
                 .branchesCount(branchesCount)
                 .relationshipsCount(relationshipsCount)
+                .attentionSignalsCount(attentionSignalsCount)
+                .highPrioritySignalsCount(highPrioritySignalsCount)
                 .build();
     }
 }

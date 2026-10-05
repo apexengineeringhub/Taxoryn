@@ -84,4 +84,10 @@ public class Client360Dto {
 
     @Schema(description = "Total related clients / group relationships count")
     private Long relationshipsCount;
+
+    @Schema(description = "Deterministic intelligence summary and recommendations")
+    private ClientIntelligenceSummaryDto intelligenceSummary;
+
+    @Schema(description = "Recent activity & timeline entries projection")
+    private List<ClientTimelineItemDto> recentTimeline;
 }

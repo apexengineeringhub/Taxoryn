@@ -41,6 +41,10 @@ import {
   Users,
   Share2,
   Trash2,
+  Compass,
+  AlertOctagon,
+  Info,
+  ArrowUpRight,
 } from 'lucide-react';
 import {
   clientApi,
@@ -48,6 +52,8 @@ import {
   clientContactsApi,
   clientBranchesApi,
   clientRelationshipsApi,
+  clientTimelineApi,
+  clientIntelligenceApi,
   complianceWorkApi,
   employeeApi,
 } from '../api/endpoints';
@@ -68,6 +74,11 @@ import {
   ClientServiceStatus,
   ComplianceWorkItem,
   Employee,
+  ClientTimelineItemDto,
+  ClientIntelligenceSignalDto,
+  ClientActionRecommendationDto,
+  ClientIntelligenceSummaryDto,
+  TimelineEventCategory,
 } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -160,6 +171,16 @@ export const Client360Page: React.FC = () => {
   const [noteType, setNoteType] = useState('GENERAL');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
 
+  // Timeline State (Phase 28.6)
+  const [timelineItems, setTimelineItems] = useState<ClientTimelineItemDto[]>([]);
+  const [timelineCategoryFilter, setTimelineCategoryFilter] = useState<string>('ALL');
+  const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
+
+  // Intelligence State (Phase 28.6)
+  const [intelligenceSummary, setIntelligenceSummary] = useState<ClientIntelligenceSummaryDto | null>(null);
+  const [recommendations, setRecommendations] = useState<ClientActionRecommendationDto[]>([]);
+  const [isLoadingIntelligence, setIsLoadingIntelligence] = useState(false);
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
@@ -168,8 +189,45 @@ export const Client360Page: React.FC = () => {
       loadContacts();
       loadBranches();
       loadRelationships();
+      loadTimeline();
+      loadIntelligence();
     }
   }, [clientId]);
+
+  const loadTimeline = async (category?: string) => {
+    if (!clientId) return;
+    try {
+      setIsLoadingTimeline(true);
+      const params: any = { size: 50 };
+      const cat = category !== undefined ? category : timelineCategoryFilter;
+      if (cat && cat !== 'ALL') {
+        params.category = cat as TimelineEventCategory;
+      }
+      const data = await clientTimelineApi.getTimeline(clientId, params);
+      setTimelineItems(data?.content || []);
+    } catch (err: any) {
+      console.warn('Failed to load client timeline', err);
+    } finally {
+      setIsLoadingTimeline(false);
+    }
+  };
+
+  const loadIntelligence = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingIntelligence(true);
+      const [summaryRes, recsRes] = await Promise.all([
+        clientIntelligenceApi.getIntelligence(clientId).catch(() => null),
+        clientIntelligenceApi.getRecommendations(clientId).catch(() => []),
+      ]);
+      setIntelligenceSummary(summaryRes);
+      setRecommendations(recsRes || []);
+    } catch (err: any) {
+      console.warn('Failed to load client intelligence', err);
+    } finally {
+      setIsLoadingIntelligence(false);
+    }
+  };
 
   const loadContacts = async () => {
     if (!clientId) return;
@@ -711,7 +769,126 @@ export const Client360Page: React.FC = () => {
       <div className="space-y-6">
         {/* 1. OVERVIEW TAB */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-6">
+            {/* Needs Attention & Intelligence Signals */}
+            {intelligenceSummary && (intelligenceSummary.needsAttentionSignals || []).length > 0 && (
+              <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertOctagon className="w-4 h-4 text-amber-600" />
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Client Attention Signals ({intelligenceSummary.totalSignalsCount})
+                    </h3>
+                    {intelligenceSummary.highPrioritySignalsCount > 0 && (
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                        {intelligenceSummary.highPrioritySignalsCount} High Priority
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {intelligenceSummary.needsAttentionSignals.map((signal) => (
+                    <div
+                      key={signal.id}
+                      className="p-3.5 bg-white rounded-xl border border-amber-200/80 shadow-2xs flex flex-col justify-between space-y-2.5"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900">{signal.title}</span>
+                          <span
+                            className={clsx(
+                              'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                              signal.priority === 'CRITICAL' || signal.priority === 'HIGH'
+                                ? 'bg-rose-100 text-rose-700'
+                                : signal.priority === 'MEDIUM'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-700'
+                            )}
+                          >
+                            {signal.priority}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">{signal.reason}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                        <span className="text-[11px] text-slate-500 font-medium truncate max-w-[240px]">
+                          {signal.recommendedAction}
+                        </span>
+                        {signal.actionable && (
+                          <button
+                            onClick={() => {
+                              if (signal.actionType === 'ADD_PRIMARY_CONTACT') setActiveTab('contacts');
+                              else if (signal.actionType === 'ADD_PRIMARY_BRANCH') setActiveTab('branches');
+                              else if (signal.actionType === 'CONFIGURE_SERVICE' || signal.actionType === 'RESUME_SERVICE') setActiveTab('services');
+                              else if (signal.suggestedRoute) navigate(signal.suggestedRoute);
+                            }}
+                            className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 shrink-0 ml-2"
+                          >
+                            <span>Resolve</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recommended Next Actions */}
+            {recommendations && recommendations.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Compass className="w-4 h-4 text-brand-600" />
+                    <span>Recommended Next Actions</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400 font-medium">Deterministic Next-Best-Action</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {recommendations.slice(0, 3).map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 hover:border-brand-200 transition-colors flex flex-col justify-between space-y-2"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-800">{rec.title}</span>
+                          <span
+                            className={clsx(
+                              'text-[9px] font-extrabold px-1.5 py-0.2 rounded',
+                              rec.priority === 'CRITICAL' || rec.priority === 'HIGH'
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-slate-200 text-slate-700'
+                            )}
+                          >
+                            {rec.priority}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-snug line-clamp-2">{rec.reason}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (rec.actionType === 'ADD_PRIMARY_CONTACT') setActiveTab('contacts');
+                          else if (rec.actionType === 'ADD_PRIMARY_BRANCH') setActiveTab('branches');
+                          else if (rec.actionType === 'CONFIGURE_SERVICE' || rec.actionType === 'RESUME_SERVICE') setActiveTab('services');
+                          else if (rec.suggestedRoute) navigate(rec.suggestedRoute);
+                        }}
+                        className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 self-start pt-1"
+                      >
+                        <span>Take Action</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Compliance Health & Services */}
             <div className="lg:col-span-2 space-y-6">
               {/* Compliance Status Cards */}
@@ -946,6 +1123,7 @@ export const Client360Page: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
           </div>
         )}
 
@@ -2093,31 +2271,99 @@ export const Client360Page: React.FC = () => {
         {activeTab === 'activity' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Unified Chronological Timeline */}
-            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <History className="w-4 h-4 text-brand-600" />
-                <span>Chronological Relationship Timeline</span>
-              </h3>
+            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <History className="w-4 h-4 text-brand-600" />
+                  <span>Chronological Activity & Event Timeline</span>
+                </h3>
+                {isLoadingTimeline && (
+                  <span className="text-[11px] text-slate-400 font-medium animate-pulse">Loading timeline...</span>
+                )}
+              </div>
 
-              {(activityTimeline || []).length === 0 ? (
-                <p className="text-xs text-slate-400 py-8 text-center">No activities recorded for this client.</p>
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                {[
+                  'ALL',
+                  'CLIENT',
+                  'PROFILE',
+                  'SERVICE',
+                  'CONTACT',
+                  'BRANCH',
+                  'RELATIONSHIP',
+                  'WORK',
+                  'DOCUMENT',
+                  'BILLING',
+                  'COMPLIANCE',
+                  'COMMUNICATION',
+                ].map((cat) => {
+                  const isSelected = timelineCategoryFilter === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        setTimelineCategoryFilter(cat);
+                        loadTimeline(cat);
+                      }}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all whitespace-nowrap',
+                        isSelected
+                          ? 'bg-brand-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                      )}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {timelineItems.length === 0 && (activityTimeline || []).length === 0 ? (
+                <p className="text-xs text-slate-400 py-8 text-center">No activities recorded for this client under selected filter.</p>
               ) : (
                 <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                  {(activityTimeline || []).map((act, idx) => (
-                    <div key={act.id || idx} className="relative space-y-1">
-                      <div className="absolute -left-[19px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white bg-brand-500 ring-2 ring-brand-100" />
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-slate-900">{act.title}</span>
-                        <span className="text-slate-400">
-                          {act.timestamp ? new Date(act.timestamp).toLocaleString() : ''}
-                        </span>
+                  {(timelineItems.length > 0 ? timelineItems : activityTimeline || []).map((item: any, idx: number) => {
+                    const title = item.title || item.eventType;
+                    const desc = item.description;
+                    const time = item.occurredAt || item.timestamp;
+                    const actor = item.actorName || item.performedBy || 'System';
+                    const severity = item.severity || 'INFO';
+                    const cat = item.eventCategory || item.category || 'SYSTEM';
+
+                    return (
+                      <div key={item.id || idx} className="relative space-y-1.5">
+                        <div
+                          className={clsx(
+                            'absolute -left-[19px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white ring-2',
+                            severity === 'SUCCESS'
+                              ? 'bg-emerald-500 ring-emerald-100'
+                              : severity === 'WARNING'
+                              ? 'bg-amber-500 ring-amber-100'
+                              : severity === 'ERROR'
+                              ? 'bg-rose-500 ring-rose-100'
+                              : 'bg-brand-500 ring-brand-100'
+                          )}
+                        />
+                        <div className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900">{title}</span>
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                              {cat}
+                            </span>
+                          </div>
+                          <span className="text-slate-400">
+                            {time ? new Date(time).toLocaleString() : ''}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">{desc}</p>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-medium pt-0.5">
+                          <span>By: {actor}</span>
+                          {item.sourceModule && <span>• Module: {item.sourceModule}</span>}
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-600">{act.description}</p>
-                      {act.performedBy && (
-                        <span className="text-[10px] text-slate-400 font-medium">By: {act.performedBy}</span>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

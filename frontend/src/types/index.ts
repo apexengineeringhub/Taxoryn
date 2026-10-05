@@ -851,6 +851,8 @@ export interface Client360Overview {
   noticeSummary: ClientNoticeSummary;
   recentNotes: ClientNote[];
   activityTimeline: ClientActivityItem[];
+  intelligenceSummary?: ClientIntelligenceSummaryDto;
+  recentTimeline?: ClientTimelineItemDto[];
 }
 
 export type ContactRole =
@@ -5939,5 +5941,117 @@ export interface UdinFilterParams {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
 }
+
+// ==========================================
+// Phase 28.6: Client Audit, Timeline & Intelligence Types
+// ==========================================
+
+export type TimelineEventCategory =
+  | 'CLIENT'
+  | 'PROFILE'
+  | 'SERVICE'
+  | 'CONTACT'
+  | 'BRANCH'
+  | 'RELATIONSHIP'
+  | 'ENGAGEMENT'
+  | 'WORK'
+  | 'DOCUMENT'
+  | 'COMPLIANCE'
+  | 'BILLING'
+  | 'PAYMENT'
+  | 'GOVERNMENT'
+  | 'COMMUNICATION'
+  | 'SYSTEM';
+
+export type TimelineEventSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+
+export type SignalPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export type SignalCategory =
+  | 'ONBOARDING'
+  | 'PROFILE'
+  | 'CONTACT'
+  | 'LOCATION'
+  | 'SERVICE'
+  | 'LIFECYCLE'
+  | 'COMPLIANCE'
+  | 'ENGAGEMENT';
+
+export type ClientActionType =
+  | 'COMPLETE_PROFILE'
+  | 'ADD_PRIMARY_CONTACT'
+  | 'ADD_PRIMARY_BRANCH'
+  | 'CONFIGURE_SERVICE'
+  | 'RESUME_SERVICE'
+  | 'INVITE_PORTAL_USER'
+  | 'ACTIVATE_CLIENT'
+  | 'REVIEW_CLIENT_STATUS'
+  | 'VIEW_TIMELINE';
+
+export interface ClientTimelineItemDto {
+  id: string;
+  clientId: string;
+  organizationId: string;
+  eventType: string;
+  eventCategory: TimelineEventCategory;
+  title: string;
+  description: string;
+  occurredAt: string;
+  actorId?: string;
+  actorName?: string;
+  sourceModule: string;
+  severity: TimelineEventSeverity;
+  relatedEntityId?: string;
+  relatedEntityType?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ClientTimelineFilterParams {
+  category?: TimelineEventCategory;
+  eventType?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface ClientIntelligenceSignalDto {
+  id: string;
+  signalCode: string;
+  category: SignalCategory;
+  priority: SignalPriority;
+  title: string;
+  reason: string;
+  recommendedAction: string;
+  actionType: ClientActionType;
+  suggestedRoute?: string;
+  actionable: boolean;
+  sourceDataRef?: string;
+  detectedAt: string;
+}
+
+export interface ClientActionRecommendationDto {
+  id: string;
+  actionType: ClientActionType;
+  title: string;
+  reason: string;
+  priority: SignalPriority;
+  clientId: string;
+  relatedEntityId?: string;
+  source: string;
+  actionable: boolean;
+  suggestedRoute?: string;
+}
+
+export interface ClientIntelligenceSummaryDto {
+  clientId: string;
+  totalSignalsCount: number;
+  highPrioritySignalsCount: number;
+  criticalSignalsCount: number;
+  needsAttentionSignals: ClientIntelligenceSignalDto[];
+  recommendations: ClientActionRecommendationDto[];
+  evaluatedAt: string;
+}
+
 
 

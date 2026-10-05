@@ -120,4 +120,10 @@ public class ClientContextSummaryDto {
 
     @Schema(description = "Client profile completeness assessment")
     private ClientProfileCompletenessDto completeness;
+
+    @Schema(description = "Count of active attention signals requiring review")
+    private Integer attentionSignalsCount;
+
+    @Schema(description = "Count of high or critical priority attention signals")
+    private Integer highPrioritySignalsCount;
 }

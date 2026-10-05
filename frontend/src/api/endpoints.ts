@@ -26,6 +26,10 @@ import {
   UpdateClientBranchRequest,
   ClientRelationshipDto,
   CreateClientRelationshipRequest,
+  ClientTimelineItemDto,
+  ClientTimelineFilterParams,
+  ClientIntelligenceSummaryDto,
+  ClientActionRecommendationDto,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -624,6 +628,26 @@ export const clientRelationshipsApi = {
   },
   delete: async (clientId: string, relationshipId: string) => {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${clientId}/relationships/${relationshipId}`);
+    return res.data.data;
+  },
+};
+
+// --- 3b-4. Client Timeline & Activity ---
+export const clientTimelineApi = {
+  getTimeline: async (clientId: string, params?: ClientTimelineFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientTimelineItemDto>>>(`/v1/clients/${clientId}/timeline`, { params });
+    return res.data.data;
+  },
+};
+
+// --- 3b-5. Client Intelligence & Recommendations ---
+export const clientIntelligenceApi = {
+  getIntelligence: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientIntelligenceSummaryDto>>(`/v1/clients/${clientId}/intelligence`);
+    return res.data.data;
+  },
+  getRecommendations: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientActionRecommendationDto[]>>(`/v1/clients/${clientId}/recommendations`);
     return res.data.data;
   },
 };
