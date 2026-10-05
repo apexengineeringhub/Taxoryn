@@ -37,5 +37,8 @@ public class GovOperationDto {
     private Instant createdAt;
     private Instant updatedAt;
     private Instant completedAt;
+    private Instant lastReconciledAt;
+    private Instant nextReconciliationAt;
+    private int reconciliationAttemptCount;
     private String createdBy;
 }

@@ -83,6 +83,16 @@ public class GovIntegrationOperationEntity extends TenantAuditableEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    @Column(name = "last_reconciled_at")
+    private Instant lastReconciledAt;
+
+    @Column(name = "next_reconciliation_at")
+    private Instant nextReconciliationAt;
+
+    @Column(name = "reconciliation_attempt_count", nullable = false)
+    @Builder.Default
+    private int reconciliationAttemptCount = 0;
+
     /**
      * Validates and applies a state transition on the operation.
      */
@@ -118,5 +128,11 @@ public class GovIntegrationOperationEntity extends TenantAuditableEntity {
 
     public void incrementAttempt() {
         this.attemptCount++;
+    }
+
+    public void recordReconciliationAttempt(Instant nextReconcileAt) {
+        this.reconciliationAttemptCount++;
+        this.lastReconciledAt = Instant.now();
+        this.nextReconciliationAt = nextReconcileAt;
     }
 }

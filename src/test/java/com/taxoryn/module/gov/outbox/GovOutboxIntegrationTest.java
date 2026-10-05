@@ -76,6 +76,9 @@ class GovOutboxIntegrationTest {
     private GovOperationRecoveryService recoveryService;
 
     @MockBean
+    private com.taxoryn.module.gov.reconciliation.service.GovernmentOperationReconciliationService reconciliationService;
+
+    @MockBean
     private AuditService auditService;
 
     private UUID tenantA;
@@ -458,8 +461,8 @@ class GovOutboxIntegrationTest {
     }
 
     @Test
-    @DisplayName("Reconciliation outbox event triggers GovOperationRecoveryService")
-    void testReconciliationEvent_TriggersRecoveryService() {
+    @DisplayName("Reconciliation outbox event triggers GovernmentOperationReconciliationService")
+    void testReconciliationEvent_TriggersReconciliationService() {
         UUID opId = UUID.randomUUID();
         GovOutboxEventDto dto = outboxService.enqueue(GovOutboxEnqueueRequest.builder()
                 .eventType(GovOutboxEventType.GOV_OPERATION_RECONCILIATION)
@@ -468,7 +471,7 @@ class GovOutboxIntegrationTest {
 
         outboxProcessor.processPendingBatch(10);
 
-        verify(recoveryService, atLeastOnce()).reconcileAmbiguousOutcome(opId);
+        verify(reconciliationService, atLeastOnce()).reconcileOperation(opId);
 
         GovOutboxEventEntity event = outboxRepository.findById(dto.getId()).orElseThrow();
         assertThat(event.getStatus()).isEqualTo(GovOutboxStatus.COMPLETED);

@@ -28,6 +28,7 @@ public class DefaultGovOperationOutboxHandler implements GovOutboxHandler {
 
     private final GovReliabilityService reliabilityService;
     private final GovOperationRecoveryService recoveryService;
+    private final com.taxoryn.module.gov.reconciliation.service.GovernmentOperationReconciliationService reconciliationService;
     private final GovIntegrationOperationRepository operationRepository;
     private final ObjectMapper objectMapper;
 
@@ -42,7 +43,7 @@ public class DefaultGovOperationOutboxHandler implements GovOutboxHandler {
     public void handle(GovOutboxEventEntity event) {
         if (GovOutboxEventType.GOV_OPERATION_RECONCILIATION.equalsIgnoreCase(event.getEventType())) {
             if (event.getOperationId() != null) {
-                recoveryService.reconcileAmbiguousOutcome(event.getOperationId());
+                reconciliationService.reconcileOperation(event.getOperationId());
             }
             return;
         }
