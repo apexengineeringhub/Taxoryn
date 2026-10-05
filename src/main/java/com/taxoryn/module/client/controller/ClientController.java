@@ -15,6 +15,8 @@ import com.taxoryn.module.client.entity.ClientNoteEntity.NoteType;
 import com.taxoryn.module.client.service.ClientCommunicationTimelineService;
 import com.taxoryn.module.client.dto.UpdateClientRequest;
 import com.taxoryn.module.client.dto.UpdateClientStatusRequest;
+import com.taxoryn.module.client.dto.ClientContextSummaryDto;
+import com.taxoryn.module.client.service.ClientContextService;
 import com.taxoryn.module.client.service.ClientService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -51,7 +53,16 @@ import java.time.Instant;
 public class ClientController {
 
     private final ClientService clientService;
+    private final ClientContextService clientContextService;
     private final ClientCommunicationTimelineService communicationTimelineService;
+
+    @GetMapping("/{clientId}/context")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get lightweight client context", description = "Retrieves lightweight client identity, tenancy, status, and classification summary.")
+    public ResponseEntity<ApiResponse<ClientContextSummaryDto>> getClientContext(@PathVariable UUID clientId) {
+        ClientContextSummaryDto context = clientContextService.requireClientContext(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client context retrieved successfully", context));
+    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
