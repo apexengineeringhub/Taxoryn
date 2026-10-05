@@ -44,6 +44,12 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
     private final Map<GovProviderType, Map<String, GovernmentProviderAdapter>> adapterRegistry = new ConcurrentHashMap<>();
     private final List<GovernmentProviderAdapter> allAdapters = new java.util.concurrent.CopyOnWriteArrayList<>();
 
+    @org.springframework.beans.factory.annotation.Value("${taxoryn.gov.integration.enabled:true}")
+    private boolean integrationEnabled = true;
+
+    @org.springframework.beans.factory.annotation.Value("${taxoryn.gov.integration.mock-enabled:true}")
+    private boolean mockEnabled = true;
+
     public GovernmentIntegrationServiceImpl(
             GovIntegrationOperationRepository operationRepository,
             AuditService auditService,
@@ -62,6 +68,14 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
     @Override
     @Transactional
     public GovIntegrationResult executeOperation(GovIntegrationRequest request) {
+        if (!integrationEnabled) {
+            log.warn("[GOV_INTEGRATION_DISABLED] Rejecting operation: Government integration is disabled by configuration");
+            throw new com.taxoryn.module.gov.exception.GovIntegrationException(
+                    GovErrorCode.PROVIDER_UNAVAILABLE,
+                    "Government integration is currently disabled by system configuration"
+            );
+        }
+
         if (request == null) {
             throw new GovValidationException("GovIntegrationRequest must not be null");
         }
@@ -323,7 +337,11 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
 
     @Override
     public List<String> getAvailableAdapters() {
+        if (!integrationEnabled) {
+            return List.of();
+        }
         return allAdapters.stream()
+                .filter(a -> mockEnabled || (!a.getAdapterCode().toUpperCase().contains("MOCK") && !a.getAdapterCode().equalsIgnoreCase("SANDBOX")))
                 .map(GovernmentProviderAdapter::getAdapterCode)
                 .distinct()
                 .toList();
@@ -331,22 +349,30 @@ public class GovernmentIntegrationServiceImpl implements GovernmentIntegrationSe
 
     @Override
     public Optional<GovernmentProviderAdapter> getAdapter(GovProviderType providerType) {
-        if (providerType == null) {
+        if (!integrationEnabled || providerType == null) {
             return Optional.empty();
         }
         Map<String, GovernmentProviderAdapter> typeMap = adapterRegistry.get(providerType);
         if (typeMap != null && !typeMap.isEmpty()) {
             Optional<GovernmentProviderAdapter> dedicated = typeMap.values().stream()
-                    .filter(a -> !"MOCK_PROVIDER".equalsIgnoreCase(a.getAdapterCode()))
+                    .filter(a -> !a.getAdapterCode().toUpperCase().contains("MOCK") && !a.getAdapterCode().equalsIgnoreCase("SANDBOX"))
                     .findFirst();
             if (dedicated.isPresent()) {
                 return dedicated;
             }
-            return Optional.of(typeMap.values().iterator().next());
+            if (mockEnabled) {
+                return Optional.of(typeMap.values().iterator().next());
+            } else {
+                log.warn("[GOV_INTEGRATION_SAFETY] Mock adapter requested for provider {} but mock providers are disabled in production", providerType);
+                return Optional.empty();
+            }
         }
-        return allAdapters.stream()
-                .filter(a -> "MOCK_PROVIDER".equalsIgnoreCase(a.getAdapterCode()))
-                .findFirst();
+        if (mockEnabled) {
+            return allAdapters.stream()
+                    .filter(a -> a.getAdapterCode().toUpperCase().contains("MOCK") || a.getAdapterCode().equalsIgnoreCase("SANDBOX"))
+                    .findFirst();
+        }
+        return Optional.empty();
     }
 
     private UUID resolveAndEnforceTenant(UUID requestedTenantId) {

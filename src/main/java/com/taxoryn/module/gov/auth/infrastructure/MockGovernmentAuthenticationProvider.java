@@ -7,6 +7,7 @@ import com.taxoryn.module.gov.auth.model.GovAuthStatus;
 import com.taxoryn.module.gov.auth.model.GovAuthorizationState;
 import com.taxoryn.module.gov.auth.spi.GovernmentAuthenticationProvider;
 import com.taxoryn.module.gov.dto.GovConnectionDto;
+import com.taxoryn.module.gov.model.GovErrorCode;
 import com.taxoryn.module.gov.model.GovProviderType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,9 @@ import java.util.Set;
 @Slf4j
 @Component
 public class MockGovernmentAuthenticationProvider implements GovernmentAuthenticationProvider {
+
+    @org.springframework.beans.factory.annotation.Value("${taxoryn.gov.integration.mock-enabled:true}")
+    private boolean mockEnabled = true;
 
     private static final Set<GovAuthMethod> SUPPORTED_METHODS = EnumSet.of(
             GovAuthMethod.OAUTH2,
@@ -49,6 +53,14 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
             GovAuthMethod method,
             String correlationId,
             Map<String, Object> options) {
+
+        if (!mockEnabled) {
+            log.warn("[MOCK_AUTH_SAFETY] Mock authentication attempted while mock providers are disabled");
+            throw new com.taxoryn.module.gov.exception.GovIntegrationException(
+                    GovErrorCode.PROVIDER_UNAVAILABLE,
+                    "Mock government authentication is disabled in production"
+            );
+        }
 
         log.info("[MOCK_AUTH_PROVIDER] Starting auth for connection id={}, provider={}, method={}, correlationId={}",
                 connection.getId(), connection.getProviderType(), method, correlationId);
@@ -208,6 +220,14 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
             GovAuthSessionEntity session,
             Map<String, Object> options) {
 
+        if (!mockEnabled) {
+            log.warn("[MOCK_AUTH_SAFETY] Mock auth status check attempted while mock providers are disabled");
+            throw new com.taxoryn.module.gov.exception.GovIntegrationException(
+                    GovErrorCode.PROVIDER_UNAVAILABLE,
+                    "Mock government authentication is disabled in production"
+            );
+        }
+
         log.info("[MOCK_AUTH_PROVIDER] Checking auth status for session id={}, connection id={}",
                 session.getId(), connection.getId());
 
@@ -308,6 +328,14 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
             GovAuthSessionEntity session,
             String actionReference,
             Map<String, Object> options) {
+
+        if (!mockEnabled) {
+            log.warn("[MOCK_AUTH_SAFETY] Mock auth continuation attempted while mock providers are disabled");
+            throw new com.taxoryn.module.gov.exception.GovIntegrationException(
+                    GovErrorCode.PROVIDER_UNAVAILABLE,
+                    "Mock government authentication is disabled in production"
+            );
+        }
 
         log.info("[MOCK_AUTH_PROVIDER] Continuing authorization for session id={}, connection id={}, actionRef={}",
                 session.getId(), connection.getId(), actionReference);
@@ -493,6 +521,14 @@ public class MockGovernmentAuthenticationProvider implements GovernmentAuthentic
     public GovAuthSessionDto revokeAuthentication(
             GovConnectionDto connection,
             GovAuthSessionEntity session) {
+
+        if (!mockEnabled) {
+            log.warn("[MOCK_AUTH_SAFETY] Mock auth revocation attempted while mock providers are disabled");
+            throw new com.taxoryn.module.gov.exception.GovIntegrationException(
+                    GovErrorCode.PROVIDER_UNAVAILABLE,
+                    "Mock government authentication is disabled in production"
+            );
+        }
 
         log.info("[MOCK_AUTH_PROVIDER] Revoking auth session id={}, connection id={}",
                 session.getId(), connection.getId());

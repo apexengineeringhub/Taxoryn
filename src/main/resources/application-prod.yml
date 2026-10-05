@@ -146,6 +146,20 @@ taxoryn:
       account-id: ${R2_ACCOUNT_ID:${CLOUDFLARE_ACCOUNT_ID:${ACCOUNT_ID:}}}
       path-style-access: ${STORAGE_PATH_STYLE_ACCESS:true}
       chunked-encoding-enabled: ${STORAGE_CHUNKED_ENCODING_ENABLED:false}
+  gov:
+    integration:
+      enabled: ${TAXORYN_GOV_INTEGRATION_ENABLED:false}
+      mock-enabled: false
+    encryption:
+      secret: ${TAXORYN_GOV_ENCRYPTION_SECRET:${JWT_SECRET:}}
+    outbox:
+      enabled: ${TAXORYN_GOV_OUTBOX_ENABLED:true}
+      batch-size: ${TAXORYN_GOV_OUTBOX_BATCH_SIZE:20}
+      stale-threshold-seconds: ${TAXORYN_GOV_OUTBOX_STALE_THRESHOLD_SECONDS:300}
+    reconciliation:
+      enabled: ${TAXORYN_GOV_RECONCILIATION_ENABLED:true}
+      batch-size: ${TAXORYN_GOV_RECONCILIATION_BATCH_SIZE:20}
+      fixed-rate-ms: ${TAXORYN_GOV_RECONCILIATION_FIXED_RATE_MS:60000}
 
 # Production Observability & Actuator
 management:

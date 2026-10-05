@@ -16,8 +16,18 @@ public final class GovReliabilitySanitizer {
             "authorization", "auth", "rawsecret", "credentials"
     );
 
+    private static final Pattern AUTH_HEADER_PATTERN = Pattern.compile(
+            "(?i)authorization\\s*[:=]\\s*['\"]?([^'\",\\n\\r]+)['\"]?",
+            Pattern.CASE_INSENSITIVE
+    );
+
     private static final Pattern SENSITIVE_PATTERN = Pattern.compile(
-            "(?i)(password|secret|token|otp|evc|pin|privatekey|bearer)\\s*[:=]\\s*['\"]?([^'\",\\s]+)['\"]?",
+            "(?i)(password|secret|token|accesstoken|refreshtoken|otp|evc|pin|privatekey|client_secret)(?:\\s+code)?\\s*(?:[:=]|\\s+is\\s+|\\s*:\\s*|\\s*=\\s*)\\s*['\"]?([^'\",\\s&]+)['\"]?",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern BEARER_PATTERN = Pattern.compile(
+            "(?i)bearer\\s+([a-zA-Z0-9._\\-]+)",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -54,12 +64,15 @@ public final class GovReliabilitySanitizer {
     }
 
     /**
-     * Sanitizes a string by masking known secret patterns.
+     * Sanitizes a string by masking known secret patterns, authorization headers, and Bearer tokens.
      */
     public static String sanitizeString(String input) {
         if (input == null || input.isBlank()) {
             return input;
         }
-        return SENSITIVE_PATTERN.matcher(input).replaceAll("$1=[REDACTED]");
+        String sanitized = AUTH_HEADER_PATTERN.matcher(input).replaceAll("Authorization: [REDACTED]");
+        sanitized = SENSITIVE_PATTERN.matcher(sanitized).replaceAll("$1=[REDACTED]");
+        sanitized = BEARER_PATTERN.matcher(sanitized).replaceAll("Bearer [REDACTED]");
+        return sanitized;
     }
 }

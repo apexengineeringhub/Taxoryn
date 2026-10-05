@@ -138,6 +138,24 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ErrorCode.RESOURCE_ALREADY_EXISTS.getCode(), msg, null, request);
     }
 
+    @ExceptionHandler(com.taxoryn.module.gov.exception.GovIntegrationException.class)
+    public ResponseEntity<ErrorResponse> handleGovIntegrationException(com.taxoryn.module.gov.exception.GovIntegrationException ex, HttpServletRequest request) {
+        log.warn("Government integration exception [{}]: {}", ex.getErrorCode(), ex.getMessage());
+        HttpStatus status = switch (ex.getErrorCode() != null ? ex.getErrorCode() : com.taxoryn.module.gov.model.GovErrorCode.UNKNOWN) {
+            case AUTH_REQUIRED, FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case VALIDATION_FAILED -> HttpStatus.BAD_REQUEST;
+            case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
+            case PROVIDER_UNAVAILABLE, TIMEOUT -> HttpStatus.SERVICE_UNAVAILABLE;
+            case DUPLICATE_SUBMISSION -> HttpStatus.CONFLICT;
+            case UNKNOWN -> HttpStatus.BAD_GATEWAY;
+        };
+        String sanitizedMessage = com.taxoryn.module.gov.reliability.util.GovReliabilitySanitizer.sanitizeString(
+                ex.getMessage() != null ? ex.getMessage() : "Government integration operation failed"
+        );
+        return buildResponse(status, ex.getErrorCode() != null ? ex.getErrorCode().name() : "GOV_INTEGRATION_ERROR", sanitizedMessage, null, request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception at {}: ", request.getRequestURI(), ex);

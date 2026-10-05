@@ -200,6 +200,20 @@ taxoryn:
       cron: ${TAXORYN_REMINDER_SCHEDULER_CRON:0 5 7 * * ?}
       batch-size: ${TAXORYN_REMINDER_SCHEDULER_BATCH_SIZE:50}
       max-attempts: ${TAXORYN_REMINDER_SCHEDULER_MAX_ATTEMPTS:3}
+  gov:
+    integration:
+      enabled: ${TAXORYN_GOV_INTEGRATION_ENABLED:true}
+      mock-enabled: ${TAXORYN_GOV_MOCK_ENABLED:true}
+    encryption:
+      secret: ${TAXORYN_GOV_ENCRYPTION_SECRET:${JWT_SECRET:taxoryn-gov-secure-credential-secret-key-32bytes}}
+    outbox:
+      enabled: ${TAXORYN_GOV_OUTBOX_ENABLED:true}
+      batch-size: ${TAXORYN_GOV_OUTBOX_BATCH_SIZE:20}
+      stale-threshold-seconds: ${TAXORYN_GOV_OUTBOX_STALE_THRESHOLD_SECONDS:300}
+    reconciliation:
+      enabled: ${TAXORYN_GOV_RECONCILIATION_ENABLED:true}
+      batch-size: ${TAXORYN_GOV_RECONCILIATION_BATCH_SIZE:20}
+      fixed-rate-ms: ${TAXORYN_GOV_RECONCILIATION_FIXED_RATE_MS:60000}
 
 # OpenAPI / Swagger
 springdoc:
