@@ -88,6 +88,8 @@ public class ClientContextServiceImpl implements ClientContextService {
                 .clientCode(entity.getClientCode())
                 .clientType(entity.getClientType())
                 .status(entity.getStatus())
+                .statusChangedAt(entity.getStatusChangedAt())
+                .statusChangeReason(entity.getStatusChangeReason())
                 .active(entity.getStatus() == ClientStatus.ACTIVE)
                 .pan(entity.getPan())
                 .gstin(entity.getGstin())

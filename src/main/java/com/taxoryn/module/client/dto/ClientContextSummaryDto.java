@@ -46,6 +46,12 @@ public class ClientContextSummaryDto {
     @Schema(description = "Current lifecycle status")
     private ClientStatus status;
 
+    @Schema(description = "Timestamp of last status transition")
+    private java.time.Instant statusChangedAt;
+
+    @Schema(description = "Business reason for the last status transition")
+    private String statusChangeReason;
+
     @Schema(description = "Whether the client is currently active and eligible for compliance processing")
     private boolean active;
 

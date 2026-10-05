@@ -25,6 +25,7 @@ import com.taxoryn.module.client.dto.UpdateClientRequest;
 import com.taxoryn.module.client.dto.UpdateClientStatusRequest;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
+import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.entity.ClientNoteEntity;
 import com.taxoryn.module.client.entity.ClientServiceEntity;
 import com.taxoryn.module.client.entity.ClientServiceType;
@@ -130,6 +131,12 @@ public class ClientServiceImpl implements ClientService {
     private final com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
     private final com.taxoryn.module.billing.service.InvoiceService invoiceService;
     private final ClientProfileCompletenessEvaluator completenessEvaluator;
+    private ClientLifecycleService clientLifecycleService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
+        this.clientLifecycleService = clientLifecycleService;
+    }
 
     @org.springframework.beans.factory.annotation.Autowired
     public ClientServiceImpl(
@@ -297,7 +304,7 @@ public class ClientServiceImpl implements ClientService {
         }
 
         ClientEntity client = ClientEntity.builder()
-                .clientType(request.getClientType())
+                .clientType(request.getClientType() != null ? request.getClientType() : ClientType.INDIVIDUAL)
                 .clientCode(StringUtils.hasText(request.getClientCode()) ? request.getClientCode().trim() : null)
                 .displayName(request.getDisplayName().trim())
                 .legalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : null)
@@ -640,6 +647,9 @@ public class ClientServiceImpl implements ClientService {
     @Override
     @Transactional
     public ClientDto updateClientStatus(UUID clientId, UpdateClientStatusRequest request) {
+        if (clientLifecycleService != null) {
+            return clientLifecycleService.transitionStatus(clientId, request);
+        }
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
@@ -649,6 +659,9 @@ public class ClientServiceImpl implements ClientService {
         ClientStatus oldStatus = client.getStatus();
         ClientStatus newStatus = request.getStatus();
         client.setStatus(newStatus);
+        client.setStatusChangedAt(Instant.now());
+        client.setStatusChangedBy(SecurityUtils.getCurrentUserId());
+        client.setStatusChangeReason(request.getReason());
         ClientEntity saved = clientRepository.save(client);
         log.info("Updated client status: id={}, newStatus={} for tenant={}", clientId, newStatus, organizationId);
 
@@ -1569,6 +1582,8 @@ public class ClientServiceImpl implements ClientService {
                 .taxNotices(taxNoticeDtos)
                 .billing(billingHistory)
                 .status(client.getStatus())
+                .statusChangedAt(client.getStatusChangedAt())
+                .statusChangeReason(client.getStatusChangeReason())
                 .profile(profileDto)
                 .completeness(completeness)
                 .build();

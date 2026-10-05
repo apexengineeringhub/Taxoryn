@@ -18,4 +18,8 @@ public class UpdateClientStatusRequest {
     @NotNull(message = "Status is required")
     @Schema(description = "Target client status", example = "ACTIVE")
     private ClientStatus status;
+
+    @jakarta.validation.constraints.Size(max = 500, message = "Status change reason cannot exceed 500 characters")
+    @Schema(description = "Business justification or audit reason for status change", example = "Client onboarded with verified KYC and tax credentials")
+    private String reason;
 }

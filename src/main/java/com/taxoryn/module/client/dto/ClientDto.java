@@ -103,6 +103,15 @@ public class ClientDto {
     @Schema(description = "Client status", example = "ACTIVE")
     private ClientStatus status;
 
+    @Schema(description = "Timestamp of last status transition")
+    private Instant statusChangedAt;
+
+    @Schema(description = "User ID who performed the last status transition")
+    private UUID statusChangedBy;
+
+    @Schema(description = "Business reason for the last status transition")
+    private String statusChangeReason;
+
     @Schema(description = "Internal practitioner notes")
     private String notes;
 

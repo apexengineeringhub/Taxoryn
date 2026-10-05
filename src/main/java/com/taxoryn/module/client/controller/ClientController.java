@@ -5,6 +5,7 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.client.dto.AssignClientEmployeeRequest;
 import com.taxoryn.module.client.dto.ClientDto;
 import com.taxoryn.module.client.dto.ClientFilterRequest;
+import com.taxoryn.module.client.dto.ClientLifecycleSummaryDto;
 import com.taxoryn.module.client.dto.ClientNoteDto;
 import com.taxoryn.module.client.dto.ClientOverviewDto;
 import com.taxoryn.module.client.dto.ClientProfileCompletenessDto;
@@ -16,6 +17,7 @@ import com.taxoryn.module.client.dto.ClientCommunicationRequest;
 import com.taxoryn.module.client.dto.UpdateClientProfileRequest;
 import com.taxoryn.module.client.entity.ClientNoteEntity.NoteType;
 import com.taxoryn.module.client.service.ClientCommunicationTimelineService;
+import com.taxoryn.module.client.service.ClientLifecycleService;
 import com.taxoryn.module.client.dto.UpdateClientRequest;
 import com.taxoryn.module.client.dto.UpdateClientStatusRequest;
 import com.taxoryn.module.client.dto.ClientContextSummaryDto;
@@ -57,6 +59,7 @@ public class ClientController {
 
     private final ClientService clientService;
     private final ClientContextService clientContextService;
+    private final ClientLifecycleService clientLifecycleService;
     private final ClientCommunicationTimelineService communicationTimelineService;
 
     @GetMapping("/{clientId}/context")
@@ -135,11 +138,27 @@ public class ClientController {
         return ResponseEntity.ok(ApiResponse.success("Client profile completeness evaluated successfully", completeness));
     }
 
+    @GetMapping("/{clientId}/lifecycle")
+    @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasAuthority('CLIENT_READ') or hasAuthority('TASK_CREATE') or hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Get client lifecycle state & transitions", description = "Retrieves authoritative client lifecycle state, transition metadata, and valid next states.")
+    public ResponseEntity<ApiResponse<ClientLifecycleSummaryDto>> getClientLifecycle(@PathVariable UUID clientId) {
+        ClientLifecycleSummaryDto summary = clientLifecycleService.getLifecycleSummary(clientId);
+        return ResponseEntity.ok(ApiResponse.success("Client lifecycle summary retrieved successfully", summary));
+    }
+
     @PatchMapping("/{clientId}/status")
     @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
-    @Operation(summary = "Update client status", description = "Transitions client status (ACTIVE, INACTIVE, PROSPECT, ARCHIVED).")
+    @Operation(summary = "Transition client lifecycle status", description = "Transitions client status (ONBOARDING, ACTIVE, INACTIVE, SUSPENDED, PROSPECT, ARCHIVED) according to transition rules.")
     public ResponseEntity<ApiResponse<ClientDto>> updateClientStatus(@PathVariable UUID clientId, @Valid @RequestBody UpdateClientStatusRequest request) {
-        ClientDto updated = clientService.updateClientStatus(clientId, request);
+        ClientDto updated = clientLifecycleService.transitionStatus(clientId, request);
+        return ResponseEntity.ok(ApiResponse.success("Client status updated successfully to " + updated.getStatus(), updated));
+    }
+
+    @PutMapping("/{clientId}/status")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PRACTITIONER')")
+    @Operation(summary = "Transition client lifecycle status (PUT)", description = "Transitions client status (ONBOARDING, ACTIVE, INACTIVE, SUSPENDED, PROSPECT, ARCHIVED) according to transition rules.")
+    public ResponseEntity<ApiResponse<ClientDto>> putClientStatus(@PathVariable UUID clientId, @Valid @RequestBody UpdateClientStatusRequest request) {
+        ClientDto updated = clientLifecycleService.transitionStatus(clientId, request);
         return ResponseEntity.ok(ApiResponse.success("Client status updated successfully to " + updated.getStatus(), updated));
     }
 

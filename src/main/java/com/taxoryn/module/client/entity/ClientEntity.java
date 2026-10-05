@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -119,6 +120,15 @@ public class ClientEntity extends TenantAuditableEntity {
     @Builder.Default
     private ClientStatus status = ClientStatus.ACTIVE;
 
+    @Column(name = "status_changed_at")
+    private Instant statusChangedAt;
+
+    @Column(name = "status_changed_by")
+    private UUID statusChangedBy;
+
+    @Column(name = "status_change_reason", length = 500)
+    private String statusChangeReason;
+
     public enum ClientType {
         INDIVIDUAL,
         PROPRIETOR,
@@ -135,6 +145,7 @@ public class ClientEntity extends TenantAuditableEntity {
     }
 
     public enum ClientStatus {
+        ONBOARDING,
         ACTIVE,
         INACTIVE,
         SUSPENDED,

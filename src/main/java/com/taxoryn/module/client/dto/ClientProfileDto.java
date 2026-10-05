@@ -49,6 +49,15 @@ public class ClientProfileDto {
     @Schema(description = "Current lifecycle status")
     private ClientStatus status;
 
+    @Schema(description = "Timestamp of last status transition")
+    private java.time.Instant statusChangedAt;
+
+    @Schema(description = "User ID who performed the last status transition")
+    private UUID statusChangedBy;
+
+    @Schema(description = "Business reason for the last status transition")
+    private String statusChangeReason;
+
     // --- BUSINESS INFORMATION ---
     @Schema(description = "Business activity description")
     private String businessActivity;

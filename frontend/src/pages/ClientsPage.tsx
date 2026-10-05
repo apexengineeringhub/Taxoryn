@@ -46,10 +46,10 @@ export const ClientsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(() => searchParams.get('action') === 'new' || searchParams.get('create') === 'true');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>(
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ONBOARDING' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>(
     () => {
       const s = searchParams.get('status')?.toUpperCase();
-      return (s && ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ARCHIVED'].includes(s)) ? (s as any) : 'ALL';
+      return (s && ['ACTIVE', 'ONBOARDING', 'INACTIVE', 'SUSPENDED', 'ARCHIVED'].includes(s)) ? (s as any) : 'ALL';
     }
   );
   const [portalStatusFilter, setPortalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'INACTIVE' | 'NOT_PROVISIONED' | 'NOT_ENABLED'>('ALL');
@@ -81,7 +81,7 @@ export const ClientsPage: React.FC = () => {
       setIsModalOpen(true);
     }
     const targetStatus = searchParams.get('status')?.toUpperCase();
-    if (targetStatus && ['ALL', 'ACTIVE', 'INACTIVE', 'SUSPENDED', 'ARCHIVED'].includes(targetStatus)) {
+    if (targetStatus && ['ALL', 'ACTIVE', 'ONBOARDING', 'INACTIVE', 'SUSPENDED', 'ARCHIVED'].includes(targetStatus)) {
       setStatusFilter(targetStatus as any);
     }
   }, [searchParams]);
@@ -509,6 +509,16 @@ export const ClientsPage: React.FC = () => {
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span>Active</span>
+          </button>
+          <button
+            onClick={() => setStatusFilter('ONBOARDING')}
+            className={clsx(
+              'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0',
+              statusFilter === 'ONBOARDING' ? 'bg-white text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-700'
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span>Onboarding</span>
           </button>
           <button
             onClick={() => setStatusFilter('INACTIVE')}
