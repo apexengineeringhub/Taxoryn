@@ -25,6 +25,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -85,12 +86,28 @@ public class ServiceCatalogServiceImpl implements ServiceCatalogService {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<ServiceDto> findServiceById(UUID id) {
+        UUID organizationId = resolveOrganizationId();
+        return serviceRepository.findAccessibleServiceById(id, organizationId)
+                .map(service -> mapToDto(service, organizationId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ServiceDto getServiceByCode(String serviceCode) {
         UUID organizationId = resolveOrganizationId();
         ServiceEntity service = serviceRepository.findAccessibleServiceByCode(serviceCode, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Service", "serviceCode", serviceCode));
 
         return mapToDto(service, organizationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ServiceDto> findServiceByCode(String serviceCode) {
+        UUID organizationId = resolveOrganizationId();
+        return serviceRepository.findAccessibleServiceByCode(serviceCode, organizationId)
+                .map(service -> mapToDto(service, organizationId));
     }
 
     @Override

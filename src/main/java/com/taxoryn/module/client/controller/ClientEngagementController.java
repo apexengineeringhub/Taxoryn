@@ -7,6 +7,8 @@ import com.taxoryn.module.client.dto.ServiceCatalogItemDto;
 import com.taxoryn.module.client.dto.UpdateClientServiceRequest;
 import com.taxoryn.module.client.entity.ClientServiceStatus;
 import com.taxoryn.module.client.service.ClientEngagementService;
+import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
+import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -24,8 +26,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
-import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -73,13 +73,24 @@ public class ClientEngagementController {
             @Valid @RequestBody CreateClientServiceRequest request) {
         ClientServiceDto created = clientEngagementService.createClientService(clientId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Client service created successfully", created));
+                .body(ApiResponse.created("Client service created successfully", created));
     }
 
     @PutMapping("/clients/{clientId}/services/{serviceId}")
     @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
-    @Operation(summary = "Update client service engagement", description = "Updates status, practitioner assignment, dates, or notes of a service engagement.")
+    @Operation(summary = "Update client service engagement", description = "Updates status, practitioner assignment, dates, pricing, or notes of a service engagement.")
     public ResponseEntity<ApiResponse<ClientServiceDto>> updateClientService(
+            @PathVariable UUID clientId,
+            @PathVariable UUID serviceId,
+            @Valid @RequestBody UpdateClientServiceRequest request) {
+        ClientServiceDto updated = clientEngagementService.updateClientService(clientId, serviceId, request);
+        return ResponseEntity.ok(ApiResponse.success("Client service updated successfully", updated));
+    }
+
+    @PatchMapping("/clients/{clientId}/services/{serviceId}")
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
+    @Operation(summary = "Partial update client service engagement", description = "Partially updates attributes of a client service engagement.")
+    public ResponseEntity<ApiResponse<ClientServiceDto>> patchClientService(
             @PathVariable UUID clientId,
             @PathVariable UUID serviceId,
             @Valid @RequestBody UpdateClientServiceRequest request) {
@@ -89,12 +100,13 @@ public class ClientEngagementController {
 
     @PatchMapping("/clients/{clientId}/services/{serviceId}/status")
     @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasAuthority('CLIENT_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('TAXORYN_SUPERADMIN') or hasRole('PRACTICE_OWNER') or hasRole('PRACTICE_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('PRACTITIONER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF') or hasRole('ARTICLE_ASSISTANT') or hasRole('PRACTICE_EMPLOYEE') or hasRole('ACCOUNTANT')")
-    @Operation(summary = "Update service status", description = "Updates lifecycle status (ACTIVE, INACTIVE, SUSPENDED, COMPLETED) of a service engagement.")
+    @Operation(summary = "Update service status", description = "Updates lifecycle status (ACTIVE, INACTIVE, SUSPENDED, ENDED, PENDING, COMPLETED) of a service engagement.")
     public ResponseEntity<ApiResponse<ClientServiceDto>> updateClientServiceStatus(
             @PathVariable UUID clientId,
             @PathVariable UUID serviceId,
-            @RequestParam ClientServiceStatus status) {
-        ClientServiceDto updated = clientEngagementService.updateClientServiceStatus(clientId, serviceId, status);
+            @RequestParam ClientServiceStatus status,
+            @RequestParam(required = false) String reason) {
+        ClientServiceDto updated = clientEngagementService.updateClientServiceStatus(clientId, serviceId, status, reason);
         return ResponseEntity.ok(ApiResponse.success("Client service status updated successfully", updated));
     }
 

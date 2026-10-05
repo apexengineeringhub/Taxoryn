@@ -429,7 +429,7 @@ export type ClientServiceType =
   | 'ADVISORY_CONSULTING'
   | 'OTHER';
 
-export type ClientServiceStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'COMPLETED';
+export type ClientServiceStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ENDED' | 'PENDING' | 'COMPLETED';
 
 export interface ServiceCatalogItem {
   serviceType: ClientServiceType;
@@ -444,45 +444,70 @@ export interface ServiceCatalogItem {
 export interface ClientServiceDto {
   id: string;
   clientId: string;
+  serviceOfferingId?: string;
   serviceType: ClientServiceType;
+  serviceCode?: string;
   serviceName: string;
   status: ClientServiceStatus;
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   assignedEmployeeEmail?: string;
+  responsibleUserId?: string;
+  responsibleUserName?: string;
+  locationId?: string;
+  locationName?: string;
+  billingFrequency?: string;
   billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedPrice?: number;
   agreedFee?: number;
   currency?: string;
   startDate?: string;
   endDate?: string;
+  notes?: string;
   engagementNotes?: string;
   moduleCode?: string;
+  statusChangedAt?: string;
+  statusChangedBy?: string;
+  statusChangeReason?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface CreateClientServiceRequest {
-  serviceType: ClientServiceType;
+  serviceOfferingId?: string;
+  serviceType?: ClientServiceType;
   serviceName?: string;
   assignedEmployeeId?: string;
+  responsibleUserId?: string;
+  locationId?: string;
+  billingFrequency?: string;
   billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedPrice?: number;
   agreedFee?: number;
   currency?: string;
   startDate?: string;
   endDate?: string;
+  notes?: string;
   engagementNotes?: string;
+  reason?: string;
 }
 
 export interface UpdateClientServiceRequest {
   serviceName?: string;
   status?: ClientServiceStatus;
   assignedEmployeeId?: string;
+  responsibleUserId?: string;
+  locationId?: string;
+  billingFrequency?: string;
   billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedPrice?: number;
   agreedFee?: number;
   currency?: string;
   startDate?: string;
   endDate?: string;
+  notes?: string;
   engagementNotes?: string;
+  reason?: string;
 }
 
 export type ComplianceWorkType =

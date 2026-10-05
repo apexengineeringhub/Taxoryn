@@ -779,12 +779,15 @@ export const Client360Page: React.FC = () => {
                 {clientServices
                   .filter((s) => serviceStatusFilter === 'ALL' || s.status === serviceStatusFilter)
                   .map((srv) => {
-                    const statusColors = {
+                    const statusColors: Record<string, string> = {
                       ACTIVE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                       SUSPENDED: 'bg-amber-50 text-amber-700 border-amber-200',
+                      ENDED: 'bg-slate-100 text-slate-700 border-slate-300',
                       COMPLETED: 'bg-slate-100 text-slate-700 border-slate-300',
+                      PENDING: 'bg-sky-50 text-sky-700 border-sky-200',
                       INACTIVE: 'bg-rose-50 text-rose-700 border-rose-200',
-                    }[srv.status] || 'bg-slate-100 text-slate-700 border-slate-200';
+                    };
+                    const statusColor = statusColors[srv.status] || 'bg-slate-100 text-slate-700 border-slate-200';
 
                     const moduleLink = srv.serviceType.startsWith('GST')
                       ? `/gst`
@@ -815,7 +818,7 @@ export const Client360Page: React.FC = () => {
                             <span
                               className={clsx(
                                 'text-[10px] font-bold px-2 py-0.5 rounded-full border',
-                                statusColors
+                                statusColor
                               )}
                             >
                               {srv.status}

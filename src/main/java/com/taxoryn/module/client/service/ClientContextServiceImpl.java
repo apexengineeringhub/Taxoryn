@@ -5,7 +5,9 @@ import com.taxoryn.core.security.SecurityUtils;
 import com.taxoryn.module.client.dto.ClientContextSummaryDto;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
+import com.taxoryn.module.client.entity.ClientServiceStatus;
 import com.taxoryn.module.client.repository.ClientRepository;
+import com.taxoryn.module.client.repository.ClientServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class ClientContextServiceImpl implements ClientContextService {
 
     private final ClientRepository clientRepository;
+    private final ClientServiceRepository clientServiceRepository;
     private final ClientProfileCompletenessEvaluator completenessEvaluator;
 
     @Override
@@ -79,6 +82,12 @@ public class ClientContextServiceImpl implements ClientContextService {
     }
 
     private ClientContextSummaryDto toSummaryDto(ClientEntity entity) {
+        Long activeServicesCount = null;
+        if (clientServiceRepository != null && entity.getOrganizationId() != null && entity.getId() != null) {
+            activeServicesCount = clientServiceRepository.countByOrganizationIdAndClientIdAndStatus(
+                    entity.getOrganizationId(), entity.getId(), ClientServiceStatus.ACTIVE);
+        }
+
         return ClientContextSummaryDto.builder()
                 .clientId(entity.getId())
                 .organizationId(entity.getOrganizationId())
@@ -107,6 +116,7 @@ public class ClientContextServiceImpl implements ClientContextService {
                 .completeness(completenessEvaluator.evaluate(entity))
                 .locationId(entity.getLocationId())
                 .assignedEmployeeId(entity.getAssignedEmployeeId())
+                .activeServicesCount(activeServicesCount)
                 .build();
     }
 }

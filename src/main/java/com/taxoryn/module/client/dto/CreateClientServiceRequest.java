@@ -2,12 +2,12 @@ package com.taxoryn.module.client.dto;
 
 import com.taxoryn.module.client.entity.ClientServiceType;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -15,12 +15,17 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Request to create a new client service engagement")
+@Schema(description = "Request to create or assign a new client service engagement")
 public class CreateClientServiceRequest {
 
-    @NotNull(message = "Service type is required")
-    @Schema(description = "Service engagement type enum", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Service offering ID from master catalog")
+    private UUID serviceOfferingId;
+
+    @Schema(description = "Service engagement type enum (legacy/direct code alias)")
     private ClientServiceType serviceType;
+
+    @Schema(description = "Agreed client-specific price or retainer fee")
+    private BigDecimal agreedPrice;
 
     @Schema(description = "Service commencement date")
     private LocalDate startDate;
@@ -43,4 +48,7 @@ public class CreateClientServiceRequest {
 
     @Schema(description = "Operational engagement notes")
     private String notes;
+
+    @Schema(description = "Reason for initial service assignment")
+    private String reason;
 }

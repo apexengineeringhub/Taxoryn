@@ -100,6 +100,9 @@ public class ClientContextSummaryDto {
     @Schema(description = "Assigned primary practitioner / employee ID")
     private UUID assignedEmployeeId;
 
+    @Schema(description = "Count of active service engagements")
+    private Long activeServicesCount;
+
     @Schema(description = "Client profile completeness assessment")
     private ClientProfileCompletenessDto completeness;
 }

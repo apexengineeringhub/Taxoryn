@@ -8,6 +8,7 @@ import com.taxoryn.module.service.model.ServiceCategory;
 import com.taxoryn.module.service.model.ServiceScope;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ServiceCatalogService {
@@ -18,7 +19,11 @@ public interface ServiceCatalogService {
 
     ServiceDto getServiceById(UUID id);
 
+    Optional<ServiceDto> findServiceById(UUID id);
+
     ServiceDto getServiceByCode(String serviceCode);
+
+    Optional<ServiceDto> findServiceByCode(String serviceCode);
 
     ServiceDto createService(CreateServiceRequest request);
 

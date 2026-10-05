@@ -7,6 +7,7 @@ import com.taxoryn.module.client.dto.UpdateClientServiceRequest;
 import com.taxoryn.module.client.entity.ClientServiceStatus;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public interface ClientEngagementService {
@@ -23,5 +24,11 @@ public interface ClientEngagementService {
 
     ClientServiceDto updateClientServiceStatus(UUID clientId, UUID serviceId, ClientServiceStatus status);
 
+    ClientServiceDto updateClientServiceStatus(UUID clientId, UUID serviceId, ClientServiceStatus status, String reason);
+
     void deleteClientService(UUID clientId, UUID serviceId);
+
+    boolean isTransitionAllowed(ClientServiceStatus from, ClientServiceStatus to);
+
+    Set<ClientServiceStatus> getAllowedTransitions(ClientServiceStatus currentStatus);
 }

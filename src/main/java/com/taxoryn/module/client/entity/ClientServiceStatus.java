@@ -7,5 +7,7 @@ public enum ClientServiceStatus {
     ACTIVE,
     INACTIVE,
     SUSPENDED,
+    ENDED,
+    PENDING,
     COMPLETED
 }

@@ -522,8 +522,10 @@ export const clientServicesApi = {
     const res = await apiClient.put<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`, payload);
     return res.data.data;
   },
-  updateStatus: async (clientId: string, serviceId: string, status: string) => {
-    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/status`, { status });
+  updateStatus: async (clientId: string, serviceId: string, status: string, reason?: string) => {
+    const params = new URLSearchParams({ status });
+    if (reason) params.append('reason', reason);
+    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/status?${params.toString()}`);
     return res.data.data;
   },
   assignPractitioner: async (clientId: string, serviceId: string, assignedEmployeeId?: string) => {
