@@ -107,7 +107,7 @@ public class GovConnectionHealthAndHandshakeTest {
         );
 
         assertThat(health.getHealthStatus()).isEqualTo(GovConnectionHealthStatus.AUTH_REQUIRED);
-        assertThat(health.getMessage()).containsIgnoringCase("OTP re-authentication required");
+        assertThat(health.getMessage()).containsIgnoringCase("OTP required");
     }
 
     @Test
@@ -124,7 +124,7 @@ public class GovConnectionHealthAndHandshakeTest {
         );
 
         assertThat(health.getHealthStatus()).isEqualTo(GovConnectionHealthStatus.UNAVAILABLE);
-        assertThat(health.getMessage()).containsIgnoringCase("unavailable");
+        assertThat(health.getMessage()).containsIgnoringCase("maintenance");
     }
 
     @Test
