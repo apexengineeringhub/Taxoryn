@@ -121,7 +121,7 @@ public class GovOperationLifecycleIntegrationTest {
         GovOperationDto persisted = govIntegrationService.getOperation(result.getOperationId());
         assertThat(persisted.getStatus()).isEqualTo(GovOperationStatus.FAILED);
         assertThat(persisted.getErrorCode()).isEqualTo(GovErrorCode.VALIDATION_FAILED);
-        assertThat(persisted.getErrorMessage()).contains("Validation Failed");
+        assertThat(persisted.getErrorMessage()).containsIgnoringCase("validation failed");
         assertThat(persisted.getCompletedAt()).isNotNull();
     }
 

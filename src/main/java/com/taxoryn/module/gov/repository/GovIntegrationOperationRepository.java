@@ -23,6 +23,8 @@ public interface GovIntegrationOperationRepository extends JpaRepository<GovInte
 
     List<GovIntegrationOperationEntity> findByOrganizationIdAndStatus(UUID organizationId, GovOperationStatus status);
 
+    List<GovIntegrationOperationEntity> findByOrganizationIdAndStatusIn(UUID organizationId, List<GovOperationStatus> statuses);
+
     List<GovIntegrationOperationEntity> findByOrganizationIdAndBusinessEntityTypeAndBusinessEntityId(
             UUID organizationId, String businessEntityType, UUID businessEntityId);
 }
