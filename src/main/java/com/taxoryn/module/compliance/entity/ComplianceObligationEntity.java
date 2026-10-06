@@ -123,6 +123,21 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     private LocalDate internalTargetDate;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "due_date_calculation_status", length = 50)
+    @Builder.Default
+    private com.taxoryn.module.compliance.duedate.model.DueDateCalculationStatus dueDateCalculationStatus = com.taxoryn.module.compliance.duedate.model.DueDateCalculationStatus.NOT_CONFIGURED;
+
+    @Column(name = "due_date_explanation", columnDefinition = "TEXT")
+    private String dueDateExplanation;
+
+    @Column(name = "due_date_calculated_at")
+    private Instant dueDateCalculatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "due_date_rule_type", length = 50)
+    private com.taxoryn.module.compliance.rule.model.DueDateRuleType dueDateRuleType;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     @Builder.Default
     private ComplianceObligationStatus status = ComplianceObligationStatus.UPCOMING;

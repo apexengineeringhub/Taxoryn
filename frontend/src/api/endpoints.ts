@@ -47,6 +47,11 @@ import {
   GeneratedObligationsResponseDto,
   CancelObligationRequest,
   ComplianceObligationSummaryDto,
+  CompliancePeriodType,
+  DueDateCalculationStatus,
+  DueDateCalculationResult,
+  ObligationDueDateDto,
+  CompliancePeriodDto,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -3998,7 +4003,58 @@ export const complianceObligationsApi = {
     );
     return res.data.data;
   },
+  getObligationDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ObligationDueDateDto> => {
+    const res = await apiClient.get<ApiResponse<ObligationDueDateDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date`
+    );
+    return res.data.data;
+  },
+  recalculateObligationDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date/recalculate`
+    );
+    return res.data.data;
+  },
 };
+
+export const complianceDueDateApi = {
+  getObligationDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ObligationDueDateDto> => {
+    const res = await apiClient.get<ApiResponse<ObligationDueDateDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date`
+    );
+    return res.data.data;
+  },
+  recalculateDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date/recalculate`
+    );
+    return res.data.data;
+  },
+  previewDueDate: async (
+    ruleCode: string,
+    periodType: CompliancePeriodType,
+    periodKey: string
+  ): Promise<DueDateCalculationResult> => {
+    const res = await apiClient.get<ApiResponse<DueDateCalculationResult>>(
+      `/v1/compliance/due-dates/preview`,
+      { params: { ruleCode, periodType, periodKey } }
+    );
+    return res.data.data;
+  },
+};
+
 
 
 

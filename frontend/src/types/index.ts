@@ -4947,6 +4947,11 @@ export interface ComplianceObligationItem {
   assessmentYear?: string;
   statutoryDueDate?: string;
   internalTargetDate?: string;
+  dueDate?: string;
+  dueDateCalculationStatus?: DueDateCalculationStatus;
+  dueDateExplanation?: string;
+  dueDateCalculatedAt?: string;
+  dueDateRuleType?: DueDateRuleType;
   status: ComplianceObligationStatus;
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
   assignedEmployeeId?: string;
@@ -4966,8 +4971,6 @@ export interface ComplianceObligationItem {
   updatedAt: string;
   version?: number;
 }
-
-export type ComplianceObligationDto = ComplianceObligationItem;
 
 export interface ComplianceCalendarSummary {
   totalObligations: number;
@@ -6594,6 +6597,8 @@ export interface CancelObligationRequest {
   cancellationReason: string;
 }
 
+export type ComplianceObligationDto = ComplianceObligationItem;
+
 export interface ComplianceObligationSummaryDto {
   totalCount: number;
   openCount: number;
@@ -6602,5 +6607,56 @@ export interface ComplianceObligationSummaryDto {
   cancelledCount: number;
   byDomain: Record<string, number>;
   byStatus: Record<string, number>;
+}
+
+// ==============================================================================
+// Phase 29.5: Period & Due-Date Engine Types
+// ==============================================================================
+
+export type DueDateCalculationStatus =
+  | 'CALCULATED'
+  | 'NOT_CONFIGURED'
+  | 'INVALID_CONFIGURATION'
+  | 'OUT_OF_EFFECTIVE_RANGE'
+  | 'NOT_APPLICABLE';
+
+export interface DueDateCalculationResult {
+  statutoryDueDate?: string;
+  dueDate?: string;
+  status: DueDateCalculationStatus;
+  strategy?: DueDateRuleType;
+  ruleCode?: string;
+  ruleVersion?: number;
+  explanation?: string;
+  calculationDate?: string;
+  calculationTrace?: string;
+  statutoryGraceDays?: number;
+}
+
+export interface ObligationDueDateDto {
+  obligationId: string;
+  clientId: string;
+  ruleCode: string;
+  ruleVersion: number;
+  ruleName?: string;
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  periodLabel?: string;
+  statutoryDueDate?: string;
+  dueDate?: string;
+  calculationStatus: DueDateCalculationStatus;
+  strategy?: DueDateRuleType;
+  explanation?: string;
+  calculatedAt?: string;
+}
+
+export interface CompliancePeriodDto {
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  startDate: string;
+  endDate: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  displayLabel?: string;
 }
 

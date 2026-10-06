@@ -325,6 +325,16 @@ export const Client360Page: React.FC = () => {
     }
   };
 
+  const handleRecalculateDueDate = async (obligationId: string) => {
+    if (!clientId) return;
+    try {
+      await complianceObligationsApi.recalculateObligationDueDate(clientId, obligationId);
+      await loadObligations();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to recalculate statutory due date');
+    }
+  };
+
   const loadApplicability = async () => {
     if (!clientId) return;
     try {
@@ -2629,8 +2639,43 @@ export const Client360Page: React.FC = () => {
                           </span>
                         </div>
 
+                        {/* Due Date & Period Context (Phase 29.5) */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <div>
+                              <span className="font-semibold text-slate-700">Due Date: </span>
+                              {obligation.statutoryDueDate || obligation.dueDate ? (
+                                <span className="font-mono font-bold text-slate-900">
+                                  {obligation.statutoryDueDate || obligation.dueDate}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  <AlertCircle className="w-3 h-3" /> Due date unconfigured
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {obligation.dueDateCalculationStatus && obligation.dueDateCalculationStatus !== 'CALCULATED' && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100/80 text-amber-800">
+                              {obligation.dueDateCalculationStatus.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                        </div>
+
+                        {obligation.dueDateExplanation ? (
+                          <p className="text-[11px] text-slate-500 italic px-1">
+                            {obligation.dueDateExplanation}
+                          </p>
+                        ) : !obligation.statutoryDueDate && !obligation.dueDate ? (
+                          <p className="text-[11px] text-amber-600 italic px-1">
+                            Due date configuration is not available for this rule.
+                          </p>
+                        ) : null}
+
                         {obligation.applicabilityReason && (
-                          <p className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                          <p className="text-[11px] text-slate-600 bg-slate-50/70 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
                             <span className="font-semibold text-slate-700">Snapshot Rationale: </span>
                             {obligation.applicabilityReason}
                           </p>
@@ -2644,27 +2689,41 @@ export const Client360Page: React.FC = () => {
                         )}
 
                         {/* Obligation Actions */}
-                        {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && (
-                          <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                          {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' ? (
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                setTargetCancelObligation(obligation);
-                                setIsCancelModalOpen(true);
-                              }}
+                              leftIcon={<RefreshCw className="w-3 h-3 text-slate-400" />}
+                              onClick={() => handleRecalculateDueDate(obligation.id)}
+                              title="Recalculate authoritative due date using latest catalog rules"
                             >
-                              Cancel
+                              <span className="text-[11px]">Recalculate Due Date</span>
                             </Button>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleCompleteObligation(obligation.id)}
-                            >
-                              Mark Completed
-                            </Button>
-                          </div>
-                        )}
+                          ) : <div />}
+
+                          {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setTargetCancelObligation(obligation);
+                                  setIsCancelModalOpen(true);
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleCompleteObligation(obligation.id)}
+                              >
+                                Mark Completed
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                 </div>

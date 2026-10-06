@@ -24,6 +24,7 @@ import com.taxoryn.module.compliance.obligation.util.PeriodValidator;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
 import com.taxoryn.module.compliance.rule.model.CompliancePeriodType;
 import com.taxoryn.module.compliance.rule.model.ComplianceRuleDomain;
+import com.taxoryn.module.compliance.rule.repository.ComplianceRuleCatalogRepository;
 import com.taxoryn.module.task.entity.TaskEntity.TaskPriority;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +49,9 @@ public class ComplianceObligationServiceImpl implements ComplianceObligationServ
     private final ComplianceObligationRepository obligationRepository;
     private final ClientRepository clientRepository;
     private final ComplianceApplicabilityService applicabilityService;
+    private final ComplianceRuleCatalogRepository ruleRepository;
+    private final com.taxoryn.module.compliance.period.service.CompliancePeriodService periodService;
+    private final com.taxoryn.module.compliance.duedate.service.ComplianceDueDateService dueDateService;
     private final AuditService auditService;
 
     @Override
@@ -59,6 +63,7 @@ public class ComplianceObligationServiceImpl implements ComplianceObligationServ
         PeriodValidator.validatePeriodKey(request.getPeriodType(), request.getPeriodKey());
         String periodKey = request.getPeriodKey().trim();
         CompliancePeriodType periodType = request.getPeriodType();
+        com.taxoryn.module.compliance.period.model.CompliancePeriod compliancePeriod = periodService.resolvePeriod(periodType, periodKey);
 
         // 1. Evaluate applicability for this client
         ClientComplianceApplicabilityDto applicability = applicabilityService.evaluateClientApplicability(
@@ -109,7 +114,20 @@ public class ComplianceObligationServiceImpl implements ComplianceObligationServ
                 existingCount++;
                 resultDtos.add(mapToDto(existingOpt.get(), client));
             } else {
-                // 4. Create new obligation snapshot
+                // 4. Resolve Rule Entity for Due Date Calculation
+                Optional<com.taxoryn.module.compliance.rule.entity.ComplianceRuleEntity> ruleEntityOpt = ruleRepository.findByRuleCodeAndOrganizationIdIsNull(ruleEval.getRuleCode());
+                if (orgId != null) {
+                    Optional<com.taxoryn.module.compliance.rule.entity.ComplianceRuleEntity> tenantRuleOpt = ruleRepository.findByRuleCodeAndOrganizationId(ruleEval.getRuleCode(), orgId);
+                    if (tenantRuleOpt.isPresent()) {
+                        ruleEntityOpt = tenantRuleOpt;
+                    }
+                }
+
+                com.taxoryn.module.compliance.duedate.dto.DueDateCalculationResult dueDateResult = ruleEntityOpt.isPresent()
+                        ? dueDateService.calculateDueDate(ruleEntityOpt.get(), compliancePeriod, java.time.LocalDate.now())
+                        : com.taxoryn.module.compliance.duedate.dto.DueDateCalculationResult.notConfigured(ruleEval.getRuleCode(), version, "Rule definition not found in catalog");
+
+                // 5. Create new obligation snapshot
                 ComplianceObligationEntity newObligation = ComplianceObligationEntity.builder()
                         .clientId(clientId)
                         .ruleId(ruleEval.getRuleId())
@@ -119,8 +137,16 @@ public class ComplianceObligationServiceImpl implements ComplianceObligationServ
                         .domain(ruleEval.getDomain() != null ? ruleEval.getDomain() : ComplianceRuleDomain.OTHER)
                         .periodType(periodType)
                         .periodKey(periodKey)
-                        .periodLabel(periodKey)
-                        .title(ruleEval.getRuleName() + " - " + periodKey)
+                        .periodLabel(compliancePeriod.getDisplayLabel())
+                        .financialYear(compliancePeriod.getFinancialYear())
+                        .assessmentYear(compliancePeriod.getAssessmentYear())
+                        .statutoryDueDate(dueDateResult.getStatutoryDueDate())
+                        .dueDate(dueDateResult.getDueDate())
+                        .dueDateCalculationStatus(dueDateResult.getStatus())
+                        .dueDateExplanation(dueDateResult.getExplanation())
+                        .dueDateCalculatedAt(Instant.now())
+                        .dueDateRuleType(dueDateResult.getStrategy())
+                        .title(ruleEval.getRuleName() + " - " + compliancePeriod.getDisplayLabel())
                         .obligationType(mapDomainToObligationType(ruleEval.getDomain()))
                         .status(ComplianceObligationStatus.UPCOMING)
                         .priority(TaskPriority.MEDIUM)
@@ -143,8 +169,8 @@ public class ComplianceObligationServiceImpl implements ComplianceObligationServ
                             "Generated obligation for rule " + ruleEval.getRuleCode() + " (" + ruleEval.getRuleName() + ") period " + periodKey
                     );
 
-                    log.info("Generated compliance obligation id={} for client={}, rule={}, period={}",
-                            saved.getId(), clientId, ruleEval.getRuleCode(), periodKey);
+                    log.info("Generated compliance obligation id={} for client={}, rule={}, period={}, statutoryDueDate={}",
+                            saved.getId(), clientId, ruleEval.getRuleCode(), periodKey, saved.getStatutoryDueDate());
 
                     resultDtos.add(mapToDto(saved, client));
                 } catch (DataIntegrityViolationException ex) {
@@ -419,6 +445,10 @@ public class ComplianceObligationServiceImpl implements ComplianceObligationServ
                 .dueDate(entity.getDueDate() != null ? entity.getDueDate() : entity.getStatutoryDueDate())
                 .period(entity.getPeriod() != null ? entity.getPeriod() : entity.getPeriodKey())
                 .complianceType(entity.getComplianceType() != null ? entity.getComplianceType().name() : (entity.getDomain() != null ? entity.getDomain().name() : null))
+                .dueDateCalculationStatus(entity.getDueDateCalculationStatus() != null ? entity.getDueDateCalculationStatus().name() : null)
+                .dueDateExplanation(entity.getDueDateExplanation())
+                .dueDateCalculatedAt(entity.getDueDateCalculatedAt())
+                .dueDateRuleType(entity.getDueDateRuleType() != null ? entity.getDueDateRuleType().name() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

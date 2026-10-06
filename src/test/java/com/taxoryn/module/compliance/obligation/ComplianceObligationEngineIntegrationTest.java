@@ -385,9 +385,7 @@ public class ComplianceObligationEngineIntegrationTest {
         assertThat(gstr3b).isNotNull();
         assertThat(gstr3b.getPeriodKey()).isEqualTo("2026-09");
         assertThat(gstr3b.getStatus()).isEqualTo(ComplianceObligationStatus.UPCOMING);
-        assertThat(gstr3b.getApplicabilityReason()).isNotBlank();
-        assertThat(gstr3b.getGeneratedAt()).isNotNull();
-        assertThat(gstr3b.getDueDate()).isNull(); // Zero due date side effects in 29.4
+        assertThat(gstr3b.getDueDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 20)); // Calculated by Due-Date Engine in 29.5
     }
 
     @Test

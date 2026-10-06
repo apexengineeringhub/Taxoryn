@@ -122,6 +122,18 @@ public class ComplianceObligationDto {
     @Schema(description = "Internal Practice Target Date", example = "2026-08-17")
     private LocalDate internalTargetDate;
 
+    @Schema(description = "Due date calculation status", example = "CALCULATED")
+    private String dueDateCalculationStatus;
+
+    @Schema(description = "Due date calculation explanation", example = "20th of following month")
+    private String dueDateExplanation;
+
+    @Schema(description = "Timestamp when due date was calculated")
+    private Instant dueDateCalculatedAt;
+
+    @Schema(description = "Due date rule strategy applied", example = "DAY_OF_FOLLOWING_MONTH")
+    private String dueDateRuleType;
+
     @Schema(description = "Compliance status", example = "IN_PROGRESS")
     private ComplianceObligationStatus status;
 

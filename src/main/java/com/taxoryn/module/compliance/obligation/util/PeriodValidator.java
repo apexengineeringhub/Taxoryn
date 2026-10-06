@@ -12,10 +12,11 @@ import java.util.regex.Pattern;
 public final class PeriodValidator {
 
     private static final Pattern MONTH_PATTERN = Pattern.compile("^\\d{4}-(0[1-9]|1[0-2])$");
-    private static final Pattern QUARTER_PATTERN = Pattern.compile("^\\d{4}-Q[1-4]$");
-    private static final Pattern HALF_YEAR_PATTERN = Pattern.compile("^\\d{4}-H[1-2]$");
+    private static final Pattern QUARTER_PATTERN = Pattern.compile("^\\d{4}(-\\d{2})?-Q[1-4]$");
+    private static final Pattern HALF_YEAR_PATTERN = Pattern.compile("^\\d{4}(-\\d{2})?-H[1-2]$");
     private static final Pattern FY_AY_SHORT_PATTERN = Pattern.compile("^\\d{4}-\\d{2}$");
     private static final Pattern FY_AY_FULL_PATTERN = Pattern.compile("^\\d{4}-\\d{4}$");
+    private static final Pattern EVENT_PATTERN = Pattern.compile("^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])(:[a-zA-Z0-9_-]+)?$");
 
     private PeriodValidator() {
         // utility class
@@ -42,12 +43,12 @@ public final class PeriodValidator {
             }
             case QUARTER -> {
                 if (!QUARTER_PATTERN.matcher(trimmed).matches()) {
-                    throw new BadRequestException("Invalid QUARTER period key: '" + periodKey + "'. Expected format 'YYYY-QX' (e.g. '2026-Q1' to '2026-Q4').");
+                    throw new BadRequestException("Invalid QUARTER period key: '" + periodKey + "'. Expected format 'YYYY-YY-QX' or 'YYYY-QX' (e.g. '2026-27-Q1' or '2026-Q1').");
                 }
             }
             case HALF_YEAR -> {
                 if (!HALF_YEAR_PATTERN.matcher(trimmed).matches()) {
-                    throw new BadRequestException("Invalid HALF_YEAR period key: '" + periodKey + "'. Expected format 'YYYY-HX' (e.g. '2026-H1' or '2026-H2').");
+                    throw new BadRequestException("Invalid HALF_YEAR period key: '" + periodKey + "'. Expected format 'YYYY-YY-HX' or 'YYYY-HX' (e.g. '2026-27-H1' or '2026-H1').");
                 }
             }
             case FINANCIAL_YEAR, ASSESSMENT_YEAR -> {
@@ -56,8 +57,8 @@ public final class PeriodValidator {
                 }
             }
             case EVENT -> {
-                if (trimmed.length() > 100) {
-                    throw new BadRequestException("Invalid EVENT period key: Length exceeds 100 characters.");
+                if (!EVENT_PATTERN.matcher(trimmed).matches()) {
+                    throw new BadRequestException("Invalid EVENT period key: '" + periodKey + "'. Expected format 'YYYY-MM-DD' or 'YYYY-MM-DD:TAG' (e.g. '2026-09-15' or '2026-09-15:AGM').");
                 }
             }
         }
