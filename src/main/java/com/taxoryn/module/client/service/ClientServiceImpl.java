@@ -154,6 +154,10 @@ public class ClientServiceImpl implements ClientService {
     @org.springframework.context.annotation.Lazy
     private com.taxoryn.module.engagement.service.EngagementService engagementService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.compliance.profile.service.ComplianceProfileService complianceProfileService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
         this.clientLifecycleService = clientLifecycleService;
@@ -1709,6 +1713,15 @@ public class ClientServiceImpl implements ClientService {
                     .toList();
         }
 
+        com.taxoryn.module.compliance.profile.dto.ComplianceProfileSummaryDto complianceProfileSummary = null;
+        if (complianceProfileService != null) {
+            try {
+                complianceProfileSummary = complianceProfileService.getComplianceProfileSummary(organizationId, clientId).orElse(null);
+            } catch (Exception ex) {
+                log.debug("Could not resolve compliance profile summary for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1737,6 +1750,7 @@ public class ClientServiceImpl implements ClientService {
                 .recentTimeline(recentTimeline)
                 .taskSummary(overview.getTaskSummary())
                 .complianceSummary(overview.getComplianceSummary())
+                .complianceProfile(complianceProfileSummary)
                 .documentsSummary(overview.getDocumentsSummary())
                 .docRequestsSummary(overview.getDocRequestsSummary())
                 .billingSummary(overview.getBillingSummary())

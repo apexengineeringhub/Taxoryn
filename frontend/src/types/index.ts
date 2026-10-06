@@ -6212,5 +6212,144 @@ export interface BusinessContextDto {
   actorContext?: ActorSummaryContext;
 }
 
+// ==============================================================================
+// Phase 29.1: Compliance Profile Foundation Types
+// ==============================================================================
+
+export type ComplianceProfileStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+export type ComplianceGstRegistrationType =
+  | 'REGULAR'
+  | 'COMPOSITION'
+  | 'QRMP'
+  | 'CASUAL'
+  | 'NON_RESIDENT'
+  | 'ISD'
+  | 'TDS_DEDUCTOR'
+  | 'TCS_COLLECTOR'
+  | 'OIDAR'
+  | 'INPUT_SERVICE_DISTRIBUTOR'
+  | 'OTHER';
+
+export type ComplianceFilingFrequency =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUALLY'
+  | 'SEMI_ANNUALLY'
+  | 'EVENT_BASED';
+
+export type ComplianceTdsDeductorCategory =
+  | 'COMPANY'
+  | 'INDIVIDUAL_HUF'
+  | 'GOVERNMENT'
+  | 'BANK_FINANCIAL_INSTITUTION'
+  | 'PARTNERSHIP_LLP'
+  | 'OTHER';
+
+export type ComplianceItrCategory =
+  | 'COMPANY'
+  | 'INDIVIDUAL'
+  | 'HUF'
+  | 'PARTNERSHIP_LLP'
+  | 'TRUST_SOCIETY'
+  | 'AOP_BOI'
+  | 'OTHER';
+
+export interface GstComplianceConfigDto {
+  applicable: boolean;
+  registrationType?: ComplianceGstRegistrationType;
+  filingFrequency?: ComplianceFilingFrequency;
+  compositionScheme?: boolean;
+  einvoiceApplicable?: boolean;
+  ewaybillApplicable?: boolean;
+}
+
+export interface TdsComplianceConfigDto {
+  applicable: boolean;
+  filingFrequency?: ComplianceFilingFrequency;
+  deductorCategory?: ComplianceTdsDeductorCategory;
+  lowerDeductionCertificate?: boolean;
+}
+
+export interface ItrComplianceConfigDto {
+  applicable: boolean;
+  category?: ComplianceItrCategory;
+  taxAuditApplicable?: boolean;
+  transferPricingApplicable?: boolean;
+}
+
+export interface OtherComplianceConfigDto {
+  advanceTaxApplicable?: boolean;
+  mcaFilingApplicable?: boolean;
+  professionalTaxApplicable?: boolean;
+  pfEsiApplicable?: boolean;
+}
+
+export interface ComplianceProfileCompletenessDto {
+  configured: boolean;
+  gstConfigured: boolean;
+  tdsConfigured: boolean;
+  itrConfigured: boolean;
+  readinessScore: number;
+  readinessSummary: string;
+  pendingItems: string[];
+}
+
+export interface ComplianceProfileSummaryDto {
+  profileId?: string;
+  clientId?: string;
+  status: ComplianceProfileStatus;
+  gstApplicable: boolean;
+  gstRegistrationType?: string;
+  gstFilingFrequency?: string;
+  tdsApplicable: boolean;
+  tdsFilingFrequency?: string;
+  itrApplicable: boolean;
+  itrCategory?: string;
+  readinessScore: number;
+}
+
+export interface ComplianceProfileDto {
+  id?: string;
+  organizationId?: string;
+  clientId: string;
+  status: ComplianceProfileStatus;
+  clientSummary?: ClientSummaryContext;
+  gstConfig: GstComplianceConfigDto;
+  tdsConfig: TdsComplianceConfigDto;
+  itrConfig: ItrComplianceConfigDto;
+  otherComplianceConfig: OtherComplianceConfigDto;
+  notes?: string;
+  completeness?: ComplianceProfileCompletenessDto;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
+}
+
+export interface UpdateComplianceProfileRequest {
+  status?: ComplianceProfileStatus;
+  gstApplicable?: boolean;
+  gstRegistrationType?: ComplianceGstRegistrationType;
+  gstFilingFrequency?: ComplianceFilingFrequency;
+  gstCompositionScheme?: boolean;
+  gstEinvoiceApplicable?: boolean;
+  gstEwaybillApplicable?: boolean;
+  tdsApplicable?: boolean;
+  tdsFilingFrequency?: ComplianceFilingFrequency;
+  tdsDeductorCategory?: ComplianceTdsDeductorCategory;
+  tdsLowerDeductionCertificate?: boolean;
+  itrApplicable?: boolean;
+  itrCategory?: ComplianceItrCategory;
+  itrTaxAuditApplicable?: boolean;
+  itrTransferPricingApplicable?: boolean;
+  advanceTaxApplicable?: boolean;
+  mcaFilingApplicable?: boolean;
+  professionalTaxApplicable?: boolean;
+  pfEsiApplicable?: boolean;
+  notes?: string;
+}
+
+
 
 

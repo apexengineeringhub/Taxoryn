@@ -54,6 +54,7 @@ import {
   clientRelationshipsApi,
   clientTimelineApi,
   clientIntelligenceApi,
+  complianceProfileApi,
   complianceWorkApi,
   employeeApi,
 } from '../api/endpoints';
@@ -69,6 +70,12 @@ import {
   ContactRole,
   ClientBranchType,
   ClientRelationshipType,
+  ComplianceProfileDto,
+  UpdateComplianceProfileRequest,
+  ComplianceGstRegistrationType,
+  ComplianceFilingFrequency,
+  ComplianceTdsDeductorCategory,
+  ComplianceItrCategory,
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
@@ -181,6 +188,31 @@ export const Client360Page: React.FC = () => {
   const [recommendations, setRecommendations] = useState<ClientActionRecommendationDto[]>([]);
   const [isLoadingIntelligence, setIsLoadingIntelligence] = useState(false);
 
+  // Compliance Profile State (Phase 29.1)
+  const [complianceProfile, setComplianceProfile] = useState<ComplianceProfileDto | null>(null);
+  const [isLoadingComplianceProfile, setIsLoadingComplianceProfile] = useState(false);
+  const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
+  const [isSubmittingComplianceProfile, setIsSubmittingComplianceProfile] = useState(false);
+  const [gstApplicable, setGstApplicable] = useState(false);
+  const [gstRegistrationType, setGstRegistrationType] = useState<ComplianceGstRegistrationType>('REGULAR');
+  const [gstFilingFrequency, setGstFilingFrequency] = useState<ComplianceFilingFrequency>('MONTHLY');
+  const [gstCompositionScheme, setGstCompositionScheme] = useState(false);
+  const [gstEinvoiceApplicable, setGstEinvoiceApplicable] = useState(false);
+  const [gstEwaybillApplicable, setGstEwaybillApplicable] = useState(false);
+  const [tdsApplicable, setTdsApplicable] = useState(false);
+  const [tdsFilingFrequency, setTdsFilingFrequency] = useState<ComplianceFilingFrequency>('QUARTERLY');
+  const [tdsDeductorCategory, setTdsDeductorCategory] = useState<ComplianceTdsDeductorCategory>('COMPANY');
+  const [tdsLowerDeductionCertificate, setTdsLowerDeductionCertificate] = useState(false);
+  const [itrApplicable, setItrApplicable] = useState(false);
+  const [itrCategory, setItrCategory] = useState<ComplianceItrCategory>('COMPANY');
+  const [itrTaxAuditApplicable, setItrTaxAuditApplicable] = useState(false);
+  const [itrTransferPricingApplicable, setItrTransferPricingApplicable] = useState(false);
+  const [advanceTaxApplicable, setAdvanceTaxApplicable] = useState(false);
+  const [mcaFilingApplicable, setMcaFilingApplicable] = useState(false);
+  const [professionalTaxApplicable, setProfessionalTaxApplicable] = useState(false);
+  const [pfEsiApplicable, setPfEsiApplicable] = useState(false);
+  const [complianceNotes, setComplianceNotes] = useState('');
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
@@ -191,8 +223,79 @@ export const Client360Page: React.FC = () => {
       loadRelationships();
       loadTimeline();
       loadIntelligence();
+      loadComplianceProfile();
     }
   }, [clientId]);
+
+  const loadComplianceProfile = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingComplianceProfile(true);
+      const data = await complianceProfileApi.getProfile(clientId);
+      setComplianceProfile(data);
+      if (data) {
+        setGstApplicable(data.gstConfig?.applicable ?? false);
+        setGstRegistrationType(data.gstConfig?.registrationType ?? 'REGULAR');
+        setGstFilingFrequency(data.gstConfig?.filingFrequency ?? 'MONTHLY');
+        setGstCompositionScheme(data.gstConfig?.compositionScheme ?? false);
+        setGstEinvoiceApplicable(data.gstConfig?.einvoiceApplicable ?? false);
+        setGstEwaybillApplicable(data.gstConfig?.ewaybillApplicable ?? false);
+        setTdsApplicable(data.tdsConfig?.applicable ?? false);
+        setTdsFilingFrequency(data.tdsConfig?.filingFrequency ?? 'QUARTERLY');
+        setTdsDeductorCategory(data.tdsConfig?.deductorCategory ?? 'COMPANY');
+        setTdsLowerDeductionCertificate(data.tdsConfig?.lowerDeductionCertificate ?? false);
+        setItrApplicable(data.itrConfig?.applicable ?? false);
+        setItrCategory(data.itrConfig?.category ?? 'COMPANY');
+        setItrTaxAuditApplicable(data.itrConfig?.taxAuditApplicable ?? false);
+        setItrTransferPricingApplicable(data.itrConfig?.transferPricingApplicable ?? false);
+        setAdvanceTaxApplicable(data.otherComplianceConfig?.advanceTaxApplicable ?? false);
+        setMcaFilingApplicable(data.otherComplianceConfig?.mcaFilingApplicable ?? false);
+        setProfessionalTaxApplicable(data.otherComplianceConfig?.professionalTaxApplicable ?? false);
+        setPfEsiApplicable(data.otherComplianceConfig?.pfEsiApplicable ?? false);
+        setComplianceNotes(data.notes ?? '');
+      }
+    } catch (err: any) {
+      console.warn('Failed to load compliance profile', err);
+    } finally {
+      setIsLoadingComplianceProfile(false);
+    }
+  };
+
+  const handleSaveComplianceProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId) return;
+    try {
+      setIsSubmittingComplianceProfile(true);
+      await complianceProfileApi.updateProfile(clientId, {
+        status: 'ACTIVE',
+        gstApplicable,
+        gstRegistrationType,
+        gstFilingFrequency,
+        gstCompositionScheme,
+        gstEinvoiceApplicable,
+        gstEwaybillApplicable,
+        tdsApplicable,
+        tdsFilingFrequency,
+        tdsDeductorCategory,
+        tdsLowerDeductionCertificate,
+        itrApplicable,
+        itrCategory,
+        itrTaxAuditApplicable,
+        itrTransferPricingApplicable,
+        advanceTaxApplicable,
+        mcaFilingApplicable,
+        professionalTaxApplicable,
+        pfEsiApplicable,
+        notes: complianceNotes.trim() || undefined,
+      });
+      setIsComplianceModalOpen(false);
+      await Promise.all([loadComplianceProfile(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update compliance profile');
+    } finally {
+      setIsSubmittingComplianceProfile(false);
+    }
+  };
 
   const loadTimeline = async (category?: string) => {
     if (!clientId) return;
@@ -1871,6 +1974,244 @@ export const Client360Page: React.FC = () => {
         {/* 3. COMPLIANCE TAB */}
         {activeTab === 'compliance' && (
           <div className="space-y-6">
+            {/* Compliance Profile & Statutory Facts Card (Phase 29.1) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-brand-50 text-brand-600">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">
+                          Compliance Profile & Statutory Facts
+                        </h3>
+                        <span
+                          className={clsx(
+                            'text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border',
+                            complianceProfile?.status === 'ACTIVE'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : complianceProfile?.status === 'INACTIVE'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          )}
+                        >
+                          {complianceProfile?.status || 'NOT CONFIGURED'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Statutory facts, applicability parameters, and compliance evaluation baseline for {client.displayName}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {complianceProfile?.completeness && (
+                    <div className="text-right hidden md:block">
+                      <div className="flex items-center gap-2 justify-end">
+                        <span className="text-[11px] font-semibold text-slate-500">Readiness:</span>
+                        <span className="text-xs font-black text-slate-900">
+                          {complianceProfile.completeness.readinessScore}%
+                        </span>
+                      </div>
+                      <div className="w-28 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+                        <div
+                          className={clsx(
+                            'h-full rounded-full transition-all',
+                            complianceProfile.completeness.readinessScore >= 80
+                              ? 'bg-emerald-500'
+                              : complianceProfile.completeness.readinessScore >= 50
+                              ? 'bg-amber-500'
+                              : 'bg-rose-500'
+                          )}
+                          style={{ width: `${complianceProfile.completeness.readinessScore}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setIsComplianceModalOpen(true)}
+                  >
+                    Configure Profile
+                  </Button>
+                </div>
+              </div>
+
+              {/* Statutory Facts Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* GST Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">GST Configuration</span>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                        complianceProfile?.gstConfig?.applicable
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-200 text-slate-600'
+                      )}
+                    >
+                      {complianceProfile?.gstConfig?.applicable ? 'Applicable' : 'Exempt / NA'}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Type:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.registrationType || 'REGULAR'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Frequency:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.filingFrequency || 'MONTHLY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">E-Invoice:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.einvoiceApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">E-Way Bill:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.ewaybillApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* TDS Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">TDS / TCS Configuration</span>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                        complianceProfile?.tdsConfig?.applicable
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-200 text-slate-600'
+                      )}
+                    >
+                      {complianceProfile?.tdsConfig?.applicable ? 'Applicable' : 'Exempt / NA'}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Category:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.tdsConfig?.deductorCategory || 'COMPANY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Frequency:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.tdsConfig?.filingFrequency || 'QUARTERLY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Lower Rate Cert:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.tdsConfig?.lowerDeductionCertificate ? 'Active' : 'None'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ITR Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Income Tax (ITR)</span>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                        complianceProfile?.itrConfig?.applicable
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-200 text-slate-600'
+                      )}
+                    >
+                      {complianceProfile?.itrConfig?.applicable ? 'Applicable' : 'Exempt / NA'}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">ITR Return:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.itrConfig?.category || 'COMPANY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Tax Audit (44AB):</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.itrConfig?.taxAuditApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Transfer Pricing:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.itrConfig?.transferPricingApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Other Statutory Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Statutory & Regulatory</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-600">
+                      Corporate
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Advance Tax:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.otherComplianceConfig?.advanceTaxApplicable ? 'Mandatory' : 'Optional'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">MCA / RoC:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.otherComplianceConfig?.mcaFilingApplicable ? 'Applicable' : 'NA'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">PT / PF / ESI:</span>
+                      <span className="font-semibold text-slate-800">
+                        {[
+                          complianceProfile?.otherComplianceConfig?.professionalTaxApplicable && 'PT',
+                          complianceProfile?.otherComplianceConfig?.pfEsiApplicable && 'PF/ESI',
+                        ]
+                          .filter(Boolean)
+                          .join(', ') || 'None'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Missing facts / Profile Readiness Notice */}
+              {complianceProfile?.completeness?.pendingItems &&
+                complianceProfile.completeness.pendingItems.length > 0 && (
+                  <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-800">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Missing Compliance Baseline Data: </span>
+                      <span>
+                        Complete these facts to reach 100% readiness:{' '}
+                        {complianceProfile.completeness.pendingItems.join(', ')}.
+                      </span>
+                    </div>
+                  </div>
+                )}
+            </div>
+
             {/* GST Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -3046,6 +3387,292 @@ export const Client360Page: React.FC = () => {
               disabled={!newRelationshipTargetId}
             >
               Establish Link
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Compliance Profile Modal (Phase 29.1) */}
+      <Modal
+        isOpen={isComplianceModalOpen}
+        onClose={() => setIsComplianceModalOpen(false)}
+        title="Configure Compliance Profile"
+        subtitle={`Statutory configuration and applicability facts for ${client.displayName}`}
+      >
+        <form onSubmit={handleSaveComplianceProfile} className="space-y-5">
+          {/* GST Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={gstApplicable}
+                  onChange={(e) => setGstApplicable(e.target.checked)}
+                  className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+                />
+                <span>GST Applicable</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">Goods & Services Tax</span>
+            </div>
+
+            {gstApplicable && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Registration Type
+                  </label>
+                  <select
+                    value={gstRegistrationType}
+                    onChange={(e) => setGstRegistrationType(e.target.value as ComplianceGstRegistrationType)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="REGULAR">Regular Taxpayer</option>
+                    <option value="COMPOSITION">Composition Scheme</option>
+                    <option value="ISD">Input Service Distributor (ISD)</option>
+                    <option value="CASUAL">Casual Taxable Person</option>
+                    <option value="NON_RESIDENT">Non-Resident Taxable Person</option>
+                    <option value="TDS_TCS">TDS / TCS Deductor</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Filing Frequency
+                  </label>
+                  <select
+                    value={gstFilingFrequency}
+                    onChange={(e) => setGstFilingFrequency(e.target.value as ComplianceFilingFrequency)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="MONTHLY">Monthly (GSTR-1 / 3B)</option>
+                    <option value="QUARTERLY">Quarterly (QRMP)</option>
+                    <option value="ANNUAL">Annual Only</option>
+                    <option value="EVENT_BASED">Event Based</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 flex flex-wrap gap-4 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={gstCompositionScheme}
+                      onChange={(e) => setGstCompositionScheme(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Composition Scheme</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={gstEinvoiceApplicable}
+                      onChange={(e) => setGstEinvoiceApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>E-Invoicing Applicable</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={gstEwaybillApplicable}
+                      onChange={(e) => setGstEwaybillApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>E-Way Bill Enabled</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* TDS / TCS Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tdsApplicable}
+                  onChange={(e) => setTdsApplicable(e.target.checked)}
+                  className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+                />
+                <span>TDS / TCS Applicable</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">Tax Deducted at Source</span>
+            </div>
+
+            {tdsApplicable && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Deductor Category
+                  </label>
+                  <select
+                    value={tdsDeductorCategory}
+                    onChange={(e) => setTdsDeductorCategory(e.target.value as ComplianceTdsDeductorCategory)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="COMPANY">Company / Corporate</option>
+                    <option value="INDIVIDUAL_HUF">Individual / HUF</option>
+                    <option value="FIRM">Partnership / LLP</option>
+                    <option value="GOVERNMENT">Government / Statutory</option>
+                    <option value="TRUST">Trust / Society</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Filing Frequency
+                  </label>
+                  <select
+                    value={tdsFilingFrequency}
+                    onChange={(e) => setTdsFilingFrequency(e.target.value as ComplianceFilingFrequency)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="QUARTERLY">Quarterly (24Q / 26Q / 27Q)</option>
+                    <option value="MONTHLY">Monthly</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tdsLowerDeductionCertificate}
+                      onChange={(e) => setTdsLowerDeductionCertificate(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Lower / Nil Deduction Certificate Active (Sec 197)</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Income Tax Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={itrApplicable}
+                  onChange={(e) => setItrApplicable(e.target.checked)}
+                  className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+                />
+                <span>Income Tax (ITR) Applicable</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">Direct Taxes</span>
+            </div>
+
+            {itrApplicable && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    ITR Classification Form
+                  </label>
+                  <select
+                    value={itrCategory}
+                    onChange={(e) => setItrCategory(e.target.value as ComplianceItrCategory)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="INDIVIDUAL">Individual / Salaried (ITR-1 / 2)</option>
+                    <option value="PROPRIETORSHIP">Proprietorship / Business (ITR-3 / 4)</option>
+                    <option value="PARTNERSHIP_LLP">Partnership / LLP (ITR-5)</option>
+                    <option value="COMPANY">Company / Corporate (ITR-6)</option>
+                    <option value="TRUST_NGO">Trust / NGO / Society (ITR-7)</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 flex flex-wrap gap-4 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={itrTaxAuditApplicable}
+                      onChange={(e) => setItrTaxAuditApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Tax Audit u/s 44AB Mandatory</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={itrTransferPricingApplicable}
+                      onChange={(e) => setItrTransferPricingApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Transfer Pricing Audit u/s 92E</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Other Statutory Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <span className="text-xs font-bold text-slate-900 block">
+              Other Statutory & Compliance Flags
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={advanceTaxApplicable}
+                  onChange={(e) => setAdvanceTaxApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>Advance Tax Installments</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={mcaFilingApplicable}
+                  onChange={(e) => setMcaFilingApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>MCA / RoC Annual Filings (AOC-4, MGT-7)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={professionalTaxApplicable}
+                  onChange={(e) => setProfessionalTaxApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>State Professional Tax (PT)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pfEsiApplicable}
+                  onChange={(e) => setPfEsiApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>EPFO & ESIC Compliance</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Compliance Notes & Observations
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Applicable turnover crossed ₹10 Cr in FY 24-25; Section 44AB applicable."
+              value={complianceNotes}
+              onChange={(e) => setComplianceNotes(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsComplianceModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isSubmittingComplianceProfile}>
+              Save Compliance Profile
             </Button>
           </div>
         </form>

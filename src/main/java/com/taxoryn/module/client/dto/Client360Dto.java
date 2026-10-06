@@ -97,6 +97,9 @@ public class Client360Dto {
     @Schema(description = "Compliance & Filing Summary (GST, ITR, TDS, Accounting)")
     private ClientOverviewDto.ClientComplianceSummary complianceSummary;
 
+    @Schema(description = "Client Compliance Profile Summary (Phase 29.1)")
+    private com.taxoryn.module.compliance.profile.dto.ComplianceProfileSummaryDto complianceProfile;
+
     @Schema(description = "Documents Vault Summary")
     private ClientOverviewDto.ClientDocumentSummary documentsSummary;
 

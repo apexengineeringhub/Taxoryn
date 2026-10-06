@@ -30,6 +30,8 @@ import {
   ClientTimelineFilterParams,
   ClientIntelligenceSummaryDto,
   ClientActionRecommendationDto,
+  ComplianceProfileDto,
+  UpdateComplianceProfileRequest,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -3829,5 +3831,17 @@ export const businessContextApi = {
     return res.data.data;
   },
 };
+
+export const complianceProfileApi = {
+  getProfile: async (clientId: string): Promise<ComplianceProfileDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceProfileDto>>(`/v1/clients/${clientId}/compliance-profile`);
+    return res.data.data;
+  },
+  updateProfile: async (clientId: string, payload: UpdateComplianceProfileRequest): Promise<ComplianceProfileDto> => {
+    const res = await apiClient.put<ApiResponse<ComplianceProfileDto>>(`/v1/clients/${clientId}/compliance-profile`, payload);
+    return res.data.data;
+  },
+};
+
 
 
