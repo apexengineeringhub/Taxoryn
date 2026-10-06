@@ -75,7 +75,7 @@ class PracticeLeadServiceTest {
         PracticeLeadEntity lead = PracticeLeadEntity.builder().name("Rahul Sharma").businessName("Rahul Consulting")
                 .status(PracticeLeadEntity.LeadStatus.QUALIFIED).leadType(PracticeLeadEntity.LeadType.BUSINESS).build();
         lead.setId(leadId); lead.setOrganizationId(organizationId);
-        when(leadRepository.findByIdAndOrganizationId(leadId, organizationId)).thenReturn(Optional.of(lead));
+        when(leadRepository.findByIdAndOrganizationIdWithLock(leadId, organizationId)).thenReturn(Optional.of(lead));
         when(clientService.createClient(any())).thenReturn(ClientDto.builder().id(clientId).build());
         when(leadRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         ConvertPracticeLeadRequest request = new ConvertPracticeLeadRequest();
@@ -83,16 +83,22 @@ class PracticeLeadServiceTest {
         var converted = service.convert(leadId, request);
         assertEquals(clientId, converted.getConvertedClientId());
         assertEquals(PracticeLeadEntity.LeadStatus.CONVERTED, converted.getStatus());
-        verify(clientService).createClient(argThat(client -> client.getDisplayName().equals("Rahul Sharma") && client.getClientType() == com.taxoryn.module.client.entity.ClientEntity.ClientType.OTHER));
+        verify(clientService).createClient(argThat(client -> client.getDisplayName().equals("Rahul Sharma") 
+                && client.getClientType() == com.taxoryn.module.client.entity.ClientEntity.ClientType.OTHER
+                && client.getStatus() == com.taxoryn.module.client.entity.ClientEntity.ClientStatus.ONBOARDING));
     }
 
-    @Test void duplicateConversionIsRejected() {
-        UUID leadId = UUID.randomUUID(); PracticeLeadEntity lead = PracticeLeadEntity.builder().name("Already converted")
-                .status(PracticeLeadEntity.LeadStatus.CONVERTED).convertedClientId(UUID.randomUUID()).build();
+    @Test void duplicateConversionIsIdempotent() {
+        UUID leadId = UUID.randomUUID(), existingClientId = UUID.randomUUID();
+        PracticeLeadEntity lead = PracticeLeadEntity.builder().name("Already converted")
+                .status(PracticeLeadEntity.LeadStatus.CONVERTED).convertedClientId(existingClientId).build();
         lead.setId(leadId); lead.setOrganizationId(organizationId);
-        when(leadRepository.findByIdAndOrganizationId(leadId, organizationId)).thenReturn(Optional.of(lead));
-        assertThrows(DuplicateResourceException.class, () -> service.convert(leadId, new ConvertPracticeLeadRequest()));
+        when(leadRepository.findByIdAndOrganizationIdWithLock(leadId, organizationId)).thenReturn(Optional.of(lead));
+        var result = service.convert(leadId, new ConvertPracticeLeadRequest());
+        assertEquals(existingClientId, result.getConvertedClientId());
+        assertEquals(PracticeLeadEntity.LeadStatus.CONVERTED, result.getStatus());
         verify(clientService, never()).createClient(any());
+        verify(leadRepository, never()).save(any());
     }
 
     @Test void invalidStatusJumpIsRejected() {
