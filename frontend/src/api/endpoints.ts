@@ -295,6 +295,8 @@ import {
   CancelUdinRequest,
   UdinSummaryDto,
   UdinFilterParams,
+  BusinessContextDto,
+  BusinessContextRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -3814,6 +3816,17 @@ export const udinApi = {
   },
   deleteUdin: async (id: string): Promise<void> => {
     await apiClient.delete<ApiResponse<void>>(`/v1/udins/${id}`);
+  },
+};
+
+export const businessContextApi = {
+  resolveContext: async (payload: BusinessContextRequest): Promise<BusinessContextDto> => {
+    const res = await apiClient.post<ApiResponse<BusinessContextDto>>('/v1/business-context/resolve', payload);
+    return res.data.data;
+  },
+  resolveClientContext: async (clientId: string): Promise<BusinessContextDto> => {
+    const res = await apiClient.get<ApiResponse<BusinessContextDto>>(`/v1/business-context/clients/${clientId}`);
+    return res.data.data;
   },
 };
 

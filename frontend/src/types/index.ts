@@ -6053,5 +6053,141 @@ export interface ClientIntelligenceSummaryDto {
   evaluatedAt: string;
 }
 
+export interface BusinessContextRequest {
+  clientId?: string;
+  serviceRelationshipId?: string;
+  engagementId?: string;
+  workInstanceId?: string;
+  taskId?: string;
+}
+
+export interface ContactSummaryContext {
+  id?: string;
+  name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+  designation?: string;
+}
+
+export interface BranchSummaryContext {
+  id?: string;
+  branchName: string;
+  branchType?: string;
+  gstin?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+}
+
+export interface ClientSummaryContext {
+  clientId: string;
+  clientCode?: string;
+  displayName: string;
+  legalName?: string;
+  clientType?: string;
+  lifecycleStatus?: string;
+  active: boolean;
+  pan?: string;
+  gstin?: string;
+  email?: string;
+  phone?: string;
+  locationId?: string;
+  primaryContact?: ContactSummaryContext;
+  primaryBranch?: BranchSummaryContext;
+  activeServicesCount?: number;
+  totalContactsCount?: number;
+  totalBranchesCount?: number;
+}
+
+export interface ServiceSummaryContext {
+  serviceRelationshipId: string;
+  serviceOfferingId?: string;
+  serviceName: string;
+  serviceCode?: string;
+  serviceCategory?: string;
+  status: string;
+  billingFrequency?: string;
+  rate?: number;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+}
+
+export interface EngagementSummaryContext {
+  engagementId: string;
+  engagementCode?: string;
+  engagementName: string;
+  status: string;
+  priority?: string;
+  serviceId?: string;
+  serviceName?: string;
+  clientServiceId?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  reviewerUserId?: string;
+  reviewerUserName?: string;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+}
+
+export interface WorkSummaryContext {
+  workInstanceId?: string;
+  taskId?: string;
+  taskTitle: string;
+  taskStatus?: string;
+  taskPriority?: string;
+  taskCategory?: string;
+  assignedUserId?: string;
+  assigneeName?: string;
+  assigneeEmail?: string;
+  startDate?: string;
+  dueDate?: string;
+  statutoryDueDate?: string;
+  overdue: boolean;
+  dueToday: boolean;
+  dueThisWeek: boolean;
+  blocked: boolean;
+  blockedReason?: string;
+}
+
+export interface AttentionSummaryContext {
+  totalAttentionSignalsCount: number;
+  highPrioritySignalsCount: number;
+  signals: ClientIntelligenceSignalDto[];
+  recommendedActions: ClientActionRecommendationDto[];
+}
+
+export interface TemporalSummaryContext {
+  currentDate?: string;
+  relevantPeriod?: string;
+  effectiveStartDate?: string;
+  effectiveDueDate?: string;
+  statutoryDueDate?: string;
+  isOverdue?: boolean;
+}
+
+export interface ActorSummaryContext {
+  currentUserId?: string;
+  currentUserEmail?: string;
+  organizationId?: string;
+  roles: string[];
+  canAccessClient: boolean;
+  canAccessEngagement: boolean;
+  canAccessWork: boolean;
+}
+
+export interface BusinessContextDto {
+  organizationId: string;
+  client?: ClientSummaryContext;
+  service?: ServiceSummaryContext;
+  engagement?: EngagementSummaryContext;
+  work?: WorkSummaryContext;
+  attention?: AttentionSummaryContext;
+  temporalContext?: TemporalSummaryContext;
+  actorContext?: ActorSummaryContext;
+}
+
 
 
