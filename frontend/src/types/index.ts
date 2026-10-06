@@ -842,7 +842,29 @@ export interface Client360Overview {
     isPanValid: boolean;
     isGstActive: boolean;
   };
+  primaryLocation?: any;
+  locations?: any[];
+  assignedUsers?: any[];
   services: ClientServiceItem[];
+  gstRegistrations?: any[];
+  itrProfile?: any;
+  tdsProfile?: any;
+  taxNotices?: any[];
+  billing?: any;
+  status?: string;
+  statusChangedAt?: string;
+  statusChangeReason?: string;
+  profile?: any;
+  completeness?: any;
+  primaryContact?: ClientContactDto;
+  contactsCount?: number;
+  activeContactsCount?: number;
+  primaryBranch?: ClientBranchDto;
+  branchesCount?: number;
+  activeBranchesCount?: number;
+  relationshipsCount?: number;
+  intelligenceSummary?: ClientIntelligenceSummaryDto;
+  recentTimeline?: ClientTimelineItemDto[];
   taskSummary: ClientTaskSummary;
   complianceSummary: ClientComplianceSummary;
   documentsSummary: ClientDocumentSummary;
@@ -851,8 +873,9 @@ export interface Client360Overview {
   noticeSummary: ClientNoticeSummary;
   recentNotes: ClientNote[];
   activityTimeline: ClientActivityItem[];
-  intelligenceSummary?: ClientIntelligenceSummaryDto;
-  recentTimeline?: ClientTimelineItemDto[];
+  engagements?: any[];
+  keyContacts?: ClientContactDto[];
+  keyBranches?: ClientBranchDto[];
 }
 
 export type ContactRole =

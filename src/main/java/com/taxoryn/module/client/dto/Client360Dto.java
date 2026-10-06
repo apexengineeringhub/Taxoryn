@@ -90,4 +90,37 @@ public class Client360Dto {
 
     @Schema(description = "Recent activity & timeline entries projection")
     private List<ClientTimelineItemDto> recentTimeline;
+
+    @Schema(description = "Client Workflow Tasks Analytics / Work Summary")
+    private ClientOverviewDto.ClientTaskSummary taskSummary;
+
+    @Schema(description = "Compliance & Filing Summary (GST, ITR, TDS, Accounting)")
+    private ClientOverviewDto.ClientComplianceSummary complianceSummary;
+
+    @Schema(description = "Documents Vault Summary")
+    private ClientOverviewDto.ClientDocumentSummary documentsSummary;
+
+    @Schema(description = "Client Document Requests Summary")
+    private ClientOverviewDto.ClientDocRequestSummary docRequestsSummary;
+
+    @Schema(description = "Billing & Financial Summary (Redacted for non-billing staff)")
+    private ClientOverviewDto.ClientBillingSummary billingSummary;
+
+    @Schema(description = "Tax Notices & Litigation Summary")
+    private ClientOverviewDto.ClientNoticeSummary noticeSummary;
+
+    @Schema(description = "Recent Communication History & Interaction Notes")
+    private List<ClientNoteDto> recentNotes;
+
+    @Schema(description = "Chronological Unified Activity Timeline")
+    private List<ClientOverviewDto.ClientActivityItem> activityTimeline;
+
+    @Schema(description = "Client engagements portfolio")
+    private List<com.taxoryn.module.engagement.dto.EngagementDto> engagements;
+
+    @Schema(description = "Key client contacts (top active/primary)")
+    private List<ClientContactDto> keyContacts;
+
+    @Schema(description = "Key client branches (top active/primary)")
+    private List<ClientBranchDto> keyBranches;
 }

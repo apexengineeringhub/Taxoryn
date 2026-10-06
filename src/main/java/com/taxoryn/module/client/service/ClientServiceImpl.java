@@ -150,6 +150,10 @@ public class ClientServiceImpl implements ClientService {
     @org.springframework.context.annotation.Lazy
     private ClientTimelineService clientTimelineService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.engagement.service.EngagementService engagementService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
         this.clientLifecycleService = clientLifecycleService;
@@ -1676,6 +1680,35 @@ public class ClientServiceImpl implements ClientService {
             }
         }
 
+        ClientOverviewDto overview = getClientOverview(clientId);
+
+        List<com.taxoryn.module.engagement.dto.EngagementDto> clientEngagements = null;
+        if (engagementService != null) {
+            try {
+                clientEngagements = engagementService.getEngagementsByClientId(clientId);
+            } catch (Exception ex) {
+                log.debug("Could not load engagements for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        List<com.taxoryn.module.client.dto.ClientContactDto> keyContacts = null;
+        if (clientContactRepository != null) {
+            keyContacts = clientContactRepository.findAllByOrganizationIdAndClientIdAndActiveOrderByPrimaryContactDescCreatedAtAsc(organizationId, clientId, true)
+                    .stream()
+                    .limit(5)
+                    .map(this::toContactDto)
+                    .toList();
+        }
+
+        List<com.taxoryn.module.client.dto.ClientBranchDto> keyBranches = null;
+        if (clientBranchRepository != null) {
+            keyBranches = clientBranchRepository.findAllByOrganizationIdAndClientIdAndActiveOrderByPrimaryBranchDescCreatedAtAsc(organizationId, clientId, true)
+                    .stream()
+                    .limit(5)
+                    .map(this::toBranchDto)
+                    .toList();
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1702,6 +1735,66 @@ public class ClientServiceImpl implements ClientService {
                 .relationshipsCount(relationshipsCount)
                 .intelligenceSummary(intelligenceSummary)
                 .recentTimeline(recentTimeline)
+                .taskSummary(overview.getTaskSummary())
+                .complianceSummary(overview.getComplianceSummary())
+                .documentsSummary(overview.getDocumentsSummary())
+                .docRequestsSummary(overview.getDocRequestsSummary())
+                .billingSummary(overview.getBillingSummary())
+                .noticeSummary(overview.getNoticeSummary())
+                .recentNotes(overview.getRecentNotes())
+                .activityTimeline(overview.getActivityTimeline())
+                .engagements(clientEngagements)
+                .keyContacts(keyContacts)
+                .keyBranches(keyBranches)
+                .build();
+    }
+
+    private com.taxoryn.module.client.dto.ClientContactDto toContactDto(com.taxoryn.module.client.entity.ClientContactEntity c) {
+        if (c == null) return null;
+        return com.taxoryn.module.client.dto.ClientContactDto.builder()
+                .id(c.getId())
+                .organizationId(c.getOrganizationId())
+                .clientId(c.getClientId())
+                .firstName(c.getFirstName())
+                .lastName(c.getLastName())
+                .displayName(c.getDisplayName())
+                .designation(c.getDesignation())
+                .email(c.getEmail())
+                .phone(c.getPhone())
+                .altPhone(c.getAltPhone())
+                .contactRole(c.getContactRole())
+                .primaryContact(c.isPrimaryContact())
+                .active(c.isActive())
+                .notes(c.getNotes())
+                .createdAt(c.getCreatedAt())
+                .updatedAt(c.getUpdatedAt())
+                .build();
+    }
+
+    private com.taxoryn.module.client.dto.ClientBranchDto toBranchDto(com.taxoryn.module.client.entity.ClientBranchEntity b) {
+        if (b == null) return null;
+        return com.taxoryn.module.client.dto.ClientBranchDto.builder()
+                .id(b.getId())
+                .organizationId(b.getOrganizationId())
+                .clientId(b.getClientId())
+                .branchName(b.getBranchName())
+                .branchCode(b.getBranchCode())
+                .branchType(b.getBranchType())
+                .addressLine1(b.getAddressLine1())
+                .addressLine2(b.getAddressLine2())
+                .city(b.getCity())
+                .state(b.getState())
+                .stateCode(b.getStateCode())
+                .country(b.getCountry())
+                .pincode(b.getPincode())
+                .gstin(b.getGstin())
+                .phone(b.getPhone())
+                .email(b.getEmail())
+                .primaryBranch(b.isPrimaryBranch())
+                .active(b.isActive())
+                .notes(b.getNotes())
+                .createdAt(b.getCreatedAt())
+                .updatedAt(b.getUpdatedAt())
                 .build();
     }
 
