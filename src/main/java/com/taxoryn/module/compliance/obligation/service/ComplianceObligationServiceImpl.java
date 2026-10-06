@@ -451,6 +451,10 @@ public class ComplianceObligationServiceImpl implements ComplianceObligationServ
                 .dueDateRuleType(entity.getDueDateRuleType() != null ? entity.getDueDateRuleType().name() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                // Phase 29.7 — Work Generation traceability
+                .workInstanceId(entity.getWorkInstanceId())
+                .workGenerated(entity.getWorkInstanceId() != null)
                 .build();
     }
 }
+

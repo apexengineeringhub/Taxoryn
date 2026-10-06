@@ -31,4 +31,9 @@ public interface WorkTemplateRepository extends JpaRepository<WorkTemplateEntity
     boolean existsByOrganizationIdAndTemplateCodeIgnoreCase(@Param("orgId") UUID orgId, @Param("code") String code);
 
     long countByOrganizationId(UUID organizationId);
+
+    // Phase 29.7 — find template by code (org-specific first, then system default)
+    @Query("SELECT t FROM WorkTemplateEntity t WHERE (t.organizationId = :orgId OR (t.organizationId IS NULL AND t.isSystemDefault = true)) AND UPPER(t.templateCode) = UPPER(:code) AND t.status = 'ACTIVE' ORDER BY t.organizationId NULLS LAST")
+    List<WorkTemplateEntity> findAccessibleByTemplateCode(@Param("code") String code, @Param("orgId") UUID orgId);
 }
+

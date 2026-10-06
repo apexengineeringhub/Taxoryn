@@ -12,6 +12,8 @@ import com.taxoryn.module.compliance.obligation.dto.GeneratedObligationsResponse
 import com.taxoryn.module.compliance.obligation.service.ComplianceObligationService;
 import com.taxoryn.module.compliance.rule.model.CompliancePeriodType;
 import com.taxoryn.module.compliance.rule.model.ComplianceRuleDomain;
+import com.taxoryn.module.compliance.work.dto.ComplianceWorkGenerationResultDto;
+import com.taxoryn.module.compliance.work.service.ComplianceWorkOrchestrationService;
 import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,7 @@ import java.util.UUID;
 public class ComplianceObligationController {
 
     private final ComplianceObligationService obligationService;
+    private final ComplianceWorkOrchestrationService workOrchestrationService;
 
     @GetMapping
     @PreAuthorize("hasAnyAuthority('CLIENT_VIEW', 'COMPLIANCE_VIEW', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER', 'ROLE_PRACTICE_ADMIN', 'ROLE_PRACTICE_STAFF', 'ROLE_TENANT_ADMIN')")
@@ -124,5 +127,30 @@ public class ComplianceObligationController {
     ) {
         ComplianceObligationSummaryDto summary = obligationService.getClientObligationSummary(clientId);
         return ResponseEntity.ok(ApiResponse.success("Retrieved compliance obligation summary", summary));
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 29.7 — Work Generation endpoint
+    // -------------------------------------------------------------------------
+
+    @PostMapping("/{obligationId}/work/generate")
+    @PreAuthorize("hasAnyAuthority('CLIENT_UPDATE', 'CLIENT_WRITE', 'COMPLIANCE_WRITE', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER', 'ROLE_PRACTICE_ADMIN', 'ROLE_TENANT_ADMIN')")
+    @Operation(
+            summary = "Generate work instance for a compliance obligation",
+            description = "Idempotently creates a Work Instance (with tasks) linked to the given compliance obligation. " +
+                    "Returns CREATED on first call, ALREADY_EXISTS on subsequent calls. " +
+                    "Returns TEMPLATE_NOT_CONFIGURED if the rule has no work template code, " +
+                    "or ENGAGEMENT_NOT_CONFIGURED if no active engagement is found for the client."
+    )
+    public ResponseEntity<ApiResponse<ComplianceWorkGenerationResultDto>> generateWorkForObligation(
+            @PathVariable UUID clientId,
+            @PathVariable UUID obligationId
+    ) {
+        ComplianceWorkGenerationResultDto result = workOrchestrationService.generateWorkForObligation(clientId, obligationId);
+        HttpStatus httpStatus = result.getStatus() == ComplianceWorkGenerationResultDto.GenerationStatus.CREATED
+                ? HttpStatus.CREATED
+                : HttpStatus.OK;
+        return ResponseEntity.status(httpStatus)
+                .body(ApiResponse.success(result.getMessage(), result));
     }
 }

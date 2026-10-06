@@ -246,6 +246,10 @@ export const Client360Page: React.FC = () => {
   const [cancellationReason, setCancellationReason] = useState('');
   const [isCancellingObligation, setIsCancellingObligation] = useState(false);
 
+  // Phase 29.7 — Work Generation state
+  const [generatingWorkFor, setGeneratingWorkFor] = useState<Set<string>>(new Set());
+  const [workGenerationResults, setWorkGenerationResults] = useState<Record<string, string>>({});
+
   // Phase 29.6 Client Deadlines & Radar State
   const [clientDeadlines, setClientDeadlines] = useState<ComplianceDeadlineDto[]>([]);
   const [clientDeadlineSummary, setClientDeadlineSummary] = useState<ClientComplianceDeadlineSummaryDto | null>(null);
@@ -359,6 +363,28 @@ export const Client360Page: React.FC = () => {
       await Promise.all([loadObligations(), loadDeadlines()]);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to recalculate statutory due date');
+    }
+  };
+
+  // Phase 29.7 — Generate Work for obligation
+  const handleGenerateWork = async (obligationId: string) => {
+    if (!clientId) return;
+    setGeneratingWorkFor(prev => new Set(prev).add(obligationId));
+    try {
+      const result = await complianceObligationsApi.generateWork(clientId, obligationId);
+      setWorkGenerationResults(prev => ({ ...prev, [obligationId]: result.status }));
+      if (result.status === 'CREATED') {
+        await loadObligations(); // refresh to show workGenerated flag
+      }
+    } catch (err: any) {
+      setWorkGenerationResults(prev => ({ ...prev, [obligationId]: 'FAILED' }));
+      console.error('Work generation failed', err);
+    } finally {
+      setGeneratingWorkFor(prev => {
+        const next = new Set(prev);
+        next.delete(obligationId);
+        return next;
+      });
     }
   };
 
@@ -2798,28 +2824,70 @@ export const Client360Page: React.FC = () => {
                             </Button>
                           ) : <div />}
 
-                          {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && (
-                            <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap justify-end">
+                            {/* Phase 29.7 — Generate Work */}
+                            {obligation.workGenerated && obligation.workInstanceId ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Work Generated
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'TEMPLATE_NOT_CONFIGURED' || workGenerationResults[obligation.id] === 'TEMPLATE_NOT_FOUND' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5" title="Set defaultWorkTemplateCode on the compliance rule">
+                                <AlertTriangle className="w-3 h-3" />
+                                ⚠ Work Template Not Configured
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'ENGAGEMENT_NOT_CONFIGURED' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5" title="Create an active engagement for this client and service">
+                                <AlertTriangle className="w-3 h-3" />
+                                ⚠ Engagement Not Configured
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'ALREADY_EXISTS' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Work Already Exists
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'FAILED' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
+                                <AlertTriangle className="w-3 h-3" />
+                                Generation Failed
+                              </span>
+                            ) : obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && obligation.status !== 'FILED' ? (
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                  setTargetCancelObligation(obligation);
-                                  setIsCancelModalOpen(true);
-                                }}
+                                onClick={() => handleGenerateWork(obligation.id)}
+                                disabled={generatingWorkFor.has(obligation.id)}
+                                leftIcon={<Layers className="w-3 h-3" />}
+                                title="Generate a Work Instance with tasks from the compliance rule's work template"
                               >
-                                Cancel
+                                {generatingWorkFor.has(obligation.id) ? 'Generating…' : 'Generate Work'}
                               </Button>
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => handleCompleteObligation(obligation.id)}
-                              >
-                                Mark Completed
-                              </Button>
-                            </div>
-                          )}
+                            ) : null}
+
+                            {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setTargetCancelObligation(obligation);
+                                    setIsCancelModalOpen(true);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleCompleteObligation(obligation.id)}
+                                >
+                                  Mark Completed
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
+
                       </div>
                     ))}
                 </div>

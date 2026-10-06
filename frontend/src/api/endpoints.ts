@@ -47,7 +47,9 @@ import {
   GeneratedObligationsResponseDto,
   CancelObligationRequest,
   ComplianceObligationSummaryDto,
+  ComplianceWorkGenerationResultDto,
   CompliancePeriodType,
+
   DueDateCalculationStatus,
   DueDateCalculationResult,
   ObligationDueDateDto,
@@ -4027,7 +4029,18 @@ export const complianceObligationsApi = {
     );
     return res.data.data;
   },
+  // Phase 29.7 — Work Generation
+  generateWork: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ComplianceWorkGenerationResultDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkGenerationResultDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/work/generate`
+    );
+    return res.data.data;
+  },
 };
+
 
 export const complianceDueDateApi = {
   getObligationDueDate: async (

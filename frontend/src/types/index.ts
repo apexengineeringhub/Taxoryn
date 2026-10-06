@@ -4971,7 +4971,11 @@ export interface ComplianceObligationItem {
   createdAt: string;
   updatedAt: string;
   version?: number;
+  // Phase 29.7 — Work Generation traceability
+  workInstanceId?: string;
+  workGenerated?: boolean;
 }
+
 
 export interface ComplianceCalendarSummary {
   totalObligations: number;
@@ -6608,6 +6612,23 @@ export interface ComplianceObligationSummaryDto {
   cancelledCount: number;
   byDomain: Record<string, number>;
   byStatus: Record<string, number>;
+}
+
+// Phase 29.7 — Work Generation
+export type ComplianceWorkGenerationStatus =
+  | 'CREATED'
+  | 'ALREADY_EXISTS'
+  | 'TEMPLATE_NOT_CONFIGURED'
+  | 'TEMPLATE_NOT_FOUND'
+  | 'ENGAGEMENT_NOT_CONFIGURED'
+  | 'OBLIGATION_NOT_ELIGIBLE'
+  | 'FAILED';
+
+export interface ComplianceWorkGenerationResultDto {
+  status: ComplianceWorkGenerationStatus;
+  workInstanceId?: string;
+  obligationId: string;
+  message: string;
 }
 
 // ==============================================================================

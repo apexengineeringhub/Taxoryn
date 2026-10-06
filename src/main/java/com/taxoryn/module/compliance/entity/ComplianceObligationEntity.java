@@ -186,6 +186,14 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    /**
+     * Soft UUID reference (no JPA FK) to work_instances.id.
+     * Set when work has been generated for this obligation (Phase 29.7).
+     * Null until work generation is triggered.
+     */
+    @Column(name = "work_instance_id")
+    private UUID workInstanceId;
+
     // Legacy column mappings retained for database compatibility
     @Column(name = "due_date")
     private LocalDate dueDate;
@@ -205,6 +213,7 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
 
     @Column(name = "tds_return_id")
     private UUID tdsReturnId;
+
 
     public void setStatus(ComplianceStatus legacyStatus) {
         if (legacyStatus == null) return;

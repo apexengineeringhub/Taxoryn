@@ -202,4 +202,12 @@ public class ComplianceObligationDto {
 
     @Schema(description = "Updated timestamp")
     private Instant updatedAt;
+
+    // Phase 29.7 — Work Generation traceability
+    @Schema(description = "Work Instance ID generated for this obligation (null if not yet generated)", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+    private UUID workInstanceId;
+
+    @Schema(description = "Whether a Work Instance has been generated for this obligation", example = "true")
+    private boolean workGenerated;
 }
+
