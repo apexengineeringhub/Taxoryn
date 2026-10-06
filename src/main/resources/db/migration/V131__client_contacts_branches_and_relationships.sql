@@ -99,3 +99,23 @@ CREATE INDEX IF NOT EXISTS idx_client_rel_org_target
 
 CREATE INDEX IF NOT EXISTS idx_client_rel_org_type
     ON client_relationships(organization_id, relationship_type);
+
+-- V130__fix_client_contacts_audit_user_columns.sql
+
+ALTER TABLE client_contacts
+    ALTER COLUMN created_by TYPE VARCHAR(255)
+    USING created_by::text;
+
+ALTER TABLE client_contacts
+    ALTER COLUMN updated_by TYPE VARCHAR(255)
+    USING updated_by::text;
+
+-- V131__fix_client_relationships_audit_user_columns.sql
+
+ALTER TABLE client_relationships
+    ALTER COLUMN created_by TYPE VARCHAR(255)
+    USING created_by::text;
+
+ALTER TABLE client_relationships
+    ALTER COLUMN updated_by TYPE VARCHAR(255)
+    USING updated_by::text;
