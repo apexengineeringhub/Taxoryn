@@ -52,6 +52,12 @@ import {
   DueDateCalculationResult,
   ObligationDueDateDto,
   CompliancePeriodDto,
+  DeadlineStatus,
+  ComplianceDeadlineDto,
+  ComplianceDeadlineSummaryDto,
+  ComplianceDeadlineRadarDto,
+  ClientComplianceDeadlineSummaryDto,
+  ComplianceCalendarQueryFilter,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -4055,7 +4061,53 @@ export const complianceDueDateApi = {
   },
 };
 
-
-
-
+export const complianceCalendarApi = {
+  getCalendar: async (
+    params?: ComplianceCalendarQueryFilter
+  ): Promise<ComplianceDeadlineDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineDto[]>>(
+      '/v1/compliance/calendar',
+      { params }
+    );
+    return res.data.data;
+  },
+  getRadar: async (
+    referenceDate?: string
+  ): Promise<ComplianceDeadlineRadarDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineRadarDto>>(
+      '/v1/compliance/calendar/radar',
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+  getSummary: async (
+    referenceDate?: string
+  ): Promise<ComplianceDeadlineSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineSummaryDto>>(
+      '/v1/compliance/calendar/summary',
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+  getClientCalendar: async (
+    clientId: string,
+    params?: ComplianceCalendarQueryFilter
+  ): Promise<ComplianceDeadlineDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineDto[]>>(
+      `/v1/clients/${clientId}/compliance/calendar`,
+      { params }
+    );
+    return res.data.data;
+  },
+  getClientSummary: async (
+    clientId: string,
+    referenceDate?: string
+  ): Promise<ClientComplianceDeadlineSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ClientComplianceDeadlineSummaryDto>>(
+      `/v1/clients/${clientId}/compliance/calendar/summary`,
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+};
 

@@ -57,6 +57,7 @@ import {
   complianceProfileApi,
   complianceApplicabilityApi,
   complianceObligationsApi,
+  complianceCalendarApi,
   complianceWorkApi,
   employeeApi,
 } from '../api/endpoints';
@@ -84,6 +85,9 @@ import {
   ComplianceObligationDto,
   ComplianceObligationSummaryDto,
   CompliancePeriodType,
+  DeadlineStatus,
+  ComplianceDeadlineDto,
+  ClientComplianceDeadlineSummaryDto,
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
@@ -242,6 +246,11 @@ export const Client360Page: React.FC = () => {
   const [cancellationReason, setCancellationReason] = useState('');
   const [isCancellingObligation, setIsCancellingObligation] = useState(false);
 
+  // Phase 29.6 Client Deadlines & Radar State
+  const [clientDeadlines, setClientDeadlines] = useState<ComplianceDeadlineDto[]>([]);
+  const [clientDeadlineSummary, setClientDeadlineSummary] = useState<ClientComplianceDeadlineSummaryDto | null>(null);
+  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(false);
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
@@ -255,8 +264,26 @@ export const Client360Page: React.FC = () => {
       loadComplianceProfile();
       loadApplicability();
       loadObligations();
+      loadDeadlines();
     }
   }, [clientId]);
+
+  const loadDeadlines = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingDeadlines(true);
+      const [deadlinesList, summaryData] = await Promise.all([
+        complianceCalendarApi.getClientCalendar(clientId).catch(() => []),
+        complianceCalendarApi.getClientSummary(clientId).catch(() => null),
+      ]);
+      setClientDeadlines(deadlinesList || []);
+      setClientDeadlineSummary(summaryData);
+    } catch (err) {
+      console.debug('Failed to load client compliance deadlines', err);
+    } finally {
+      setIsLoadingDeadlines(false);
+    }
+  };
 
   const loadObligations = async () => {
     if (!clientId) return;
@@ -285,7 +312,7 @@ export const Client360Page: React.FC = () => {
         periodKey: genPeriodKey.trim(),
       });
       setIsGenerateModalOpen(false);
-      await loadObligations();
+      await Promise.all([loadObligations(), loadDeadlines()]);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to generate compliance obligations');
     } finally {
@@ -300,7 +327,7 @@ export const Client360Page: React.FC = () => {
         status: 'COMPLETED',
         notes: 'Marked as completed by practitioner',
       });
-      await loadObligations();
+      await Promise.all([loadObligations(), loadDeadlines()]);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to complete obligation');
     }
@@ -317,7 +344,7 @@ export const Client360Page: React.FC = () => {
       setIsCancelModalOpen(false);
       setTargetCancelObligation(null);
       setCancellationReason('');
-      await loadObligations();
+      await Promise.all([loadObligations(), loadDeadlines()]);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to cancel obligation');
     } finally {
@@ -329,7 +356,7 @@ export const Client360Page: React.FC = () => {
     if (!clientId) return;
     try {
       await complianceObligationsApi.recalculateObligationDueDate(clientId, obligationId);
-      await loadObligations();
+      await Promise.all([loadObligations(), loadDeadlines()]);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to recalculate statutory due date');
     }
@@ -1115,6 +1142,75 @@ export const Client360Page: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Compliance Health & Services */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Phase 29.6: Statutory Deadlines Radar Widget */}
+              {(clientDeadlineSummary || overview?.complianceDeadlines) && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-brand-600" />
+                      <span>Statutory Compliance Deadlines & Radar</span>
+                    </h3>
+                    <button
+                      onClick={() => setActiveTab('compliance')}
+                      className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1"
+                    >
+                      <span>All Deadlines ({clientDeadlineSummary?.summary.totalActiveDeadlines ?? overview?.complianceDeadlines?.summary.totalActiveDeadlines ?? 0})</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/40">
+                      <span className="text-[10px] font-bold text-rose-700 block uppercase">🚨 Overdue</span>
+                      <p className="text-lg font-black text-rose-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.overdueCount ?? overview?.complianceDeadlines?.summary.overdueCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/40">
+                      <span className="text-[10px] font-bold text-amber-700 block uppercase">📅 Due Today</span>
+                      <p className="text-lg font-black text-amber-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.dueTodayCount ?? overview?.complianceDeadlines?.summary.dueTodayCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/40">
+                      <span className="text-[10px] font-bold text-blue-700 block uppercase">🗓️ This Week</span>
+                      <p className="text-lg font-black text-blue-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.dueThisWeekCount ?? overview?.complianceDeadlines?.summary.dueThisWeekCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/40">
+                      <span className="text-[10px] font-bold text-indigo-700 block uppercase">⏳ Upcoming</span>
+                      <p className="text-lg font-black text-indigo-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.upcomingCount ?? overview?.complianceDeadlines?.summary.upcomingCount ?? 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Next Statutory Deadline Banner */}
+                  {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline) && (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Next Authoritative Deadline</span>
+                        <div className="text-xs font-bold text-slate-900">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.ruleName}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.ruleCode} • Period: {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.periodLabel || (clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.periodKey}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-black text-rose-700 font-mono block">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.statutoryDueDate}
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Compliance Status Cards */}
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between">

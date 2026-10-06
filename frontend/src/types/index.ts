@@ -879,6 +879,7 @@ export interface Client360Overview {
   complianceProfile?: ComplianceProfileSummaryDto;
   complianceApplicability?: ComplianceApplicabilitySummaryDto;
   complianceObligations?: ComplianceObligationSummaryDto;
+  complianceDeadlines?: ClientComplianceDeadlineSummaryDto;
 }
 
 export type ContactRole =
@@ -6658,5 +6659,95 @@ export interface CompliancePeriodDto {
   financialYear?: string;
   assessmentYear?: string;
   displayLabel?: string;
+}
+
+// ==============================================================================
+// Phase 29.6: Compliance Calendar & Deadline Radar Types
+// ==============================================================================
+
+export type DeadlineStatus =
+  | 'OVERDUE'
+  | 'DUE_TODAY'
+  | 'DUE_TOMORROW'
+  | 'DUE_WITHIN_3_DAYS'
+  | 'DUE_THIS_WEEK'
+  | 'UPCOMING'
+  | 'NO_DUE_DATE'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface ComplianceDeadlineDto {
+  obligationId: string;
+  clientId: string;
+  clientDisplayName?: string;
+  clientPan?: string;
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  domainDisplayName?: string;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  statutoryDueDate?: string;
+  dueDate?: string;
+  priority: string;
+  status: DeadlineStatus;
+  daysRemaining?: number;
+  daysOverdue?: number;
+  statutoryGraceDays?: number;
+  explanation?: string;
+  calculatedAt?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+}
+
+export interface ComplianceDeadlineSummaryDto {
+  totalActiveDeadlines: number;
+  overdueCount: number;
+  dueTodayCount: number;
+  dueTomorrowCount: number;
+  dueWithin3DaysCount: number;
+  dueThisWeekCount: number;
+  upcomingCount: number;
+  noDueDateCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  byDomain: Record<string, number>;
+  referenceDate: string;
+}
+
+export interface ComplianceDeadlineRadarDto {
+  summary: ComplianceDeadlineSummaryDto;
+  topDeadlines: ComplianceDeadlineDto[];
+  domainBreakdown: Record<string, number>;
+  referenceDate: string;
+}
+
+export interface ClientComplianceDeadlineSummaryDto {
+  clientId: string;
+  clientDisplayName?: string;
+  summary: ComplianceDeadlineSummaryDto;
+  nextDeadline?: ComplianceDeadlineDto;
+  referenceDate: string;
+}
+
+export interface ComplianceCalendarQueryFilter {
+  startDate?: string;
+  endDate?: string;
+  referenceDate?: string;
+  domain?: ComplianceRuleDomain;
+  status?: DeadlineStatus;
+  clientId?: string;
+  ruleCode?: string;
+  financialYear?: string;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
 }
 

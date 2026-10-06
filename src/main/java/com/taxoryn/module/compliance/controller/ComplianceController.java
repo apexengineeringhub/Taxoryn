@@ -54,17 +54,8 @@ public class ComplianceController {
     private final ComplianceRuleService ruleService;
 
     // =========================================================================
-    // 1. Calendar & Filter Views
+    // 1. Obligations & Filter Views
     // =========================================================================
-
-    @GetMapping("/calendar")
-    @PreAuthorize("hasAnyAuthority('TASK_VIEW', 'CLIENT_VIEW', 'GST_VIEW', 'ITR_VIEW', 'TDS_VIEW', 'NOTICE_VIEW', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
-    @Operation(summary = "Get compliance calendar obligations", description = "Retrieves paginated compliance obligations with filters by date range, period, domain, status, priority, or assigned staff.")
-    public ResponseEntity<ApiResponse<PagedResponse<ComplianceObligationDto>>> getCalendar(
-            @Valid @ModelAttribute ComplianceCalendarFilterRequest filterRequest) {
-        PagedResponse<ComplianceObligationDto> response = complianceService.getCalendar(filterRequest);
-        return ResponseEntity.ok(ApiResponse.success("Compliance calendar retrieved successfully", response));
-    }
 
     @GetMapping("/obligations")
     @PreAuthorize("hasAnyAuthority('TASK_VIEW', 'CLIENT_VIEW', 'GST_VIEW', 'ITR_VIEW', 'TDS_VIEW', 'NOTICE_VIEW', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
@@ -73,14 +64,6 @@ public class ComplianceController {
             @Valid @ModelAttribute ComplianceCalendarFilterRequest filterRequest) {
         PagedResponse<ComplianceObligationDto> response = complianceService.getCalendar(filterRequest);
         return ResponseEntity.ok(ApiResponse.success("Compliance obligations retrieved successfully", response));
-    }
-
-    @GetMapping("/calendar/summary")
-    @PreAuthorize("hasAnyAuthority('TASK_VIEW', 'CLIENT_VIEW', 'GST_VIEW', 'ITR_VIEW', 'TDS_VIEW', 'NOTICE_VIEW', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
-    @Operation(summary = "Compliance calendar summary metrics", description = "Returns summary metrics: due today, due this week, due this month, overdue, waiting for client, ready for filing, and completed.")
-    public ResponseEntity<ApiResponse<ComplianceCalendarSummaryDto>> getCalendarSummary() {
-        ComplianceCalendarSummaryDto summary = complianceService.getCalendarSummary();
-        return ResponseEntity.ok(ApiResponse.success("Compliance calendar summary retrieved successfully", summary));
     }
 
     @GetMapping("/upcoming")
