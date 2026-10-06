@@ -6350,6 +6350,155 @@ export interface UpdateComplianceProfileRequest {
   notes?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 29.2: Compliance Rule Catalog
+// ---------------------------------------------------------------------------
 
+export type ComplianceRuleDomain =
+  | 'GST'
+  | 'TDS'
+  | 'INCOME_TAX'
+  | 'MCA_ROC'
+  | 'STATUTORY_AUDIT'
+  | 'PAYROLL_LABOUR'
+  | 'OTHER';
 
+export type ComplianceRuleFrequency =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUAL'
+  | 'HALF_YEARLY'
+  | 'EVENT_BASED'
+  | 'ONE_TIME';
 
+export type CompliancePeriodType =
+  | 'MONTH'
+  | 'QUARTER'
+  | 'FINANCIAL_YEAR'
+  | 'ASSESSMENT_YEAR'
+  | 'HALF_YEAR'
+  | 'EVENT';
+
+export type ComplianceRuleStatus =
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'DRAFT'
+  | 'DEPRECATED';
+
+export type DueDateRuleType =
+  | 'DAY_OF_FOLLOWING_MONTH'
+  | 'DAY_OF_FOLLOWING_QUARTER_END_MONTH'
+  | 'FIXED_DATE_IN_YEAR'
+  | 'CUSTOM_OFFSET_DAYS'
+  | 'SPECIFIC_DATE';
+
+export interface ComplianceRuleDto {
+  id: string;
+  organizationId?: string;
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  domainDisplayName?: string;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  status: ComplianceRuleStatus;
+  systemRule: boolean;
+  description?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  penaltyDetails?: string;
+  dueDateRuleType: DueDateRuleType;
+  dueDayOffset?: number;
+  dueMonthOffset?: number;
+  fixedMonth?: number;
+  fixedDay?: number;
+  statutoryGraceDays?: number;
+  dueDateDescription?: string;
+  requiredModule?: string;
+  applicableEntityTypes?: string;
+  applicableGstRegistrationTypes?: string;
+  applicableFilingFrequencies?: string;
+  requiresTaxAudit?: boolean;
+  requiresTransferPricing?: boolean;
+  requiresTdsDeductor?: boolean;
+  requiresMcaFiling?: boolean;
+  defaultWorkTemplateCode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
+}
+
+export interface ComplianceRuleCatalogSummaryDto {
+  totalRules: number;
+  activeRules: number;
+  systemRules: number;
+  customRules: number;
+  rulesByDomain: Record<ComplianceRuleDomain, number>;
+}
+
+export interface CreateComplianceRuleRequest {
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  description?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  penaltyDetails?: string;
+  dueDateRuleType?: DueDateRuleType;
+  dueDayOffset?: number;
+  dueMonthOffset?: number;
+  fixedMonth?: number;
+  fixedDay?: number;
+  statutoryGraceDays?: number;
+  dueDateDescription?: string;
+  requiredModule?: string;
+  applicableEntityTypes?: string;
+  applicableGstRegistrationTypes?: string;
+  applicableFilingFrequencies?: string;
+  requiresTaxAudit?: boolean;
+  requiresTransferPricing?: boolean;
+  requiresTdsDeductor?: boolean;
+  requiresMcaFiling?: boolean;
+  defaultWorkTemplateCode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}
+
+export interface UpdateComplianceRuleRequest {
+  ruleName?: string;
+  domain?: ComplianceRuleDomain;
+  frequency?: ComplianceRuleFrequency;
+  periodType?: CompliancePeriodType;
+  status?: ComplianceRuleStatus;
+  description?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  penaltyDetails?: string;
+  dueDateRuleType?: DueDateRuleType;
+  dueDayOffset?: number;
+  dueMonthOffset?: number;
+  fixedMonth?: number;
+  fixedDay?: number;
+  statutoryGraceDays?: number;
+  dueDateDescription?: string;
+  requiredModule?: string;
+  applicableEntityTypes?: string;
+  applicableGstRegistrationTypes?: string;
+  applicableFilingFrequencies?: string;
+  requiresTaxAudit?: boolean;
+  requiresTransferPricing?: boolean;
+  requiresTdsDeductor?: boolean;
+  requiresMcaFiling?: boolean;
+  defaultWorkTemplateCode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}

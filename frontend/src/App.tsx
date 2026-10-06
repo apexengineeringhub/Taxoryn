@@ -81,6 +81,7 @@ const EngagementOverviewPage = React.lazy(() => import('./pages/EngagementOvervi
 const WorkTemplatesPage = React.lazy(() => import('./pages/WorkTemplatesPage').then(m => ({ default: m.WorkTemplatesPage })));
 const DscRegisterPage = React.lazy(() => import('./pages/DscRegisterPage').then(m => ({ default: m.DscRegisterPage })));
 const UdinRegisterPage = React.lazy(() => import('./pages/UdinRegisterPage').then(m => ({ default: m.UdinRegisterPage })));
+const ComplianceRuleCatalogPage = React.lazy(() => import('./pages/ComplianceRuleCatalogPage').then(m => ({ default: m.ComplianceRuleCatalogPage })));
 
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
@@ -452,6 +453,22 @@ export const App: React.FC = () => {
                 element={
                   <ModuleRouteGuard moduleCode="TASKS">
                     <ComplianceWorkflowDetailPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/compliance-rules"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <ComplianceRuleCatalogPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/compliance/rules"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <ComplianceRuleCatalogPage />
                   </ModuleRouteGuard>
                 }
               />

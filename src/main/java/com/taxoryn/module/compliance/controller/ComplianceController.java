@@ -272,17 +272,17 @@ public class ComplianceController {
                 .body(ApiResponse.created("Generated " + obligations.size() + " compliance obligations for period " + request.getPeriod(), obligations));
     }
 
-    @GetMapping("/rules")
+    @GetMapping({"/calendar/rules", "/legacy-rules"})
     @PreAuthorize("hasAuthority('TASK_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "List active compliance rules", description = "Retrieves all active system and custom configurable compliance rules.")
+    @Operation(summary = "List active compliance rules (legacy)", description = "Retrieves active compliance rules via legacy calendar endpoint.")
     public ResponseEntity<ApiResponse<List<ComplianceRuleDto>>> getActiveRules() {
         List<ComplianceRuleDto> rules = ruleService.getActiveRules();
         return ResponseEntity.ok(ApiResponse.success("Active compliance rules retrieved successfully", rules));
     }
 
-    @PostMapping("/rules")
+    @PostMapping({"/calendar/rules", "/legacy-rules"})
     @PreAuthorize("hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Create custom compliance rule", description = "Creates a tenant-specific custom compliance due-date rule.")
+    @Operation(summary = "Create custom compliance rule (legacy)", description = "Creates a tenant-specific custom compliance due-date rule via legacy calendar endpoint.")
     public ResponseEntity<ApiResponse<ComplianceRuleDto>> createCustomRule(
             @Valid @RequestBody CreateComplianceRuleRequest request) {
         ComplianceRuleDto rule = ruleService.createCustomRule(request);

@@ -32,6 +32,13 @@ import {
   ClientActionRecommendationDto,
   ComplianceProfileDto,
   UpdateComplianceProfileRequest,
+  ComplianceRuleDto,
+  ComplianceRuleDomain,
+  ComplianceRuleFrequency,
+  ComplianceRuleStatus,
+  ComplianceRuleCatalogSummaryDto,
+  CreateComplianceRuleRequest,
+  UpdateComplianceRuleRequest,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -3839,6 +3846,42 @@ export const complianceProfileApi = {
   },
   updateProfile: async (clientId: string, payload: UpdateComplianceProfileRequest): Promise<ComplianceProfileDto> => {
     const res = await apiClient.put<ApiResponse<ComplianceProfileDto>>(`/v1/clients/${clientId}/compliance-profile`, payload);
+    return res.data.data;
+  },
+};
+
+export const complianceRulesApi = {
+  getRules: async (params?: {
+    domain?: ComplianceRuleDomain;
+    frequency?: ComplianceRuleFrequency;
+    status?: ComplianceRuleStatus;
+    search?: string;
+    includeSystem?: boolean;
+  }): Promise<ComplianceRuleDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleDto[]>>('/v1/compliance/rules', { params });
+    return res.data.data;
+  },
+  getRuleById: async (ruleId: string): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleDto>>(`/v1/compliance/rules/${ruleId}`);
+    return res.data.data;
+  },
+  getRuleByCode: async (ruleCode: string): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleDto>>(`/v1/compliance/rules/code/${ruleCode}`);
+    return res.data.data;
+  },
+  createCustomRule: async (payload: CreateComplianceRuleRequest): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceRuleDto>>('/v1/compliance/rules', payload);
+    return res.data.data;
+  },
+  updateRule: async (ruleId: string, payload: UpdateComplianceRuleRequest): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.put<ApiResponse<ComplianceRuleDto>>(`/v1/compliance/rules/${ruleId}`, payload);
+    return res.data.data;
+  },
+  deleteRule: async (ruleId: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/v1/compliance/rules/${ruleId}`);
+  },
+  getCatalogSummary: async (): Promise<ComplianceRuleCatalogSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleCatalogSummaryDto>>('/v1/compliance/rules/summary');
     return res.data.data;
   },
 };
