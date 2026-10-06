@@ -158,6 +158,10 @@ public class ClientServiceImpl implements ClientService {
     @org.springframework.context.annotation.Lazy
     private com.taxoryn.module.compliance.profile.service.ComplianceProfileService complianceProfileService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.compliance.applicability.service.ComplianceApplicabilityService complianceApplicabilityService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
         this.clientLifecycleService = clientLifecycleService;
@@ -1722,6 +1726,15 @@ public class ClientServiceImpl implements ClientService {
             }
         }
 
+        com.taxoryn.module.compliance.applicability.dto.ComplianceApplicabilitySummaryDto complianceApplicabilitySummary = null;
+        if (complianceApplicabilityService != null) {
+            try {
+                complianceApplicabilitySummary = complianceApplicabilityService.getApplicabilitySummary(organizationId, clientId, null).orElse(null);
+            } catch (Exception ex) {
+                log.debug("Could not resolve compliance applicability summary for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1751,6 +1764,7 @@ public class ClientServiceImpl implements ClientService {
                 .taskSummary(overview.getTaskSummary())
                 .complianceSummary(overview.getComplianceSummary())
                 .complianceProfile(complianceProfileSummary)
+                .complianceApplicability(complianceApplicabilitySummary)
                 .documentsSummary(overview.getDocumentsSummary())
                 .docRequestsSummary(overview.getDocRequestsSummary())
                 .billingSummary(overview.getBillingSummary())

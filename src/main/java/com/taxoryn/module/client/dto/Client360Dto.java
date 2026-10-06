@@ -100,6 +100,9 @@ public class Client360Dto {
     @Schema(description = "Client Compliance Profile Summary (Phase 29.1)")
     private com.taxoryn.module.compliance.profile.dto.ComplianceProfileSummaryDto complianceProfile;
 
+    @Schema(description = "Client Compliance Applicability Summary (Phase 29.3)")
+    private com.taxoryn.module.compliance.applicability.dto.ComplianceApplicabilitySummaryDto complianceApplicability;
+
     @Schema(description = "Documents Vault Summary")
     private ClientOverviewDto.ClientDocumentSummary documentsSummary;
 

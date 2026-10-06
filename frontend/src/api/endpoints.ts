@@ -39,6 +39,10 @@ import {
   ComplianceRuleCatalogSummaryDto,
   CreateComplianceRuleRequest,
   UpdateComplianceRuleRequest,
+  ApplicabilityResultState,
+  ClientComplianceApplicabilityDto,
+  ComplianceApplicabilitySummaryDto,
+  EvaluatedRuleApplicabilityDto,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -3882,6 +3886,44 @@ export const complianceRulesApi = {
   },
   getCatalogSummary: async (): Promise<ComplianceRuleCatalogSummaryDto> => {
     const res = await apiClient.get<ApiResponse<ComplianceRuleCatalogSummaryDto>>('/v1/compliance/rules/summary');
+    return res.data.data;
+  },
+};
+
+export const complianceApplicabilityApi = {
+  getClientApplicability: async (
+    clientId: string,
+    params?: {
+      evaluationDate?: string;
+      domain?: ComplianceRuleDomain;
+      status?: ApplicabilityResultState;
+    }
+  ): Promise<ClientComplianceApplicabilityDto> => {
+    const res = await apiClient.get<ApiResponse<ClientComplianceApplicabilityDto>>(
+      `/v1/clients/${clientId}/compliance/applicability`,
+      { params }
+    );
+    return res.data.data;
+  },
+  getApplicabilitySummary: async (
+    clientId: string,
+    evaluationDate?: string
+  ): Promise<ComplianceApplicabilitySummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceApplicabilitySummaryDto>>(
+      `/v1/clients/${clientId}/compliance/applicability/summary`,
+      { params: evaluationDate ? { evaluationDate } : undefined }
+    );
+    return res.data.data;
+  },
+  getRuleApplicability: async (
+    clientId: string,
+    ruleCode: string,
+    evaluationDate?: string
+  ): Promise<EvaluatedRuleApplicabilityDto> => {
+    const res = await apiClient.get<ApiResponse<EvaluatedRuleApplicabilityDto>>(
+      `/v1/clients/${clientId}/compliance/applicability/${ruleCode}`,
+      { params: evaluationDate ? { evaluationDate } : undefined }
+    );
     return res.data.data;
   },
 };

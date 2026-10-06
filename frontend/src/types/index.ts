@@ -876,6 +876,8 @@ export interface Client360Overview {
   engagements?: any[];
   keyContacts?: ClientContactDto[];
   keyBranches?: ClientBranchDto[];
+  complianceProfile?: ComplianceProfileSummaryDto;
+  complianceApplicability?: ComplianceApplicabilitySummaryDto;
 }
 
 export type ContactRole =
@@ -6501,4 +6503,54 @@ export interface UpdateComplianceRuleRequest {
   defaultWorkTemplateCode?: string;
   effectiveFrom?: string;
   effectiveTo?: string;
+}
+
+// ==============================================================================
+// Phase 29.3: Compliance Applicability Engine Types
+// ==============================================================================
+
+export type ApplicabilityResultState =
+  | 'APPLICABLE'
+  | 'NOT_APPLICABLE'
+  | 'INSUFFICIENT_DATA'
+  | 'CONFIGURATION_ERROR';
+
+export interface EvaluatedRuleApplicabilityDto {
+  ruleId?: string;
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  isSystemRule: boolean;
+  result: ApplicabilityResultState;
+  reason: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  dueDateDescription?: string;
+  ruleVersion?: number;
+  evaluatedAt: string;
+}
+
+export interface ComplianceApplicabilitySummaryDto {
+  clientId: string;
+  evaluationDate?: string;
+  totalEvaluatedRules: number;
+  applicableCount: number;
+  notApplicableCount: number;
+  insufficientDataCount: number;
+  applicableByDomain: Record<string, number>;
+  profileConfigured: boolean;
+  evaluatedAt: string;
+}
+
+export interface ClientComplianceApplicabilityDto {
+  clientId: string;
+  clientDisplayName?: string;
+  clientType?: string;
+  evaluationDate: string;
+  summary: ComplianceApplicabilitySummaryDto;
+  rules: EvaluatedRuleApplicabilityDto[];
+  evaluatedAt: string;
 }

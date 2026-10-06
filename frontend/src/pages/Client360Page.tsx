@@ -55,6 +55,7 @@ import {
   clientTimelineApi,
   clientIntelligenceApi,
   complianceProfileApi,
+  complianceApplicabilityApi,
   complianceWorkApi,
   employeeApi,
 } from '../api/endpoints';
@@ -76,6 +77,9 @@ import {
   ComplianceFilingFrequency,
   ComplianceTdsDeductorCategory,
   ComplianceItrCategory,
+  ClientComplianceApplicabilityDto,
+  EvaluatedRuleApplicabilityDto,
+  ApplicabilityResultState,
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
@@ -213,6 +217,12 @@ export const Client360Page: React.FC = () => {
   const [pfEsiApplicable, setPfEsiApplicable] = useState(false);
   const [complianceNotes, setComplianceNotes] = useState('');
 
+  // Phase 29.3 Applicability State
+  const [applicabilityReport, setApplicabilityReport] = useState<ClientComplianceApplicabilityDto | null>(null);
+  const [isLoadingApplicability, setIsLoadingApplicability] = useState(false);
+  const [applicabilityDomainFilter, setApplicabilityDomainFilter] = useState('ALL');
+  const [applicabilityStatusFilter, setApplicabilityStatusFilter] = useState('ALL');
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
@@ -224,8 +234,22 @@ export const Client360Page: React.FC = () => {
       loadTimeline();
       loadIntelligence();
       loadComplianceProfile();
+      loadApplicability();
     }
   }, [clientId]);
+
+  const loadApplicability = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingApplicability(true);
+      const data = await complianceApplicabilityApi.getClientApplicability(clientId);
+      setApplicabilityReport(data);
+    } catch (err) {
+      console.debug('Failed to load compliance applicability', err);
+    } finally {
+      setIsLoadingApplicability(false);
+    }
+  };
 
   const loadComplianceProfile = async () => {
     if (!clientId) return;
@@ -289,7 +313,7 @@ export const Client360Page: React.FC = () => {
         notes: complianceNotes.trim() || undefined,
       });
       setIsComplianceModalOpen(false);
-      await Promise.all([loadComplianceProfile(), loadClientOverview()]);
+      await Promise.all([loadComplianceProfile(), loadClientOverview(), loadApplicability()]);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update compliance profile');
     } finally {
@@ -2210,6 +2234,151 @@ export const Client360Page: React.FC = () => {
                     </div>
                   </div>
                 )}
+            </div>
+
+            {/* Phase 29.3: Compliance Rule Applicability Explorer */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Evaluated Statutory Rule Applicability
+                    </h3>
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
+                      Phase 29.3 Engine
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Deterministic evaluation of statutory and practice rules against {client.displayName}'s compliance profile.
+                  </p>
+                </div>
+
+                {/* Metric Badges */}
+                {applicabilityReport?.summary && (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      <span>Applicable: {applicabilityReport.summary.applicableCount}</span>
+                    </div>
+                    {applicabilityReport.summary.insufficientDataCount > 0 && (
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span>Needs Config: {applicabilityReport.summary.insufficientDataCount}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+                      <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                      <span>Not Applicable: {applicabilityReport.summary.notApplicableCount}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Domain Filter */}
+                <div className="flex flex-wrap gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                  {['ALL', 'GST', 'TDS', 'INCOME_TAX', 'MCA_ROC', 'STATUTORY_AUDIT', 'PAYROLL_LABOUR'].map((dom) => (
+                    <button
+                      key={dom}
+                      type="button"
+                      onClick={() => setApplicabilityDomainFilter(dom)}
+                      className={clsx(
+                        'px-3 py-1 rounded-lg text-xs font-bold transition-colors',
+                        applicabilityDomainFilter === dom
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                      )}
+                    >
+                      {dom === 'ALL' ? 'All Domains' : dom.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                  {['ALL', 'APPLICABLE', 'INSUFFICIENT_DATA', 'NOT_APPLICABLE'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setApplicabilityStatusFilter(st)}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-lg text-xs font-bold transition-colors',
+                        applicabilityStatusFilter === st
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                      )}
+                    >
+                      {st === 'ALL' ? 'All Results' : st === 'APPLICABLE' ? 'Applicable' : st === 'INSUFFICIENT_DATA' ? 'Needs Config' : 'Not Applicable'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Evaluated Rules Cards Grid */}
+              {isLoadingApplicability ? (
+                <div className="text-center py-8 text-xs text-slate-500">Evaluating statutory compliance rules...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {applicabilityReport?.rules
+                    ?.filter((r) => applicabilityDomainFilter === 'ALL' || r.domain === applicabilityDomainFilter)
+                    ?.filter((r) => applicabilityStatusFilter === 'ALL' || r.result === applicabilityStatusFilter)
+                    ?.map((rule) => (
+                      <div
+                        key={rule.ruleCode}
+                        className={clsx(
+                          'p-4 rounded-xl border space-y-2.5 transition-all',
+                          rule.result === 'APPLICABLE'
+                            ? 'bg-white border-emerald-200 hover:border-emerald-300 shadow-2xs'
+                            : rule.result === 'INSUFFICIENT_DATA'
+                            ? 'bg-amber-50/40 border-amber-200 hover:border-amber-300'
+                            : 'bg-slate-50/60 border-slate-200 opacity-80'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-mono font-bold text-slate-500">
+                              {rule.ruleCode}
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-900 line-clamp-1">
+                              {rule.ruleName}
+                            </h4>
+                          </div>
+                          <span
+                            className={clsx(
+                              'text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border',
+                              rule.result === 'APPLICABLE'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : rule.result === 'INSUFFICIENT_DATA'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            )}
+                          >
+                            {rule.result === 'APPLICABLE' ? '✓ Applicable' : rule.result === 'INSUFFICIENT_DATA' ? '⚠ Needs Config' : '✗ Not Applicable'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                          <span className="font-semibold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700">
+                            {rule.domain}
+                          </span>
+                          <span>•</span>
+                          <span>{rule.frequency}</span>
+                          {rule.statutoryFormCode && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono">{rule.statutoryFormCode}</span>
+                            </>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                          {rule.reason}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
 
             {/* GST Card */}
