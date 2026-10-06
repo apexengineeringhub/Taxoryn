@@ -43,6 +43,11 @@ public interface GstReturnFilingRepository extends JpaRepository<GstReturnFiling
 
     List<GstReturnFilingEntity> findAllByOrganizationIdAndClientIdIn(UUID organizationId, java.util.Collection<UUID> clientIds);
 
+    List<GstReturnFilingEntity> findAllByOrganizationIdAndFilingStatusIn(
+            UUID organizationId, java.util.Collection<GstFilingStatus> statuses);
+
+    List<GstReturnFilingEntity> findAllByFilingStatusIn(java.util.Collection<GstFilingStatus> statuses);
+
     /**
      * Filings due within a date window and not yet in a terminal status, for GST_DUE reminders.
      */

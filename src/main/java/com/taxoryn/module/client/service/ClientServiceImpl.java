@@ -25,6 +25,7 @@ import com.taxoryn.module.client.dto.UpdateClientRequest;
 import com.taxoryn.module.client.dto.UpdateClientStatusRequest;
 import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
+import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.entity.ClientNoteEntity;
 import com.taxoryn.module.client.entity.ClientServiceEntity;
 import com.taxoryn.module.client.entity.ClientServiceType;
@@ -129,6 +130,34 @@ public class ClientServiceImpl implements ClientService {
     private final com.taxoryn.module.gst.repository.GstRegistrationRepository gstRegistrationRepository;
     private final com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService;
     private final com.taxoryn.module.billing.service.InvoiceService invoiceService;
+    private final ClientProfileCompletenessEvaluator completenessEvaluator;
+    private ClientLifecycleService clientLifecycleService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.repository.ClientContactRepository clientContactRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.repository.ClientBranchRepository clientBranchRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.repository.ClientRelationshipRepository clientRelationshipRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private ClientIntelligenceService clientIntelligenceService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private ClientTimelineService clientTimelineService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.engagement.service.EngagementService engagementService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
+        this.clientLifecycleService = clientLifecycleService;
+    }
 
     @org.springframework.beans.factory.annotation.Autowired
     public ClientServiceImpl(
@@ -165,7 +194,8 @@ public class ClientServiceImpl implements ClientService {
             com.taxoryn.module.audit.service.AuditService auditService,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.gst.repository.GstRegistrationRepository gstRegistrationRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.moduleconfig.service.ModuleConfigurationService moduleConfigurationService,
-            @org.springframework.beans.factory.annotation.Autowired(required = false) @org.springframework.context.annotation.Lazy com.taxoryn.module.billing.service.InvoiceService invoiceService
+            @org.springframework.beans.factory.annotation.Autowired(required = false) @org.springframework.context.annotation.Lazy com.taxoryn.module.billing.service.InvoiceService invoiceService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) ClientProfileCompletenessEvaluator completenessEvaluator
     ) {
         this.clientRepository = clientRepository;
         this.clientNoteRepository = clientNoteRepository;
@@ -201,6 +231,7 @@ public class ClientServiceImpl implements ClientService {
         this.gstRegistrationRepository = gstRegistrationRepository;
         this.moduleConfigurationService = moduleConfigurationService;
         this.invoiceService = invoiceService;
+        this.completenessEvaluator = completenessEvaluator != null ? completenessEvaluator : new ClientProfileCompletenessEvaluator();
     }
 
     public ClientServiceImpl(
@@ -243,7 +274,7 @@ public class ClientServiceImpl implements ClientService {
                 itrReturnRepository, tdsProfileRepository, tdsReturnRepository, documentRepository,
                 documentRequestRepository, invoiceRepository, auditLogRepository, clientLocationAssignmentRepository,
                 clientUserAssignmentRepository, clientServiceRepository, locationRepository, userLocationRepository,
-                clientMapper, taskMapper, auditService, null, null, null);
+                clientMapper, taskMapper, auditService, null, null, null, null);
     }
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
@@ -294,11 +325,14 @@ public class ClientServiceImpl implements ClientService {
         }
 
         ClientEntity client = ClientEntity.builder()
-                .clientType(request.getClientType())
+                .clientType(request.getClientType() != null ? request.getClientType() : ClientType.INDIVIDUAL)
                 .clientCode(StringUtils.hasText(request.getClientCode()) ? request.getClientCode().trim() : null)
                 .displayName(request.getDisplayName().trim())
                 .legalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : null)
                 .tradeName(StringUtils.hasText(request.getTradeName()) ? request.getTradeName().trim() : null)
+                .businessActivity(StringUtils.hasText(request.getBusinessActivity()) ? request.getBusinessActivity().trim() : null)
+                .industry(StringUtils.hasText(request.getIndustry()) ? request.getIndustry().trim() : null)
+                .businessScale(StringUtils.hasText(request.getBusinessScale()) ? request.getBusinessScale().trim() : null)
                 .pan(StringUtils.hasText(request.getPan()) ? request.getPan().toUpperCase().trim() : null)
                 .gstin(StringUtils.hasText(request.getGstin()) ? request.getGstin().toUpperCase().trim() : null)
                 .tan(StringUtils.hasText(request.getTan()) ? request.getTan().toUpperCase().trim() : null)
@@ -313,6 +347,7 @@ public class ClientServiceImpl implements ClientService {
                 .addressLine2(request.getAddressLine2())
                 .city(request.getCity())
                 .state(request.getState())
+                .stateCode(StringUtils.hasText(request.getStateCode()) ? request.getStateCode().trim() : null)
                 .country(StringUtils.hasText(request.getCountry()) ? request.getCountry() : "India")
                 .pincode(request.getPincode())
                 .locationId(request.getLocationId())
@@ -417,6 +452,9 @@ public class ClientServiceImpl implements ClientService {
         if (request.getDisplayName() != null) client.setDisplayName(request.getDisplayName().trim());
         if (request.getLegalName() != null) client.setLegalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : null);
         if (request.getTradeName() != null) client.setTradeName(StringUtils.hasText(request.getTradeName()) ? request.getTradeName().trim() : null);
+        if (request.getBusinessActivity() != null) client.setBusinessActivity(StringUtils.hasText(request.getBusinessActivity()) ? request.getBusinessActivity().trim() : null);
+        if (request.getIndustry() != null) client.setIndustry(StringUtils.hasText(request.getIndustry()) ? request.getIndustry().trim() : null);
+        if (request.getBusinessScale() != null) client.setBusinessScale(StringUtils.hasText(request.getBusinessScale()) ? request.getBusinessScale().trim() : null);
         if (request.getTan() != null) client.setTan(StringUtils.hasText(request.getTan()) ? request.getTan().toUpperCase().trim() : null);
         if (request.getCin() != null) client.setCin(StringUtils.hasText(request.getCin()) ? request.getCin().toUpperCase().trim() : null);
         if (request.getDateOfIncorporation() != null) client.setDateOfIncorporation(request.getDateOfIncorporation());
@@ -429,6 +467,7 @@ public class ClientServiceImpl implements ClientService {
         if (request.getAddressLine2() != null) client.setAddressLine2(request.getAddressLine2());
         if (request.getCity() != null) client.setCity(request.getCity());
         if (request.getState() != null) client.setState(request.getState());
+        if (request.getStateCode() != null) client.setStateCode(StringUtils.hasText(request.getStateCode()) ? request.getStateCode().trim() : null);
         if (StringUtils.hasText(request.getCountry())) {
             client.setCountry(request.getCountry());
         }
@@ -629,6 +668,9 @@ public class ClientServiceImpl implements ClientService {
     @Override
     @Transactional
     public ClientDto updateClientStatus(UUID clientId, UpdateClientStatusRequest request) {
+        if (clientLifecycleService != null) {
+            return clientLifecycleService.transitionStatus(clientId, request);
+        }
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
@@ -638,6 +680,9 @@ public class ClientServiceImpl implements ClientService {
         ClientStatus oldStatus = client.getStatus();
         ClientStatus newStatus = request.getStatus();
         client.setStatus(newStatus);
+        client.setStatusChangedAt(Instant.now());
+        client.setStatusChangedBy(SecurityUtils.getCurrentUserId());
+        client.setStatusChangeReason(request.getReason());
         ClientEntity saved = clientRepository.save(client);
         log.info("Updated client status: id={}, newStatus={} for tenant={}", clientId, newStatus, organizationId);
 
@@ -1356,10 +1401,13 @@ public class ClientServiceImpl implements ClientService {
                         .organizationId(se.getOrganizationId())
                         .clientId(se.getClientId())
                         .clientName(client.getDisplayName())
+                        .serviceOfferingId(se.getServiceOfferingId())
                         .serviceType(se.getServiceType())
+                        .serviceCode(se.getServiceType() != null ? se.getServiceType().name() : null)
                         .serviceName(se.getServiceType() != null ? se.getServiceType().getDisplayName() : null)
                         .category(se.getServiceType() != null ? se.getServiceType().getCategory() : null)
                         .status(se.getStatus())
+                        .agreedPrice(se.getAgreedPrice())
                         .startDate(se.getStartDate())
                         .endDate(se.getEndDate())
                         .assignedEmployeeId(se.getAssignedEmployeeId())
@@ -1371,6 +1419,9 @@ public class ClientServiceImpl implements ClientService {
                         .billingFrequency(se.getBillingFrequency())
                         .notes(se.getNotes())
                         .routePath(se.getServiceType() != null ? se.getServiceType().getRoutePath() : null)
+                        .statusChangedAt(se.getStatusChangedAt())
+                        .statusChangedBy(se.getStatusChangedBy())
+                        .statusChangeReason(se.getStatusChangeReason())
                         .createdAt(se.getCreatedAt())
                         .updatedAt(se.getUpdatedAt())
                         .build());
@@ -1537,6 +1588,127 @@ public class ClientServiceImpl implements ClientService {
             }
         }
 
+        com.taxoryn.module.client.dto.ClientProfileDto profileDto = clientMapper.toProfileDto(client);
+        if (client.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(client.getAssignedEmployeeId(), organizationId)
+                    .ifPresent(emp -> profileDto.setAssignedEmployeeName(emp.getFullName()));
+        }
+        com.taxoryn.module.client.dto.ClientProfileCompletenessDto completeness = completenessEvaluator.evaluate(client);
+        profileDto.setCompleteness(completeness);
+
+        com.taxoryn.module.client.dto.ClientContactDto primaryContactDto = null;
+        Long contactsCount = null;
+        Long activeContactsCount = null;
+        if (clientContactRepository != null) {
+            primaryContactDto = clientContactRepository.findByOrganizationIdAndClientIdAndPrimaryContactTrue(organizationId, clientId)
+                    .map(c -> com.taxoryn.module.client.dto.ClientContactDto.builder()
+                            .id(c.getId())
+                            .organizationId(c.getOrganizationId())
+                            .clientId(c.getClientId())
+                            .firstName(c.getFirstName())
+                            .lastName(c.getLastName())
+                            .displayName(c.getDisplayName())
+                            .designation(c.getDesignation())
+                            .email(c.getEmail())
+                            .phone(c.getPhone())
+                            .altPhone(c.getAltPhone())
+                            .contactRole(c.getContactRole())
+                            .primaryContact(c.isPrimaryContact())
+                            .active(c.isActive())
+                            .notes(c.getNotes())
+                            .createdAt(c.getCreatedAt())
+                            .updatedAt(c.getUpdatedAt())
+                            .build())
+                    .orElse(null);
+            contactsCount = clientContactRepository.countByOrganizationIdAndClientId(organizationId, clientId);
+            activeContactsCount = clientContactRepository.countByOrganizationIdAndClientIdAndActive(organizationId, clientId, true);
+        }
+
+        com.taxoryn.module.client.dto.ClientBranchDto primaryBranchDto = null;
+        Long branchesCount = null;
+        Long activeBranchesCount = null;
+        if (clientBranchRepository != null) {
+            primaryBranchDto = clientBranchRepository.findByOrganizationIdAndClientIdAndPrimaryBranchTrue(organizationId, clientId)
+                    .map(b -> com.taxoryn.module.client.dto.ClientBranchDto.builder()
+                            .id(b.getId())
+                            .organizationId(b.getOrganizationId())
+                            .clientId(b.getClientId())
+                            .branchName(b.getBranchName())
+                            .branchCode(b.getBranchCode())
+                            .branchType(b.getBranchType())
+                            .addressLine1(b.getAddressLine1())
+                            .addressLine2(b.getAddressLine2())
+                            .city(b.getCity())
+                            .state(b.getState())
+                            .stateCode(b.getStateCode())
+                            .country(b.getCountry())
+                            .pincode(b.getPincode())
+                            .gstin(b.getGstin())
+                            .phone(b.getPhone())
+                            .email(b.getEmail())
+                            .primaryBranch(b.isPrimaryBranch())
+                            .active(b.isActive())
+                            .notes(b.getNotes())
+                            .createdAt(b.getCreatedAt())
+                            .updatedAt(b.getUpdatedAt())
+                            .build())
+                    .orElse(null);
+            branchesCount = clientBranchRepository.countByOrganizationIdAndClientId(organizationId, clientId);
+            activeBranchesCount = clientBranchRepository.countByOrganizationIdAndClientIdAndActive(organizationId, clientId, true);
+        }
+
+        Long relationshipsCount = null;
+        if (clientRelationshipRepository != null) {
+            relationshipsCount = clientRelationshipRepository.countAllForClient(organizationId, clientId);
+        }
+
+        com.taxoryn.module.client.dto.ClientIntelligenceSummaryDto intelligenceSummary = null;
+        if (clientIntelligenceService != null) {
+            try {
+                intelligenceSummary = clientIntelligenceService.evaluateClient(organizationId, clientId);
+            } catch (Exception ex) {
+                log.debug("Could not evaluate client intelligence for {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        List<com.taxoryn.module.client.dto.ClientTimelineItemDto> recentTimeline = null;
+        if (clientTimelineService != null) {
+            try {
+                recentTimeline = clientTimelineService.getRecentTimeline(organizationId, clientId, 10);
+            } catch (Exception ex) {
+                log.debug("Could not fetch recent timeline for {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        ClientOverviewDto overview = getClientOverview(clientId);
+
+        List<com.taxoryn.module.engagement.dto.EngagementDto> clientEngagements = null;
+        if (engagementService != null) {
+            try {
+                clientEngagements = engagementService.getEngagementsByClientId(clientId);
+            } catch (Exception ex) {
+                log.debug("Could not load engagements for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        List<com.taxoryn.module.client.dto.ClientContactDto> keyContacts = null;
+        if (clientContactRepository != null) {
+            keyContacts = clientContactRepository.findAllByOrganizationIdAndClientIdAndActiveOrderByPrimaryContactDescCreatedAtAsc(organizationId, clientId, true)
+                    .stream()
+                    .limit(5)
+                    .map(this::toContactDto)
+                    .toList();
+        }
+
+        List<com.taxoryn.module.client.dto.ClientBranchDto> keyBranches = null;
+        if (clientBranchRepository != null) {
+            keyBranches = clientBranchRepository.findAllByOrganizationIdAndClientIdAndActiveOrderByPrimaryBranchDescCreatedAtAsc(organizationId, clientId, true)
+                    .stream()
+                    .limit(5)
+                    .map(this::toBranchDto)
+                    .toList();
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1550,6 +1722,79 @@ public class ClientServiceImpl implements ClientService {
                 .taxNotices(taxNoticeDtos)
                 .billing(billingHistory)
                 .status(client.getStatus())
+                .statusChangedAt(client.getStatusChangedAt())
+                .statusChangeReason(client.getStatusChangeReason())
+                .profile(profileDto)
+                .completeness(completeness)
+                .primaryContact(primaryContactDto)
+                .contactsCount(contactsCount)
+                .activeContactsCount(activeContactsCount)
+                .primaryBranch(primaryBranchDto)
+                .branchesCount(branchesCount)
+                .activeBranchesCount(activeBranchesCount)
+                .relationshipsCount(relationshipsCount)
+                .intelligenceSummary(intelligenceSummary)
+                .recentTimeline(recentTimeline)
+                .taskSummary(overview.getTaskSummary())
+                .complianceSummary(overview.getComplianceSummary())
+                .documentsSummary(overview.getDocumentsSummary())
+                .docRequestsSummary(overview.getDocRequestsSummary())
+                .billingSummary(overview.getBillingSummary())
+                .noticeSummary(overview.getNoticeSummary())
+                .recentNotes(overview.getRecentNotes())
+                .activityTimeline(overview.getActivityTimeline())
+                .engagements(clientEngagements)
+                .keyContacts(keyContacts)
+                .keyBranches(keyBranches)
+                .build();
+    }
+
+    private com.taxoryn.module.client.dto.ClientContactDto toContactDto(com.taxoryn.module.client.entity.ClientContactEntity c) {
+        if (c == null) return null;
+        return com.taxoryn.module.client.dto.ClientContactDto.builder()
+                .id(c.getId())
+                .organizationId(c.getOrganizationId())
+                .clientId(c.getClientId())
+                .firstName(c.getFirstName())
+                .lastName(c.getLastName())
+                .displayName(c.getDisplayName())
+                .designation(c.getDesignation())
+                .email(c.getEmail())
+                .phone(c.getPhone())
+                .altPhone(c.getAltPhone())
+                .contactRole(c.getContactRole())
+                .primaryContact(c.isPrimaryContact())
+                .active(c.isActive())
+                .notes(c.getNotes())
+                .createdAt(c.getCreatedAt())
+                .updatedAt(c.getUpdatedAt())
+                .build();
+    }
+
+    private com.taxoryn.module.client.dto.ClientBranchDto toBranchDto(com.taxoryn.module.client.entity.ClientBranchEntity b) {
+        if (b == null) return null;
+        return com.taxoryn.module.client.dto.ClientBranchDto.builder()
+                .id(b.getId())
+                .organizationId(b.getOrganizationId())
+                .clientId(b.getClientId())
+                .branchName(b.getBranchName())
+                .branchCode(b.getBranchCode())
+                .branchType(b.getBranchType())
+                .addressLine1(b.getAddressLine1())
+                .addressLine2(b.getAddressLine2())
+                .city(b.getCity())
+                .state(b.getState())
+                .stateCode(b.getStateCode())
+                .country(b.getCountry())
+                .pincode(b.getPincode())
+                .gstin(b.getGstin())
+                .phone(b.getPhone())
+                .email(b.getEmail())
+                .primaryBranch(b.isPrimaryBranch())
+                .active(b.isActive())
+                .notes(b.getNotes())
+                .createdAt(b.getCreatedAt())
+                .updatedAt(b.getUpdatedAt())
                 .build();
     }
 
@@ -2401,6 +2646,8 @@ public class ClientServiceImpl implements ClientService {
                     .ifPresent(emp -> dto.setAssignedEmployeeName(emp.getFullName()));
         }
 
+        dto.setCompleteness(completenessEvaluator.evaluate(client));
+
         // Enrich with Client Portal user status
         List<UserEntity> portalUsers = userRepository.findAllByOrganizationIdAndClientId(client.getOrganizationId(), client.getId());
         if (!portalUsers.isEmpty()) {
@@ -2415,6 +2662,150 @@ public class ClientServiceImpl implements ClientService {
         }
 
         return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.client.dto.ClientProfileDto getClientProfile(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required to query client profile");
+        }
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
+
+        com.taxoryn.module.client.dto.ClientProfileDto profile = clientMapper.toProfileDto(client);
+        if (client.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(client.getAssignedEmployeeId(), organizationId)
+                    .ifPresent(emp -> profile.setAssignedEmployeeName(emp.getFullName()));
+        }
+        profile.setCompleteness(completenessEvaluator.evaluate(client));
+        return profile;
+    }
+
+    @Override
+    @Transactional
+    public com.taxoryn.module.client.dto.ClientProfileDto updateClientProfile(UUID clientId, com.taxoryn.module.client.dto.UpdateClientProfileRequest request) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required to update client profile");
+        }
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
+
+        if (request.getClientCode() != null) {
+            if (!StringUtils.hasText(request.getClientCode())) {
+                client.setClientCode(null);
+            } else {
+                String newCode = request.getClientCode().trim();
+                if (!newCode.equalsIgnoreCase(client.getClientCode())
+                        && clientRepository.existsByOrganizationIdAndClientCode(organizationId, newCode)) {
+                    throw new DuplicateResourceException("Client", "clientCode", newCode);
+                }
+                client.setClientCode(newCode);
+            }
+        }
+
+        if (request.getPan() != null) {
+            if (!StringUtils.hasText(request.getPan())) {
+                client.setPan(null);
+            } else {
+                String newPan = request.getPan().toUpperCase().trim();
+                if (!newPan.equalsIgnoreCase(client.getPan())
+                        && clientRepository.existsByOrganizationIdAndPan(organizationId, newPan)) {
+                    throw new DuplicateResourceException("Client", "pan", newPan);
+                }
+                client.setPan(newPan);
+            }
+        }
+
+        if (request.getGstin() != null) {
+            String newGstin = request.getGstin().trim().toUpperCase();
+            if (newGstin.isEmpty()) {
+                client.setGstin(null);
+            } else {
+                if (!Pattern.matches("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$", newGstin)) {
+                    throw new com.taxoryn.core.exception.BadRequestException("Enter a valid 15-character GSTIN.");
+                }
+                if (!newGstin.equalsIgnoreCase(client.getGstin())
+                        && clientRepository.existsByOrganizationIdAndGstin(organizationId, newGstin)) {
+                    throw new DuplicateResourceException("Client", "gstin", newGstin);
+                }
+                client.setGstin(newGstin);
+            }
+        }
+
+        if (request.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(request.getAssignedEmployeeId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assigned Employee", "id", request.getAssignedEmployeeId()));
+            client.setAssignedEmployeeId(request.getAssignedEmployeeId());
+        }
+
+        if (request.getLocationId() != null) {
+            locationRepository.findByIdAndOrganizationId(request.getLocationId(), organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Location", "id", request.getLocationId()));
+            client.setLocationId(request.getLocationId());
+        }
+
+        if (request.getClientType() != null) client.setClientType(request.getClientType());
+        if (StringUtils.hasText(request.getDisplayName())) client.setDisplayName(request.getDisplayName().trim());
+        if (request.getLegalName() != null) client.setLegalName(StringUtils.hasText(request.getLegalName()) ? request.getLegalName().trim() : null);
+        if (request.getTradeName() != null) client.setTradeName(StringUtils.hasText(request.getTradeName()) ? request.getTradeName().trim() : null);
+        if (request.getBusinessActivity() != null) client.setBusinessActivity(StringUtils.hasText(request.getBusinessActivity()) ? request.getBusinessActivity().trim() : null);
+        if (request.getIndustry() != null) client.setIndustry(StringUtils.hasText(request.getIndustry()) ? request.getIndustry().trim() : null);
+        if (request.getBusinessScale() != null) client.setBusinessScale(StringUtils.hasText(request.getBusinessScale()) ? request.getBusinessScale().trim() : null);
+        if (request.getPan() != null) client.setPan(StringUtils.hasText(request.getPan()) ? request.getPan().toUpperCase().trim() : null);
+        if (request.getGstin() != null) client.setGstin(StringUtils.hasText(request.getGstin()) ? request.getGstin().toUpperCase().trim() : null);
+        if (request.getTan() != null) client.setTan(StringUtils.hasText(request.getTan()) ? request.getTan().toUpperCase().trim() : null);
+        if (request.getCin() != null) client.setCin(StringUtils.hasText(request.getCin()) ? request.getCin().toUpperCase().trim() : null);
+        if (request.getDateOfIncorporation() != null) client.setDateOfIncorporation(request.getDateOfIncorporation());
+        if (request.getEmail() != null) client.setEmail(StringUtils.hasText(request.getEmail()) ? request.getEmail().toLowerCase().trim() : null);
+        if (request.getPhone() != null) client.setPhone(StringUtils.hasText(request.getPhone()) ? request.getPhone().trim() : null);
+        if (request.getAltPhone() != null) client.setAltPhone(StringUtils.hasText(request.getAltPhone()) ? request.getAltPhone().trim() : null);
+        if (request.getContactPersonName() != null) client.setContactPersonName(StringUtils.hasText(request.getContactPersonName()) ? request.getContactPersonName().trim() : null);
+        if (request.getContactPersonDesignation() != null) client.setContactPersonDesignation(StringUtils.hasText(request.getContactPersonDesignation()) ? request.getContactPersonDesignation().trim() : null);
+        if (request.getAddressLine1() != null) client.setAddressLine1(StringUtils.hasText(request.getAddressLine1()) ? request.getAddressLine1().trim() : null);
+        if (request.getAddressLine2() != null) client.setAddressLine2(StringUtils.hasText(request.getAddressLine2()) ? request.getAddressLine2().trim() : null);
+        if (request.getCity() != null) client.setCity(StringUtils.hasText(request.getCity()) ? request.getCity().trim() : null);
+        if (request.getState() != null) client.setState(StringUtils.hasText(request.getState()) ? request.getState().trim() : null);
+        if (request.getStateCode() != null) client.setStateCode(StringUtils.hasText(request.getStateCode()) ? request.getStateCode().trim() : null);
+        if (request.getCountry() != null) client.setCountry(StringUtils.hasText(request.getCountry()) ? request.getCountry().trim() : null);
+        if (request.getPincode() != null) client.setPincode(StringUtils.hasText(request.getPincode()) ? request.getPincode().trim() : null);
+        if (request.getNotes() != null) client.setNotes(StringUtils.hasText(request.getNotes()) ? request.getNotes().trim() : null);
+
+        ClientEntity saved = clientRepository.save(client);
+        log.info("Updated client business profile: id={} for tenant={}", saved.getId(), organizationId);
+        if (StringUtils.hasText(saved.getGstin())) {
+            syncGstProfileForClient(organizationId, saved);
+        }
+
+        auditService.logEvent("CLIENT_PROFILE_UPDATED", "CLIENT", saved.getId().toString(), null, "Client profile updated");
+
+        com.taxoryn.module.client.dto.ClientProfileDto profileDto = clientMapper.toProfileDto(saved);
+        if (saved.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(saved.getAssignedEmployeeId(), organizationId)
+                    .ifPresent(emp -> profileDto.setAssignedEmployeeName(emp.getFullName()));
+        }
+        profileDto.setCompleteness(completenessEvaluator.evaluate(saved));
+        return profileDto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.taxoryn.module.client.dto.ClientProfileCompletenessDto getProfileCompleteness(UUID clientId) {
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        if (organizationId == null) {
+            throw new com.taxoryn.core.exception.UnauthorizedException("Authenticated organization context is required");
+        }
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        validateClientAccess(client);
+        return completenessEvaluator.evaluate(client);
     }
 
     private void syncGstProfileForClient(UUID organizationId, ClientEntity client) {

@@ -18,6 +18,18 @@ import {
   ClientServiceDto,
   CreateClientServiceRequest,
   UpdateClientServiceRequest,
+  ClientContactDto,
+  CreateClientContactRequest,
+  UpdateClientContactRequest,
+  ClientBranchDto,
+  CreateClientBranchRequest,
+  UpdateClientBranchRequest,
+  ClientRelationshipDto,
+  CreateClientRelationshipRequest,
+  ClientTimelineItemDto,
+  ClientTimelineFilterParams,
+  ClientIntelligenceSummaryDto,
+  ClientActionRecommendationDto,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -283,6 +295,8 @@ import {
   CancelUdinRequest,
   UdinSummaryDto,
   UdinFilterParams,
+  BusinessContextDto,
+  BusinessContextRequest,
 } from '../types';
 
 // --- 1. Authentication ---
@@ -522,8 +536,10 @@ export const clientServicesApi = {
     const res = await apiClient.put<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`, payload);
     return res.data.data;
   },
-  updateStatus: async (clientId: string, serviceId: string, status: string) => {
-    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/status`, { status });
+  updateStatus: async (clientId: string, serviceId: string, status: string, reason?: string) => {
+    const params = new URLSearchParams({ status });
+    if (reason) params.append('reason', reason);
+    const res = await apiClient.patch<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}/status?${params.toString()}`);
     return res.data.data;
   },
   assignPractitioner: async (clientId: string, serviceId: string, assignedEmployeeId?: string) => {
@@ -532,6 +548,108 @@ export const clientServicesApi = {
   },
   deactivate: async (clientId: string, serviceId: string) => {
     const res = await apiClient.delete<ApiResponse<ClientServiceDto>>(`/v1/clients/${clientId}/services/${serviceId}`);
+    return res.data.data;
+  },
+};
+
+// --- 3b-1. Client Contacts ---
+export const clientContactsApi = {
+  getAll: async (clientId: string, activeOnly?: boolean) => {
+    const params = activeOnly !== undefined ? { activeOnly } : {};
+    const res = await apiClient.get<ApiResponse<ClientContactDto[]>>(`/v1/clients/${clientId}/contacts`, { params });
+    return res.data.data;
+  },
+  getById: async (clientId: string, contactId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientContactDto>>(`/v1/clients/${clientId}/contacts/${contactId}`);
+    return res.data.data;
+  },
+  create: async (clientId: string, payload: CreateClientContactRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientContactDto>>(`/v1/clients/${clientId}/contacts`, payload);
+    return res.data.data;
+  },
+  update: async (clientId: string, contactId: string, payload: UpdateClientContactRequest) => {
+    const res = await apiClient.put<ApiResponse<ClientContactDto>>(`/v1/clients/${clientId}/contacts/${contactId}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (clientId: string, contactId: string, active: boolean) => {
+    const res = await apiClient.patch<ApiResponse<ClientContactDto>>(`/v1/clients/${clientId}/contacts/${contactId}/status?active=${active}`);
+    return res.data.data;
+  },
+  setPrimary: async (clientId: string, contactId: string) => {
+    const res = await apiClient.put<ApiResponse<ClientContactDto>>(`/v1/clients/${clientId}/contacts/${contactId}/primary`);
+    return res.data.data;
+  },
+  delete: async (clientId: string, contactId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${clientId}/contacts/${contactId}`);
+    return res.data.data;
+  },
+};
+
+// --- 3b-2. Client Branches / Locations ---
+export const clientBranchesApi = {
+  getAll: async (clientId: string, activeOnly?: boolean) => {
+    const params = activeOnly !== undefined ? { activeOnly } : {};
+    const res = await apiClient.get<ApiResponse<ClientBranchDto[]>>(`/v1/clients/${clientId}/branches`, { params });
+    return res.data.data;
+  },
+  getById: async (clientId: string, branchId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientBranchDto>>(`/v1/clients/${clientId}/branches/${branchId}`);
+    return res.data.data;
+  },
+  create: async (clientId: string, payload: CreateClientBranchRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientBranchDto>>(`/v1/clients/${clientId}/branches`, payload);
+    return res.data.data;
+  },
+  update: async (clientId: string, branchId: string, payload: UpdateClientBranchRequest) => {
+    const res = await apiClient.put<ApiResponse<ClientBranchDto>>(`/v1/clients/${clientId}/branches/${branchId}`, payload);
+    return res.data.data;
+  },
+  updateStatus: async (clientId: string, branchId: string, active: boolean) => {
+    const res = await apiClient.patch<ApiResponse<ClientBranchDto>>(`/v1/clients/${clientId}/branches/${branchId}/status?active=${active}`);
+    return res.data.data;
+  },
+  setPrimary: async (clientId: string, branchId: string) => {
+    const res = await apiClient.put<ApiResponse<ClientBranchDto>>(`/v1/clients/${clientId}/branches/${branchId}/primary`);
+    return res.data.data;
+  },
+  delete: async (clientId: string, branchId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${clientId}/branches/${branchId}`);
+    return res.data.data;
+  },
+};
+
+// --- 3b-3. Client Relationships & Groups ---
+export const clientRelationshipsApi = {
+  getAll: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientRelationshipDto[]>>(`/v1/clients/${clientId}/relationships`);
+    return res.data.data;
+  },
+  create: async (clientId: string, payload: CreateClientRelationshipRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientRelationshipDto>>(`/v1/clients/${clientId}/relationships`, payload);
+    return res.data.data;
+  },
+  delete: async (clientId: string, relationshipId: string) => {
+    const res = await apiClient.delete<ApiResponse<void>>(`/v1/clients/${clientId}/relationships/${relationshipId}`);
+    return res.data.data;
+  },
+};
+
+// --- 3b-4. Client Timeline & Activity ---
+export const clientTimelineApi = {
+  getTimeline: async (clientId: string, params?: ClientTimelineFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientTimelineItemDto>>>(`/v1/clients/${clientId}/timeline`, { params });
+    return res.data.data;
+  },
+};
+
+// --- 3b-5. Client Intelligence & Recommendations ---
+export const clientIntelligenceApi = {
+  getIntelligence: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientIntelligenceSummaryDto>>(`/v1/clients/${clientId}/intelligence`);
+    return res.data.data;
+  },
+  getRecommendations: async (clientId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientActionRecommendationDto[]>>(`/v1/clients/${clientId}/recommendations`);
     return res.data.data;
   },
 };
@@ -3698,6 +3816,17 @@ export const udinApi = {
   },
   deleteUdin: async (id: string): Promise<void> => {
     await apiClient.delete<ApiResponse<void>>(`/v1/udins/${id}`);
+  },
+};
+
+export const businessContextApi = {
+  resolveContext: async (payload: BusinessContextRequest): Promise<BusinessContextDto> => {
+    const res = await apiClient.post<ApiResponse<BusinessContextDto>>('/v1/business-context/resolve', payload);
+    return res.data.data;
+  },
+  resolveClientContext: async (clientId: string): Promise<BusinessContextDto> => {
+    const res = await apiClient.get<ApiResponse<BusinessContextDto>>(`/v1/business-context/clients/${clientId}`);
+    return res.data.data;
   },
 };
 

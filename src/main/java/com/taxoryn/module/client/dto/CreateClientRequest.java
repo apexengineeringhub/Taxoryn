@@ -56,6 +56,18 @@ public class CreateClientRequest {
     @Schema(description = "TAN Number", example = "MUMZ12345A")
     private String tan;
 
+    @Size(max = 255, message = "Business activity cannot exceed 255 characters")
+    @Schema(description = "Business activity description", example = "Software development and cloud services")
+    private String businessActivity;
+
+    @Size(max = 100, message = "Industry cannot exceed 100 characters")
+    @Schema(description = "Industry or sector", example = "Information Technology")
+    private String industry;
+
+    @Size(max = 50, message = "Business scale cannot exceed 50 characters")
+    @Schema(description = "Business scale (MICRO, SMALL, MEDIUM, LARGE, INDIVIDUAL)", example = "SMALL")
+    private String businessScale;
+
     @Pattern(regexp = "^$|^[UL]{1}[0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$", message = "Invalid CIN format (expected 21-character Corporate ID)")
     @Schema(description = "Corporate Identification Number (CIN)", example = "U72200MH2018PTC312345")
     private String cin;
@@ -92,6 +104,10 @@ public class CreateClientRequest {
 
     @Schema(description = "State", example = "Maharashtra")
     private String state;
+
+    @Size(max = 10, message = "State code must not exceed 10 characters")
+    @Schema(description = "2-digit GST state code", example = "27")
+    private String stateCode;
 
     @Schema(description = "Country", example = "India", defaultValue = "India")
     private String country;

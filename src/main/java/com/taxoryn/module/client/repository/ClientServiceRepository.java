@@ -21,6 +21,8 @@ public interface ClientServiceRepository extends JpaRepository<ClientServiceEnti
 
     boolean existsByOrganizationIdAndClientIdAndServiceTypeAndStatus(UUID organizationId, UUID clientId, ClientServiceType serviceType, ClientServiceStatus status);
 
+    boolean existsByOrganizationIdAndClientIdAndServiceOfferingIdAndStatus(UUID organizationId, UUID clientId, UUID serviceOfferingId, ClientServiceStatus status);
+
     List<ClientServiceEntity> findAllByOrganizationIdAndClientIdAndStatus(UUID organizationId, UUID clientId, ClientServiceStatus status);
 
     long countByOrganizationIdAndClientIdAndStatus(UUID organizationId, UUID clientId, ClientServiceStatus status);

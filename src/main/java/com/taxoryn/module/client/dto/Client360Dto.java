@@ -51,4 +51,76 @@ public class Client360Dto {
 
     @Schema(description = "Client lifecycle status")
     private ClientStatus status;
+
+    @Schema(description = "Timestamp of last status transition")
+    private java.time.Instant statusChangedAt;
+
+    @Schema(description = "Business reason for the last status transition")
+    private String statusChangeReason;
+
+    @Schema(description = "Comprehensive Client Business Profile")
+    private ClientProfileDto profile;
+
+    @Schema(description = "Client profile completeness assessment")
+    private ClientProfileCompletenessDto completeness;
+
+    @Schema(description = "Primary client contact person")
+    private ClientContactDto primaryContact;
+
+    @Schema(description = "Total contacts count")
+    private Long contactsCount;
+
+    @Schema(description = "Active contacts count")
+    private Long activeContactsCount;
+
+    @Schema(description = "Primary client branch / registered office")
+    private ClientBranchDto primaryBranch;
+
+    @Schema(description = "Total client branches count")
+    private Long branchesCount;
+
+    @Schema(description = "Active client branches count")
+    private Long activeBranchesCount;
+
+    @Schema(description = "Total related clients / group relationships count")
+    private Long relationshipsCount;
+
+    @Schema(description = "Deterministic intelligence summary and recommendations")
+    private ClientIntelligenceSummaryDto intelligenceSummary;
+
+    @Schema(description = "Recent activity & timeline entries projection")
+    private List<ClientTimelineItemDto> recentTimeline;
+
+    @Schema(description = "Client Workflow Tasks Analytics / Work Summary")
+    private ClientOverviewDto.ClientTaskSummary taskSummary;
+
+    @Schema(description = "Compliance & Filing Summary (GST, ITR, TDS, Accounting)")
+    private ClientOverviewDto.ClientComplianceSummary complianceSummary;
+
+    @Schema(description = "Documents Vault Summary")
+    private ClientOverviewDto.ClientDocumentSummary documentsSummary;
+
+    @Schema(description = "Client Document Requests Summary")
+    private ClientOverviewDto.ClientDocRequestSummary docRequestsSummary;
+
+    @Schema(description = "Billing & Financial Summary (Redacted for non-billing staff)")
+    private ClientOverviewDto.ClientBillingSummary billingSummary;
+
+    @Schema(description = "Tax Notices & Litigation Summary")
+    private ClientOverviewDto.ClientNoticeSummary noticeSummary;
+
+    @Schema(description = "Recent Communication History & Interaction Notes")
+    private List<ClientNoteDto> recentNotes;
+
+    @Schema(description = "Chronological Unified Activity Timeline")
+    private List<ClientOverviewDto.ClientActivityItem> activityTimeline;
+
+    @Schema(description = "Client engagements portfolio")
+    private List<com.taxoryn.module.engagement.dto.EngagementDto> engagements;
+
+    @Schema(description = "Key client contacts (top active/primary)")
+    private List<ClientContactDto> keyContacts;
+
+    @Schema(description = "Key client branches (top active/primary)")
+    private List<ClientBranchDto> keyBranches;
 }

@@ -1,0 +1,388 @@
+package com.taxoryn.module.gov.infrastructure.provider.tds;
+
+import com.taxoryn.module.gov.dto.GovHandshakeRequest;
+import com.taxoryn.module.gov.dto.GovHandshakeResult;
+import com.taxoryn.module.gov.dto.GovIntegrationRequest;
+import com.taxoryn.module.gov.dto.GovIntegrationResult;
+import com.taxoryn.module.gov.model.GovErrorCode;
+import com.taxoryn.module.gov.model.GovProviderHealth;
+import com.taxoryn.module.gov.model.GovProviderType;
+import com.taxoryn.module.gov.spi.GovernmentProviderAdapter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Tax Deducted at Source (TDS/TCS) subsystem provider adapter implementing GovernmentProviderAdapter SPI.
+ * Provides deterministic simulation of TRACES / Income Tax TDS gateway operations and handshakes without external network calls.
+ */
+@Slf4j
+@Component
+public class TdsProviderAdapter implements GovernmentProviderAdapter {
+
+    public static final String ADAPTER_CODE = "TDS_MOCK_ADAPTER";
+
+    @Override
+    public GovProviderType getProviderType() {
+        return GovProviderType.TDS;
+    }
+
+    @Override
+    public String getAdapterCode() {
+        return ADAPTER_CODE;
+    }
+
+    @Override
+    public GovProviderHealth checkHealth() {
+        return GovProviderHealth.up(GovProviderType.TDS, ADAPTER_CODE, "TDS TRACES mock gateway is operational");
+    }
+
+    @Override
+    public GovHandshakeResult handshake(GovHandshakeRequest request) {
+        log.info("[TDS_ADAPTER] Performing handshake for connection id={}", request != null ? request.getConnectionId() : null);
+
+        String directive = "SUCCESS";
+        if (request != null && request.getMetadata() != null && request.getMetadata().containsKey("mockOutcome")) {
+            directive = String.valueOf(request.getMetadata().get("mockOutcome"));
+        }
+
+        return switch (directive.toUpperCase()) {
+            case "AUTH_REQUIRED" -> GovHandshakeResult.authRequired(
+                    GovProviderType.TDS, ADAPTER_CODE, "TRACES Handshake: Auth session expired or token invalid");
+            case "PROVIDER_UNAVAILABLE", "UNAVAILABLE" -> GovHandshakeResult.unavailable(
+                    GovProviderType.TDS, ADAPTER_CODE, "TRACES Handshake: TRACES Portal undergoing scheduled maintenance");
+            case "TIMEOUT" -> GovHandshakeResult.error(
+                    GovProviderType.TDS, ADAPTER_CODE, GovErrorCode.TIMEOUT, "TRACES Handshake: Gateway response timed out");
+            case "RATE_LIMITED" -> GovHandshakeResult.error(
+                    GovProviderType.TDS, ADAPTER_CODE, GovErrorCode.RATE_LIMITED, "TRACES Handshake: Request rate limit exceeded");
+            case "ERROR" -> GovHandshakeResult.error(
+                    GovProviderType.TDS, ADAPTER_CODE, GovErrorCode.UNKNOWN, "TRACES Handshake: Gateway error occurred");
+            default -> GovHandshakeResult.healthy(
+                    GovProviderType.TDS, ADAPTER_CODE, 20L, "TDS TRACES Gateway handshake successful");
+        };
+    }
+
+    @Override
+    public GovIntegrationResult execute(GovIntegrationRequest request) {
+        log.info("[TDS_ADAPTER] Executing operation: operationType={}, correlationId={}",
+                request.getOperationType(), request.getCorrelationId());
+
+        String directive = resolveDirective(request);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("adapterCode", ADAPTER_CODE);
+        responseData.put("providerType", GovProviderType.TDS.name());
+        responseData.put("timestamp", System.currentTimeMillis());
+
+        if ("AUTH_REQUIRED".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.AUTH_REQUIRED,
+                    "TDS TRACES portal session token expired or invalid",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("PROVIDER_UNAVAILABLE".equalsIgnoreCase(directive) || "UNAVAILABLE".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.PROVIDER_UNAVAILABLE,
+                    "TDS TRACES portal unavailable (HTTP 503)",
+                    true,
+                    responseData
+            );
+        }
+
+        if ("TIMEOUT".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.TIMEOUT,
+                    "Gateway timed out waiting for TRACES response",
+                    true,
+                    responseData
+            );
+        }
+
+        if ("RATE_LIMITED".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.RATE_LIMITED,
+                    "TRACES API rate limit exceeded (HTTP 429)",
+                    true,
+                    responseData
+            );
+        }
+
+        if ("VALIDATION_FAILED".equalsIgnoreCase(directive)
+                || "SCHEMA_VALIDATION_FAILED".equalsIgnoreCase(directive)
+                || "INVALID_TAN".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.VALIDATION_FAILED,
+                    "TAN format or checksum rejected by TRACES portal",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("NOT_FOUND".equalsIgnoreCase(directive)) {
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.NOT_FOUND,
+                    "TAN record not found in TRACES deductor database",
+                    false,
+                    responseData
+            );
+        }
+
+        if ("DUPLICATE_SUBMISSION".equalsIgnoreCase(directive)) {
+            String tan = extractTan(request);
+            String existingAck = "TRACES-ACK-DUP-" + tan + "-001";
+            responseData.put("existingAckNumber", existingAck);
+            responseData.put("submissionStatus", "DUPLICATE_SUBMISSION");
+            return GovIntegrationResult.failure(
+                    null,
+                    request.getOrganizationId(),
+                    GovProviderType.TDS,
+                    request.getOperationType(),
+                    request.getCorrelationId(),
+                    request.getIdempotencyKey(),
+                    GovErrorCode.DUPLICATE_SUBMISSION,
+                    "A return with identical payload has already been submitted to TRACES gateway",
+                    false,
+                    responseData
+            );
+        }
+
+        String opType = request.getOperationType() != null ? request.getOperationType().toUpperCase() : "UNKNOWN";
+        String providerReference = "TRACES-" + opType + "-ACK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+        if ("VERIFY_TAN".equalsIgnoreCase(opType)) {
+            String tan = extractTan(request);
+            if ("XXXX99999Z".equalsIgnoreCase(tan) || tan.startsWith("ZZZZ")) {
+                return GovIntegrationResult.failure(
+                        null,
+                        request.getOrganizationId(),
+                        GovProviderType.TDS,
+                        request.getOperationType(),
+                        request.getCorrelationId(),
+                        request.getIdempotencyKey(),
+                        GovErrorCode.NOT_FOUND,
+                        "TAN record " + tan + " not found in TRACES deductor database",
+                        false,
+                        responseData
+                );
+            }
+
+            responseData.put("tan", tan);
+            if (tan.startsWith("BLRN")) {
+                responseData.put("deductorName", "Bangalore Tech Corp Limited");
+                responseData.put("category", "COMPANY");
+                responseData.put("status", "ACTIVE");
+                responseData.put("tanStatus", "VALID");
+                responseData.put("tracesStatus", "REGISTERED_ACTIVE");
+                responseData.put("pan", "AABCB5678D");
+                responseData.put("state", "KARNATAKA");
+                responseData.put("pinCode", "560001");
+                responseData.put("address", "100 MG Road, Bangalore, Karnataka 560001");
+            } else if (tan.startsWith("DELA")) {
+                responseData.put("deductorName", "Delhi Consulting Services Private Limited");
+                responseData.put("category", "COMPANY");
+                responseData.put("status", "ACTIVE");
+                responseData.put("tanStatus", "VALID");
+                responseData.put("tracesStatus", "REGISTERED_ACTIVE");
+                responseData.put("pan", "AADCD9988E");
+                responseData.put("state", "DELHI");
+                responseData.put("pinCode", "110001");
+                responseData.put("address", "Connaught Place, New Delhi 110001");
+            } else {
+                responseData.put("deductorName", "Acme Enterprises Private Limited");
+                responseData.put("category", "COMPANY");
+                responseData.put("status", "ACTIVE");
+                responseData.put("tanStatus", "VALID");
+                responseData.put("tracesStatus", "REGISTERED_ACTIVE");
+                responseData.put("pan", "AAACA1234C");
+                responseData.put("state", "MAHARASHTRA");
+                responseData.put("pinCode", "400001");
+                responseData.put("address", "Plot 42, Bandra Kurla Complex, Mumbai, Maharashtra 400001");
+            }
+        } else if ("CHALLAN_STATUS".equalsIgnoreCase(opType)) {
+            responseData.put("status", "MATCHED");
+            responseData.put("bsrCode", "0210001");
+            responseData.put("challanDate", "2026-04-15");
+            responseData.put("challanNo", "10023");
+            responseData.put("cin", "02100011504202610023");
+        } else if ("TDS_RETURN_PREPARATION".equalsIgnoreCase(opType) || "PREPARE_TDS_RETURN".equalsIgnoreCase(opType)) {
+            String tan = extractTan(request);
+            responseData.put("tan", tan);
+            responseData.put("status", "PREPARED");
+            responseData.put("fvuStatus", "VALIDATED");
+            responseData.put("fvuVersion", "8.2");
+            responseData.put("message", "TDS return prepared and validated successfully against TRACES FVU schema");
+            if (request.getRequestData() != null) {
+                if (request.getRequestData().containsKey("formType")) {
+                    responseData.put("formType", request.getRequestData().get("formType"));
+                }
+                if (request.getRequestData().containsKey("quarter")) {
+                    responseData.put("quarter", request.getRequestData().get("quarter"));
+                }
+                if (request.getRequestData().containsKey("financialYear")) {
+                    responseData.put("financialYear", request.getRequestData().get("financialYear"));
+                }
+                if (request.getRequestData().containsKey("payloadFingerprint")) {
+                    responseData.put("payloadFingerprint", request.getRequestData().get("payloadFingerprint"));
+                }
+            }
+        } else if ("TDS_RETURN_SUBMISSION".equalsIgnoreCase(opType) || "SUBMIT_TDS_RETURN".equalsIgnoreCase(opType)) {
+            String tan = extractTan(request);
+            String formType = request.getRequestData() != null && request.getRequestData().containsKey("formType")
+                    ? String.valueOf(request.getRequestData().get("formType")) : "FORM_26Q";
+            String quarter = request.getRequestData() != null && request.getRequestData().containsKey("quarter")
+                    ? String.valueOf(request.getRequestData().get("quarter")) : "Q1";
+            String financialYear = request.getRequestData() != null && request.getRequestData().containsKey("financialYear")
+                    ? String.valueOf(request.getRequestData().get("financialYear")) : "2025-26";
+            String payloadFingerprint = request.getRequestData() != null && request.getRequestData().containsKey("payloadFingerprint")
+                    ? String.valueOf(request.getRequestData().get("payloadFingerprint")) : null;
+
+            String hashSuffix = payloadFingerprint != null && payloadFingerprint.length() >= 8
+                    ? payloadFingerprint.substring(0, 8).toUpperCase()
+                    : UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+            String ackNumber = "TRACES-ACK-" + tan + "-" + quarter + "-" + financialYear.replace("-", "") + "-" + hashSuffix;
+            String submissionRef = "TRACES-SUB-" + hashSuffix;
+
+            responseData.put("tan", tan);
+            responseData.put("formType", formType);
+            responseData.put("quarter", quarter);
+            responseData.put("financialYear", financialYear);
+            responseData.put("status", "SUBMITTED");
+            responseData.put("acknowledgementNumber", ackNumber);
+            responseData.put("submissionReference", submissionRef);
+            responseData.put("payloadFingerprint", payloadFingerprint);
+            responseData.put("message", "TDS quarterly statement submitted successfully to TRACES gateway");
+            providerReference = ackNumber;
+        } else if ("TDS_RETURN_STATUS".equalsIgnoreCase(opType) || "CHECK_TDS_RETURN_STATUS".equalsIgnoreCase(opType) || "RETURN_STATUS".equalsIgnoreCase(opType)) {
+            String tan = extractTan(request);
+            String formType = request.getRequestData() != null && request.getRequestData().containsKey("formType")
+                    ? String.valueOf(request.getRequestData().get("formType")) : "FORM_26Q";
+            String quarter = request.getRequestData() != null && request.getRequestData().containsKey("quarter")
+                    ? String.valueOf(request.getRequestData().get("quarter")) : "Q1";
+            String financialYear = request.getRequestData() != null && request.getRequestData().containsKey("financialYear")
+                    ? String.valueOf(request.getRequestData().get("financialYear")) : "2025-26";
+            String existingAck = request.getRequestData() != null && request.getRequestData().containsKey("acknowledgementNumber")
+                    ? String.valueOf(request.getRequestData().get("acknowledgementNumber"))
+                    : "TRACES-ACK-" + tan + "-" + quarter + "-" + financialYear.replace("-", "") + "-001";
+
+            responseData.put("tan", tan);
+            responseData.put("formType", formType);
+            responseData.put("quarter", quarter);
+            responseData.put("financialYear", financialYear);
+            responseData.put("acknowledgementNumber", existingAck);
+            responseData.put("receiptNumber", existingAck);
+            responseData.put("tokenNumber", "010022300045678");
+
+            if ("PROCESSING".equalsIgnoreCase(directive) || "UNDER_PROCESSING".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "PROCESSING");
+                responseData.put("filingStatus", "PROCESSING");
+                responseData.put("message", "TDS statement under processing at TRACES portal");
+            } else if ("PENDING".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "PENDING");
+                responseData.put("filingStatus", "PENDING");
+                responseData.put("message", "TDS statement queued for verification at TRACES portal");
+            } else if ("REJECTED".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "REJECTED");
+                responseData.put("filingStatus", "REJECTED");
+                responseData.put("rejectionReason", "FVU checksum mismatch or defective challan sequence");
+                responseData.put("message", "TDS statement rejected by TRACES gateway");
+            } else if ("FAILED".equalsIgnoreCase(directive)) {
+                responseData.put("providerStatus", "FAILED");
+                responseData.put("filingStatus", "FAILED");
+                responseData.put("errorMessage", "TRACES backend processing failed");
+                responseData.put("message", "TRACES portal internal processing error");
+            } else {
+                // Default: FILED / PROCESSED
+                responseData.put("providerStatus", "FILED");
+                responseData.put("filingStatus", "FILED");
+                responseData.put("filingDate", java.time.LocalDate.now().toString());
+                responseData.put("message", "TDS statement filed and processed successfully on TRACES portal");
+
+                java.util.List<Map<String, Object>> challans = java.util.List.of(
+                        Map.of(
+                                "bsrCode", "0210001",
+                                "challanSerialNo", "10023",
+                                "cin", "02100011504202610023",
+                                "amount", 50000.00,
+                                "status", "MATCHED",
+                                "remarks", "Challan OLTAS matched with TRACES portal"
+                        )
+                );
+                responseData.put("challans", challans);
+            }
+            providerReference = existingAck;
+        } else {
+            responseData.put("status", "SUCCESS");
+            responseData.put("message", "TDS operation " + opType + " executed successfully");
+        }
+
+        return GovIntegrationResult.success(
+                null,
+                request.getOrganizationId(),
+                GovProviderType.TDS,
+                request.getOperationType(),
+                request.getCorrelationId(),
+                request.getIdempotencyKey(),
+                providerReference,
+                responseData
+        );
+    }
+
+    private String resolveDirective(GovIntegrationRequest request) {
+        if (request.getRequestData() != null && request.getRequestData().containsKey("mockOutcome")) {
+            return String.valueOf(request.getRequestData().get("mockOutcome"));
+        }
+        if (request.getMetadata() != null && request.getMetadata().containsKey("mockOutcome")) {
+            return String.valueOf(request.getMetadata().get("mockOutcome"));
+        }
+        return "SUCCESS";
+    }
+
+    private String extractTan(GovIntegrationRequest request) {
+        if (request.getRequestData() != null && request.getRequestData().containsKey("tan")) {
+            return String.valueOf(request.getRequestData().get("tan")).toUpperCase();
+        }
+        return "MUMB12345A";
+    }
+}

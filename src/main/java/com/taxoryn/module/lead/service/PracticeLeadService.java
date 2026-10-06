@@ -48,6 +48,12 @@ public class PracticeLeadService {
     private final ClientService clientService;
     private final AuditService auditService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.service.ClientEngagementService clientEngagementService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.taxoryn.module.client.service.ClientContactService clientContactService;
+
     @Transactional(readOnly = true)
     public PagedResponse<PracticeLeadDto> list(LeadStatus status, LeadPriority priority, LeadSource source,
             UUID assignedEmployeeId, String serviceCode, String search, int page, int size) {
@@ -173,21 +179,111 @@ public class PracticeLeadService {
 
     @Transactional
     public PracticeLeadDto convert(UUID id, ConvertPracticeLeadRequest request) {
-        PracticeLeadEntity lead = accessibleLead(id);
-        if (lead.getConvertedClientId() != null || lead.getStatus() == LeadStatus.CONVERTED)
-            throw new com.taxoryn.core.exception.DuplicateResourceException("Lead has already been converted to a Client.");
-        if (!(lead.getStatus() == LeadStatus.QUALIFIED || lead.getStatus() == LeadStatus.PROPOSAL_SENT || lead.getStatus() == LeadStatus.FOLLOW_UP))
+        PracticeLeadEntity lead = accessibleLeadWithLock(id);
+
+        // 1. Idempotency: If already converted, return existing converted lead reference immediately
+        if (lead.getConvertedClientId() != null || lead.getStatus() == LeadStatus.CONVERTED) {
+            return toDto(lead);
+        }
+
+        // 2. Lifecycle validation: Only QUALIFIED, PROPOSAL_SENT, or FOLLOW_UP leads can be converted
+        if (!(lead.getStatus() == LeadStatus.QUALIFIED || lead.getStatus() == LeadStatus.PROPOSAL_SENT || lead.getStatus() == LeadStatus.FOLLOW_UP)) {
             throw new BadRequestException("Only qualified, proposal-sent, or follow-up leads can be converted.");
-        CreateClientRequest clientRequest = request.getClient();
-        if (clientRequest.getClientType() == null) clientRequest.setClientType(inferClientType(lead));
-        if (!StringUtils.hasText(clientRequest.getDisplayName())) clientRequest.setDisplayName(lead.getName());
-        if (!StringUtils.hasText(clientRequest.getLegalName())) clientRequest.setLegalName(lead.getBusinessName());
-        if (!StringUtils.hasText(clientRequest.getEmail())) clientRequest.setEmail(lead.getEmail());
-        if (!StringUtils.hasText(clientRequest.getPhone())) clientRequest.setPhone(lead.getPhone());
+        }
+
+        // 3. Prepare client creation request with ONBOARDING status and lead fallbacks
+        CreateClientRequest clientRequest = (request != null && request.getClient() != null)
+                ? request.getClient()
+                : new CreateClientRequest();
+
+        if (clientRequest.getClientType() == null) {
+            clientRequest.setClientType(inferClientType(lead));
+        }
+        if (!StringUtils.hasText(clientRequest.getDisplayName())) {
+            clientRequest.setDisplayName(StringUtils.hasText(lead.getName()) ? lead.getName().trim() : (lead.getBusinessName() != null ? lead.getBusinessName().trim() : "New Client"));
+        }
+        if (!StringUtils.hasText(clientRequest.getLegalName())) {
+            clientRequest.setLegalName(StringUtils.hasText(lead.getBusinessName()) ? lead.getBusinessName().trim() : null);
+        }
+        if (!StringUtils.hasText(clientRequest.getEmail())) {
+            clientRequest.setEmail(lead.getEmail());
+        }
+        if (!StringUtils.hasText(clientRequest.getPhone())) {
+            clientRequest.setPhone(lead.getPhone());
+        }
+        if (clientRequest.getAssignedEmployeeId() == null && lead.getAssignedEmployeeId() != null) {
+            clientRequest.setAssignedEmployeeId(lead.getAssignedEmployeeId());
+        }
+        if (clientRequest.getStatus() == null) {
+            clientRequest.setStatus(ClientEntity.ClientStatus.ONBOARDING);
+        }
+        if (lead.getLeadType() == LeadType.BUSINESS && StringUtils.hasText(lead.getName()) && !StringUtils.hasText(clientRequest.getContactPersonName())) {
+            clientRequest.setContactPersonName(lead.getName().trim());
+        }
+
+        // 4. Create the client aggregate
         ClientDto client = clientService.createClient(clientRequest);
-        lead.setConvertedClientId(client.getId()); lead.setConvertedAt(Instant.now());
-        lead.setConvertedBy(SecurityUtils.getCurrentUserId()); lead.setStatus(LeadStatus.CONVERTED);
+
+        // 5. Establish primary contact if business lead has distinct contact person
+        if (clientContactService != null && StringUtils.hasText(lead.getName())
+                && (lead.getLeadType() == LeadType.BUSINESS || clientRequest.getClientType() != ClientEntity.ClientType.INDIVIDUAL)) {
+            try {
+                if (clientContactService.getContacts(client.getId(), false).isEmpty()) {
+                    String[] nameParts = lead.getName().trim().split("\\s+", 2);
+                    String firstName = nameParts[0];
+                    String lastName = nameParts.length > 1 ? nameParts[1] : "";
+                    com.taxoryn.module.client.dto.CreateClientContactRequest contactReq =
+                            com.taxoryn.module.client.dto.CreateClientContactRequest.builder()
+                                    .firstName(firstName)
+                                    .lastName(lastName)
+                                    .displayName(lead.getName().trim())
+                                    .email(lead.getEmail())
+                                    .phone(lead.getPhone())
+                                    .primaryContact(true)
+                                    .contactRole(com.taxoryn.module.client.entity.ContactRole.PRIMARY)
+                                    .notes("Initial primary contact created from lead conversion")
+                                    .build();
+                    clientContactService.createContact(client.getId(), contactReq);
+                }
+            } catch (Exception ignored) {
+                // Non-fatal contact creation fallback
+            }
+        }
+
+        // 6. Establish client service engagement if lead has an interested service code
+        if (clientEngagementService != null && StringUtils.hasText(lead.getInterestedServiceCode())) {
+            try {
+                String code = lead.getInterestedServiceCode().trim();
+                com.taxoryn.module.client.entity.ClientServiceType resolvedType = null;
+                for (com.taxoryn.module.client.entity.ClientServiceType cst : com.taxoryn.module.client.entity.ClientServiceType.values()) {
+                    if (cst.name().equalsIgnoreCase(code)) {
+                        resolvedType = cst;
+                        break;
+                    }
+                }
+                if (resolvedType != null) {
+                    com.taxoryn.module.client.dto.CreateClientServiceRequest serviceReq =
+                            com.taxoryn.module.client.dto.CreateClientServiceRequest.builder()
+                                    .serviceType(resolvedType)
+                                    .assignedEmployeeId(lead.getAssignedEmployeeId())
+                                    .notes("Initial engagement established from lead interested service: " + code)
+                                    .reason("Lead conversion")
+                                    .build();
+                    clientEngagementService.createClientService(client.getId(), serviceReq);
+                }
+            } catch (Exception ignored) {
+                // Non-fatal service engagement creation fallback
+            }
+        }
+
+        // 7. Update lead transition state and conversion audit trail
+        lead.setConvertedClientId(client.getId());
+        lead.setConvertedAt(Instant.now());
+        lead.setConvertedBy(SecurityUtils.getCurrentUserId());
+        lead.setStatus(LeadStatus.CONVERTED);
         PracticeLeadEntity saved = leadRepository.save(lead);
+
+        // 8. Audit event logging
         auditService.logEvent("LEAD_CONVERTED", "PRACTICE_LEAD", id.toString(), null, "Converted to client " + client.getId());
         return toDto(saved);
     }
@@ -203,6 +299,15 @@ public class PracticeLeadService {
     private PracticeLeadEntity accessibleLead(UUID id) {
         UUID organizationId = requireOrganization();
         PracticeLeadEntity lead = leadRepository.findByIdAndOrganizationId(id, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lead", "id", id));
+        UUID scopeEmployee = currentEmployeeScope(organizationId);
+        if (scopeEmployee != null && !scopeEmployee.equals(lead.getAssignedEmployeeId())) throw new AccessDeniedException("Lead is outside your assigned scope.");
+        return lead;
+    }
+
+    private PracticeLeadEntity accessibleLeadWithLock(UUID id) {
+        UUID organizationId = requireOrganization();
+        PracticeLeadEntity lead = leadRepository.findByIdAndOrganizationIdWithLock(id, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Lead", "id", id));
         UUID scopeEmployee = currentEmployeeScope(organizationId);
         if (scopeEmployee != null && !scopeEmployee.equals(lead.getAssignedEmployeeId())) throw new AccessDeniedException("Lead is outside your assigned scope.");

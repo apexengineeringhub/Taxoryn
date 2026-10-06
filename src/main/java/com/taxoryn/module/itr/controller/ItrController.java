@@ -49,6 +49,7 @@ import java.util.UUID;
 public class ItrController {
 
     private final ItrService itrService;
+    private final com.taxoryn.module.itr.integration.ItrGovernmentIntegrationService itrGovIntegrationService;
 
     // =========================================================================
     // 1. ITR Profiles
@@ -247,5 +248,104 @@ public class ItrController {
             @RequestParam(required = false) UUID assignedEmployeeId) {
         ItrWorkloadDashboardDto dashboard = itrService.getWorkloadDashboard(assessmentYear, assignedEmployeeId);
         return ResponseEntity.ok(ApiResponse.success("ITR workload dashboard retrieved successfully", dashboard));
+    }
+
+    // =========================================================================
+    // 4. Government Integration Handshake & Health
+    // =========================================================================
+
+    @PostMapping("/connections/{connectionId}/handshake")
+    @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "ITR Government Connection Handshake", description = "Validates active connectivity and credentials for Income Tax Department gateway.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.integration.dto.ItrHandshakeResponseDto>> checkConnectionHealth(
+            @PathVariable UUID connectionId,
+            @RequestBody(required = false) java.util.Map<String, Object> directives) {
+        com.taxoryn.module.itr.integration.dto.ItrHandshakeResponseDto response = itrGovIntegrationService.checkItrConnectionHealth(
+                connectionId, directives != null ? directives : java.util.Collections.emptyMap());
+        return ResponseEntity.ok(ApiResponse.success("ITR connection health verified", response));
+    }
+
+    // =========================================================================
+    // 5. Government Taxpayer PAN Lookup & Verification
+    // =========================================================================
+
+    @PostMapping("/taxpayers/verify-pan")
+    @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasAuthority('ITR_CREATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Verify PAN taxpayer profile", description = "Performs real-time PAN lookup and taxpayer verification against the Government Income Tax portal via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto>> verifyPan(
+            @Valid @RequestBody com.taxoryn.module.itr.dto.ItrPanVerificationRequest request) {
+        com.taxoryn.module.itr.dto.ItrTaxpayerProfileDto profile = itrGovIntegrationService.lookupTaxpayer(
+                request.getConnectionId(),
+                request.getPan(),
+                request.getOptions()
+        );
+        return ResponseEntity.ok(ApiResponse.success("PAN verification completed", profile));
+    }
+
+    // =========================================================================
+    // 6. ITR Return Preparation & Normalization
+    // =========================================================================
+
+    @PostMapping("/returns/prepare")
+    @PreAuthorize("hasAuthority('ITR_CREATE') or hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Prepare & normalize ITR return payload", description = "Validates statutory return data, checks taxpayer PAN linkage, and generates a normalized payload with deterministic SHA-256 fingerprint.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrPreparedReturnDto>> prepareReturn(
+            @Valid @RequestBody com.taxoryn.module.itr.dto.ItrPrepareReturnRequest request) {
+        com.taxoryn.module.itr.dto.ItrPreparedReturnDto prepared = itrGovIntegrationService.prepareReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("ITR return prepared successfully", prepared));
+    }
+
+    // =========================================================================
+    // 7. ITR Return Submission & Gateway Filing Lifecycle
+    // =========================================================================
+
+    @PostMapping("/returns/{id}/submit")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit prepared ITR return to Income Tax Department Gateway", description = "Transfers the validated, fingerprinted ITR return payload to the ITD gateway and records submission acknowledgement.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto>> submitReturnById(
+            @PathVariable UUID id,
+            @RequestBody(required = false) com.taxoryn.module.itr.dto.ItrSubmitReturnRequest request) {
+        if (request == null) {
+            request = com.taxoryn.module.itr.dto.ItrSubmitReturnRequest.builder().returnId(id).build();
+        } else {
+            request.setReturnId(id);
+        }
+        com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto result = itrGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("ITR return submission processed", result));
+    }
+
+    @PostMapping("/returns/submit")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit ITR return with payload", description = "Submits an ITR return directly with full submission request payload.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto>> submitReturn(
+            @Valid @RequestBody com.taxoryn.module.itr.dto.ItrSubmitReturnRequest request) {
+        com.taxoryn.module.itr.dto.ItrReturnSubmissionResultDto result = itrGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("ITR return submission processed", result));
+    }
+
+    // =========================================================================
+    // 8. ITR Filing Status Polling & Verification
+    // =========================================================================
+
+    @PostMapping("/returns/{id}/status-check")
+    @PreAuthorize("hasAuthority('ITR_UPDATE') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Check ITR return filing status from Income Tax Department Gateway", description = "Authoritatively polls the e-filing gateway for real-time status and transitions return lifecycle accordingly.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnStatusDto>> checkReturnStatus(
+            @PathVariable UUID id,
+            @RequestBody(required = false) java.util.Map<String, Object> options) {
+        com.taxoryn.module.itr.dto.ItrReturnStatusDto statusDto = itrGovIntegrationService.checkReturnStatus(
+                id,
+                null,
+                options != null ? options : java.util.Collections.emptyMap()
+        );
+        return ResponseEntity.ok(ApiResponse.success("ITR filing status retrieved from gateway", statusDto));
+    }
+
+    @GetMapping("/returns/{id}/status")
+    @PreAuthorize("hasAuthority('ITR_VIEW') or hasAuthority('ITR_READ') or hasAuthority('ITR_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get stored ITR return filing status", description = "Returns persisted status and acknowledgement metadata without making an external gateway call.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.itr.dto.ItrReturnStatusDto>> getReturnStatus(@PathVariable UUID id) {
+        com.taxoryn.module.itr.dto.ItrReturnStatusDto statusDto = itrGovIntegrationService.getReturnStatus(id);
+        return ResponseEntity.ok(ApiResponse.success("ITR return status retrieved successfully", statusDto));
     }
 }

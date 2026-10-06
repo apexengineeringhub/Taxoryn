@@ -103,8 +103,29 @@ public class ClientDto {
     @Schema(description = "Client status", example = "ACTIVE")
     private ClientStatus status;
 
+    @Schema(description = "Timestamp of last status transition")
+    private Instant statusChangedAt;
+
+    @Schema(description = "User ID who performed the last status transition")
+    private UUID statusChangedBy;
+
+    @Schema(description = "Business reason for the last status transition")
+    private String statusChangeReason;
+
     @Schema(description = "Internal practitioner notes")
     private String notes;
+
+    @Schema(description = "Business activity description")
+    private String businessActivity;
+
+    @Schema(description = "Industry or sector")
+    private String industry;
+
+    @Schema(description = "Business scale (MICRO, SMALL, MEDIUM, LARGE, INDIVIDUAL)")
+    private String businessScale;
+
+    @Schema(description = "State code", example = "27")
+    private String stateCode;
 
     @Schema(description = "Client portal access status (NOT_PROVISIONED, INVITED, ACTIVE, SUSPENDED, INACTIVE)", example = "INVITED")
     private String portalStatus;
@@ -114,6 +135,9 @@ public class ClientDto {
 
     @Schema(description = "Client portal user ID")
     private UUID portalUserId;
+
+    @Schema(description = "Client profile completeness assessment")
+    private ClientProfileCompletenessDto completeness;
 
     @Schema(description = "Creation timestamp")
     private Instant createdAt;

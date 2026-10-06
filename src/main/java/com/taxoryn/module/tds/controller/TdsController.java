@@ -28,6 +28,7 @@ import java.util.UUID;
 public class TdsController {
 
     private final TdsService tdsService;
+    private final com.taxoryn.module.tds.integration.TdsGovernmentIntegrationService tdsGovIntegrationService;
 
     // =========================================================================
     // 1. TDS Profiles (TAN Master)
@@ -346,5 +347,102 @@ public class TdsController {
     public ResponseEntity<ApiResponse<List<TdsSectionRateDto>>> getSectionRates() {
         List<TdsSectionRateDto> rates = tdsService.getSectionRates();
         return ResponseEntity.ok(ApiResponse.success("TDS section rates retrieved successfully", rates));
+    }
+
+    // =========================================================================
+    // 7. Government Integration Handshake & Health
+    // =========================================================================
+
+    @PostMapping("/connections/{connectionId}/handshake")
+    @PreAuthorize("hasAuthority('TDS_VIEW') or hasAuthority('TDS_READ') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "TDS Government Connection Handshake", description = "Validates active connectivity and credentials for TDS TRACES portal gateway.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.tds.integration.dto.TdsHandshakeResponseDto>> checkConnectionHealth(
+            @PathVariable UUID connectionId,
+            @RequestBody(required = false) java.util.Map<String, Object> directives) {
+        com.taxoryn.module.tds.integration.dto.TdsHandshakeResponseDto response = tdsGovIntegrationService.checkTdsConnectionHealth(
+                connectionId, directives != null ? directives : java.util.Collections.emptyMap());
+        return ResponseEntity.ok(ApiResponse.success("TDS connection health verified", response));
+    }
+
+    // =========================================================================
+    // 8. Government Deductor TAN Lookup & Verification
+    // =========================================================================
+
+    @PostMapping("/deductors/verify-tan")
+    @PreAuthorize("hasAuthority('TDS_VIEW') or hasAuthority('TDS_READ') or hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Verify TAN deductor profile", description = "Performs real-time TAN lookup and deductor verification against the Government TRACES / TDS portal via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.tds.dto.TdsDeductorProfileDto>> verifyTan(
+            @Valid @RequestBody com.taxoryn.module.tds.dto.TdsTanVerificationRequest request) {
+        com.taxoryn.module.tds.dto.TdsDeductorProfileDto profile = tdsGovIntegrationService.lookupDeductor(
+                request.getConnectionId(),
+                request.getTan(),
+                request.getOptions()
+        );
+        return ResponseEntity.ok(ApiResponse.success("TAN deductor profile verified successfully", profile));
+    }
+
+    // =========================================================================
+    // 9. Statutory Return Preparation & Payload Normalization
+    // =========================================================================
+
+    @PostMapping("/returns/prepare")
+    @PreAuthorize("hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Prepare statutory TDS return payload", description = "Validates financial figures, normalizes quarterly statement payload (Form 24Q/26Q/27Q/27EQ), calculates canonical SHA-256 fingerprint, and transitions filing status to READY_TO_FILE.")
+    public ResponseEntity<ApiResponse<TdsPreparedReturnDto>> prepareReturn(@Valid @RequestBody TdsPrepareReturnRequest request) {
+        TdsPreparedReturnDto prepared = tdsGovIntegrationService.prepareReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("TDS return prepared and validated successfully", prepared));
+    }
+
+    // =========================================================================
+    // 10. Statutory Return Submission & Gateway Lifecycle
+    // =========================================================================
+
+    @PostMapping("/returns/{returnId}/submit")
+    @PreAuthorize("hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit prepared TDS return to TRACES gateway", description = "Submits a prepared TDS return statement (Form 24Q/26Q/27Q/27EQ) in READY_TO_FILE status to the TRACES / Income Tax Gateway via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<TdsReturnSubmissionResultDto>> submitReturn(
+            @PathVariable UUID returnId,
+            @RequestBody(required = false) TdsSubmitReturnRequest request) {
+        if (request == null) {
+            request = new TdsSubmitReturnRequest();
+        }
+        request.setReturnId(returnId);
+        TdsReturnSubmissionResultDto result = tdsGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("TDS return submitted successfully", result));
+    }
+
+    @PostMapping("/returns/submit")
+    @PreAuthorize("hasAuthority('TDS_CREATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Submit prepared TDS return statement", description = "Submits a prepared TDS return statement directly to the TRACES / Income Tax Gateway via the Government Integration Framework.")
+    public ResponseEntity<ApiResponse<TdsReturnSubmissionResultDto>> submitReturnDirect(
+            @Valid @RequestBody TdsSubmitReturnRequest request) {
+        TdsReturnSubmissionResultDto result = tdsGovIntegrationService.submitReturn(request);
+        return ResponseEntity.ok(ApiResponse.success("TDS return submitted successfully", result));
+    }
+
+    // =========================================================================
+    // 11. TDS Return Filing Status Polling, Verification & Challan Reconciliation
+    // =========================================================================
+
+    @PostMapping("/returns/{returnId}/status-check")
+    @PreAuthorize("hasAuthority('TDS_UPDATE') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Check TDS return filing status & reconcile challans", description = "Authoritatively polls TRACES / Income Tax Gateway for real-time TDS return status and reconciles deposit challans.")
+    public ResponseEntity<ApiResponse<TdsReturnStatusDto>> checkReturnStatus(
+            @PathVariable UUID returnId,
+            @RequestBody(required = false) java.util.Map<String, Object> options) {
+        TdsReturnStatusDto statusDto = tdsGovIntegrationService.checkReturnStatus(
+                returnId,
+                null,
+                options != null ? options : java.util.Collections.emptyMap()
+        );
+        return ResponseEntity.ok(ApiResponse.success("TDS filing status retrieved from gateway", statusDto));
+    }
+
+    @GetMapping("/returns/{returnId}/status")
+    @PreAuthorize("hasAuthority('TDS_VIEW') or hasAuthority('TDS_READ') or hasAuthority('TDS_WRITE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get stored TDS return filing status", description = "Returns persisted status, acknowledgment metadata, and challan reconciliation without making an external gateway call.")
+    public ResponseEntity<ApiResponse<TdsReturnStatusDto>> getReturnStatus(@PathVariable UUID returnId) {
+        TdsReturnStatusDto statusDto = tdsGovIntegrationService.getReturnStatus(returnId);
+        return ResponseEntity.ok(ApiResponse.success("TDS return status retrieved successfully", statusDto));
     }
 }

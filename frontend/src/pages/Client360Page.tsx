@@ -36,19 +36,49 @@ import {
   PlayCircle,
   PauseCircle,
   CheckCircle,
+  Star,
+  MapPin,
+  Users,
+  Share2,
+  Trash2,
+  Compass,
+  AlertOctagon,
+  Info,
+  ArrowUpRight,
 } from 'lucide-react';
-import { clientApi, clientServicesApi, complianceWorkApi, employeeApi } from '../api/endpoints';
+import {
+  clientApi,
+  clientServicesApi,
+  clientContactsApi,
+  clientBranchesApi,
+  clientRelationshipsApi,
+  clientTimelineApi,
+  clientIntelligenceApi,
+  complianceWorkApi,
+  employeeApi,
+} from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
 import {
   Client360Overview,
   ClientNote,
   ClientServiceDto,
+  ClientContactDto,
+  ClientBranchDto,
+  ClientRelationshipDto,
+  ContactRole,
+  ClientBranchType,
+  ClientRelationshipType,
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
   ComplianceWorkItem,
   Employee,
+  ClientTimelineItemDto,
+  ClientIntelligenceSignalDto,
+  ClientActionRecommendationDto,
+  ClientIntelligenceSummaryDto,
+  TimelineEventCategory,
 } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -67,7 +97,7 @@ export const Client360Page: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'services' | 'compliance' | 'documents' | 'doc_requests' | 'tasks' | 'notices' | 'billing' | 'activity' | 'communication'
+    'overview' | 'services' | 'contacts' | 'branches' | 'relationships' | 'compliance' | 'documents' | 'doc_requests' | 'tasks' | 'notices' | 'billing' | 'activity' | 'communication'
   >('overview');
 
   // Services State
@@ -78,6 +108,47 @@ export const Client360Page: React.FC = () => {
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [isSubmittingService, setIsSubmittingService] = useState(false);
   const [serviceStatusFilter, setServiceStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED' | 'COMPLETED' | 'INACTIVE'>('ALL');
+
+  // Contacts State (Phase 28.5)
+  const [contacts, setContacts] = useState<ClientContactDto[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [newContactFirstName, setNewContactFirstName] = useState('');
+  const [newContactLastName, setNewContactLastName] = useState('');
+  const [newContactDesignation, setNewContactDesignation] = useState('');
+  const [newContactEmail, setNewContactEmail] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newContactRole, setNewContactRole] = useState<ContactRole>('OTHER');
+  const [newContactIsPrimary, setNewContactIsPrimary] = useState(false);
+  const [newContactNotes, setNewContactNotes] = useState('');
+
+  // Branches State (Phase 28.5)
+  const [branches, setBranches] = useState<ClientBranchDto[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
+  const [isSubmittingBranch, setIsSubmittingBranch] = useState(false);
+  const [newBranchName, setNewBranchName] = useState('');
+  const [newBranchCode, setNewBranchCode] = useState('');
+  const [newBranchType, setNewBranchType] = useState<ClientBranchType>('BRANCH');
+  const [newBranchAddressLine1, setNewBranchAddressLine1] = useState('');
+  const [newBranchCity, setNewBranchCity] = useState('');
+  const [newBranchState, setNewBranchState] = useState('');
+  const [newBranchStateCode, setNewBranchStateCode] = useState('');
+  const [newBranchPincode, setNewBranchPincode] = useState('');
+  const [newBranchGstin, setNewBranchGstin] = useState('');
+  const [newBranchIsPrimary, setNewBranchIsPrimary] = useState(false);
+  const [newBranchNotes, setNewBranchNotes] = useState('');
+
+  // Relationships State (Phase 28.5)
+  const [relationships, setRelationships] = useState<ClientRelationshipDto[]>([]);
+  const [isLoadingRelationships, setIsLoadingRelationships] = useState(false);
+  const [isRelationshipModalOpen, setIsRelationshipModalOpen] = useState(false);
+  const [isSubmittingRelationship, setIsSubmittingRelationship] = useState(false);
+  const [allClients, setAllClients] = useState<any[]>([]);
+  const [newRelationshipTargetId, setNewRelationshipTargetId] = useState('');
+  const [newRelationshipType, setNewRelationshipType] = useState<ClientRelationshipType>('RELATED_ENTITY');
+  const [newRelationshipNotes, setNewRelationshipNotes] = useState('');
 
   // Compliance Work Items State
   const [complianceWorkItems, setComplianceWorkItems] = useState<ComplianceWorkItem[]>([]);
@@ -100,13 +171,106 @@ export const Client360Page: React.FC = () => {
   const [noteType, setNoteType] = useState('GENERAL');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
 
+  // Timeline State (Phase 28.6)
+  const [timelineItems, setTimelineItems] = useState<ClientTimelineItemDto[]>([]);
+  const [timelineCategoryFilter, setTimelineCategoryFilter] = useState<string>('ALL');
+  const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
+
+  // Intelligence State (Phase 28.6)
+  const [intelligenceSummary, setIntelligenceSummary] = useState<ClientIntelligenceSummaryDto | null>(null);
+  const [recommendations, setRecommendations] = useState<ClientActionRecommendationDto[]>([]);
+  const [isLoadingIntelligence, setIsLoadingIntelligence] = useState(false);
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
       loadServices();
       loadComplianceWork();
+      loadContacts();
+      loadBranches();
+      loadRelationships();
+      loadTimeline();
+      loadIntelligence();
     }
   }, [clientId]);
+
+  const loadTimeline = async (category?: string) => {
+    if (!clientId) return;
+    try {
+      setIsLoadingTimeline(true);
+      const params: any = { size: 50 };
+      const cat = category !== undefined ? category : timelineCategoryFilter;
+      if (cat && cat !== 'ALL') {
+        params.category = cat as TimelineEventCategory;
+      }
+      const data = await clientTimelineApi.getTimeline(clientId, params);
+      setTimelineItems(data?.content || []);
+    } catch (err: any) {
+      console.warn('Failed to load client timeline', err);
+    } finally {
+      setIsLoadingTimeline(false);
+    }
+  };
+
+  const loadIntelligence = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingIntelligence(true);
+      const [summaryRes, recsRes] = await Promise.all([
+        clientIntelligenceApi.getIntelligence(clientId).catch(() => null),
+        clientIntelligenceApi.getRecommendations(clientId).catch(() => []),
+      ]);
+      setIntelligenceSummary(summaryRes);
+      setRecommendations(recsRes || []);
+    } catch (err: any) {
+      console.warn('Failed to load client intelligence', err);
+    } finally {
+      setIsLoadingIntelligence(false);
+    }
+  };
+
+  const loadContacts = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingContacts(true);
+      const data = await clientContactsApi.getAll(clientId);
+      setContacts(data || []);
+    } catch (err: any) {
+      console.warn('Failed to load client contacts', err);
+    } finally {
+      setIsLoadingContacts(false);
+    }
+  };
+
+  const loadBranches = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingBranches(true);
+      const data = await clientBranchesApi.getAll(clientId);
+      setBranches(data || []);
+    } catch (err: any) {
+      console.warn('Failed to load client branches', err);
+    } finally {
+      setIsLoadingBranches(false);
+    }
+  };
+
+  const loadRelationships = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingRelationships(true);
+      const [relData, clientsRes] = await Promise.all([
+        clientRelationshipsApi.getAll(clientId).catch(() => []),
+        clientApi.getAll({ size: 100 }).catch(() => ({ content: [] })),
+      ]);
+      setRelationships(relData || []);
+      setAllClients(clientsRes?.content?.filter((c: any) => c.id !== clientId) || []);
+    } catch (err: any) {
+      console.warn('Failed to load client relationships', err);
+    } finally {
+      setIsLoadingRelationships(false);
+    }
+  };
 
   const loadComplianceWork = async () => {
     if (!clientId) return;
@@ -209,6 +373,174 @@ export const Client360Page: React.FC = () => {
       await Promise.all([loadServices(), loadClientOverview()]);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to deactivate service');
+    }
+  };
+
+  // Contacts Handlers (Phase 28.5)
+  const handleCreateContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !newContactFirstName.trim()) return;
+    try {
+      setIsSubmittingContact(true);
+      await clientContactsApi.create(clientId, {
+        firstName: newContactFirstName.trim(),
+        lastName: newContactLastName.trim() || undefined,
+        designation: newContactDesignation.trim() || undefined,
+        email: newContactEmail.trim() || undefined,
+        phone: newContactPhone.trim() || undefined,
+        contactRole: newContactRole,
+        primaryContact: newContactIsPrimary,
+        notes: newContactNotes.trim() || undefined,
+      });
+      setIsContactModalOpen(false);
+      setNewContactFirstName('');
+      setNewContactLastName('');
+      setNewContactDesignation('');
+      setNewContactEmail('');
+      setNewContactPhone('');
+      setNewContactRole('OTHER');
+      setNewContactIsPrimary(false);
+      setNewContactNotes('');
+      await Promise.all([loadContacts(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to create contact');
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  };
+
+  const handleToggleContactStatus = async (contactId: string, currentActive: boolean) => {
+    if (!clientId) return;
+    try {
+      await clientContactsApi.updateStatus(clientId, contactId, !currentActive);
+      await Promise.all([loadContacts(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update contact status');
+    }
+  };
+
+  const handleSetPrimaryContact = async (contactId: string) => {
+    if (!clientId) return;
+    try {
+      await clientContactsApi.setPrimary(clientId, contactId);
+      await Promise.all([loadContacts(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to set primary contact');
+    }
+  };
+
+  const handleDeleteContact = async (contactId: string, name: string) => {
+    if (!clientId) return;
+    if (!window.confirm(`Deactivate contact person '${name}'?`)) return;
+    try {
+      await clientContactsApi.delete(clientId, contactId);
+      await Promise.all([loadContacts(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to deactivate contact');
+    }
+  };
+
+  // Branches Handlers (Phase 28.5)
+  const handleCreateBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !newBranchName.trim()) return;
+    try {
+      setIsSubmittingBranch(true);
+      await clientBranchesApi.create(clientId, {
+        branchName: newBranchName.trim(),
+        branchCode: newBranchCode.trim() || undefined,
+        branchType: newBranchType,
+        addressLine1: newBranchAddressLine1.trim() || undefined,
+        city: newBranchCity.trim() || undefined,
+        state: newBranchState.trim() || undefined,
+        stateCode: newBranchStateCode.trim() || undefined,
+        pincode: newBranchPincode.trim() || undefined,
+        gstin: newBranchGstin.trim() || undefined,
+        primaryBranch: newBranchIsPrimary,
+        notes: newBranchNotes.trim() || undefined,
+      });
+      setIsBranchModalOpen(false);
+      setNewBranchName('');
+      setNewBranchCode('');
+      setNewBranchType('BRANCH');
+      setNewBranchAddressLine1('');
+      setNewBranchCity('');
+      setNewBranchState('');
+      setNewBranchStateCode('');
+      setNewBranchPincode('');
+      setNewBranchGstin('');
+      setNewBranchIsPrimary(false);
+      setNewBranchNotes('');
+      await Promise.all([loadBranches(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to create branch');
+    } finally {
+      setIsSubmittingBranch(false);
+    }
+  };
+
+  const handleToggleBranchStatus = async (branchId: string, currentActive: boolean) => {
+    if (!clientId) return;
+    try {
+      await clientBranchesApi.updateStatus(clientId, branchId, !currentActive);
+      await Promise.all([loadBranches(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update branch status');
+    }
+  };
+
+  const handleSetPrimaryBranch = async (branchId: string) => {
+    if (!clientId) return;
+    try {
+      await clientBranchesApi.setPrimary(clientId, branchId);
+      await Promise.all([loadBranches(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to set primary branch');
+    }
+  };
+
+  const handleDeleteBranch = async (branchId: string, branchName: string) => {
+    if (!clientId) return;
+    if (!window.confirm(`Deactivate branch '${branchName}'?`)) return;
+    try {
+      await clientBranchesApi.delete(clientId, branchId);
+      await Promise.all([loadBranches(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to deactivate branch');
+    }
+  };
+
+  // Relationships Handlers (Phase 28.5)
+  const handleCreateRelationship = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !newRelationshipTargetId) return;
+    try {
+      setIsSubmittingRelationship(true);
+      await clientRelationshipsApi.create(clientId, {
+        targetClientId: newRelationshipTargetId,
+        relationshipType: newRelationshipType,
+        notes: newRelationshipNotes.trim() || undefined,
+      });
+      setIsRelationshipModalOpen(false);
+      setNewRelationshipTargetId('');
+      setNewRelationshipType('RELATED_ENTITY');
+      setNewRelationshipNotes('');
+      await Promise.all([loadRelationships(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to establish relationship');
+    } finally {
+      setIsSubmittingRelationship(false);
+    }
+  };
+
+  const handleDeleteRelationship = async (relationshipId: string) => {
+    if (!clientId) return;
+    if (!window.confirm('Remove this client relationship link?')) return;
+    try {
+      await clientRelationshipsApi.delete(clientId, relationshipId);
+      await Promise.all([loadRelationships(), loadClientOverview()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to remove relationship');
     }
   };
 
@@ -391,6 +723,9 @@ export const Client360Page: React.FC = () => {
         {[
           { id: 'overview', label: '360° Overview', icon: Layers },
           { id: 'services', label: 'Services', icon: Briefcase, count: services?.length },
+          { id: 'contacts', label: 'Contacts', icon: User, count: contacts?.length },
+          { id: 'branches', label: 'Branches & Locations', icon: Building2, count: branches?.length },
+          { id: 'relationships', label: 'Related Clients & Group', icon: Layers, count: relationships?.length },
           { id: 'compliance', label: 'Tax Compliance', icon: ShieldCheck },
           { id: 'documents', label: 'Document Vault', icon: FileText, count: documentsSummary?.totalDocuments },
           { id: 'doc_requests', label: 'Doc Requests', icon: Send, count: docRequestsSummary?.pendingRequests },
@@ -434,7 +769,126 @@ export const Client360Page: React.FC = () => {
       <div className="space-y-6">
         {/* 1. OVERVIEW TAB */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-6">
+            {/* Needs Attention & Intelligence Signals */}
+            {intelligenceSummary && (intelligenceSummary.needsAttentionSignals || []).length > 0 && (
+              <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertOctagon className="w-4 h-4 text-amber-600" />
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Client Attention Signals ({intelligenceSummary.totalSignalsCount})
+                    </h3>
+                    {intelligenceSummary.highPrioritySignalsCount > 0 && (
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                        {intelligenceSummary.highPrioritySignalsCount} High Priority
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {intelligenceSummary.needsAttentionSignals.map((signal) => (
+                    <div
+                      key={signal.id}
+                      className="p-3.5 bg-white rounded-xl border border-amber-200/80 shadow-2xs flex flex-col justify-between space-y-2.5"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900">{signal.title}</span>
+                          <span
+                            className={clsx(
+                              'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                              signal.priority === 'CRITICAL' || signal.priority === 'HIGH'
+                                ? 'bg-rose-100 text-rose-700'
+                                : signal.priority === 'MEDIUM'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-700'
+                            )}
+                          >
+                            {signal.priority}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">{signal.reason}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                        <span className="text-[11px] text-slate-500 font-medium truncate max-w-[240px]">
+                          {signal.recommendedAction}
+                        </span>
+                        {signal.actionable && (
+                          <button
+                            onClick={() => {
+                              if (signal.actionType === 'ADD_PRIMARY_CONTACT') setActiveTab('contacts');
+                              else if (signal.actionType === 'ADD_PRIMARY_BRANCH') setActiveTab('branches');
+                              else if (signal.actionType === 'CONFIGURE_SERVICE' || signal.actionType === 'RESUME_SERVICE') setActiveTab('services');
+                              else if (signal.suggestedRoute) navigate(signal.suggestedRoute);
+                            }}
+                            className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 shrink-0 ml-2"
+                          >
+                            <span>Resolve</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recommended Next Actions */}
+            {recommendations && recommendations.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Compass className="w-4 h-4 text-brand-600" />
+                    <span>Recommended Next Actions</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-400 font-medium">Deterministic Next-Best-Action</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {recommendations.slice(0, 3).map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 hover:border-brand-200 transition-colors flex flex-col justify-between space-y-2"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-800">{rec.title}</span>
+                          <span
+                            className={clsx(
+                              'text-[9px] font-extrabold px-1.5 py-0.2 rounded',
+                              rec.priority === 'CRITICAL' || rec.priority === 'HIGH'
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-slate-200 text-slate-700'
+                            )}
+                          >
+                            {rec.priority}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-snug line-clamp-2">{rec.reason}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (rec.actionType === 'ADD_PRIMARY_CONTACT') setActiveTab('contacts');
+                          else if (rec.actionType === 'ADD_PRIMARY_BRANCH') setActiveTab('branches');
+                          else if (rec.actionType === 'CONFIGURE_SERVICE' || rec.actionType === 'RESUME_SERVICE') setActiveTab('services');
+                          else if (rec.suggestedRoute) navigate(rec.suggestedRoute);
+                        }}
+                        className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 self-start pt-1"
+                      >
+                        <span>Take Action</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Compliance Health & Services */}
             <div className="lg:col-span-2 space-y-6">
               {/* Compliance Status Cards */}
@@ -670,6 +1124,7 @@ export const Client360Page: React.FC = () => {
               </div>
             </div>
           </div>
+          </div>
         )}
 
         {/* 2. SERVICES TAB */}
@@ -779,12 +1234,15 @@ export const Client360Page: React.FC = () => {
                 {clientServices
                   .filter((s) => serviceStatusFilter === 'ALL' || s.status === serviceStatusFilter)
                   .map((srv) => {
-                    const statusColors = {
+                    const statusColors: Record<string, string> = {
                       ACTIVE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                       SUSPENDED: 'bg-amber-50 text-amber-700 border-amber-200',
+                      ENDED: 'bg-slate-100 text-slate-700 border-slate-300',
                       COMPLETED: 'bg-slate-100 text-slate-700 border-slate-300',
+                      PENDING: 'bg-sky-50 text-sky-700 border-sky-200',
                       INACTIVE: 'bg-rose-50 text-rose-700 border-rose-200',
-                    }[srv.status] || 'bg-slate-100 text-slate-700 border-slate-200';
+                    };
+                    const statusColor = statusColors[srv.status] || 'bg-slate-100 text-slate-700 border-slate-200';
 
                     const moduleLink = srv.serviceType.startsWith('GST')
                       ? `/gst`
@@ -815,7 +1273,7 @@ export const Client360Page: React.FC = () => {
                             <span
                               className={clsx(
                                 'text-[10px] font-bold px-2 py-0.5 rounded-full border',
-                                statusColors
+                                statusColor
                               )}
                             >
                               {srv.status}
@@ -950,6 +1408,461 @@ export const Client360Page: React.FC = () => {
                       </div>
                     );
                   })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2.5 CONTACTS TAB (Phase 28.5) */}
+        {activeTab === 'contacts' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <User className="w-5 h-5 text-brand-600" />
+                  <span>Client Contacts & Key Personnel</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Manage authorized representatives, billing contacts, directors, and primary liaisons for {client.displayName}.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadContacts}
+                  disabled={isLoadingContacts}
+                  leftIcon={<RefreshCw className={clsx('w-3.5 h-3.5', isLoadingContacts && 'animate-spin')} />}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsContactModalOpen(true)}
+                >
+                  Add Contact
+                </Button>
+              </div>
+            </div>
+
+            {isLoadingContacts ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-slate-500">Loading client contacts...</p>
+              </div>
+            ) : contacts.length === 0 ? (
+              <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-white">
+                <User className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <h3 className="text-sm font-bold text-slate-900 mb-1">No Contacts Recorded</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+                  Add designated liaisons, directors, or accounts personnel for {client.displayName}.
+                </p>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsContactModalOpen(true)}
+                >
+                  Add Primary Contact
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {contacts.map((contact) => (
+                  <div
+                    key={contact.id}
+                    className={clsx(
+                      'p-5 rounded-2xl border bg-white shadow-2xs hover:border-brand-200 transition-all flex flex-col justify-between space-y-4',
+                      contact.primaryContact ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200',
+                      !contact.active && 'opacity-60 bg-slate-50/50'
+                    )}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 border border-brand-200">
+                            {contact.contactRole?.replace(/_/g, ' ') || 'OTHER'}
+                          </span>
+                          {contact.primaryContact && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                              <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={clsx(
+                            'text-[10px] font-bold px-2 py-0.5 rounded-full border',
+                            contact.active
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          )}
+                        >
+                          {contact.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {contact.displayName || [contact.firstName, contact.lastName].filter(Boolean).join(' ')}
+                        </h4>
+                        {contact.designation && (
+                          <p className="text-xs text-slate-500 font-medium">
+                            {contact.designation}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 text-xs">
+                        {contact.email && (
+                          <div className="flex items-center gap-2 text-slate-600">
+                            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <a href={`mailto:${contact.email}`} className="hover:text-brand-600 font-medium truncate">
+                              {contact.email}
+                            </a>
+                          </div>
+                        )}
+                        {contact.phone && (
+                          <div className="flex items-center gap-2 text-slate-600">
+                            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <a href={`tel:${contact.phone}`} className="hover:text-brand-600 font-medium">
+                              {contact.phone}
+                            </a>
+                          </div>
+                        )}
+                        {contact.notes && (
+                          <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-100 line-clamp-2">
+                            {contact.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {!contact.primaryContact && contact.active && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[11px] text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                            leftIcon={<Star className="w-3.5 h-3.5" />}
+                            onClick={() => handleSetPrimaryContact(contact.id)}
+                          >
+                            Set Primary
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-[11px]"
+                          onClick={() => handleToggleContactStatus(contact.id, contact.active)}
+                        >
+                          {contact.active ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteContact(contact.id, contact.displayName || contact.firstName)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Delete Contact"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2.6 BRANCHES & LOCATIONS TAB (Phase 28.5) */}
+        {activeTab === 'branches' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-brand-600" />
+                  <span>Client Branches & Business Locations</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Manage registered offices, principal places of business, plants, and warehouses for {client.displayName}.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadBranches}
+                  disabled={isLoadingBranches}
+                  leftIcon={<RefreshCw className={clsx('w-3.5 h-3.5', isLoadingBranches && 'animate-spin')} />}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsBranchModalOpen(true)}
+                >
+                  Add Branch / Location
+                </Button>
+              </div>
+            </div>
+
+            {isLoadingBranches ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-slate-500">Loading branches and locations...</p>
+              </div>
+            ) : branches.length === 0 ? (
+              <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-white">
+                <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <h3 className="text-sm font-bold text-slate-900 mb-1">No Business Locations Recorded</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+                  Add registered office or branch locations to track client multi-location footprints.
+                </p>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsBranchModalOpen(true)}
+                >
+                  Add Principal Location
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {branches.map((branch) => (
+                  <div
+                    key={branch.id}
+                    className={clsx(
+                      'p-5 rounded-2xl border bg-white shadow-2xs hover:border-brand-200 transition-all flex flex-col justify-between space-y-4',
+                      branch.primaryBranch ? 'border-brand-300 ring-1 ring-brand-200/60' : 'border-slate-200',
+                      !branch.active && 'opacity-60 bg-slate-50/50'
+                    )}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                            {branch.branchType.replace(/_/g, ' ')}
+                          </span>
+                          {branch.primaryBranch && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-brand-50 text-brand-800 border border-brand-200">
+                              <Star className="w-3 h-3 fill-brand-500 text-brand-600" />
+                              Primary Location
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={clsx(
+                            'text-[10px] font-bold px-2 py-0.5 rounded-full border',
+                            branch.active
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          )}
+                        >
+                          {branch.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <h4 className="text-sm font-bold text-slate-900">{branch.branchName}</h4>
+                          {branch.branchCode && (
+                            <span className="font-mono text-[10px] text-slate-500 font-semibold">
+                              ({branch.branchCode})
+                            </span>
+                          )}
+                        </div>
+                        {(branch.city || branch.state) && (
+                          <p className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{[branch.city, branch.state, branch.pincode].filter(Boolean).join(', ')}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 text-xs">
+                        {branch.addressLine1 && (
+                          <p className="text-xs text-slate-600">{branch.addressLine1}</p>
+                        )}
+                        {branch.gstin && (
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">GSTIN:</span>
+                            <span className="font-mono text-[11px] font-bold bg-slate-100 px-1.5 py-0.2 rounded text-slate-800">
+                              {branch.gstin}
+                            </span>
+                          </div>
+                        )}
+                        {branch.notes && (
+                          <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-100 line-clamp-2">
+                            {branch.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {!branch.primaryBranch && branch.active && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[11px] text-brand-700 hover:text-brand-800 hover:bg-brand-50"
+                            leftIcon={<Star className="w-3.5 h-3.5" />}
+                            onClick={() => handleSetPrimaryBranch(branch.id)}
+                          >
+                            Set Primary
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-[11px]"
+                          onClick={() => handleToggleBranchStatus(branch.id, branch.active)}
+                        >
+                          {branch.active ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteBranch(branch.id, branch.branchName)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Delete Branch"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2.7 RELATED CLIENTS & GROUP STRUCTURE TAB (Phase 28.5) */}
+        {activeTab === 'relationships' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-brand-600" />
+                  <span>Related Clients & Group Structure</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Model corporate hierarchies, sister companies, holding relationships, and group affiliates for {client.displayName}.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadRelationships}
+                  disabled={isLoadingRelationships}
+                  leftIcon={<RefreshCw className={clsx('w-3.5 h-3.5', isLoadingRelationships && 'animate-spin')} />}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsRelationshipModalOpen(true)}
+                >
+                  Link Related Client
+                </Button>
+              </div>
+            </div>
+
+            {isLoadingRelationships ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-slate-500">Loading related client links...</p>
+              </div>
+            ) : relationships.length === 0 ? (
+              <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-white">
+                <Layers className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <h3 className="text-sm font-bold text-slate-900 mb-1">No Related Clients Linked</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+                  Link parent organizations, subsidiary firms, or sister entities serviced by this practice.
+                </p>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsRelationshipModalOpen(true)}
+                >
+                  Link Related Client
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {relationships.map((rel) => (
+                  <div
+                    key={rel.id}
+                    className="p-5 rounded-2xl border border-slate-200 bg-white shadow-2xs hover:border-brand-200 transition-all flex flex-col justify-between space-y-4"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                          {rel.relationshipType.replace(/_/g, ' ')}
+                        </span>
+                        <Link
+                          to={`/clients/${rel.targetClientId}`}
+                          className="text-xs font-bold text-brand-600 hover:text-brand-800 flex items-center gap-1"
+                        >
+                          <span>View 360°</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">{rel.targetClientDisplayName}</h4>
+                        {rel.targetClientLegalName && rel.targetClientLegalName !== rel.targetClientDisplayName && (
+                          <p className="text-xs text-slate-500">{rel.targetClientLegalName}</p>
+                        )}
+                        {(rel.targetClientCode || rel.targetClientPan) && (
+                          <p className="font-mono text-[10px] text-slate-400 mt-0.5">
+                            {rel.targetClientCode ? `Code: ${rel.targetClientCode}` : `PAN: ${rel.targetClientPan}`}
+                          </p>
+                        )}
+                      </div>
+
+                      {rel.notes && (
+                        <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                          {rel.notes}
+                        </p>
+                      )}
+
+                      <div className="text-[10px] text-slate-400">
+                        Linked on {rel.createdAt ? new Date(rel.createdAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <Link to={`/clients/${rel.targetClientId}`}>
+                        <Button variant="outline" size="sm" className="text-xs" rightIcon={<ExternalLink className="w-3.5 h-3.5" />}>
+                          Open Profile
+                        </Button>
+                      </Link>
+
+                      <button
+                        onClick={() => handleDeleteRelationship(rel.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Remove Link"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1358,31 +2271,99 @@ export const Client360Page: React.FC = () => {
         {activeTab === 'activity' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Unified Chronological Timeline */}
-            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <History className="w-4 h-4 text-brand-600" />
-                <span>Chronological Relationship Timeline</span>
-              </h3>
+            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <History className="w-4 h-4 text-brand-600" />
+                  <span>Chronological Activity & Event Timeline</span>
+                </h3>
+                {isLoadingTimeline && (
+                  <span className="text-[11px] text-slate-400 font-medium animate-pulse">Loading timeline...</span>
+                )}
+              </div>
 
-              {(activityTimeline || []).length === 0 ? (
-                <p className="text-xs text-slate-400 py-8 text-center">No activities recorded for this client.</p>
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                {[
+                  'ALL',
+                  'CLIENT',
+                  'PROFILE',
+                  'SERVICE',
+                  'CONTACT',
+                  'BRANCH',
+                  'RELATIONSHIP',
+                  'WORK',
+                  'DOCUMENT',
+                  'BILLING',
+                  'COMPLIANCE',
+                  'COMMUNICATION',
+                ].map((cat) => {
+                  const isSelected = timelineCategoryFilter === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        setTimelineCategoryFilter(cat);
+                        loadTimeline(cat);
+                      }}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all whitespace-nowrap',
+                        isSelected
+                          ? 'bg-brand-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                      )}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {timelineItems.length === 0 && (activityTimeline || []).length === 0 ? (
+                <p className="text-xs text-slate-400 py-8 text-center">No activities recorded for this client under selected filter.</p>
               ) : (
                 <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                  {(activityTimeline || []).map((act, idx) => (
-                    <div key={act.id || idx} className="relative space-y-1">
-                      <div className="absolute -left-[19px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white bg-brand-500 ring-2 ring-brand-100" />
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-slate-900">{act.title}</span>
-                        <span className="text-slate-400">
-                          {act.timestamp ? new Date(act.timestamp).toLocaleString() : ''}
-                        </span>
+                  {(timelineItems.length > 0 ? timelineItems : activityTimeline || []).map((item: any, idx: number) => {
+                    const title = item.title || item.eventType;
+                    const desc = item.description;
+                    const time = item.occurredAt || item.timestamp;
+                    const actor = item.actorName || item.performedBy || 'System';
+                    const severity = item.severity || 'INFO';
+                    const cat = item.eventCategory || item.category || 'SYSTEM';
+
+                    return (
+                      <div key={item.id || idx} className="relative space-y-1.5">
+                        <div
+                          className={clsx(
+                            'absolute -left-[19px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white ring-2',
+                            severity === 'SUCCESS'
+                              ? 'bg-emerald-500 ring-emerald-100'
+                              : severity === 'WARNING'
+                              ? 'bg-amber-500 ring-amber-100'
+                              : severity === 'ERROR'
+                              ? 'bg-rose-500 ring-rose-100'
+                              : 'bg-brand-500 ring-brand-100'
+                          )}
+                        />
+                        <div className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900">{title}</span>
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                              {cat}
+                            </span>
+                          </div>
+                          <span className="text-slate-400">
+                            {time ? new Date(time).toLocaleString() : ''}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">{desc}</p>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-medium pt-0.5">
+                          <span>By: {actor}</span>
+                          {item.sourceModule && <span>• Module: {item.sourceModule}</span>}
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-600">{act.description}</p>
-                      {act.performedBy && (
-                        <span className="text-[10px] text-slate-400 font-medium">By: {act.performedBy}</span>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1675,6 +2656,396 @@ export const Client360Page: React.FC = () => {
             </Button>
             <Button type="submit" isLoading={isSubmittingService}>
               Engage Service
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Client Contact Modal (Phase 28.5) */}
+      <Modal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        title="Add Client Contact"
+        subtitle={`Record key personnel or liaison for ${client.displayName}`}
+      >
+        <form onSubmit={handleCreateContact} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                First Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Ramesh"
+                value={newContactFirstName}
+                onChange={(e) => setNewContactFirstName(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Last Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Sharma"
+                value={newContactLastName}
+                onChange={(e) => setNewContactLastName(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. ramesh@example.com"
+                value={newContactEmail}
+                onChange={(e) => setNewContactEmail(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                placeholder="e.g. +91 9876543210"
+                value={newContactPhone}
+                onChange={(e) => setNewContactPhone(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Designation / Job Title
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Chief Financial Officer"
+              value={newContactDesignation}
+              onChange={(e) => setNewContactDesignation(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Contact Role <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={newContactRole}
+              onChange={(e) => setNewContactRole(e.target.value as ContactRole)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="PRIMARY">Primary Contact</option>
+              <option value="AUTHORIZED_REPRESENTATIVE">Authorized Representative</option>
+              <option value="BILLING">Billing & Accounts Contact</option>
+              <option value="COMPLIANCE">Compliance / Tax Focal</option>
+              <option value="FINANCE">Finance Lead</option>
+              <option value="HR">HR / Payroll Contact</option>
+              <option value="DIRECTOR">Director / Key Management</option>
+              <option value="PARTNER">Partner / Designated Partner</option>
+              <option value="OTHER">Other Role</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="isPrimaryContact"
+              checked={newContactIsPrimary}
+              onChange={(e) => setNewContactIsPrimary(e.target.checked)}
+              className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+            />
+            <label htmlFor="isPrimaryContact" className="text-xs font-semibold text-slate-700 select-none">
+              Designate as Primary Liaison for this Client
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Notes & Working Instructions
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Preferred channel is WhatsApp/Email; available after 2 PM"
+              value={newContactNotes}
+              onChange={(e) => setNewContactNotes(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsContactModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isSubmittingContact}>
+              Save Contact
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Client Branch Modal (Phase 28.5) */}
+      <Modal
+        isOpen={isBranchModalOpen}
+        onClose={() => setIsBranchModalOpen(false)}
+        title="Add Business Location / Branch"
+        subtitle={`Record branch or registered office for ${client.displayName}`}
+      >
+        <form onSubmit={handleCreateBranch} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Branch / Location Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Mumbai Corporate Office"
+                value={newBranchName}
+                onChange={(e) => setNewBranchName(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Branch Code
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. MUM-01"
+                value={newBranchCode}
+                onChange={(e) => setNewBranchCode(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Location Type <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={newBranchType}
+                onChange={(e) => setNewBranchType(e.target.value as ClientBranchType)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              >
+                <option value="REGISTERED_OFFICE">Registered Office</option>
+                <option value="PRINCIPAL_PLACE_OF_BUSINESS">Principal Place of Business</option>
+                <option value="BRANCH">Branch Office</option>
+                <option value="WAREHOUSE">Warehouse / Godown</option>
+                <option value="FACTORY">Factory / Manufacturing Unit</option>
+                <option value="OTHER">Other Facility</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Branch GSTIN (Optional)
+              </label>
+              <input
+                type="text"
+                maxLength={15}
+                placeholder="e.g. 27AAAAA0000A1Z5"
+                value={newBranchGstin}
+                onChange={(e) => setNewBranchGstin(e.target.value.toUpperCase())}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono uppercase"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Address Line 1
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Plot 12, Bandra Kurla Complex"
+              value={newBranchAddressLine1}
+              onChange={(e) => setNewBranchAddressLine1(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                City
+              </label>
+              <input
+                type="text"
+                placeholder="Mumbai"
+                value={newBranchCity}
+                onChange={(e) => setNewBranchCity(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                State
+              </label>
+              <input
+                type="text"
+                placeholder="Maharashtra"
+                value={newBranchState}
+                onChange={(e) => setNewBranchState(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                State Code
+              </label>
+              <input
+                type="text"
+                maxLength={2}
+                placeholder="27"
+                value={newBranchStateCode}
+                onChange={(e) => setNewBranchStateCode(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Pincode
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="400051"
+                value={newBranchPincode}
+                onChange={(e) => setNewBranchPincode(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="isPrimaryBranch"
+              checked={newBranchIsPrimary}
+              onChange={(e) => setNewBranchIsPrimary(e.target.checked)}
+              className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+            />
+            <label htmlFor="isPrimaryBranch" className="text-xs font-semibold text-slate-700 select-none">
+              Designate as Primary Business Location
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Location Notes
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Main warehouse for Western zone operations"
+              value={newBranchNotes}
+              onChange={(e) => setNewBranchNotes(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsBranchModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isSubmittingBranch}>
+              Save Branch
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Link Related Client Modal (Phase 28.5) */}
+      <Modal
+        isOpen={isRelationshipModalOpen}
+        onClose={() => setIsRelationshipModalOpen(false)}
+        title="Link Related Client / Group Entity"
+        subtitle={`Connect ${client.displayName} to another client profile`}
+      >
+        <form onSubmit={handleCreateRelationship} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Select Related Client <span className="text-rose-500">*</span>
+            </label>
+            <select
+              required
+              value={newRelationshipTargetId}
+              onChange={(e) => setNewRelationshipTargetId(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="">-- Choose Client Profile --</option>
+              {allClients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.displayName} {c.legalName && c.legalName !== c.displayName ? `(${c.legalName})` : ''} [{c.clientType}]
+                </option>
+              ))}
+            </select>
+            {allClients.length === 0 && (
+              <p className="text-[11px] text-slate-400 mt-1">No other client profiles found in this practice.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Relationship Type <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={newRelationshipType}
+              onChange={(e) => setNewRelationshipType(e.target.value as ClientRelationshipType)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="PARENT">Parent Entity</option>
+              <option value="SUBSIDIARY">Subsidiary Entity</option>
+              <option value="SISTER_COMPANY">Sister / Affiliate Company</option>
+              <option value="GROUP_MEMBER">Member of Same Group</option>
+              <option value="HOLDING_COMPANY">Ultimate Holding Company</option>
+              <option value="DIRECTOR_AFFILIATE">Common Director / Promoters</option>
+              <option value="RELATED_ENTITY">Other Related Entity</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Relationship Notes & Shareholding Context
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. 51% equity subsidiary; common management and board oversight"
+              value={newRelationshipNotes}
+              onChange={(e) => setNewRelationshipNotes(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsRelationshipModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              isLoading={isSubmittingRelationship}
+              disabled={!newRelationshipTargetId}
+            >
+              Establish Link
             </Button>
           </div>
         </form>

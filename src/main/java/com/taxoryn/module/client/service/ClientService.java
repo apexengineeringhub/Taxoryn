@@ -60,4 +60,10 @@ public interface ClientService {
     List<com.taxoryn.module.client.dto.ClientUserAssignmentDto> getClientUsers(UUID clientId);
 
     com.taxoryn.module.client.dto.ClientUserAssignmentDto setPrimaryResponsibleUser(UUID clientId, UUID userId);
+
+    com.taxoryn.module.client.dto.ClientProfileDto getClientProfile(UUID clientId);
+
+    com.taxoryn.module.client.dto.ClientProfileDto updateClientProfile(UUID clientId, com.taxoryn.module.client.dto.UpdateClientProfileRequest request);
+
+    com.taxoryn.module.client.dto.ClientProfileCompletenessDto getProfileCompleteness(UUID clientId);
 }

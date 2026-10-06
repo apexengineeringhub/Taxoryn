@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -16,10 +17,10 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Client Service Engagement details")
+@Schema(description = "Client Service Relationship & Engagement details")
 public class ClientServiceDto {
 
-    @Schema(description = "Service engagement ID")
+    @Schema(description = "Service engagement/relationship ID")
     private UUID id;
 
     @Schema(description = "Organization ID")
@@ -31,13 +32,22 @@ public class ClientServiceDto {
     @Schema(description = "Client Display Name")
     private String clientName;
 
-    @Schema(description = "Service engagement type")
+    @Schema(description = "Service Offering ID from Service Catalog")
+    private UUID serviceOfferingId;
+
+    @Schema(description = "Service engagement type enum")
     private ClientServiceType serviceType;
 
     @Schema(description = "Service code alias", example = "AUDIT_ASSURANCE")
     public String getServiceCode() {
+        if (serviceCode != null) {
+            return serviceCode;
+        }
         return serviceType != null ? serviceType.name() : null;
     }
+
+    @Schema(description = "Service code")
+    private String serviceCode;
 
     @Schema(description = "Service summary notes alias")
     public String getSummary() {
@@ -50,8 +60,11 @@ public class ClientServiceDto {
     @Schema(description = "Service category")
     private String category;
 
-    @Schema(description = "Lifecycle status: ACTIVE, INACTIVE, SUSPENDED, COMPLETED")
+    @Schema(description = "Lifecycle status: ACTIVE, INACTIVE, SUSPENDED, ENDED, PENDING, COMPLETED")
     private ClientServiceStatus status;
+
+    @Schema(description = "Agreed client-specific price or retainer fee")
+    private BigDecimal agreedPrice;
 
     @Schema(description = "Service commencement date")
     private LocalDate startDate;
@@ -85,6 +98,15 @@ public class ClientServiceDto {
 
     @Schema(description = "Service operational route path")
     private String routePath;
+
+    @Schema(description = "Timestamp of last status transition")
+    private Instant statusChangedAt;
+
+    @Schema(description = "User ID who executed the last status transition")
+    private UUID statusChangedBy;
+
+    @Schema(description = "Business reason for the status transition")
+    private String statusChangeReason;
 
     @Schema(description = "Creation timestamp")
     private Instant createdAt;

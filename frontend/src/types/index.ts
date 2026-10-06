@@ -429,7 +429,7 @@ export type ClientServiceType =
   | 'ADVISORY_CONSULTING'
   | 'OTHER';
 
-export type ClientServiceStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'COMPLETED';
+export type ClientServiceStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'ENDED' | 'PENDING' | 'COMPLETED';
 
 export interface ServiceCatalogItem {
   serviceType: ClientServiceType;
@@ -444,45 +444,70 @@ export interface ServiceCatalogItem {
 export interface ClientServiceDto {
   id: string;
   clientId: string;
+  serviceOfferingId?: string;
   serviceType: ClientServiceType;
+  serviceCode?: string;
   serviceName: string;
   status: ClientServiceStatus;
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   assignedEmployeeEmail?: string;
+  responsibleUserId?: string;
+  responsibleUserName?: string;
+  locationId?: string;
+  locationName?: string;
+  billingFrequency?: string;
   billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedPrice?: number;
   agreedFee?: number;
   currency?: string;
   startDate?: string;
   endDate?: string;
+  notes?: string;
   engagementNotes?: string;
   moduleCode?: string;
+  statusChangedAt?: string;
+  statusChangedBy?: string;
+  statusChangeReason?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface CreateClientServiceRequest {
-  serviceType: ClientServiceType;
+  serviceOfferingId?: string;
+  serviceType?: ClientServiceType;
   serviceName?: string;
   assignedEmployeeId?: string;
+  responsibleUserId?: string;
+  locationId?: string;
+  billingFrequency?: string;
   billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedPrice?: number;
   agreedFee?: number;
   currency?: string;
   startDate?: string;
   endDate?: string;
+  notes?: string;
   engagementNotes?: string;
+  reason?: string;
 }
 
 export interface UpdateClientServiceRequest {
   serviceName?: string;
   status?: ClientServiceStatus;
   assignedEmployeeId?: string;
+  responsibleUserId?: string;
+  locationId?: string;
+  billingFrequency?: string;
   billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'ONE_TIME';
+  agreedPrice?: number;
   agreedFee?: number;
   currency?: string;
   startDate?: string;
   endDate?: string;
+  notes?: string;
   engagementNotes?: string;
+  reason?: string;
 }
 
 export type ComplianceWorkType =
@@ -817,7 +842,29 @@ export interface Client360Overview {
     isPanValid: boolean;
     isGstActive: boolean;
   };
+  primaryLocation?: any;
+  locations?: any[];
+  assignedUsers?: any[];
   services: ClientServiceItem[];
+  gstRegistrations?: any[];
+  itrProfile?: any;
+  tdsProfile?: any;
+  taxNotices?: any[];
+  billing?: any;
+  status?: string;
+  statusChangedAt?: string;
+  statusChangeReason?: string;
+  profile?: any;
+  completeness?: any;
+  primaryContact?: ClientContactDto;
+  contactsCount?: number;
+  activeContactsCount?: number;
+  primaryBranch?: ClientBranchDto;
+  branchesCount?: number;
+  activeBranchesCount?: number;
+  relationshipsCount?: number;
+  intelligenceSummary?: ClientIntelligenceSummaryDto;
+  recentTimeline?: ClientTimelineItemDto[];
   taskSummary: ClientTaskSummary;
   complianceSummary: ClientComplianceSummary;
   documentsSummary: ClientDocumentSummary;
@@ -826,6 +873,168 @@ export interface Client360Overview {
   noticeSummary: ClientNoticeSummary;
   recentNotes: ClientNote[];
   activityTimeline: ClientActivityItem[];
+  engagements?: any[];
+  keyContacts?: ClientContactDto[];
+  keyBranches?: ClientBranchDto[];
+}
+
+export type ContactRole =
+  | 'PRIMARY'
+  | 'AUTHORIZED_REPRESENTATIVE'
+  | 'BILLING'
+  | 'COMPLIANCE'
+  | 'FINANCE'
+  | 'HR'
+  | 'DIRECTOR'
+  | 'PARTNER'
+  | 'OTHER';
+
+export interface ClientContactDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  firstName: string;
+  lastName?: string;
+  displayName: string;
+  designation?: string;
+  email?: string;
+  phone?: string;
+  altPhone?: string;
+  contactRole: ContactRole;
+  primaryContact: boolean;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClientContactRequest {
+  firstName: string;
+  lastName?: string;
+  displayName?: string;
+  designation?: string;
+  email?: string;
+  phone?: string;
+  altPhone?: string;
+  contactRole?: ContactRole;
+  primaryContact?: boolean;
+  notes?: string;
+}
+
+export interface UpdateClientContactRequest {
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  designation?: string;
+  email?: string;
+  phone?: string;
+  altPhone?: string;
+  contactRole?: ContactRole;
+  primaryContact?: boolean;
+  active?: boolean;
+  notes?: string;
+}
+
+export type ClientBranchType =
+  | 'REGISTERED_OFFICE'
+  | 'PRINCIPAL_PLACE_OF_BUSINESS'
+  | 'BRANCH'
+  | 'WAREHOUSE'
+  | 'FACTORY'
+  | 'OTHER';
+
+export interface ClientBranchDto {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  branchName: string;
+  branchCode?: string;
+  branchType: ClientBranchType;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  country?: string;
+  pincode?: string;
+  gstin?: string;
+  phone?: string;
+  email?: string;
+  primaryBranch: boolean;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClientBranchRequest {
+  branchName: string;
+  branchCode?: string;
+  branchType?: ClientBranchType;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  country?: string;
+  pincode?: string;
+  gstin?: string;
+  phone?: string;
+  email?: string;
+  primaryBranch?: boolean;
+  notes?: string;
+}
+
+export interface UpdateClientBranchRequest {
+  branchName?: string;
+  branchCode?: string;
+  branchType?: ClientBranchType;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  country?: string;
+  pincode?: string;
+  gstin?: string;
+  phone?: string;
+  email?: string;
+  primaryBranch?: boolean;
+  active?: boolean;
+  notes?: string;
+}
+
+export type ClientRelationshipType =
+  | 'PARENT'
+  | 'SUBSIDIARY'
+  | 'SISTER_COMPANY'
+  | 'GROUP_MEMBER'
+  | 'HOLDING_COMPANY'
+  | 'DIRECTOR_AFFILIATE'
+  | 'RELATED_ENTITY';
+
+export interface ClientRelationshipDto {
+  id: string;
+  organizationId: string;
+  sourceClientId: string;
+  sourceClientDisplayName?: string;
+  targetClientId: string;
+  targetClientDisplayName?: string;
+  targetClientLegalName?: string;
+  targetClientCode?: string;
+  targetClientType?: string;
+  targetClientPan?: string;
+  relationshipType: ClientRelationshipType;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClientRelationshipRequest {
+  targetClientId: string;
+  relationshipType: ClientRelationshipType;
+  notes?: string;
 }
 
 export interface ClientContact {
@@ -5755,5 +5964,253 @@ export interface UdinFilterParams {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
 }
+
+// ==========================================
+// Phase 28.6: Client Audit, Timeline & Intelligence Types
+// ==========================================
+
+export type TimelineEventCategory =
+  | 'CLIENT'
+  | 'PROFILE'
+  | 'SERVICE'
+  | 'CONTACT'
+  | 'BRANCH'
+  | 'RELATIONSHIP'
+  | 'ENGAGEMENT'
+  | 'WORK'
+  | 'DOCUMENT'
+  | 'COMPLIANCE'
+  | 'BILLING'
+  | 'PAYMENT'
+  | 'GOVERNMENT'
+  | 'COMMUNICATION'
+  | 'SYSTEM';
+
+export type TimelineEventSeverity = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+
+export type SignalPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export type SignalCategory =
+  | 'ONBOARDING'
+  | 'PROFILE'
+  | 'CONTACT'
+  | 'LOCATION'
+  | 'SERVICE'
+  | 'LIFECYCLE'
+  | 'COMPLIANCE'
+  | 'ENGAGEMENT';
+
+export type ClientActionType =
+  | 'COMPLETE_PROFILE'
+  | 'ADD_PRIMARY_CONTACT'
+  | 'ADD_PRIMARY_BRANCH'
+  | 'CONFIGURE_SERVICE'
+  | 'RESUME_SERVICE'
+  | 'INVITE_PORTAL_USER'
+  | 'ACTIVATE_CLIENT'
+  | 'REVIEW_CLIENT_STATUS'
+  | 'VIEW_TIMELINE';
+
+export interface ClientTimelineItemDto {
+  id: string;
+  clientId: string;
+  organizationId: string;
+  eventType: string;
+  eventCategory: TimelineEventCategory;
+  title: string;
+  description: string;
+  occurredAt: string;
+  actorId?: string;
+  actorName?: string;
+  sourceModule: string;
+  severity: TimelineEventSeverity;
+  relatedEntityId?: string;
+  relatedEntityType?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ClientTimelineFilterParams {
+  category?: TimelineEventCategory;
+  eventType?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface ClientIntelligenceSignalDto {
+  id: string;
+  signalCode: string;
+  category: SignalCategory;
+  priority: SignalPriority;
+  title: string;
+  reason: string;
+  recommendedAction: string;
+  actionType: ClientActionType;
+  suggestedRoute?: string;
+  actionable: boolean;
+  sourceDataRef?: string;
+  detectedAt: string;
+}
+
+export interface ClientActionRecommendationDto {
+  id: string;
+  actionType: ClientActionType;
+  title: string;
+  reason: string;
+  priority: SignalPriority;
+  clientId: string;
+  relatedEntityId?: string;
+  source: string;
+  actionable: boolean;
+  suggestedRoute?: string;
+}
+
+export interface ClientIntelligenceSummaryDto {
+  clientId: string;
+  totalSignalsCount: number;
+  highPrioritySignalsCount: number;
+  criticalSignalsCount: number;
+  needsAttentionSignals: ClientIntelligenceSignalDto[];
+  recommendations: ClientActionRecommendationDto[];
+  evaluatedAt: string;
+}
+
+export interface BusinessContextRequest {
+  clientId?: string;
+  serviceRelationshipId?: string;
+  engagementId?: string;
+  workInstanceId?: string;
+  taskId?: string;
+}
+
+export interface ContactSummaryContext {
+  id?: string;
+  name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+  designation?: string;
+}
+
+export interface BranchSummaryContext {
+  id?: string;
+  branchName: string;
+  branchType?: string;
+  gstin?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+}
+
+export interface ClientSummaryContext {
+  clientId: string;
+  clientCode?: string;
+  displayName: string;
+  legalName?: string;
+  clientType?: string;
+  lifecycleStatus?: string;
+  active: boolean;
+  pan?: string;
+  gstin?: string;
+  email?: string;
+  phone?: string;
+  locationId?: string;
+  primaryContact?: ContactSummaryContext;
+  primaryBranch?: BranchSummaryContext;
+  activeServicesCount?: number;
+  totalContactsCount?: number;
+  totalBranchesCount?: number;
+}
+
+export interface ServiceSummaryContext {
+  serviceRelationshipId: string;
+  serviceOfferingId?: string;
+  serviceName: string;
+  serviceCode?: string;
+  serviceCategory?: string;
+  status: string;
+  billingFrequency?: string;
+  rate?: number;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+}
+
+export interface EngagementSummaryContext {
+  engagementId: string;
+  engagementCode?: string;
+  engagementName: string;
+  status: string;
+  priority?: string;
+  serviceId?: string;
+  serviceName?: string;
+  clientServiceId?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  reviewerUserId?: string;
+  reviewerUserName?: string;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+}
+
+export interface WorkSummaryContext {
+  workInstanceId?: string;
+  taskId?: string;
+  taskTitle: string;
+  taskStatus?: string;
+  taskPriority?: string;
+  taskCategory?: string;
+  assignedUserId?: string;
+  assigneeName?: string;
+  assigneeEmail?: string;
+  startDate?: string;
+  dueDate?: string;
+  statutoryDueDate?: string;
+  overdue: boolean;
+  dueToday: boolean;
+  dueThisWeek: boolean;
+  blocked: boolean;
+  blockedReason?: string;
+}
+
+export interface AttentionSummaryContext {
+  totalAttentionSignalsCount: number;
+  highPrioritySignalsCount: number;
+  signals: ClientIntelligenceSignalDto[];
+  recommendedActions: ClientActionRecommendationDto[];
+}
+
+export interface TemporalSummaryContext {
+  currentDate?: string;
+  relevantPeriod?: string;
+  effectiveStartDate?: string;
+  effectiveDueDate?: string;
+  statutoryDueDate?: string;
+  isOverdue?: boolean;
+}
+
+export interface ActorSummaryContext {
+  currentUserId?: string;
+  currentUserEmail?: string;
+  organizationId?: string;
+  roles: string[];
+  canAccessClient: boolean;
+  canAccessEngagement: boolean;
+  canAccessWork: boolean;
+}
+
+export interface BusinessContextDto {
+  organizationId: string;
+  client?: ClientSummaryContext;
+  service?: ServiceSummaryContext;
+  engagement?: EngagementSummaryContext;
+  work?: WorkSummaryContext;
+  attention?: AttentionSummaryContext;
+  temporalContext?: TemporalSummaryContext;
+  actorContext?: ActorSummaryContext;
+}
+
 
 
