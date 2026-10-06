@@ -131,3 +131,35 @@ COMMENT ON COLUMN work_instances.compliance_obligation_id
 
 COMMENT ON COLUMN compliance_obligations.work_instance_id
     IS 'UUID reference (no FK) to work_instances.id. Set when work has been generated for this obligation.';
+ALTER TABLE compliance_rules
+    ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE compliance_rules
+     ADD COLUMN IF NOT EXISTS statutory_grace_days INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE compliance_rules
+    ALTER COLUMN organization_id DROP NOT NULL;
+
+
+ -- created_at
+ ALTER TABLE compliance_rules
+     ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+
+ -- updated_at
+ ALTER TABLE compliance_rules
+     ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+
+ -- version
+ ALTER TABLE compliance_rules
+     ALTER COLUMN version SET DEFAULT 0;
+
+ ALTER TABLE compliance_rules
+     DROP CONSTRAINT IF EXISTS compliance_rules_frequency_check;
+
+ ALTER TABLE compliance_rules
+     ADD CONSTRAINT compliance_rules_frequency_check
+     CHECK (
+         frequency IN (
+             'MONTHLY',
+             'QUARTERLY',
+             'ANNUAL'
+         )
+     );
