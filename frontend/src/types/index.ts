@@ -876,6 +876,10 @@ export interface Client360Overview {
   engagements?: any[];
   keyContacts?: ClientContactDto[];
   keyBranches?: ClientBranchDto[];
+  complianceProfile?: ComplianceProfileSummaryDto;
+  complianceApplicability?: ComplianceApplicabilitySummaryDto;
+  complianceObligations?: ComplianceObligationSummaryDto;
+  complianceDeadlines?: ClientComplianceDeadlineSummaryDto;
 }
 
 export type ContactRole =
@@ -4920,19 +4924,37 @@ export interface ComplianceObligationItem {
   clientDisplayName?: string;
   clientPan?: string;
   clientGstin?: string;
+  ruleId?: string;
+  ruleCode?: string;
+  ruleVersion?: number;
+  ruleNameSnapshot?: string;
+  domain?: ComplianceRuleDomain;
+  periodType?: CompliancePeriodType;
+  periodKey?: string;
+  applicabilityState?: ApplicabilityResultState;
+  applicabilityReason?: string;
+  generatedAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
   clientServiceId?: string;
   servicePeriodId?: string;
   workflowId?: string;
-  obligationType: ComplianceObligationType;
+  obligationType?: ComplianceObligationType;
   title: string;
   description?: string;
   periodLabel?: string;
   financialYear?: string;
   assessmentYear?: string;
-  statutoryDueDate: string;
+  statutoryDueDate?: string;
   internalTargetDate?: string;
+  dueDate?: string;
+  dueDateCalculationStatus?: DueDateCalculationStatus;
+  dueDateExplanation?: string;
+  dueDateCalculatedAt?: string;
+  dueDateRuleType?: DueDateRuleType;
   status: ComplianceObligationStatus;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   assignedEmployeeEmail?: string;
@@ -4949,9 +4971,11 @@ export interface ComplianceObligationItem {
   createdAt: string;
   updatedAt: string;
   version?: number;
+  // Phase 29.7 — Work Generation traceability
+  workInstanceId?: string;
+  workGenerated?: boolean;
 }
 
-export type ComplianceObligationDto = ComplianceObligationItem;
 
 export interface ComplianceCalendarSummary {
   totalObligations: number;
@@ -6212,5 +6236,539 @@ export interface BusinessContextDto {
   actorContext?: ActorSummaryContext;
 }
 
+// ==============================================================================
+// Phase 29.1: Compliance Profile Foundation Types
+// ==============================================================================
 
+export type ComplianceProfileStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+export type ComplianceGstRegistrationType =
+  | 'REGULAR'
+  | 'COMPOSITION'
+  | 'QRMP'
+  | 'CASUAL'
+  | 'NON_RESIDENT'
+  | 'ISD'
+  | 'TDS_DEDUCTOR'
+  | 'TCS_COLLECTOR'
+  | 'OIDAR'
+  | 'INPUT_SERVICE_DISTRIBUTOR'
+  | 'OTHER';
+
+export type ComplianceFilingFrequency =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUALLY'
+  | 'SEMI_ANNUALLY'
+  | 'EVENT_BASED';
+
+export type ComplianceTdsDeductorCategory =
+  | 'COMPANY'
+  | 'INDIVIDUAL_HUF'
+  | 'GOVERNMENT'
+  | 'BANK_FINANCIAL_INSTITUTION'
+  | 'PARTNERSHIP_LLP'
+  | 'OTHER';
+
+export type ComplianceItrCategory =
+  | 'COMPANY'
+  | 'INDIVIDUAL'
+  | 'HUF'
+  | 'PARTNERSHIP_LLP'
+  | 'TRUST_SOCIETY'
+  | 'AOP_BOI'
+  | 'OTHER';
+
+export interface GstComplianceConfigDto {
+  applicable: boolean;
+  registrationType?: ComplianceGstRegistrationType;
+  filingFrequency?: ComplianceFilingFrequency;
+  compositionScheme?: boolean;
+  einvoiceApplicable?: boolean;
+  ewaybillApplicable?: boolean;
+}
+
+export interface TdsComplianceConfigDto {
+  applicable: boolean;
+  filingFrequency?: ComplianceFilingFrequency;
+  deductorCategory?: ComplianceTdsDeductorCategory;
+  lowerDeductionCertificate?: boolean;
+}
+
+export interface ItrComplianceConfigDto {
+  applicable: boolean;
+  category?: ComplianceItrCategory;
+  taxAuditApplicable?: boolean;
+  transferPricingApplicable?: boolean;
+}
+
+export interface OtherComplianceConfigDto {
+  advanceTaxApplicable?: boolean;
+  mcaFilingApplicable?: boolean;
+  professionalTaxApplicable?: boolean;
+  pfEsiApplicable?: boolean;
+}
+
+export interface ComplianceProfileCompletenessDto {
+  configured: boolean;
+  gstConfigured: boolean;
+  tdsConfigured: boolean;
+  itrConfigured: boolean;
+  readinessScore: number;
+  readinessSummary: string;
+  pendingItems: string[];
+}
+
+export interface ComplianceProfileSummaryDto {
+  profileId?: string;
+  clientId?: string;
+  status: ComplianceProfileStatus;
+  gstApplicable: boolean;
+  gstRegistrationType?: string;
+  gstFilingFrequency?: string;
+  tdsApplicable: boolean;
+  tdsFilingFrequency?: string;
+  itrApplicable: boolean;
+  itrCategory?: string;
+  readinessScore: number;
+}
+
+export interface ComplianceProfileDto {
+  id?: string;
+  organizationId?: string;
+  clientId: string;
+  status: ComplianceProfileStatus;
+  clientSummary?: ClientSummaryContext;
+  gstConfig: GstComplianceConfigDto;
+  tdsConfig: TdsComplianceConfigDto;
+  itrConfig: ItrComplianceConfigDto;
+  otherComplianceConfig: OtherComplianceConfigDto;
+  notes?: string;
+  completeness?: ComplianceProfileCompletenessDto;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
+}
+
+export interface UpdateComplianceProfileRequest {
+  status?: ComplianceProfileStatus;
+  gstApplicable?: boolean;
+  gstRegistrationType?: ComplianceGstRegistrationType;
+  gstFilingFrequency?: ComplianceFilingFrequency;
+  gstCompositionScheme?: boolean;
+  gstEinvoiceApplicable?: boolean;
+  gstEwaybillApplicable?: boolean;
+  tdsApplicable?: boolean;
+  tdsFilingFrequency?: ComplianceFilingFrequency;
+  tdsDeductorCategory?: ComplianceTdsDeductorCategory;
+  tdsLowerDeductionCertificate?: boolean;
+  itrApplicable?: boolean;
+  itrCategory?: ComplianceItrCategory;
+  itrTaxAuditApplicable?: boolean;
+  itrTransferPricingApplicable?: boolean;
+  advanceTaxApplicable?: boolean;
+  mcaFilingApplicable?: boolean;
+  professionalTaxApplicable?: boolean;
+  pfEsiApplicable?: boolean;
+  notes?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 29.2: Compliance Rule Catalog
+// ---------------------------------------------------------------------------
+
+export type ComplianceRuleDomain =
+  | 'GST'
+  | 'TDS'
+  | 'INCOME_TAX'
+  | 'MCA_ROC'
+  | 'STATUTORY_AUDIT'
+  | 'PAYROLL_LABOUR'
+  | 'OTHER';
+
+export type ComplianceRuleFrequency =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'ANNUAL'
+  | 'HALF_YEARLY'
+  | 'EVENT_BASED'
+  | 'ONE_TIME';
+
+export type CompliancePeriodType =
+  | 'MONTH'
+  | 'QUARTER'
+  | 'FINANCIAL_YEAR'
+  | 'ASSESSMENT_YEAR'
+  | 'HALF_YEAR'
+  | 'EVENT';
+
+export type ComplianceRuleStatus =
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'DRAFT'
+  | 'DEPRECATED';
+
+export type DueDateRuleType =
+  | 'DAY_OF_FOLLOWING_MONTH'
+  | 'DAY_OF_FOLLOWING_QUARTER_END_MONTH'
+  | 'FIXED_DATE_IN_YEAR'
+  | 'CUSTOM_OFFSET_DAYS'
+  | 'SPECIFIC_DATE';
+
+export interface ComplianceRuleDto {
+  id: string;
+  organizationId?: string;
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  domainDisplayName?: string;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  status: ComplianceRuleStatus;
+  systemRule: boolean;
+  description?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  penaltyDetails?: string;
+  dueDateRuleType: DueDateRuleType;
+  dueDayOffset?: number;
+  dueMonthOffset?: number;
+  fixedMonth?: number;
+  fixedDay?: number;
+  statutoryGraceDays?: number;
+  dueDateDescription?: string;
+  requiredModule?: string;
+  applicableEntityTypes?: string;
+  applicableGstRegistrationTypes?: string;
+  applicableFilingFrequencies?: string;
+  requiresTaxAudit?: boolean;
+  requiresTransferPricing?: boolean;
+  requiresTdsDeductor?: boolean;
+  requiresMcaFiling?: boolean;
+  defaultWorkTemplateCode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
+}
+
+export interface ComplianceRuleCatalogSummaryDto {
+  totalRules: number;
+  activeRules: number;
+  systemRules: number;
+  customRules: number;
+  rulesByDomain: Record<ComplianceRuleDomain, number>;
+}
+
+export interface CreateComplianceRuleRequest {
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  description?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  penaltyDetails?: string;
+  dueDateRuleType?: DueDateRuleType;
+  dueDayOffset?: number;
+  dueMonthOffset?: number;
+  fixedMonth?: number;
+  fixedDay?: number;
+  statutoryGraceDays?: number;
+  dueDateDescription?: string;
+  requiredModule?: string;
+  applicableEntityTypes?: string;
+  applicableGstRegistrationTypes?: string;
+  applicableFilingFrequencies?: string;
+  requiresTaxAudit?: boolean;
+  requiresTransferPricing?: boolean;
+  requiresTdsDeductor?: boolean;
+  requiresMcaFiling?: boolean;
+  defaultWorkTemplateCode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}
+
+export interface UpdateComplianceRuleRequest {
+  ruleName?: string;
+  domain?: ComplianceRuleDomain;
+  frequency?: ComplianceRuleFrequency;
+  periodType?: CompliancePeriodType;
+  status?: ComplianceRuleStatus;
+  description?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  penaltyDetails?: string;
+  dueDateRuleType?: DueDateRuleType;
+  dueDayOffset?: number;
+  dueMonthOffset?: number;
+  fixedMonth?: number;
+  fixedDay?: number;
+  statutoryGraceDays?: number;
+  dueDateDescription?: string;
+  requiredModule?: string;
+  applicableEntityTypes?: string;
+  applicableGstRegistrationTypes?: string;
+  applicableFilingFrequencies?: string;
+  requiresTaxAudit?: boolean;
+  requiresTransferPricing?: boolean;
+  requiresTdsDeductor?: boolean;
+  requiresMcaFiling?: boolean;
+  defaultWorkTemplateCode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}
+
+// ==============================================================================
+// Phase 29.3: Compliance Applicability Engine Types
+// ==============================================================================
+
+export type ApplicabilityResultState =
+  | 'APPLICABLE'
+  | 'NOT_APPLICABLE'
+  | 'INSUFFICIENT_DATA'
+  | 'CONFIGURATION_ERROR';
+
+export interface EvaluatedRuleApplicabilityDto {
+  ruleId?: string;
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  isSystemRule: boolean;
+  result: ApplicabilityResultState;
+  reason: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+  dueDateDescription?: string;
+  ruleVersion?: number;
+  evaluatedAt: string;
+}
+
+export interface ComplianceApplicabilitySummaryDto {
+  clientId: string;
+  evaluationDate?: string;
+  totalEvaluatedRules: number;
+  applicableCount: number;
+  notApplicableCount: number;
+  insufficientDataCount: number;
+  applicableByDomain: Record<string, number>;
+  profileConfigured: boolean;
+  evaluatedAt: string;
+}
+
+export interface ClientComplianceApplicabilityDto {
+  clientId: string;
+  clientDisplayName?: string;
+  clientType?: string;
+  evaluationDate: string;
+  summary: ComplianceApplicabilitySummaryDto;
+  rules: EvaluatedRuleApplicabilityDto[];
+  evaluatedAt: string;
+}
+
+// ==============================================================================
+// Phase 29.4: Compliance Obligation Engine Types
+// ==============================================================================
+
+export interface GenerateObligationsRequest {
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  domain?: ComplianceRuleDomain;
+  ruleCode?: string;
+}
+
+export interface GeneratedObligationsResponseDto {
+  clientId: string;
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  totalCount: number;
+  createdCount: number;
+  existingCount: number;
+  obligations: ComplianceObligationDto[];
+}
+
+export interface CancelObligationRequest {
+  cancellationReason: string;
+}
+
+export type ComplianceObligationDto = ComplianceObligationItem;
+
+export interface ComplianceObligationSummaryDto {
+  totalCount: number;
+  openCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  byDomain: Record<string, number>;
+  byStatus: Record<string, number>;
+}
+
+// Phase 29.7 — Work Generation
+export type ComplianceWorkGenerationStatus =
+  | 'CREATED'
+  | 'ALREADY_EXISTS'
+  | 'TEMPLATE_NOT_CONFIGURED'
+  | 'TEMPLATE_NOT_FOUND'
+  | 'ENGAGEMENT_NOT_CONFIGURED'
+  | 'OBLIGATION_NOT_ELIGIBLE'
+  | 'FAILED';
+
+export interface ComplianceWorkGenerationResultDto {
+  status: ComplianceWorkGenerationStatus;
+  workInstanceId?: string;
+  obligationId: string;
+  message: string;
+}
+
+// ==============================================================================
+// Phase 29.5: Period & Due-Date Engine Types
+// ==============================================================================
+
+export type DueDateCalculationStatus =
+  | 'CALCULATED'
+  | 'NOT_CONFIGURED'
+  | 'INVALID_CONFIGURATION'
+  | 'OUT_OF_EFFECTIVE_RANGE'
+  | 'NOT_APPLICABLE';
+
+export interface DueDateCalculationResult {
+  statutoryDueDate?: string;
+  dueDate?: string;
+  status: DueDateCalculationStatus;
+  strategy?: DueDateRuleType;
+  ruleCode?: string;
+  ruleVersion?: number;
+  explanation?: string;
+  calculationDate?: string;
+  calculationTrace?: string;
+  statutoryGraceDays?: number;
+}
+
+export interface ObligationDueDateDto {
+  obligationId: string;
+  clientId: string;
+  ruleCode: string;
+  ruleVersion: number;
+  ruleName?: string;
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  periodLabel?: string;
+  statutoryDueDate?: string;
+  dueDate?: string;
+  calculationStatus: DueDateCalculationStatus;
+  strategy?: DueDateRuleType;
+  explanation?: string;
+  calculatedAt?: string;
+}
+
+export interface CompliancePeriodDto {
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  startDate: string;
+  endDate: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  displayLabel?: string;
+}
+
+// ==============================================================================
+// Phase 29.6: Compliance Calendar & Deadline Radar Types
+// ==============================================================================
+
+export type DeadlineStatus =
+  | 'OVERDUE'
+  | 'DUE_TODAY'
+  | 'DUE_TOMORROW'
+  | 'DUE_WITHIN_3_DAYS'
+  | 'DUE_THIS_WEEK'
+  | 'UPCOMING'
+  | 'NO_DUE_DATE'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface ComplianceDeadlineDto {
+  obligationId: string;
+  clientId: string;
+  clientDisplayName?: string;
+  clientPan?: string;
+  ruleCode: string;
+  ruleName: string;
+  domain: ComplianceRuleDomain;
+  domainDisplayName?: string;
+  frequency: ComplianceRuleFrequency;
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  periodLabel?: string;
+  financialYear?: string;
+  assessmentYear?: string;
+  statutoryDueDate?: string;
+  dueDate?: string;
+  priority: string;
+  status: DeadlineStatus;
+  daysRemaining?: number;
+  daysOverdue?: number;
+  statutoryGraceDays?: number;
+  explanation?: string;
+  calculatedAt?: string;
+  statutoryAct?: string;
+  statutorySection?: string;
+  statutoryFormCode?: string;
+}
+
+export interface ComplianceDeadlineSummaryDto {
+  totalActiveDeadlines: number;
+  overdueCount: number;
+  dueTodayCount: number;
+  dueTomorrowCount: number;
+  dueWithin3DaysCount: number;
+  dueThisWeekCount: number;
+  upcomingCount: number;
+  noDueDateCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  byDomain: Record<string, number>;
+  referenceDate: string;
+}
+
+export interface ComplianceDeadlineRadarDto {
+  summary: ComplianceDeadlineSummaryDto;
+  topDeadlines: ComplianceDeadlineDto[];
+  domainBreakdown: Record<string, number>;
+  referenceDate: string;
+}
+
+export interface ClientComplianceDeadlineSummaryDto {
+  clientId: string;
+  clientDisplayName?: string;
+  summary: ComplianceDeadlineSummaryDto;
+  nextDeadline?: ComplianceDeadlineDto;
+  referenceDate: string;
+}
+
+export interface ComplianceCalendarQueryFilter {
+  startDate?: string;
+  endDate?: string;
+  referenceDate?: string;
+  domain?: ComplianceRuleDomain;
+  status?: DeadlineStatus;
+  clientId?: string;
+  ruleCode?: string;
+  financialYear?: string;
+  search?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
 

@@ -154,6 +154,22 @@ public class ClientServiceImpl implements ClientService {
     @org.springframework.context.annotation.Lazy
     private com.taxoryn.module.engagement.service.EngagementService engagementService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.compliance.profile.service.ComplianceProfileService complianceProfileService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.compliance.applicability.service.ComplianceApplicabilityService complianceApplicabilityService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.compliance.obligation.service.ComplianceObligationService complianceObligationService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.compliance.calendar.service.ComplianceCalendarService complianceCalendarService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
         this.clientLifecycleService = clientLifecycleService;
@@ -1709,6 +1725,42 @@ public class ClientServiceImpl implements ClientService {
                     .toList();
         }
 
+        com.taxoryn.module.compliance.profile.dto.ComplianceProfileSummaryDto complianceProfileSummary = null;
+        if (complianceProfileService != null) {
+            try {
+                complianceProfileSummary = complianceProfileService.getComplianceProfileSummary(organizationId, clientId).orElse(null);
+            } catch (Exception ex) {
+                log.debug("Could not resolve compliance profile summary for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        com.taxoryn.module.compliance.applicability.dto.ComplianceApplicabilitySummaryDto complianceApplicabilitySummary = null;
+        if (complianceApplicabilityService != null) {
+            try {
+                complianceApplicabilitySummary = complianceApplicabilityService.getApplicabilitySummary(organizationId, clientId, null).orElse(null);
+            } catch (Exception ex) {
+                log.debug("Could not resolve compliance applicability summary for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        com.taxoryn.module.compliance.obligation.dto.ComplianceObligationSummaryDto complianceObligationSummary = null;
+        if (complianceObligationService != null) {
+            try {
+                complianceObligationSummary = complianceObligationService.getClientObligationSummary(clientId);
+            } catch (Exception ex) {
+                log.debug("Could not resolve compliance obligation summary for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
+        com.taxoryn.module.compliance.calendar.dto.ClientComplianceDeadlineSummaryDto complianceDeadlineSummary = null;
+        if (complianceCalendarService != null) {
+            try {
+                complianceDeadlineSummary = complianceCalendarService.getClientDeadlineSummary(clientId, null);
+            } catch (Exception ex) {
+                log.debug("Could not resolve compliance deadline summary for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1737,6 +1789,10 @@ public class ClientServiceImpl implements ClientService {
                 .recentTimeline(recentTimeline)
                 .taskSummary(overview.getTaskSummary())
                 .complianceSummary(overview.getComplianceSummary())
+                .complianceProfile(complianceProfileSummary)
+                .complianceApplicability(complianceApplicabilitySummary)
+                .complianceObligations(complianceObligationSummary)
+                .complianceDeadlines(complianceDeadlineSummary)
                 .documentsSummary(overview.getDocumentsSummary())
                 .docRequestsSummary(overview.getDocRequestsSummary())
                 .billingSummary(overview.getBillingSummary())

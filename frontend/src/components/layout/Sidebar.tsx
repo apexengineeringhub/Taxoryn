@@ -35,6 +35,7 @@ import {
   Layers,
   Briefcase,
   Award,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -173,6 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         { label: 'TDS Compliance', path: '/tds', icon: Percent, requiredPermissions: ['ITR_VIEW', 'GST_VIEW', 'TASK_VIEW'], moduleCode: 'TDS' },
         { label: 'Notice Center', path: '/tax-notices', icon: Scale, requiredPermissions: ['NOTICE_VIEW', 'TAX_NOTICE_VIEW'], allowedRoles: ['PRACTICE_OWNER', 'PRACTICE_ADMIN', 'ORG_ADMIN', 'PARTNER', 'MANAGER', 'TAX_PROFESSIONAL', 'PRACTITIONER', 'STAFF', 'ARTICLE_ASSISTANT', 'ACCOUNTANT'], moduleCode: 'TAX_NOTICES' },
         { label: 'Document Vault', path: '/documents', icon: FolderLock, requiredPermissions: ['DOCUMENT_VIEW'], moduleCode: 'DOCUMENTS' },
+        { label: 'Rule Catalog', path: '/compliance-rules', icon: BookOpen, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: 'DSC Register', path: '/dsc-register', icon: ShieldCheck, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: 'UDIN Register', path: '/udin-register', icon: Award, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },
       ],

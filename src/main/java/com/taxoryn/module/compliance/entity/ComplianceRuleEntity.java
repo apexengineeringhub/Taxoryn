@@ -1,6 +1,6 @@
 package com.taxoryn.module.compliance.entity;
 
-import com.taxoryn.core.domain.TenantAuditableEntity;
+import com.taxoryn.core.domain.AuditableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,6 +12,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "compliance_rules")
 @Getter
@@ -19,7 +21,10 @@ import lombok.Setter;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ComplianceRuleEntity extends TenantAuditableEntity {
+public class ComplianceRuleEntity extends AuditableEntity {
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @Column(name = "rule_code", nullable = false, length = 100)
     private String ruleCode;
@@ -73,6 +78,9 @@ public class ComplianceRuleEntity extends TenantAuditableEntity {
         MONTHLY,
         QUARTERLY,
         ANNUALLY,
+        ANNUAL,
+        HALF_YEARLY,
+        EVENT_BASED,
         ONE_TIME
     }
 }

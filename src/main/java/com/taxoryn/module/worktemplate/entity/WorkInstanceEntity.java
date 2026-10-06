@@ -73,4 +73,13 @@ public class WorkInstanceEntity extends TenantAuditableEntity {
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    /**
+     * Soft UUID reference (no JPA FK) to compliance_obligations.id.
+     * Set only for compliance-generated work instances (Phase 29.7).
+     * Null for work instances created via the standard engagement workflow.
+     */
+    @Column(name = "compliance_obligation_id")
+    private UUID complianceObligationId;
 }
+

@@ -30,6 +30,36 @@ import {
   ClientTimelineFilterParams,
   ClientIntelligenceSummaryDto,
   ClientActionRecommendationDto,
+  ComplianceProfileDto,
+  UpdateComplianceProfileRequest,
+  ComplianceRuleDto,
+  ComplianceRuleDomain,
+  ComplianceRuleFrequency,
+  ComplianceRuleStatus,
+  ComplianceRuleCatalogSummaryDto,
+  CreateComplianceRuleRequest,
+  UpdateComplianceRuleRequest,
+  ApplicabilityResultState,
+  ClientComplianceApplicabilityDto,
+  ComplianceApplicabilitySummaryDto,
+  EvaluatedRuleApplicabilityDto,
+  GenerateObligationsRequest,
+  GeneratedObligationsResponseDto,
+  CancelObligationRequest,
+  ComplianceObligationSummaryDto,
+  ComplianceWorkGenerationResultDto,
+  CompliancePeriodType,
+
+  DueDateCalculationStatus,
+  DueDateCalculationResult,
+  ObligationDueDateDto,
+  CompliancePeriodDto,
+  DeadlineStatus,
+  ComplianceDeadlineDto,
+  ComplianceDeadlineSummaryDto,
+  ComplianceDeadlineRadarDto,
+  ClientComplianceDeadlineSummaryDto,
+  ComplianceCalendarQueryFilter,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -3830,4 +3860,267 @@ export const businessContextApi = {
   },
 };
 
+export const complianceProfileApi = {
+  getProfile: async (clientId: string): Promise<ComplianceProfileDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceProfileDto>>(`/v1/clients/${clientId}/compliance-profile`);
+    return res.data.data;
+  },
+  updateProfile: async (clientId: string, payload: UpdateComplianceProfileRequest): Promise<ComplianceProfileDto> => {
+    const res = await apiClient.put<ApiResponse<ComplianceProfileDto>>(`/v1/clients/${clientId}/compliance-profile`, payload);
+    return res.data.data;
+  },
+};
+
+export const complianceRulesApi = {
+  getRules: async (params?: {
+    domain?: ComplianceRuleDomain;
+    frequency?: ComplianceRuleFrequency;
+    status?: ComplianceRuleStatus;
+    search?: string;
+    includeSystem?: boolean;
+  }): Promise<ComplianceRuleDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleDto[]>>('/v1/compliance/rules', { params });
+    return res.data.data;
+  },
+  getRuleById: async (ruleId: string): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleDto>>(`/v1/compliance/rules/${ruleId}`);
+    return res.data.data;
+  },
+  getRuleByCode: async (ruleCode: string): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleDto>>(`/v1/compliance/rules/code/${ruleCode}`);
+    return res.data.data;
+  },
+  createCustomRule: async (payload: CreateComplianceRuleRequest): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceRuleDto>>('/v1/compliance/rules', payload);
+    return res.data.data;
+  },
+  updateRule: async (ruleId: string, payload: UpdateComplianceRuleRequest): Promise<ComplianceRuleDto> => {
+    const res = await apiClient.put<ApiResponse<ComplianceRuleDto>>(`/v1/compliance/rules/${ruleId}`, payload);
+    return res.data.data;
+  },
+  deleteRule: async (ruleId: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/v1/compliance/rules/${ruleId}`);
+  },
+  getCatalogSummary: async (): Promise<ComplianceRuleCatalogSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceRuleCatalogSummaryDto>>('/v1/compliance/rules/summary');
+    return res.data.data;
+  },
+};
+
+export const complianceApplicabilityApi = {
+  getClientApplicability: async (
+    clientId: string,
+    params?: {
+      evaluationDate?: string;
+      domain?: ComplianceRuleDomain;
+      status?: ApplicabilityResultState;
+    }
+  ): Promise<ClientComplianceApplicabilityDto> => {
+    const res = await apiClient.get<ApiResponse<ClientComplianceApplicabilityDto>>(
+      `/v1/clients/${clientId}/compliance/applicability`,
+      { params }
+    );
+    return res.data.data;
+  },
+  getApplicabilitySummary: async (
+    clientId: string,
+    evaluationDate?: string
+  ): Promise<ComplianceApplicabilitySummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceApplicabilitySummaryDto>>(
+      `/v1/clients/${clientId}/compliance/applicability/summary`,
+      { params: evaluationDate ? { evaluationDate } : undefined }
+    );
+    return res.data.data;
+  },
+  getRuleApplicability: async (
+    clientId: string,
+    ruleCode: string,
+    evaluationDate?: string
+  ): Promise<EvaluatedRuleApplicabilityDto> => {
+    const res = await apiClient.get<ApiResponse<EvaluatedRuleApplicabilityDto>>(
+      `/v1/clients/${clientId}/compliance/applicability/rules/${ruleCode}`,
+      { params: evaluationDate ? { evaluationDate } : undefined }
+    );
+    return res.data.data;
+  },
+};
+
+export const complianceObligationsApi = {
+  listObligations: async (
+    clientId: string,
+    params?: {
+      status?: string;
+      domain?: string;
+      periodType?: string;
+      periodKey?: string;
+      ruleCode?: string;
+    }
+  ): Promise<ComplianceObligationDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto[]>>(
+      `/v1/clients/${clientId}/compliance/obligations`,
+      { params }
+    );
+    return res.data.data;
+  },
+  getObligation: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}`
+    );
+    return res.data.data;
+  },
+  generateObligations: async (
+    clientId: string,
+    data: GenerateObligationsRequest
+  ): Promise<GeneratedObligationsResponseDto> => {
+    const res = await apiClient.post<ApiResponse<GeneratedObligationsResponseDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/generate`,
+      data
+    );
+    return res.data.data;
+  },
+  updateStatus: async (
+    clientId: string,
+    obligationId: string,
+    data: { status: string; notes?: string }
+  ): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.put<ApiResponse<ComplianceObligationDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/status`,
+      data
+    );
+    return res.data.data;
+  },
+  cancelObligation: async (
+    clientId: string,
+    obligationId: string,
+    data: CancelObligationRequest
+  ): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/cancel`,
+      data
+    );
+    return res.data.data;
+  },
+  getSummary: async (
+    clientId: string
+  ): Promise<ComplianceObligationSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceObligationSummaryDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/summary`
+    );
+    return res.data.data;
+  },
+  getObligationDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ObligationDueDateDto> => {
+    const res = await apiClient.get<ApiResponse<ObligationDueDateDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date`
+    );
+    return res.data.data;
+  },
+  recalculateObligationDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date/recalculate`
+    );
+    return res.data.data;
+  },
+  // Phase 29.7 — Work Generation
+  generateWork: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ComplianceWorkGenerationResultDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkGenerationResultDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/work/generate`
+    );
+    return res.data.data;
+  },
+};
+
+
+export const complianceDueDateApi = {
+  getObligationDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ObligationDueDateDto> => {
+    const res = await apiClient.get<ApiResponse<ObligationDueDateDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date`
+    );
+    return res.data.data;
+  },
+  recalculateDueDate: async (
+    clientId: string,
+    obligationId: string
+  ): Promise<ComplianceObligationDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceObligationDto>>(
+      `/v1/clients/${clientId}/compliance/obligations/${obligationId}/due-date/recalculate`
+    );
+    return res.data.data;
+  },
+  previewDueDate: async (
+    ruleCode: string,
+    periodType: CompliancePeriodType,
+    periodKey: string
+  ): Promise<DueDateCalculationResult> => {
+    const res = await apiClient.get<ApiResponse<DueDateCalculationResult>>(
+      `/v1/compliance/due-dates/preview`,
+      { params: { ruleCode, periodType, periodKey } }
+    );
+    return res.data.data;
+  },
+};
+
+export const complianceCalendarApi = {
+  getCalendar: async (
+    params?: ComplianceCalendarQueryFilter
+  ): Promise<ComplianceDeadlineDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineDto[]>>(
+      '/v1/compliance/calendar',
+      { params }
+    );
+    return res.data.data;
+  },
+  getRadar: async (
+    referenceDate?: string
+  ): Promise<ComplianceDeadlineRadarDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineRadarDto>>(
+      '/v1/compliance/calendar/radar',
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+  getSummary: async (
+    referenceDate?: string
+  ): Promise<ComplianceDeadlineSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineSummaryDto>>(
+      '/v1/compliance/calendar/summary',
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+  getClientCalendar: async (
+    clientId: string,
+    params?: ComplianceCalendarQueryFilter
+  ): Promise<ComplianceDeadlineDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceDeadlineDto[]>>(
+      `/v1/clients/${clientId}/compliance/calendar`,
+      { params }
+    );
+    return res.data.data;
+  },
+  getClientSummary: async (
+    clientId: string,
+    referenceDate?: string
+  ): Promise<ClientComplianceDeadlineSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<ClientComplianceDeadlineSummaryDto>>(
+      `/v1/clients/${clientId}/compliance/calendar/summary`,
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+};
 

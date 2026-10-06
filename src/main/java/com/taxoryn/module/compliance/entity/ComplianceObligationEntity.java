@@ -42,6 +42,49 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "client_id", nullable = false)
     private UUID clientId;
 
+    @Column(name = "rule_code", length = 100)
+    private String ruleCode;
+
+    @Column(name = "rule_version")
+    @Builder.Default
+    private Integer ruleVersion = 1;
+
+    @Column(name = "rule_name_snapshot", length = 255)
+    private String ruleNameSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "domain", length = 50)
+    @Builder.Default
+    private com.taxoryn.module.compliance.rule.model.ComplianceRuleDomain domain = com.taxoryn.module.compliance.rule.model.ComplianceRuleDomain.OTHER;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "period_type", length = 50)
+    @Builder.Default
+    private com.taxoryn.module.compliance.rule.model.CompliancePeriodType periodType = com.taxoryn.module.compliance.rule.model.CompliancePeriodType.MONTH;
+
+    @Column(name = "period_key", length = 50)
+    private String periodKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "applicability_state", length = 50)
+    @Builder.Default
+    private com.taxoryn.module.compliance.applicability.model.ApplicabilityResultState applicabilityState = com.taxoryn.module.compliance.applicability.model.ApplicabilityResultState.APPLICABLE;
+
+    @Column(name = "applicability_reason", columnDefinition = "TEXT")
+    private String applicabilityReason;
+
+    @Column(name = "generated_at")
+    private Instant generatedAt;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancelled_by", length = 255)
+    private String cancelledBy;
+
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+
     @Column(name = "client_service_id")
     private UUID clientServiceId;
 
@@ -58,7 +101,7 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "obligation_type", length = 50)
     private ComplianceObligationType obligationType;
 
-    @Column(name = "title", nullable = false)
+    @Column(name = "title")
     private String title;
 
     @Column(name = "description", columnDefinition = "TEXT")
@@ -73,11 +116,26 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "assessment_year", length = 20)
     private String assessmentYear;
 
-    @Column(name = "statutory_due_date", nullable = false)
+    @Column(name = "statutory_due_date")
     private LocalDate statutoryDueDate;
 
     @Column(name = "internal_target_date")
     private LocalDate internalTargetDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "due_date_calculation_status", length = 50)
+    @Builder.Default
+    private com.taxoryn.module.compliance.duedate.model.DueDateCalculationStatus dueDateCalculationStatus = com.taxoryn.module.compliance.duedate.model.DueDateCalculationStatus.NOT_CONFIGURED;
+
+    @Column(name = "due_date_explanation", columnDefinition = "TEXT")
+    private String dueDateExplanation;
+
+    @Column(name = "due_date_calculated_at")
+    private Instant dueDateCalculatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "due_date_rule_type", length = 50)
+    private com.taxoryn.module.compliance.rule.model.DueDateRuleType dueDateRuleType;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -128,6 +186,14 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    /**
+     * Soft UUID reference (no JPA FK) to work_instances.id.
+     * Set when work has been generated for this obligation (Phase 29.7).
+     * Null until work generation is triggered.
+     */
+    @Column(name = "work_instance_id")
+    private UUID workInstanceId;
+
     // Legacy column mappings retained for database compatibility
     @Column(name = "due_date")
     private LocalDate dueDate;
@@ -147,6 +213,7 @@ public class ComplianceObligationEntity extends TenantAuditableEntity {
 
     @Column(name = "tds_return_id")
     private UUID tdsReturnId;
+
 
     public void setStatus(ComplianceStatus legacyStatus) {
         if (legacyStatus == null) return;

@@ -54,6 +54,10 @@ import {
   clientRelationshipsApi,
   clientTimelineApi,
   clientIntelligenceApi,
+  complianceProfileApi,
+  complianceApplicabilityApi,
+  complianceObligationsApi,
+  complianceCalendarApi,
   complianceWorkApi,
   employeeApi,
 } from '../api/endpoints';
@@ -69,6 +73,21 @@ import {
   ContactRole,
   ClientBranchType,
   ClientRelationshipType,
+  ComplianceProfileDto,
+  UpdateComplianceProfileRequest,
+  ComplianceGstRegistrationType,
+  ComplianceFilingFrequency,
+  ComplianceTdsDeductorCategory,
+  ComplianceItrCategory,
+  ClientComplianceApplicabilityDto,
+  EvaluatedRuleApplicabilityDto,
+  ApplicabilityResultState,
+  ComplianceObligationDto,
+  ComplianceObligationSummaryDto,
+  CompliancePeriodType,
+  DeadlineStatus,
+  ComplianceDeadlineDto,
+  ClientComplianceDeadlineSummaryDto,
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
@@ -181,6 +200,61 @@ export const Client360Page: React.FC = () => {
   const [recommendations, setRecommendations] = useState<ClientActionRecommendationDto[]>([]);
   const [isLoadingIntelligence, setIsLoadingIntelligence] = useState(false);
 
+  // Compliance Profile State (Phase 29.1)
+  const [complianceProfile, setComplianceProfile] = useState<ComplianceProfileDto | null>(null);
+  const [isLoadingComplianceProfile, setIsLoadingComplianceProfile] = useState(false);
+  const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
+  const [isSubmittingComplianceProfile, setIsSubmittingComplianceProfile] = useState(false);
+  const [gstApplicable, setGstApplicable] = useState(false);
+  const [gstRegistrationType, setGstRegistrationType] = useState<ComplianceGstRegistrationType>('REGULAR');
+  const [gstFilingFrequency, setGstFilingFrequency] = useState<ComplianceFilingFrequency>('MONTHLY');
+  const [gstCompositionScheme, setGstCompositionScheme] = useState(false);
+  const [gstEinvoiceApplicable, setGstEinvoiceApplicable] = useState(false);
+  const [gstEwaybillApplicable, setGstEwaybillApplicable] = useState(false);
+  const [tdsApplicable, setTdsApplicable] = useState(false);
+  const [tdsFilingFrequency, setTdsFilingFrequency] = useState<ComplianceFilingFrequency>('QUARTERLY');
+  const [tdsDeductorCategory, setTdsDeductorCategory] = useState<ComplianceTdsDeductorCategory>('COMPANY');
+  const [tdsLowerDeductionCertificate, setTdsLowerDeductionCertificate] = useState(false);
+  const [itrApplicable, setItrApplicable] = useState(false);
+  const [itrCategory, setItrCategory] = useState<ComplianceItrCategory>('COMPANY');
+  const [itrTaxAuditApplicable, setItrTaxAuditApplicable] = useState(false);
+  const [itrTransferPricingApplicable, setItrTransferPricingApplicable] = useState(false);
+  const [advanceTaxApplicable, setAdvanceTaxApplicable] = useState(false);
+  const [mcaFilingApplicable, setMcaFilingApplicable] = useState(false);
+  const [professionalTaxApplicable, setProfessionalTaxApplicable] = useState(false);
+  const [pfEsiApplicable, setPfEsiApplicable] = useState(false);
+  const [complianceNotes, setComplianceNotes] = useState('');
+
+  // Phase 29.3 Applicability State
+  const [applicabilityReport, setApplicabilityReport] = useState<ClientComplianceApplicabilityDto | null>(null);
+  const [isLoadingApplicability, setIsLoadingApplicability] = useState(false);
+  const [applicabilityDomainFilter, setApplicabilityDomainFilter] = useState('ALL');
+  const [applicabilityStatusFilter, setApplicabilityStatusFilter] = useState('ALL');
+
+  // Phase 29.4 Obligations State
+  const [obligations, setObligations] = useState<ComplianceObligationDto[]>([]);
+  const [obligationSummary, setObligationSummary] = useState<ComplianceObligationSummaryDto | null>(null);
+  const [isLoadingObligations, setIsLoadingObligations] = useState(false);
+  const [obligationDomainFilter, setObligationDomainFilter] = useState('ALL');
+  const [obligationStatusFilter, setObligationStatusFilter] = useState('ALL');
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [genPeriodType, setGenPeriodType] = useState<CompliancePeriodType>('MONTH');
+  const [genPeriodKey, setGenPeriodKey] = useState('2026-09');
+  const [isGeneratingObligations, setIsGeneratingObligations] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [targetCancelObligation, setTargetCancelObligation] = useState<ComplianceObligationDto | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [isCancellingObligation, setIsCancellingObligation] = useState(false);
+
+  // Phase 29.7 — Work Generation state
+  const [generatingWorkFor, setGeneratingWorkFor] = useState<Set<string>>(new Set());
+  const [workGenerationResults, setWorkGenerationResults] = useState<Record<string, string>>({});
+
+  // Phase 29.6 Client Deadlines & Radar State
+  const [clientDeadlines, setClientDeadlines] = useState<ComplianceDeadlineDto[]>([]);
+  const [clientDeadlineSummary, setClientDeadlineSummary] = useState<ClientComplianceDeadlineSummaryDto | null>(null);
+  const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(false);
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
@@ -191,8 +265,211 @@ export const Client360Page: React.FC = () => {
       loadRelationships();
       loadTimeline();
       loadIntelligence();
+      loadComplianceProfile();
+      loadApplicability();
+      loadObligations();
+      loadDeadlines();
     }
   }, [clientId]);
+
+  const loadDeadlines = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingDeadlines(true);
+      const [deadlinesList, summaryData] = await Promise.all([
+        complianceCalendarApi.getClientCalendar(clientId).catch(() => []),
+        complianceCalendarApi.getClientSummary(clientId).catch(() => null),
+      ]);
+      setClientDeadlines(deadlinesList || []);
+      setClientDeadlineSummary(summaryData);
+    } catch (err) {
+      console.debug('Failed to load client compliance deadlines', err);
+    } finally {
+      setIsLoadingDeadlines(false);
+    }
+  };
+
+  const loadObligations = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingObligations(true);
+      const [list, summary] = await Promise.all([
+        complianceObligationsApi.listObligations(clientId),
+        complianceObligationsApi.getSummary(clientId).catch(() => null),
+      ]);
+      setObligations(list);
+      setObligationSummary(summary);
+    } catch (err) {
+      console.debug('Failed to load compliance obligations', err);
+    } finally {
+      setIsLoadingObligations(false);
+    }
+  };
+
+  const handleGenerateObligations = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !genPeriodKey.trim()) return;
+    try {
+      setIsGeneratingObligations(true);
+      await complianceObligationsApi.generateObligations(clientId, {
+        periodType: genPeriodType,
+        periodKey: genPeriodKey.trim(),
+      });
+      setIsGenerateModalOpen(false);
+      await Promise.all([loadObligations(), loadDeadlines()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to generate compliance obligations');
+    } finally {
+      setIsGeneratingObligations(false);
+    }
+  };
+
+  const handleCompleteObligation = async (obligationId: string) => {
+    if (!clientId) return;
+    try {
+      await complianceObligationsApi.updateStatus(clientId, obligationId, {
+        status: 'COMPLETED',
+        notes: 'Marked as completed by practitioner',
+      });
+      await Promise.all([loadObligations(), loadDeadlines()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to complete obligation');
+    }
+  };
+
+  const handleCancelObligationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !targetCancelObligation || !cancellationReason.trim()) return;
+    try {
+      setIsCancellingObligation(true);
+      await complianceObligationsApi.cancelObligation(clientId, targetCancelObligation.id, {
+        cancellationReason: cancellationReason.trim(),
+      });
+      setIsCancelModalOpen(false);
+      setTargetCancelObligation(null);
+      setCancellationReason('');
+      await Promise.all([loadObligations(), loadDeadlines()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to cancel obligation');
+    } finally {
+      setIsCancellingObligation(false);
+    }
+  };
+
+  const handleRecalculateDueDate = async (obligationId: string) => {
+    if (!clientId) return;
+    try {
+      await complianceObligationsApi.recalculateObligationDueDate(clientId, obligationId);
+      await Promise.all([loadObligations(), loadDeadlines()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to recalculate statutory due date');
+    }
+  };
+
+  // Phase 29.7 — Generate Work for obligation
+  const handleGenerateWork = async (obligationId: string) => {
+    if (!clientId) return;
+    setGeneratingWorkFor(prev => new Set(prev).add(obligationId));
+    try {
+      const result = await complianceObligationsApi.generateWork(clientId, obligationId);
+      setWorkGenerationResults(prev => ({ ...prev, [obligationId]: result.status }));
+      if (result.status === 'CREATED') {
+        await loadObligations(); // refresh to show workGenerated flag
+      }
+    } catch (err: any) {
+      setWorkGenerationResults(prev => ({ ...prev, [obligationId]: 'FAILED' }));
+      console.error('Work generation failed', err);
+    } finally {
+      setGeneratingWorkFor(prev => {
+        const next = new Set(prev);
+        next.delete(obligationId);
+        return next;
+      });
+    }
+  };
+
+  const loadApplicability = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingApplicability(true);
+      const data = await complianceApplicabilityApi.getClientApplicability(clientId);
+      setApplicabilityReport(data);
+    } catch (err) {
+      console.debug('Failed to load compliance applicability', err);
+    } finally {
+      setIsLoadingApplicability(false);
+    }
+  };
+
+  const loadComplianceProfile = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingComplianceProfile(true);
+      const data = await complianceProfileApi.getProfile(clientId);
+      setComplianceProfile(data);
+      if (data) {
+        setGstApplicable(data.gstConfig?.applicable ?? false);
+        setGstRegistrationType(data.gstConfig?.registrationType ?? 'REGULAR');
+        setGstFilingFrequency(data.gstConfig?.filingFrequency ?? 'MONTHLY');
+        setGstCompositionScheme(data.gstConfig?.compositionScheme ?? false);
+        setGstEinvoiceApplicable(data.gstConfig?.einvoiceApplicable ?? false);
+        setGstEwaybillApplicable(data.gstConfig?.ewaybillApplicable ?? false);
+        setTdsApplicable(data.tdsConfig?.applicable ?? false);
+        setTdsFilingFrequency(data.tdsConfig?.filingFrequency ?? 'QUARTERLY');
+        setTdsDeductorCategory(data.tdsConfig?.deductorCategory ?? 'COMPANY');
+        setTdsLowerDeductionCertificate(data.tdsConfig?.lowerDeductionCertificate ?? false);
+        setItrApplicable(data.itrConfig?.applicable ?? false);
+        setItrCategory(data.itrConfig?.category ?? 'COMPANY');
+        setItrTaxAuditApplicable(data.itrConfig?.taxAuditApplicable ?? false);
+        setItrTransferPricingApplicable(data.itrConfig?.transferPricingApplicable ?? false);
+        setAdvanceTaxApplicable(data.otherComplianceConfig?.advanceTaxApplicable ?? false);
+        setMcaFilingApplicable(data.otherComplianceConfig?.mcaFilingApplicable ?? false);
+        setProfessionalTaxApplicable(data.otherComplianceConfig?.professionalTaxApplicable ?? false);
+        setPfEsiApplicable(data.otherComplianceConfig?.pfEsiApplicable ?? false);
+        setComplianceNotes(data.notes ?? '');
+      }
+    } catch (err: any) {
+      console.warn('Failed to load compliance profile', err);
+    } finally {
+      setIsLoadingComplianceProfile(false);
+    }
+  };
+
+  const handleSaveComplianceProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId) return;
+    try {
+      setIsSubmittingComplianceProfile(true);
+      await complianceProfileApi.updateProfile(clientId, {
+        status: 'ACTIVE',
+        gstApplicable,
+        gstRegistrationType,
+        gstFilingFrequency,
+        gstCompositionScheme,
+        gstEinvoiceApplicable,
+        gstEwaybillApplicable,
+        tdsApplicable,
+        tdsFilingFrequency,
+        tdsDeductorCategory,
+        tdsLowerDeductionCertificate,
+        itrApplicable,
+        itrCategory,
+        itrTaxAuditApplicable,
+        itrTransferPricingApplicable,
+        advanceTaxApplicable,
+        mcaFilingApplicable,
+        professionalTaxApplicable,
+        pfEsiApplicable,
+        notes: complianceNotes.trim() || undefined,
+      });
+      setIsComplianceModalOpen(false);
+      await Promise.all([loadComplianceProfile(), loadClientOverview(), loadApplicability()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update compliance profile');
+    } finally {
+      setIsSubmittingComplianceProfile(false);
+    }
+  };
 
   const loadTimeline = async (category?: string) => {
     if (!clientId) return;
@@ -891,6 +1168,75 @@ export const Client360Page: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Compliance Health & Services */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Phase 29.6: Statutory Deadlines Radar Widget */}
+              {(clientDeadlineSummary || overview?.complianceDeadlines) && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-brand-600" />
+                      <span>Statutory Compliance Deadlines & Radar</span>
+                    </h3>
+                    <button
+                      onClick={() => setActiveTab('compliance')}
+                      className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1"
+                    >
+                      <span>All Deadlines ({clientDeadlineSummary?.summary.totalActiveDeadlines ?? overview?.complianceDeadlines?.summary.totalActiveDeadlines ?? 0})</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/40">
+                      <span className="text-[10px] font-bold text-rose-700 block uppercase">🚨 Overdue</span>
+                      <p className="text-lg font-black text-rose-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.overdueCount ?? overview?.complianceDeadlines?.summary.overdueCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/40">
+                      <span className="text-[10px] font-bold text-amber-700 block uppercase">📅 Due Today</span>
+                      <p className="text-lg font-black text-amber-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.dueTodayCount ?? overview?.complianceDeadlines?.summary.dueTodayCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/40">
+                      <span className="text-[10px] font-bold text-blue-700 block uppercase">🗓️ This Week</span>
+                      <p className="text-lg font-black text-blue-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.dueThisWeekCount ?? overview?.complianceDeadlines?.summary.dueThisWeekCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/40">
+                      <span className="text-[10px] font-bold text-indigo-700 block uppercase">⏳ Upcoming</span>
+                      <p className="text-lg font-black text-indigo-700 mt-0.5">
+                        {clientDeadlineSummary?.summary.upcomingCount ?? overview?.complianceDeadlines?.summary.upcomingCount ?? 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Next Statutory Deadline Banner */}
+                  {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline) && (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Next Authoritative Deadline</span>
+                        <div className="text-xs font-bold text-slate-900">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.ruleName}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.ruleCode} • Period: {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.periodLabel || (clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.periodKey}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-black text-rose-700 font-mono block">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.statutoryDueDate}
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">
+                          {(clientDeadlineSummary?.nextDeadline || overview?.complianceDeadlines?.nextDeadline)?.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Compliance Status Cards */}
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between">
@@ -1871,6 +2217,806 @@ export const Client360Page: React.FC = () => {
         {/* 3. COMPLIANCE TAB */}
         {activeTab === 'compliance' && (
           <div className="space-y-6">
+            {/* Compliance Profile & Statutory Facts Card (Phase 29.1) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-brand-50 text-brand-600">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">
+                          Compliance Profile & Statutory Facts
+                        </h3>
+                        <span
+                          className={clsx(
+                            'text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border',
+                            complianceProfile?.status === 'ACTIVE'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : complianceProfile?.status === 'INACTIVE'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          )}
+                        >
+                          {complianceProfile?.status || 'NOT CONFIGURED'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Statutory facts, applicability parameters, and compliance evaluation baseline for {client.displayName}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {complianceProfile?.completeness && (
+                    <div className="text-right hidden md:block">
+                      <div className="flex items-center gap-2 justify-end">
+                        <span className="text-[11px] font-semibold text-slate-500">Readiness:</span>
+                        <span className="text-xs font-black text-slate-900">
+                          {complianceProfile.completeness.readinessScore}%
+                        </span>
+                      </div>
+                      <div className="w-28 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+                        <div
+                          className={clsx(
+                            'h-full rounded-full transition-all',
+                            complianceProfile.completeness.readinessScore >= 80
+                              ? 'bg-emerald-500'
+                              : complianceProfile.completeness.readinessScore >= 50
+                              ? 'bg-amber-500'
+                              : 'bg-rose-500'
+                          )}
+                          style={{ width: `${complianceProfile.completeness.readinessScore}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setIsComplianceModalOpen(true)}
+                  >
+                    Configure Profile
+                  </Button>
+                </div>
+              </div>
+
+              {/* Statutory Facts Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* GST Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">GST Configuration</span>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                        complianceProfile?.gstConfig?.applicable
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-200 text-slate-600'
+                      )}
+                    >
+                      {complianceProfile?.gstConfig?.applicable ? 'Applicable' : 'Exempt / NA'}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Type:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.registrationType || 'REGULAR'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Frequency:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.filingFrequency || 'MONTHLY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">E-Invoice:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.einvoiceApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">E-Way Bill:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.gstConfig?.ewaybillApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* TDS Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">TDS / TCS Configuration</span>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                        complianceProfile?.tdsConfig?.applicable
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-200 text-slate-600'
+                      )}
+                    >
+                      {complianceProfile?.tdsConfig?.applicable ? 'Applicable' : 'Exempt / NA'}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Category:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.tdsConfig?.deductorCategory || 'COMPANY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Frequency:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.tdsConfig?.filingFrequency || 'QUARTERLY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Lower Rate Cert:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.tdsConfig?.lowerDeductionCertificate ? 'Active' : 'None'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ITR Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Income Tax (ITR)</span>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                        complianceProfile?.itrConfig?.applicable
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-200 text-slate-600'
+                      )}
+                    >
+                      {complianceProfile?.itrConfig?.applicable ? 'Applicable' : 'Exempt / NA'}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">ITR Return:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.itrConfig?.category || 'COMPANY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Tax Audit (44AB):</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.itrConfig?.taxAuditApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Transfer Pricing:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.itrConfig?.transferPricingApplicable ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Other Statutory Facts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Statutory & Regulatory</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-600">
+                      Corporate
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1.5 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Advance Tax:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.otherComplianceConfig?.advanceTaxApplicable ? 'Mandatory' : 'Optional'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">MCA / RoC:</span>
+                      <span className="font-semibold text-slate-800">
+                        {complianceProfile?.otherComplianceConfig?.mcaFilingApplicable ? 'Applicable' : 'NA'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">PT / PF / ESI:</span>
+                      <span className="font-semibold text-slate-800">
+                        {[
+                          complianceProfile?.otherComplianceConfig?.professionalTaxApplicable && 'PT',
+                          complianceProfile?.otherComplianceConfig?.pfEsiApplicable && 'PF/ESI',
+                        ]
+                          .filter(Boolean)
+                          .join(', ') || 'None'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Missing facts / Profile Readiness Notice */}
+              {complianceProfile?.completeness?.pendingItems &&
+                complianceProfile.completeness.pendingItems.length > 0 && (
+                  <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-800">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Missing Compliance Baseline Data: </span>
+                      <span>
+                        Complete these facts to reach 100% readiness:{' '}
+                        {complianceProfile.completeness.pendingItems.join(', ')}.
+                      </span>
+                    </div>
+                  </div>
+                )}
+            </div>
+
+            {/* Phase 29.3: Compliance Rule Applicability Explorer */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Evaluated Statutory Rule Applicability
+                    </h3>
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
+                      Phase 29.3 Engine
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Deterministic evaluation of statutory and practice rules against {client.displayName}'s compliance profile.
+                  </p>
+                </div>
+
+                {/* Metric Badges */}
+                {applicabilityReport?.summary && (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      <span>Applicable: {applicabilityReport.summary.applicableCount}</span>
+                    </div>
+                    {applicabilityReport.summary.insufficientDataCount > 0 && (
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span>Needs Config: {applicabilityReport.summary.insufficientDataCount}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+                      <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                      <span>Not Applicable: {applicabilityReport.summary.notApplicableCount}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Domain Filter */}
+                <div className="flex flex-wrap gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                  {['ALL', 'GST', 'TDS', 'INCOME_TAX', 'MCA_ROC', 'STATUTORY_AUDIT', 'PAYROLL_LABOUR'].map((dom) => (
+                    <button
+                      key={dom}
+                      type="button"
+                      onClick={() => setApplicabilityDomainFilter(dom)}
+                      className={clsx(
+                        'px-3 py-1 rounded-lg text-xs font-bold transition-colors',
+                        applicabilityDomainFilter === dom
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                      )}
+                    >
+                      {dom === 'ALL' ? 'All Domains' : dom.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                  {['ALL', 'APPLICABLE', 'INSUFFICIENT_DATA', 'NOT_APPLICABLE'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setApplicabilityStatusFilter(st)}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-lg text-xs font-bold transition-colors',
+                        applicabilityStatusFilter === st
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                      )}
+                    >
+                      {st === 'ALL' ? 'All Results' : st === 'APPLICABLE' ? 'Applicable' : st === 'INSUFFICIENT_DATA' ? 'Needs Config' : 'Not Applicable'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Evaluated Rules Cards Grid */}
+              {isLoadingApplicability ? (
+                <div className="text-center py-8 text-xs text-slate-500">Evaluating statutory compliance rules...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {applicabilityReport?.rules
+                    ?.filter((r) => applicabilityDomainFilter === 'ALL' || r.domain === applicabilityDomainFilter)
+                    ?.filter((r) => applicabilityStatusFilter === 'ALL' || r.result === applicabilityStatusFilter)
+                    ?.map((rule) => (
+                      <div
+                        key={rule.ruleCode}
+                        className={clsx(
+                          'p-4 rounded-xl border space-y-2.5 transition-all',
+                          rule.result === 'APPLICABLE'
+                            ? 'bg-white border-emerald-200 hover:border-emerald-300 shadow-2xs'
+                            : rule.result === 'INSUFFICIENT_DATA'
+                            ? 'bg-amber-50/40 border-amber-200 hover:border-amber-300'
+                            : 'bg-slate-50/60 border-slate-200 opacity-80'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-mono font-bold text-slate-500">
+                              {rule.ruleCode}
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-900 line-clamp-1">
+                              {rule.ruleName}
+                            </h4>
+                          </div>
+                          <span
+                            className={clsx(
+                              'text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border',
+                              rule.result === 'APPLICABLE'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : rule.result === 'INSUFFICIENT_DATA'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            )}
+                          >
+                            {rule.result === 'APPLICABLE' ? '✓ Applicable' : rule.result === 'INSUFFICIENT_DATA' ? '⚠ Needs Config' : '✗ Not Applicable'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                          <span className="font-semibold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700">
+                            {rule.domain}
+                          </span>
+                          <span>•</span>
+                          <span>{rule.frequency}</span>
+                          {rule.statutoryFormCode && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono">{rule.statutoryFormCode}</span>
+                            </>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                          {rule.reason}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Statutory Compliance Obligations Engine (Phase 29.4) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Statutory Compliance Obligations
+                    </h3>
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Phase 29.4 Engine
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Deterministic compliance obligation instances materialized from applicable statutory rules for {client.displayName}.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                    onClick={() => setIsGenerateModalOpen(true)}
+                  >
+                    Generate Period Obligations
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<RefreshCw className={clsx('w-3.5 h-3.5', isLoadingObligations && 'animate-spin')} />}
+                    onClick={loadObligations}
+                  >
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              {/* Obligation Metrics Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-500 block">Total Tracked</span>
+                  <span className="text-xl font-bold text-slate-900">{obligationSummary?.totalCount ?? obligations.length}</span>
+                </div>
+                <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <span className="text-[11px] font-semibold text-blue-700 block">Open / Upcoming</span>
+                  <span className="text-xl font-bold text-blue-900">{obligationSummary?.openCount ?? obligations.filter(o => o.status === 'UPCOMING' || o.status === 'READY').length}</span>
+                </div>
+                <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                  <span className="text-[11px] font-semibold text-amber-700 block">In Progress</span>
+                  <span className="text-xl font-bold text-amber-900">{obligationSummary?.inProgressCount ?? obligations.filter(o => o.status === 'IN_PROGRESS' || o.status === 'WAITING_FOR_CLIENT').length}</span>
+                </div>
+                <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                  <span className="text-[11px] font-semibold text-emerald-700 block">Completed</span>
+                  <span className="text-xl font-bold text-emerald-900">{obligationSummary?.completedCount ?? obligations.filter(o => o.status === 'COMPLETED').length}</span>
+                </div>
+                <div className="p-3 bg-slate-100/70 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-semibold text-slate-500 block">Cancelled</span>
+                  <span className="text-xl font-bold text-slate-700">{obligationSummary?.cancelledCount ?? obligations.filter(o => o.status === 'CANCELLED').length}</span>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-500 mr-1">Domain:</span>
+                  {['ALL', 'GST', 'TDS', 'INCOME_TAX', 'MCA_ROC', 'PAYROLL_LABOUR', 'OTHER'].map(domain => (
+                    <button
+                      key={domain}
+                      onClick={() => setObligationDomainFilter(domain)}
+                      className={clsx(
+                        'px-2.5 py-1 text-xs font-medium rounded-lg transition-colors',
+                        obligationDomainFilter === domain
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}
+                    >
+                      {domain}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-500 mr-1">Status:</span>
+                  {['ALL', 'UPCOMING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(st => (
+                    <button
+                      key={st}
+                      onClick={() => setObligationStatusFilter(st)}
+                      className={clsx(
+                        'px-2.5 py-1 text-xs font-medium rounded-lg transition-colors',
+                        obligationStatusFilter === st
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Obligations Cards Grid */}
+              {isLoadingObligations ? (
+                <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Loading obligations...
+                </div>
+              ) : obligations.length === 0 ? (
+                <div className="py-10 text-center border-2 border-dashed border-slate-200 rounded-xl">
+                  <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-700">No Compliance Obligations Materialized</p>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 mb-4">
+                    Click &quot;Generate Period Obligations&quot; above to materialize obligations for applicable statutory rules in a specific period (e.g. 2026-09).
+                  </p>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                    onClick={() => setIsGenerateModalOpen(true)}
+                  >
+                    Generate For Period
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {obligations
+                    .filter(ob => obligationDomainFilter === 'ALL' || ob.domain === obligationDomainFilter)
+                    .filter(ob => obligationStatusFilter === 'ALL' || ob.status === obligationStatusFilter)
+                    .map(obligation => (
+                      <div
+                        key={obligation.id}
+                        className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-2xs space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                              {obligation.title || obligation.ruleNameSnapshot}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                              <span className="font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                                {obligation.domain}
+                              </span>
+                              <span className="font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {obligation.periodKey || obligation.periodLabel}
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-400">
+                                {obligation.ruleCode} v{obligation.ruleVersion || 1}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span className={clsx(
+                            'text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider',
+                            obligation.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
+                            obligation.status === 'CANCELLED' ? 'bg-slate-200 text-slate-700' :
+                            obligation.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-800' :
+                            'bg-blue-100 text-blue-800'
+                          )}>
+                            {obligation.status}
+                          </span>
+                        </div>
+
+                        {/* Due Date & Period Context (Phase 29.5) */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <div>
+                              <span className="font-semibold text-slate-700">Due Date: </span>
+                              {obligation.statutoryDueDate || obligation.dueDate ? (
+                                <span className="font-mono font-bold text-slate-900">
+                                  {obligation.statutoryDueDate || obligation.dueDate}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  <AlertCircle className="w-3 h-3" /> Due date unconfigured
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {obligation.dueDateCalculationStatus && obligation.dueDateCalculationStatus !== 'CALCULATED' && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100/80 text-amber-800">
+                              {obligation.dueDateCalculationStatus.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                        </div>
+
+                        {obligation.dueDateExplanation ? (
+                          <p className="text-[11px] text-slate-500 italic px-1">
+                            {obligation.dueDateExplanation}
+                          </p>
+                        ) : !obligation.statutoryDueDate && !obligation.dueDate ? (
+                          <p className="text-[11px] text-amber-600 italic px-1">
+                            Due date configuration is not available for this rule.
+                          </p>
+                        ) : null}
+
+                        {obligation.applicabilityReason && (
+                          <p className="text-[11px] text-slate-600 bg-slate-50/70 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                            <span className="font-semibold text-slate-700">Snapshot Rationale: </span>
+                            {obligation.applicabilityReason}
+                          </p>
+                        )}
+
+                        {obligation.cancellationReason && (
+                          <p className="text-[11px] text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">
+                            <span className="font-semibold">Cancelled Reason: </span>
+                            {obligation.cancellationReason}
+                          </p>
+                        )}
+
+                        {/* Obligation Actions */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                          {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              leftIcon={<RefreshCw className="w-3 h-3 text-slate-400" />}
+                              onClick={() => handleRecalculateDueDate(obligation.id)}
+                              title="Recalculate authoritative due date using latest catalog rules"
+                            >
+                              <span className="text-[11px]">Recalculate Due Date</span>
+                            </Button>
+                          ) : <div />}
+
+                          <div className="flex items-center gap-2 flex-wrap justify-end">
+                            {/* Phase 29.7 — Generate Work */}
+                            {obligation.workGenerated && obligation.workInstanceId ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Work Generated
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'TEMPLATE_NOT_CONFIGURED' || workGenerationResults[obligation.id] === 'TEMPLATE_NOT_FOUND' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5" title="Set defaultWorkTemplateCode on the compliance rule">
+                                <AlertTriangle className="w-3 h-3" />
+                                ⚠ Work Template Not Configured
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'ENGAGEMENT_NOT_CONFIGURED' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5" title="Create an active engagement for this client and service">
+                                <AlertTriangle className="w-3 h-3" />
+                                ⚠ Engagement Not Configured
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'ALREADY_EXISTS' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Work Already Exists
+                              </span>
+                            ) : workGenerationResults[obligation.id] === 'FAILED' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
+                                <AlertTriangle className="w-3 h-3" />
+                                Generation Failed
+                              </span>
+                            ) : obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && obligation.status !== 'FILED' ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleGenerateWork(obligation.id)}
+                                disabled={generatingWorkFor.has(obligation.id)}
+                                leftIcon={<Layers className="w-3 h-3" />}
+                                title="Generate a Work Instance with tasks from the compliance rule's work template"
+                              >
+                                {generatingWorkFor.has(obligation.id) ? 'Generating…' : 'Generate Work'}
+                              </Button>
+                            ) : null}
+
+                            {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setTargetCancelObligation(obligation);
+                                    setIsCancelModalOpen(true);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleCompleteObligation(obligation.id)}
+                                >
+                                  Mark Completed
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal: Generate Obligations */}
+            <Modal
+              isOpen={isGenerateModalOpen}
+              onClose={() => setIsGenerateModalOpen(false)}
+              title="Generate Period Compliance Obligations"
+            >
+              <form onSubmit={handleGenerateObligations} className="space-y-4">
+                <p className="text-xs text-slate-500">
+                  Materializes compliance obligations for all statutory rules evaluated as <strong>APPLICABLE</strong> for {client.displayName}. Existing obligations for the same period will be returned idempotently without duplication.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Period Type</label>
+                  <select
+                    value={genPeriodType}
+                    onChange={e => setGenPeriodType(e.target.value as CompliancePeriodType)}
+                    className="w-full text-xs rounded-lg border border-slate-300 p-2 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="MONTH">Month (e.g. 2026-09)</option>
+                    <option value="QUARTER">Quarter (e.g. 2026-Q2)</option>
+                    <option value="FINANCIAL_YEAR">Financial Year (e.g. 2026-27)</option>
+                    <option value="ASSESSMENT_YEAR">Assessment Year (e.g. 2027-28)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Period Key</label>
+                  <input
+                    type="text"
+                    value={genPeriodKey}
+                    onChange={e => setGenPeriodKey(e.target.value)}
+                    placeholder={genPeriodType === 'MONTH' ? '2026-09' : genPeriodType === 'QUARTER' ? '2026-Q2' : '2026-27'}
+                    className="w-full text-xs rounded-lg border border-slate-300 p-2 focus:ring-1 focus:ring-indigo-500 font-mono"
+                    required
+                  />
+                  <span className="text-[11px] text-slate-400">
+                    Format: {genPeriodType === 'MONTH' ? 'YYYY-MM (01 to 12)' : genPeriodType === 'QUARTER' ? 'YYYY-QX (Q1 to Q4)' : 'YYYY-YY (e.g. 2026-27)'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsGenerateModalOpen(false)}
+                    disabled={isGeneratingObligations}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isGeneratingObligations}
+                    leftIcon={isGeneratingObligations ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  >
+                    {isGeneratingObligations ? 'Generating...' : 'Generate Obligations'}
+                  </Button>
+                </div>
+              </form>
+            </Modal>
+
+            {/* Modal: Cancel Obligation */}
+            <Modal
+              isOpen={isCancelModalOpen}
+              onClose={() => {
+                setIsCancelModalOpen(false);
+                setTargetCancelObligation(null);
+                setCancellationReason('');
+              }}
+              title="Cancel Compliance Obligation"
+            >
+              <form onSubmit={handleCancelObligationSubmit} className="space-y-4">
+                <p className="text-xs text-slate-500">
+                  Cancelling will preserve this obligation record in historical audit logs while marking its status as <strong>CANCELLED</strong>.
+                </p>
+
+                {targetCancelObligation && (
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1">
+                    <p className="font-bold text-slate-900">{targetCancelObligation.title || targetCancelObligation.ruleNameSnapshot}</p>
+                    <p className="text-slate-500">Period: <span className="font-mono text-indigo-700">{targetCancelObligation.periodKey}</span> | Domain: {targetCancelObligation.domain}</p>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Cancellation Reason (Mandatory)</label>
+                  <textarea
+                    rows={3}
+                    value={cancellationReason}
+                    onChange={e => setCancellationReason(e.target.value)}
+                    placeholder="e.g. Client opted for composition scheme, or business branch was surrendered..."
+                    className="w-full text-xs rounded-lg border border-slate-300 p-2 focus:ring-1 focus:ring-red-500"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsCancelModalOpen(false);
+                      setTargetCancelObligation(null);
+                      setCancellationReason('');
+                    }}
+                    disabled={isCancellingObligation}
+                  >
+                    Keep Obligation
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isCancellingObligation || !cancellationReason.trim()}
+                  >
+                    {isCancellingObligation ? 'Cancelling...' : 'Confirm Cancellation'}
+                  </Button>
+                </div>
+              </form>
+            </Modal>
+
             {/* GST Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -3046,6 +4192,292 @@ export const Client360Page: React.FC = () => {
               disabled={!newRelationshipTargetId}
             >
               Establish Link
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Compliance Profile Modal (Phase 29.1) */}
+      <Modal
+        isOpen={isComplianceModalOpen}
+        onClose={() => setIsComplianceModalOpen(false)}
+        title="Configure Compliance Profile"
+        subtitle={`Statutory configuration and applicability facts for ${client.displayName}`}
+      >
+        <form onSubmit={handleSaveComplianceProfile} className="space-y-5">
+          {/* GST Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={gstApplicable}
+                  onChange={(e) => setGstApplicable(e.target.checked)}
+                  className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+                />
+                <span>GST Applicable</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">Goods & Services Tax</span>
+            </div>
+
+            {gstApplicable && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Registration Type
+                  </label>
+                  <select
+                    value={gstRegistrationType}
+                    onChange={(e) => setGstRegistrationType(e.target.value as ComplianceGstRegistrationType)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="REGULAR">Regular Taxpayer</option>
+                    <option value="COMPOSITION">Composition Scheme</option>
+                    <option value="ISD">Input Service Distributor (ISD)</option>
+                    <option value="CASUAL">Casual Taxable Person</option>
+                    <option value="NON_RESIDENT">Non-Resident Taxable Person</option>
+                    <option value="TDS_TCS">TDS / TCS Deductor</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Filing Frequency
+                  </label>
+                  <select
+                    value={gstFilingFrequency}
+                    onChange={(e) => setGstFilingFrequency(e.target.value as ComplianceFilingFrequency)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="MONTHLY">Monthly (GSTR-1 / 3B)</option>
+                    <option value="QUARTERLY">Quarterly (QRMP)</option>
+                    <option value="ANNUAL">Annual Only</option>
+                    <option value="EVENT_BASED">Event Based</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 flex flex-wrap gap-4 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={gstCompositionScheme}
+                      onChange={(e) => setGstCompositionScheme(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Composition Scheme</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={gstEinvoiceApplicable}
+                      onChange={(e) => setGstEinvoiceApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>E-Invoicing Applicable</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={gstEwaybillApplicable}
+                      onChange={(e) => setGstEwaybillApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>E-Way Bill Enabled</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* TDS / TCS Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tdsApplicable}
+                  onChange={(e) => setTdsApplicable(e.target.checked)}
+                  className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+                />
+                <span>TDS / TCS Applicable</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">Tax Deducted at Source</span>
+            </div>
+
+            {tdsApplicable && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Deductor Category
+                  </label>
+                  <select
+                    value={tdsDeductorCategory}
+                    onChange={(e) => setTdsDeductorCategory(e.target.value as ComplianceTdsDeductorCategory)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="COMPANY">Company / Corporate</option>
+                    <option value="INDIVIDUAL_HUF">Individual / HUF</option>
+                    <option value="FIRM">Partnership / LLP</option>
+                    <option value="GOVERNMENT">Government / Statutory</option>
+                    <option value="TRUST">Trust / Society</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Filing Frequency
+                  </label>
+                  <select
+                    value={tdsFilingFrequency}
+                    onChange={(e) => setTdsFilingFrequency(e.target.value as ComplianceFilingFrequency)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="QUARTERLY">Quarterly (24Q / 26Q / 27Q)</option>
+                    <option value="MONTHLY">Monthly</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tdsLowerDeductionCertificate}
+                      onChange={(e) => setTdsLowerDeductionCertificate(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Lower / Nil Deduction Certificate Active (Sec 197)</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Income Tax Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={itrApplicable}
+                  onChange={(e) => setItrApplicable(e.target.checked)}
+                  className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-brand-500"
+                />
+                <span>Income Tax (ITR) Applicable</span>
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">Direct Taxes</span>
+            </div>
+
+            {itrApplicable && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    ITR Classification Form
+                  </label>
+                  <select
+                    value={itrCategory}
+                    onChange={(e) => setItrCategory(e.target.value as ComplianceItrCategory)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="INDIVIDUAL">Individual / Salaried (ITR-1 / 2)</option>
+                    <option value="PROPRIETORSHIP">Proprietorship / Business (ITR-3 / 4)</option>
+                    <option value="PARTNERSHIP_LLP">Partnership / LLP (ITR-5)</option>
+                    <option value="COMPANY">Company / Corporate (ITR-6)</option>
+                    <option value="TRUST_NGO">Trust / NGO / Society (ITR-7)</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 flex flex-wrap gap-4 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={itrTaxAuditApplicable}
+                      onChange={(e) => setItrTaxAuditApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Tax Audit u/s 44AB Mandatory</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={itrTransferPricingApplicable}
+                      onChange={(e) => setItrTransferPricingApplicable(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                    />
+                    <span>Transfer Pricing Audit u/s 92E</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Other Statutory Configuration */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <span className="text-xs font-bold text-slate-900 block">
+              Other Statutory & Compliance Flags
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={advanceTaxApplicable}
+                  onChange={(e) => setAdvanceTaxApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>Advance Tax Installments</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={mcaFilingApplicable}
+                  onChange={(e) => setMcaFilingApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>MCA / RoC Annual Filings (AOC-4, MGT-7)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={professionalTaxApplicable}
+                  onChange={(e) => setProfessionalTaxApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>State Professional Tax (PT)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pfEsiApplicable}
+                  onChange={(e) => setPfEsiApplicable(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-brand-600 border-slate-300"
+                />
+                <span>EPFO & ESIC Compliance</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Compliance Notes & Observations
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Applicable turnover crossed ₹10 Cr in FY 24-25; Section 44AB applicable."
+              value={complianceNotes}
+              onChange={(e) => setComplianceNotes(e.target.value)}
+              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setIsComplianceModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isSubmittingComplianceProfile}>
+              Save Compliance Profile
             </Button>
           </div>
         </form>

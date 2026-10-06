@@ -27,4 +27,10 @@ public interface WorkInstanceRepository extends JpaRepository<WorkInstanceEntity
     );
 
     long countByOrganizationIdAndEngagementId(UUID organizationId, UUID engagementId);
+
+    // Phase 29.7 — Compliance Work Generation
+    Optional<WorkInstanceEntity> findByOrganizationIdAndComplianceObligationId(UUID organizationId, UUID complianceObligationId);
+
+    boolean existsByOrganizationIdAndComplianceObligationId(UUID organizationId, UUID complianceObligationId);
 }
+

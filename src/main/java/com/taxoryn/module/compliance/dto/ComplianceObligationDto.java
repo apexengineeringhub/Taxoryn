@@ -62,6 +62,42 @@ public class ComplianceObligationDto {
     @Schema(description = "Associated Rule ID")
     private UUID ruleId;
 
+    @Schema(description = "Rule code from compliance rule catalog", example = "GST_GSTR3B_MONTHLY")
+    private String ruleCode;
+
+    @Schema(description = "Rule version", example = "1")
+    private Integer ruleVersion;
+
+    @Schema(description = "Snapshot of rule name at generation time", example = "GSTR-3B Monthly Return & Tax Payment")
+    private String ruleNameSnapshot;
+
+    @Schema(description = "Statutory domain (e.g. GST, TDS, INCOME_TAX, ROC_MCA)", example = "GST")
+    private com.taxoryn.module.compliance.rule.model.ComplianceRuleDomain domain;
+
+    @Schema(description = "Compliance period type (e.g. MONTH, QUARTER, FINANCIAL_YEAR)", example = "MONTH")
+    private com.taxoryn.module.compliance.rule.model.CompliancePeriodType periodType;
+
+    @Schema(description = "Deterministic period key (e.g. 2026-09, 2026-Q2, 2026-27)", example = "2026-09")
+    private String periodKey;
+
+    @Schema(description = "Applicability result state at obligation generation", example = "APPLICABLE")
+    private com.taxoryn.module.compliance.applicability.model.ApplicabilityResultState applicabilityState;
+
+    @Schema(description = "Explanation rationale why this obligation applies")
+    private String applicabilityReason;
+
+    @Schema(description = "Timestamp when obligation was generated")
+    private Instant generatedAt;
+
+    @Schema(description = "Timestamp when obligation was cancelled")
+    private Instant cancelledAt;
+
+    @Schema(description = "User who cancelled the obligation")
+    private String cancelledBy;
+
+    @Schema(description = "Business reason for cancellation")
+    private String cancellationReason;
+
     @Schema(description = "Obligation Type", example = "GST_RETURN")
     private ComplianceObligationType obligationType;
 
@@ -85,6 +121,18 @@ public class ComplianceObligationDto {
 
     @Schema(description = "Internal Practice Target Date", example = "2026-08-17")
     private LocalDate internalTargetDate;
+
+    @Schema(description = "Due date calculation status", example = "CALCULATED")
+    private String dueDateCalculationStatus;
+
+    @Schema(description = "Due date calculation explanation", example = "20th of following month")
+    private String dueDateExplanation;
+
+    @Schema(description = "Timestamp when due date was calculated")
+    private Instant dueDateCalculatedAt;
+
+    @Schema(description = "Due date rule strategy applied", example = "DAY_OF_FOLLOWING_MONTH")
+    private String dueDateRuleType;
 
     @Schema(description = "Compliance status", example = "IN_PROGRESS")
     private ComplianceObligationStatus status;
@@ -154,4 +202,12 @@ public class ComplianceObligationDto {
 
     @Schema(description = "Updated timestamp")
     private Instant updatedAt;
+
+    // Phase 29.7 — Work Generation traceability
+    @Schema(description = "Work Instance ID generated for this obligation (null if not yet generated)", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+    private UUID workInstanceId;
+
+    @Schema(description = "Whether a Work Instance has been generated for this obligation", example = "true")
+    private boolean workGenerated;
 }
+
