@@ -878,6 +878,7 @@ export interface Client360Overview {
   keyBranches?: ClientBranchDto[];
   complianceProfile?: ComplianceProfileSummaryDto;
   complianceApplicability?: ComplianceApplicabilitySummaryDto;
+  complianceObligations?: ComplianceObligationSummaryDto;
 }
 
 export type ContactRole =
@@ -4922,19 +4923,32 @@ export interface ComplianceObligationItem {
   clientDisplayName?: string;
   clientPan?: string;
   clientGstin?: string;
+  ruleId?: string;
+  ruleCode?: string;
+  ruleVersion?: number;
+  ruleNameSnapshot?: string;
+  domain?: ComplianceRuleDomain;
+  periodType?: CompliancePeriodType;
+  periodKey?: string;
+  applicabilityState?: ApplicabilityResultState;
+  applicabilityReason?: string;
+  generatedAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
   clientServiceId?: string;
   servicePeriodId?: string;
   workflowId?: string;
-  obligationType: ComplianceObligationType;
+  obligationType?: ComplianceObligationType;
   title: string;
   description?: string;
   periodLabel?: string;
   financialYear?: string;
   assessmentYear?: string;
-  statutoryDueDate: string;
+  statutoryDueDate?: string;
   internalTargetDate?: string;
   status: ComplianceObligationStatus;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   assignedEmployeeEmail?: string;
@@ -6554,3 +6568,39 @@ export interface ClientComplianceApplicabilityDto {
   rules: EvaluatedRuleApplicabilityDto[];
   evaluatedAt: string;
 }
+
+// ==============================================================================
+// Phase 29.4: Compliance Obligation Engine Types
+// ==============================================================================
+
+export interface GenerateObligationsRequest {
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  domain?: ComplianceRuleDomain;
+  ruleCode?: string;
+}
+
+export interface GeneratedObligationsResponseDto {
+  clientId: string;
+  periodType: CompliancePeriodType;
+  periodKey: string;
+  totalCount: number;
+  createdCount: number;
+  existingCount: number;
+  obligations: ComplianceObligationDto[];
+}
+
+export interface CancelObligationRequest {
+  cancellationReason: string;
+}
+
+export interface ComplianceObligationSummaryDto {
+  totalCount: number;
+  openCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  byDomain: Record<string, number>;
+  byStatus: Record<string, number>;
+}
+

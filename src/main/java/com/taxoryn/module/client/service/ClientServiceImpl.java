@@ -162,6 +162,10 @@ public class ClientServiceImpl implements ClientService {
     @org.springframework.context.annotation.Lazy
     private com.taxoryn.module.compliance.applicability.service.ComplianceApplicabilityService complianceApplicabilityService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.taxoryn.module.compliance.obligation.service.ComplianceObligationService complianceObligationService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public void setClientLifecycleService(@org.springframework.context.annotation.Lazy ClientLifecycleService clientLifecycleService) {
         this.clientLifecycleService = clientLifecycleService;
@@ -1735,6 +1739,15 @@ public class ClientServiceImpl implements ClientService {
             }
         }
 
+        com.taxoryn.module.compliance.obligation.dto.ComplianceObligationSummaryDto complianceObligationSummary = null;
+        if (complianceObligationService != null) {
+            try {
+                complianceObligationSummary = complianceObligationService.getClientObligationSummary(clientId);
+            } catch (Exception ex) {
+                log.debug("Could not resolve compliance obligation summary for client {}: {}", clientId, ex.getMessage());
+            }
+        }
+
         return com.taxoryn.module.client.dto.Client360Dto.builder()
                 .client(clientDto)
                 .identifiers(statutory)
@@ -1765,6 +1778,7 @@ public class ClientServiceImpl implements ClientService {
                 .complianceSummary(overview.getComplianceSummary())
                 .complianceProfile(complianceProfileSummary)
                 .complianceApplicability(complianceApplicabilitySummary)
+                .complianceObligations(complianceObligationSummary)
                 .documentsSummary(overview.getDocumentsSummary())
                 .docRequestsSummary(overview.getDocRequestsSummary())
                 .billingSummary(overview.getBillingSummary())

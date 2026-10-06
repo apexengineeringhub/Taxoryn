@@ -35,9 +35,22 @@ public interface ComplianceObligationRepository extends JpaRepository<Compliance
 
     Optional<ComplianceObligationEntity> findByOrganizationIdAndItrReturnId(UUID organizationId, UUID itrReturnId);
 
-    Optional<ComplianceObligationEntity> findByOrganizationIdAndTdsReturnId(UUID organizationId, UUID tdsReturnId);
+    Optional<ComplianceObligationEntity> findByOrganizationIdAndClientIdAndRuleCodeAndRuleVersionAndPeriodTypeAndPeriodKey(
+            UUID organizationId, UUID clientId, String ruleCode, Integer ruleVersion, com.taxoryn.module.compliance.rule.model.CompliancePeriodType periodType, String periodKey);
+
+    Optional<ComplianceObligationEntity> findByOrganizationIdAndClientIdAndRuleCodeAndPeriodKey(
+            UUID organizationId, UUID clientId, String ruleCode, String periodKey);
+
+    List<ComplianceObligationEntity> findByOrganizationIdAndClientIdAndPeriodTypeAndPeriodKey(
+            UUID organizationId, UUID clientId, com.taxoryn.module.compliance.rule.model.CompliancePeriodType periodType, String periodKey);
+
+    long countByOrganizationIdAndClientIdAndStatus(UUID organizationId, UUID clientId, ComplianceObligationStatus status);
+
+    long countByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
 
     List<ComplianceObligationEntity> findAllByOrganizationIdAndClientId(UUID organizationId, UUID clientId);
+
+    List<ComplianceObligationEntity> findAllByOrganizationIdAndClientId(UUID organizationId, UUID clientId, org.springframework.data.domain.Sort sort);
 
     List<ComplianceObligationEntity> findAllByOrganizationIdAndClientServiceId(UUID organizationId, UUID clientServiceId);
 

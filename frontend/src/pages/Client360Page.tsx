@@ -56,6 +56,7 @@ import {
   clientIntelligenceApi,
   complianceProfileApi,
   complianceApplicabilityApi,
+  complianceObligationsApi,
   complianceWorkApi,
   employeeApi,
 } from '../api/endpoints';
@@ -80,6 +81,9 @@ import {
   ClientComplianceApplicabilityDto,
   EvaluatedRuleApplicabilityDto,
   ApplicabilityResultState,
+  ComplianceObligationDto,
+  ComplianceObligationSummaryDto,
+  CompliancePeriodType,
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
@@ -223,6 +227,21 @@ export const Client360Page: React.FC = () => {
   const [applicabilityDomainFilter, setApplicabilityDomainFilter] = useState('ALL');
   const [applicabilityStatusFilter, setApplicabilityStatusFilter] = useState('ALL');
 
+  // Phase 29.4 Obligations State
+  const [obligations, setObligations] = useState<ComplianceObligationDto[]>([]);
+  const [obligationSummary, setObligationSummary] = useState<ComplianceObligationSummaryDto | null>(null);
+  const [isLoadingObligations, setIsLoadingObligations] = useState(false);
+  const [obligationDomainFilter, setObligationDomainFilter] = useState('ALL');
+  const [obligationStatusFilter, setObligationStatusFilter] = useState('ALL');
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [genPeriodType, setGenPeriodType] = useState<CompliancePeriodType>('MONTH');
+  const [genPeriodKey, setGenPeriodKey] = useState('2026-09');
+  const [isGeneratingObligations, setIsGeneratingObligations] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [targetCancelObligation, setTargetCancelObligation] = useState<ComplianceObligationDto | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [isCancellingObligation, setIsCancellingObligation] = useState(false);
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
@@ -235,8 +254,76 @@ export const Client360Page: React.FC = () => {
       loadIntelligence();
       loadComplianceProfile();
       loadApplicability();
+      loadObligations();
     }
   }, [clientId]);
+
+  const loadObligations = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingObligations(true);
+      const [list, summary] = await Promise.all([
+        complianceObligationsApi.listObligations(clientId),
+        complianceObligationsApi.getSummary(clientId).catch(() => null),
+      ]);
+      setObligations(list);
+      setObligationSummary(summary);
+    } catch (err) {
+      console.debug('Failed to load compliance obligations', err);
+    } finally {
+      setIsLoadingObligations(false);
+    }
+  };
+
+  const handleGenerateObligations = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !genPeriodKey.trim()) return;
+    try {
+      setIsGeneratingObligations(true);
+      await complianceObligationsApi.generateObligations(clientId, {
+        periodType: genPeriodType,
+        periodKey: genPeriodKey.trim(),
+      });
+      setIsGenerateModalOpen(false);
+      await loadObligations();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to generate compliance obligations');
+    } finally {
+      setIsGeneratingObligations(false);
+    }
+  };
+
+  const handleCompleteObligation = async (obligationId: string) => {
+    if (!clientId) return;
+    try {
+      await complianceObligationsApi.updateStatus(clientId, obligationId, {
+        status: 'COMPLETED',
+        notes: 'Marked as completed by practitioner',
+      });
+      await loadObligations();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to complete obligation');
+    }
+  };
+
+  const handleCancelObligationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !targetCancelObligation || !cancellationReason.trim()) return;
+    try {
+      setIsCancellingObligation(true);
+      await complianceObligationsApi.cancelObligation(clientId, targetCancelObligation.id, {
+        cancellationReason: cancellationReason.trim(),
+      });
+      setIsCancelModalOpen(false);
+      setTargetCancelObligation(null);
+      setCancellationReason('');
+      await loadObligations();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to cancel obligation');
+    } finally {
+      setIsCancellingObligation(false);
+    }
+  };
 
   const loadApplicability = async () => {
     if (!clientId) return;
@@ -2380,6 +2467,332 @@ export const Client360Page: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Statutory Compliance Obligations Engine (Phase 29.4) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Statutory Compliance Obligations
+                    </h3>
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Phase 29.4 Engine
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Deterministic compliance obligation instances materialized from applicable statutory rules for {client.displayName}.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                    onClick={() => setIsGenerateModalOpen(true)}
+                  >
+                    Generate Period Obligations
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<RefreshCw className={clsx('w-3.5 h-3.5', isLoadingObligations && 'animate-spin')} />}
+                    onClick={loadObligations}
+                  >
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              {/* Obligation Metrics Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-500 block">Total Tracked</span>
+                  <span className="text-xl font-bold text-slate-900">{obligationSummary?.totalCount ?? obligations.length}</span>
+                </div>
+                <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <span className="text-[11px] font-semibold text-blue-700 block">Open / Upcoming</span>
+                  <span className="text-xl font-bold text-blue-900">{obligationSummary?.openCount ?? obligations.filter(o => o.status === 'UPCOMING' || o.status === 'READY').length}</span>
+                </div>
+                <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                  <span className="text-[11px] font-semibold text-amber-700 block">In Progress</span>
+                  <span className="text-xl font-bold text-amber-900">{obligationSummary?.inProgressCount ?? obligations.filter(o => o.status === 'IN_PROGRESS' || o.status === 'WAITING_FOR_CLIENT').length}</span>
+                </div>
+                <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                  <span className="text-[11px] font-semibold text-emerald-700 block">Completed</span>
+                  <span className="text-xl font-bold text-emerald-900">{obligationSummary?.completedCount ?? obligations.filter(o => o.status === 'COMPLETED').length}</span>
+                </div>
+                <div className="p-3 bg-slate-100/70 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-semibold text-slate-500 block">Cancelled</span>
+                  <span className="text-xl font-bold text-slate-700">{obligationSummary?.cancelledCount ?? obligations.filter(o => o.status === 'CANCELLED').length}</span>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-500 mr-1">Domain:</span>
+                  {['ALL', 'GST', 'TDS', 'INCOME_TAX', 'MCA_ROC', 'PAYROLL_LABOUR', 'OTHER'].map(domain => (
+                    <button
+                      key={domain}
+                      onClick={() => setObligationDomainFilter(domain)}
+                      className={clsx(
+                        'px-2.5 py-1 text-xs font-medium rounded-lg transition-colors',
+                        obligationDomainFilter === domain
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}
+                    >
+                      {domain}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-500 mr-1">Status:</span>
+                  {['ALL', 'UPCOMING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(st => (
+                    <button
+                      key={st}
+                      onClick={() => setObligationStatusFilter(st)}
+                      className={clsx(
+                        'px-2.5 py-1 text-xs font-medium rounded-lg transition-colors',
+                        obligationStatusFilter === st
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Obligations Cards Grid */}
+              {isLoadingObligations ? (
+                <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Loading obligations...
+                </div>
+              ) : obligations.length === 0 ? (
+                <div className="py-10 text-center border-2 border-dashed border-slate-200 rounded-xl">
+                  <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-700">No Compliance Obligations Materialized</p>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 mb-4">
+                    Click &quot;Generate Period Obligations&quot; above to materialize obligations for applicable statutory rules in a specific period (e.g. 2026-09).
+                  </p>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                    onClick={() => setIsGenerateModalOpen(true)}
+                  >
+                    Generate For Period
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {obligations
+                    .filter(ob => obligationDomainFilter === 'ALL' || ob.domain === obligationDomainFilter)
+                    .filter(ob => obligationStatusFilter === 'ALL' || ob.status === obligationStatusFilter)
+                    .map(obligation => (
+                      <div
+                        key={obligation.id}
+                        className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-2xs space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                              {obligation.title || obligation.ruleNameSnapshot}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                              <span className="font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                                {obligation.domain}
+                              </span>
+                              <span className="font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {obligation.periodKey || obligation.periodLabel}
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-400">
+                                {obligation.ruleCode} v{obligation.ruleVersion || 1}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span className={clsx(
+                            'text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider',
+                            obligation.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
+                            obligation.status === 'CANCELLED' ? 'bg-slate-200 text-slate-700' :
+                            obligation.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-800' :
+                            'bg-blue-100 text-blue-800'
+                          )}>
+                            {obligation.status}
+                          </span>
+                        </div>
+
+                        {obligation.applicabilityReason && (
+                          <p className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                            <span className="font-semibold text-slate-700">Snapshot Rationale: </span>
+                            {obligation.applicabilityReason}
+                          </p>
+                        )}
+
+                        {obligation.cancellationReason && (
+                          <p className="text-[11px] text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">
+                            <span className="font-semibold">Cancelled Reason: </span>
+                            {obligation.cancellationReason}
+                          </p>
+                        )}
+
+                        {/* Obligation Actions */}
+                        {obligation.status !== 'COMPLETED' && obligation.status !== 'CANCELLED' && (
+                          <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setTargetCancelObligation(obligation);
+                                setIsCancelModalOpen(true);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleCompleteObligation(obligation.id)}
+                            >
+                              Mark Completed
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal: Generate Obligations */}
+            <Modal
+              isOpen={isGenerateModalOpen}
+              onClose={() => setIsGenerateModalOpen(false)}
+              title="Generate Period Compliance Obligations"
+            >
+              <form onSubmit={handleGenerateObligations} className="space-y-4">
+                <p className="text-xs text-slate-500">
+                  Materializes compliance obligations for all statutory rules evaluated as <strong>APPLICABLE</strong> for {client.displayName}. Existing obligations for the same period will be returned idempotently without duplication.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Period Type</label>
+                  <select
+                    value={genPeriodType}
+                    onChange={e => setGenPeriodType(e.target.value as CompliancePeriodType)}
+                    className="w-full text-xs rounded-lg border border-slate-300 p-2 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="MONTH">Month (e.g. 2026-09)</option>
+                    <option value="QUARTER">Quarter (e.g. 2026-Q2)</option>
+                    <option value="FINANCIAL_YEAR">Financial Year (e.g. 2026-27)</option>
+                    <option value="ASSESSMENT_YEAR">Assessment Year (e.g. 2027-28)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Period Key</label>
+                  <input
+                    type="text"
+                    value={genPeriodKey}
+                    onChange={e => setGenPeriodKey(e.target.value)}
+                    placeholder={genPeriodType === 'MONTH' ? '2026-09' : genPeriodType === 'QUARTER' ? '2026-Q2' : '2026-27'}
+                    className="w-full text-xs rounded-lg border border-slate-300 p-2 focus:ring-1 focus:ring-indigo-500 font-mono"
+                    required
+                  />
+                  <span className="text-[11px] text-slate-400">
+                    Format: {genPeriodType === 'MONTH' ? 'YYYY-MM (01 to 12)' : genPeriodType === 'QUARTER' ? 'YYYY-QX (Q1 to Q4)' : 'YYYY-YY (e.g. 2026-27)'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsGenerateModalOpen(false)}
+                    disabled={isGeneratingObligations}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isGeneratingObligations}
+                    leftIcon={isGeneratingObligations ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  >
+                    {isGeneratingObligations ? 'Generating...' : 'Generate Obligations'}
+                  </Button>
+                </div>
+              </form>
+            </Modal>
+
+            {/* Modal: Cancel Obligation */}
+            <Modal
+              isOpen={isCancelModalOpen}
+              onClose={() => {
+                setIsCancelModalOpen(false);
+                setTargetCancelObligation(null);
+                setCancellationReason('');
+              }}
+              title="Cancel Compliance Obligation"
+            >
+              <form onSubmit={handleCancelObligationSubmit} className="space-y-4">
+                <p className="text-xs text-slate-500">
+                  Cancelling will preserve this obligation record in historical audit logs while marking its status as <strong>CANCELLED</strong>.
+                </p>
+
+                {targetCancelObligation && (
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1">
+                    <p className="font-bold text-slate-900">{targetCancelObligation.title || targetCancelObligation.ruleNameSnapshot}</p>
+                    <p className="text-slate-500">Period: <span className="font-mono text-indigo-700">{targetCancelObligation.periodKey}</span> | Domain: {targetCancelObligation.domain}</p>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Cancellation Reason (Mandatory)</label>
+                  <textarea
+                    rows={3}
+                    value={cancellationReason}
+                    onChange={e => setCancellationReason(e.target.value)}
+                    placeholder="e.g. Client opted for composition scheme, or business branch was surrendered..."
+                    className="w-full text-xs rounded-lg border border-slate-300 p-2 focus:ring-1 focus:ring-red-500"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsCancelModalOpen(false);
+                      setTargetCancelObligation(null);
+                      setCancellationReason('');
+                    }}
+                    disabled={isCancellingObligation}
+                  >
+                    Keep Obligation
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isCancellingObligation || !cancellationReason.trim()}
+                  >
+                    {isCancellingObligation ? 'Cancelling...' : 'Confirm Cancellation'}
+                  </Button>
+                </div>
+              </form>
+            </Modal>
 
             {/* GST Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
