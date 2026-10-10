@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -119,10 +120,25 @@ public class ServicePricingService {
         return result;
     }
 
+    private static final Set<BigDecimal> SUPPORTED_GST_RATES = Set.of(
+            new BigDecimal("0.00"),
+            new BigDecimal("5.00"),
+            new BigDecimal("12.00"),
+            new BigDecimal("18.00"),
+            new BigDecimal("28.00")
+    );
+
     @Transactional
     public PracticeServicePriceDto updatePracticePricing(String serviceCode, UpdatePracticeServicePricingRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         String trimmedCode = serviceCode.trim();
+
+        if (request.taxRate() != null) {
+            BigDecimal normalizedRate = request.taxRate().setScale(2, java.math.RoundingMode.HALF_UP);
+            if (!SUPPORTED_GST_RATES.contains(normalizedRate)) {
+                throw new BadRequestException("Invalid GST rate: " + request.taxRate() + "%. Supported GST rates are 0%, 5%, 12%, 18%, and 28%.");
+            }
+        }
 
         // 1. If it's a practice custom service, update the ServiceEntity directly
         Optional<ServiceEntity> customOpt = serviceRepository.findAccessibleServiceByCode(trimmedCode, organizationId);
@@ -130,6 +146,9 @@ public class ServicePricingService {
             ServiceEntity cs = customOpt.get();
             if (request.customPrice() != null) {
                 cs.setDefaultPrice(request.customPrice());
+            }
+            if (request.taxRate() != null) {
+                cs.setTaxRate(request.taxRate());
             }
             cs.setStatus(request.enabled() ? ServiceStatus.ACTIVE : ServiceStatus.INACTIVE);
             cs = serviceRepository.save(cs);
@@ -174,13 +193,16 @@ public class ServicePricingService {
                 ? service.getSuggestedPrice() : config.getCustomPrice();
         config.setPricingMode(request.pricingMode());
         config.setCustomPrice(request.customPrice());
+        if (request.taxRate() != null) {
+            config.setTaxRate(request.taxRate());
+        }
         config.setEnabled(request.enabled());
         config = pricingRepository.save(config);
         PracticeServicePriceDto updated = toDto(service, config);
         auditService.logEvent(organizationId, SecurityUtils.getCurrentUserId(), "PRACTICE_SERVICE_PRICE_UPDATED",
                 "PRACTICE_SERVICE_PRICING", config.getId().toString(),
                 Map.of("taxServiceId", service.getId(), "serviceCode", service.getCode(), "pricingMode", oldMode, "price", oldPrice),
-                Map.of("taxServiceId", service.getId(), "serviceCode", service.getCode(), "pricingMode", request.pricingMode(), "price", updated.practicePrice(), "enabled", request.enabled()));
+                Map.of("taxServiceId", service.getId(), "serviceCode", service.getCode(), "pricingMode", request.pricingMode(), "price", updated.practicePrice(), "taxRate", updated.taxRate(), "enabled", request.enabled()));
         return updated;
     }
 
@@ -188,6 +210,7 @@ public class ServicePricingService {
         ServicePricingMode mode = config == null ? ServicePricingMode.DEFAULT : config.getPricingMode();
         boolean enabled = config == null || config.isEnabled();
         BigDecimal practicePrice = mode == ServicePricingMode.CUSTOM && config != null ? config.getCustomPrice() : service.getSuggestedPrice();
+        BigDecimal taxRate = config != null && config.getTaxRate() != null ? config.getTaxRate() : new BigDecimal("18.00");
         return new PracticeServicePriceDto(
                 service.getId(),
                 service.getCode(),
@@ -202,7 +225,7 @@ public class ServicePricingService {
                 mode,
                 enabled,
                 ServiceScope.TAXORYN,
-                new BigDecimal("18.00")
+                taxRate
         );
     }
 

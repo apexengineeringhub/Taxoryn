@@ -183,10 +183,17 @@ export const TasksPage: React.FC = () => {
     if (bucket) setWorklistBucket(bucket);
 
     const assignedTo = searchParams.get('assignedTo');
-    if (assignedTo !== null && assignedTo !== undefined) {
+    if (assignedTo !== null && assignedTo !== undefined && assignedTo !== '') {
       setWorklistAssignee(assignedTo);
-      setAssigneeFilter(assignedTo || 'ALL');
-      setTaskScope(assignedTo ? 'ALL_TASKS' : 'MY_TASKS');
+      setAssigneeFilter(assignedTo);
+      setTaskScope('ALL_TASKS');
+      setWorklistScope('TEAM_WORK');
+      if (!tab) {
+        setActiveTab('ALL_TASKS');
+      }
+    } else if (assignedTo === '') {
+      setWorklistAssignee('');
+      setAssigneeFilter('ALL');
     }
 
     const category = searchParams.get('category');

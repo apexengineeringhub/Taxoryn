@@ -75,6 +75,7 @@ export const PracticeServicePricingPage: React.FC = () => {
   const [editingPricing, setEditingPricing] = useState<PracticeServicePrice | null>(null);
   const [pricingMode, setPricingMode] = useState<'DEFAULT' | 'CUSTOM'>('DEFAULT');
   const [customPriceInput, setCustomPriceInput] = useState('');
+  const [pricingTaxRate, setPricingTaxRate] = useState<number>(18);
   const [pricingEnabled, setPricingEnabled] = useState(true);
   const [savingPricing, setSavingPricing] = useState(false);
 
@@ -211,6 +212,7 @@ export const PracticeServicePricingPage: React.FC = () => {
     setEditingPricing(pricing);
     setPricingMode(pricing.pricingMode);
     setCustomPriceInput(pricing.pricingMode === 'CUSTOM' ? String(pricing.practicePrice) : '');
+    setPricingTaxRate(pricing.taxRate !== undefined && pricing.taxRate !== null ? Number(pricing.taxRate) : 18);
     setPricingEnabled(pricing.enabled);
     setError('');
     setMessage('');
@@ -235,6 +237,7 @@ export const PracticeServicePricingPage: React.FC = () => {
       await practiceServicePricingApi.update(editingPricing.serviceCode, {
         pricingMode,
         ...(pricingMode === 'CUSTOM' ? { customPrice: Number(customPriceInput) } : {}),
+        taxRate: pricingTaxRate,
         enabled: pricingEnabled,
       });
       setEditingPricing(null);
@@ -677,6 +680,26 @@ export const PracticeServicePricingPage: React.FC = () => {
                 />
               </label>
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Applicable GST Rate (%)
+              </label>
+              <select
+                value={pricingTaxRate}
+                onChange={e => setPricingTaxRate(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none bg-white"
+              >
+                {GST_RATES.map(rate => (
+                  <option key={rate} value={rate}>
+                    {rate}% {rate === 0 ? '(Exempt / Nil Rated)' : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Set to 0% for tax-exempt services. Zero rate is preserved and never coerced.
+              </p>
+            </div>
 
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
               <input

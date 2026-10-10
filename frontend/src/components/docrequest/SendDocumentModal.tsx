@@ -82,6 +82,7 @@ export const SendDocumentModal: React.FC<SendDocumentModalProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isChangingClient, setIsChangingClient] = useState<boolean>(false);
 
   // Sync props when opening
   useEffect(() => {
@@ -89,6 +90,8 @@ export const SendDocumentModal: React.FC<SendDocumentModalProps> = ({
       setError(null);
       setFile(null);
       setSelectedVaultDocId('');
+      setIsChangingClient(false);
+      loadClients();
       if (fulfillingRequest) {
         setSelectedClientId(fulfillingRequest.clientId);
         setCategory(fulfillingRequest.category || 'ACKNOWLEDGEMENT');
@@ -102,7 +105,6 @@ export const SendDocumentModal: React.FC<SendDocumentModalProps> = ({
       } else {
         setSelectedClientId('');
         setTitle('');
-        loadClients();
       }
     }
   }, [isOpen, fulfillingRequest, preselectedClientId]);
@@ -265,12 +267,26 @@ export const SendDocumentModal: React.FC<SendDocumentModalProps> = ({
             </div>
           )}
 
-          {/* Client Selection (if not fulfilling and not preselected) */}
-          {!fulfillingRequest && !preselectedClientId && (
+          {/* Client Selection */}
+          {(!preselectedClientId || isChangingClient) && !fulfillingRequest ? (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Recipient Client <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Recipient Client <span className="text-red-500">*</span>
+                </label>
+                {preselectedClientId && isChangingClient && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClientId(preselectedClientId);
+                      setIsChangingClient(false);
+                    }}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Reset to preselected
+                  </button>
+                )}
+              </div>
               <select
                 value={selectedClientId}
                 onChange={e => setSelectedClientId(e.target.value)}
@@ -285,15 +301,27 @@ export const SendDocumentModal: React.FC<SendDocumentModalProps> = ({
                 ))}
               </select>
             </div>
-          )}
-
-          {/* If fulfilling or preselected, display client banner */}
-          {(fulfillingRequest || preselectedClientId) && (
+          ) : (
+            /* If fulfilling or preselected without change mode, display client banner with Change option */
             <div className="px-4 py-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-xl flex items-center justify-between text-xs">
-              <span className="text-slate-600 dark:text-slate-400">Recipient:</span>
-              <span className="font-semibold text-blue-700 dark:text-blue-300">
-                {fulfillingRequest?.clientName || preselectedClientName || 'Selected Client'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-600 dark:text-slate-400">Recipient:</span>
+                <span className="font-semibold text-blue-700 dark:text-blue-300">
+                  {fulfillingRequest?.clientName ||
+                    clientList.find(c => c.id === selectedClientId)?.name ||
+                    preselectedClientName ||
+                    'Selected Client'}
+                </span>
+              </div>
+              {!fulfillingRequest && (
+                <button
+                  type="button"
+                  onClick={() => setIsChangingClient(true)}
+                  className="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  Change Client
+                </button>
+              )}
             </div>
           )}
 

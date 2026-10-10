@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -42,16 +42,28 @@ import {
 import clsx from 'clsx';
 
 export const ComplianceCalendarPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+
   // Reference date defaults to today (ISO YYYY-MM-DD)
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const [referenceDate, setReferenceDate] = useState<string>(todayStr);
+  const [referenceDate, setReferenceDate] = useState<string>(
+    () => searchParams.get('date') || searchParams.get('referenceDate') || todayStr
+  );
 
   // View Mode: RADAR (Agenda cards), GRID (Monthly calendar), TABLE (Compact matrix)
   const [viewMode, setViewMode] = useState<'RADAR' | 'GRID' | 'TABLE'>('RADAR');
 
   // Query & Filter State
-  const [selectedDomain, setSelectedDomain] = useState<string>('ALL');
-  const [selectedStatusTab, setSelectedStatusTab] = useState<string>('ALL');
+  const [selectedDomain, setSelectedDomain] = useState<string>(
+    () => searchParams.get('domain')?.toUpperCase() || 'ALL'
+  );
+  const [selectedStatusTab, setSelectedStatusTab] = useState<string>(() => {
+    const s = searchParams.get('status')?.toUpperCase();
+    if (s && ['OVERDUE', 'DUE_TODAY', 'DUE_THIS_WEEK', 'DUE_THIS_MONTH', 'UPCOMING', 'COMPLETED', 'EXPIRED'].includes(s)) {
+      return s;
+    }
+    return 'ALL';
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentMonthDate, setCurrentMonthDate] = useState<Date>(() => new Date());
 
@@ -101,6 +113,17 @@ export const ComplianceCalendarPage: React.FC = () => {
         setDeadlines(calendarRes.value);
       } else {
         setDeadlines([]);
+      }
+
+      // If all three or calendarRes failed, expose error
+      if (calendarRes.status === 'rejected') {
+        const reason: any = calendarRes.reason;
+        const msg = reason?.response?.data?.message || reason?.message || 'Failed to load compliance deadlines.';
+        setError(msg);
+      } else if (radarRes.status === 'rejected' && summaryRes.status === 'rejected') {
+        const reason: any = radarRes.reason;
+        const msg = reason?.response?.data?.message || reason?.message || 'Failed to load deadline radar metrics.';
+        setError(msg);
       }
     } catch (err: any) {
       console.error('Failed to load compliance calendar radar data', err);

@@ -101,4 +101,34 @@ class ServicePricingServiceTest {
         assertThatThrownBy(() -> service.getEffectiveServicePrice(practiceA, "ITR_1"))
                 .isInstanceOf(BadRequestException.class);
     }
+
+    @Test
+    void zeroTaxRateIsPreservedWithoutDefaultingToEighteenPercent() {
+        var exemptConfig = PracticeServicePricingEntity.builder()
+                .pricingMode(ServicePricingMode.CUSTOM)
+                .customPrice(new BigDecimal("500.00"))
+                .taxRate(new BigDecimal("0.00"))
+                .enabled(true)
+                .build();
+        when(pricingRepository.findByOrganizationIdAndTaxServiceId(practiceA, serviceId)).thenReturn(Optional.of(exemptConfig));
+
+        var price = service.getEffectiveServicePrice(practiceA, "ITR_1");
+
+        assertThat(price.taxRate()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void nullTaxRateDefaultsToEighteenPercent() {
+        var nullTaxConfig = PracticeServicePricingEntity.builder()
+                .pricingMode(ServicePricingMode.CUSTOM)
+                .customPrice(new BigDecimal("500.00"))
+                .taxRate(null)
+                .enabled(true)
+                .build();
+        when(pricingRepository.findByOrganizationIdAndTaxServiceId(practiceA, serviceId)).thenReturn(Optional.of(nullTaxConfig));
+
+        var price = service.getEffectiveServicePrice(practiceA, "ITR_1");
+
+        assertThat(price.taxRate()).isEqualByComparingTo("18.00");
+    }
 }

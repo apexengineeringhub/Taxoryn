@@ -802,7 +802,29 @@ public class TdsServiceImpl implements TdsService {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
         TdsProfileEntity profile = tdsProfileRepository.findByIdAndOrganizationId(request.getTdsProfileId(), organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("TDS Profile", "id", request.getTdsProfileId()));
+                .orElse(null);
+        if (profile == null) {
+            Optional<ClientEntity> clientOpt = clientRepository.findByIdAndOrganizationId(request.getTdsProfileId(), organizationId);
+            if (clientOpt.isPresent() && StringUtils.hasText(clientOpt.get().getTan())) {
+                ClientEntity client = clientOpt.get();
+                validateClientAccess(client.getId());
+                String tan = client.getTan().toUpperCase().trim();
+                profile = tdsProfileRepository.findByOrganizationIdAndClientId(organizationId, client.getId())
+                        .orElseGet(() -> {
+                            TdsProfileEntity newProfile = TdsProfileEntity.builder()
+                                    .clientId(client.getId())
+                                    .tan(tan)
+                                    .deductorType(TdsProfileEntity.DeductorType.OTHER)
+                                    .status(TdsProfileEntity.TdsProfileStatus.ACTIVE)
+                                    .active(true)
+                                    .build();
+                            newProfile.setOrganizationId(organizationId);
+                            return tdsProfileRepository.save(newProfile);
+                        });
+            } else {
+                throw new ResourceNotFoundException("TDS Profile", "id", request.getTdsProfileId());
+            }
+        }
         validateClientAccess(profile.getClientId());
 
         BigDecimal tds = request.getTdsAmount() != null ? request.getTdsAmount() : BigDecimal.ZERO;

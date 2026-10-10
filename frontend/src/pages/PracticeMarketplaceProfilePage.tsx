@@ -25,6 +25,7 @@ import {
   Square,
   BookmarkCheck,
   Layers,
+  Camera,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -79,6 +80,8 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
     address: '',
     experienceYears: 0,
     workingHours: '',
+    avatarUrl: '',
+    bannerUrl: '',
     seoTitle: '',
     metaDescription: '',
     canonicalUrl: '',
@@ -153,6 +156,8 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
         address: profileData.address || '',
         experienceYears: profileData.experienceYears || 0,
         workingHours: profileData.workingHours || '',
+        avatarUrl: profileData.avatarUrl || '',
+        bannerUrl: profileData.bannerUrl || '',
         seoTitle: profileData.seoTitle || '',
         metaDescription: profileData.metaDescription || '',
         canonicalUrl: profileData.canonicalUrl || '',
@@ -238,6 +243,8 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
         address: formData.address,
         experienceYears: Number(formData.experienceYears) || 0,
         workingHours: formData.workingHours,
+        avatarUrl: formData.avatarUrl,
+        bannerUrl: formData.bannerUrl,
         seoTitle: formData.seoTitle,
         metaDescription: formData.metaDescription,
         canonicalUrl: formData.canonicalUrl,
@@ -693,23 +700,50 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
 
         {/* 2. Practice Profile Summary Card */}
         <Card className="p-6 sm:p-7 border border-slate-200 shadow-xs space-y-6">
+          {/* Cover Banner Display if set */}
+          {profile?.bannerUrl && (
+            <div className="relative h-28 sm:h-36 -mx-6 sm:-mx-7 -mt-6 sm:-mt-7 mb-4 rounded-t-xl overflow-hidden bg-slate-900 border-b border-slate-200">
+              <img
+                src={profile.bannerUrl}
+                alt="Practice Banner"
+                className="w-full h-full object-cover"
+                onError={(e) => { (e.target as any).style.display = 'none'; }}
+              />
+            </div>
+          )}
+
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 block mb-1">
-                Practice Profile
-              </span>
-              <h3 className="text-xl font-extrabold text-slate-900">
-                {profile?.displayName || practiceName || 'ABC Tax Consultants'}
-              </h3>
-              <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-600">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  {locations.length > 0 ? (
-                    <span>{locations.length} {locations.length === 1 ? 'Location' : 'Locations'}</span>
-                  ) : (
-                    <span>{profile?.city ? `${profile.city}${profile.state ? `, ${profile.state}` : ''}` : 'No location added'}</span>
-                  )}
+            <div className="flex items-start gap-4">
+              {/* Practice Avatar / Logo */}
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-indigo-50 border border-indigo-100 overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
+                {profile?.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt={profile.displayName || 'Practice'}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as any).style.display = 'none'; }}
+                  />
+                ) : (
+                  <Building2 className="w-7 h-7 text-indigo-600" />
+                )}
+              </div>
+
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 block mb-1">
+                  Practice Profile
                 </span>
+                <h3 className="text-xl font-extrabold text-slate-900">
+                  {profile?.displayName || practiceName || 'ABC Tax Consultants'}
+                </h3>
+                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-600">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    {locations.length > 0 ? (
+                      <span>{locations.length} {locations.length === 1 ? 'Location' : 'Locations'}</span>
+                    ) : (
+                      <span>{profile?.city ? `${profile.city}${profile.state ? `, ${profile.state}` : ''}` : 'No location added'}</span>
+                    )}
+                  </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -731,6 +765,7 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
                 </span>
               </div>
             </div>
+          </div>
 
             <Button
               variant="outline"
@@ -1278,6 +1313,63 @@ export const PracticeMarketplaceProfilePage: React.FC = () => {
               placeholder="e.g. Mon - Fri: 9:30 AM - 6:30 PM, Sat: 10:00 AM - 2:00 PM"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
             />
+          </div>
+
+          {/* Profile & Banner Cover Images */}
+          <div className="pt-2 border-t border-slate-200 space-y-3">
+            <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5 text-indigo-600" />
+              Practice Logo & Cover Images
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Logo / Profile Avatar URL
+                </label>
+                <input
+                  type="url"
+                  value={formData.avatarUrl}
+                  onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+                />
+                {formData.avatarUrl && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img
+                      src={formData.avatarUrl}
+                      alt="Avatar preview"
+                      className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+                      onError={(e) => { (e.target as any).style.display = 'none'; }}
+                    />
+                    <span className="text-[10px] text-slate-500">Avatar Preview</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Cover / Banner Image URL
+                </label>
+                <input
+                  type="url"
+                  value={formData.bannerUrl}
+                  onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
+                  placeholder="https://example.com/banner.jpg"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden text-xs"
+                />
+                {formData.bannerUrl && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img
+                      src={formData.bannerUrl}
+                      alt="Banner preview"
+                      className="w-16 h-8 rounded-md object-cover border border-slate-200"
+                      onError={(e) => { (e.target as any).style.display = 'none'; }}
+                    />
+                    <span className="text-[10px] text-slate-500">Banner Preview</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Search Engine Optimization (SEO) Settings */}

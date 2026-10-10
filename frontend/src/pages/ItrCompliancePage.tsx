@@ -23,14 +23,19 @@ import { itrApi, clientApi } from '../api/endpoints';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { ItrReturn, ItrProfile, Client } from '../types';
+import { getDynamicAssessmentYears, getCurrentAssessmentYear, getCurrentFinancialYear } from '../utils/taxYearUtils';
 import clsx from 'clsx';
 
 export const ItrCompliancePage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const dynamicAYs = getDynamicAssessmentYears(6, 1);
+  const currentAY = getCurrentAssessmentYear();
+  const currentFY = getCurrentFinancialYear();
+
   const [returns, setReturns] = useState<ItrReturn[]>([]);
   const [profiles, setProfiles] = useState<ItrProfile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [assessmentYear, setAssessmentYear] = useState<string>('2026-27');
+  const [assessmentYear, setAssessmentYear] = useState<string>(currentAY);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FILED' | 'PENDING' | 'OVERDUE'>(
     () => {
@@ -61,18 +66,18 @@ export const ItrCompliancePage: React.FC = () => {
   const [practitionerNotes, setPractitionerNotes] = useState('');
 
   // Batch Generation Form States
-  const [batchAy, setBatchAy] = useState('2026-27');
-  const [batchFy, setBatchFy] = useState('2025-26');
-  const [batchNonAuditDueDate, setBatchNonAuditDueDate] = useState('2026-07-31');
-  const [batchAuditDueDate, setBatchAuditDueDate] = useState('2026-10-31');
+  const [batchAy, setBatchAy] = useState(currentAY);
+  const [batchFy, setBatchFy] = useState(currentFY);
+  const [batchNonAuditDueDate, setBatchNonAuditDueDate] = useState(`${new Date().getFullYear()}-07-31`);
+  const [batchAuditDueDate, setBatchAuditDueDate] = useState(`${new Date().getFullYear()}-10-31`);
 
   // New Individual Return Form States
   const [newPan, setNewPan] = useState('');
   const [newClientId, setNewClientId] = useState(() => searchParams.get('clientId') || '');
-  const [newAy, setNewAy] = useState('2026-27');
-  const [newFy, setNewFy] = useState('2025-26');
+  const [newAy, setNewAy] = useState(currentAY);
+  const [newFy, setNewFy] = useState(currentFY);
   const [newItrType, setNewItrType] = useState<any>('ITR_1');
-  const [newDueDate, setNewDueDate] = useState('2026-07-31');
+  const [newDueDate, setNewDueDate] = useState(`${new Date().getFullYear()}-07-31`);
 
   const [allAyReturns, setAllAyReturns] = useState<ItrReturn[]>([]);
   const { currentTheme } = useBranding();
@@ -621,9 +626,11 @@ const DEMO_PRACTICE_TAXPAYERS = [
               onChange={(e) => setAssessmentYear(e.target.value)}
               className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
             >
-              <option value="2026-27">AY 2026-27 (Current)</option>
-              <option value="2025-26">AY 2025-26</option>
-              <option value="2024-25">AY 2024-25</option>
+              {dynamicAYs.map((ay) => (
+                <option key={ay} value={ay}>
+                  AY {ay} {ay === currentAY ? '(Current)' : ''}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -824,13 +831,17 @@ const DEMO_PRACTICE_TAXPAYERS = [
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Assessment Year</label>
-              <input
-                type="text"
+              <select
                 value={batchAy}
                 onChange={(e) => setBatchAy(e.target.value)}
-                placeholder="2026-27"
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono"
-              />
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono text-xs"
+              >
+                {dynamicAYs.map((ay) => (
+                  <option key={ay} value={ay}>
+                    AY {ay} {ay === currentAY ? '(Current)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -970,13 +981,17 @@ const DEMO_PRACTICE_TAXPAYERS = [
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Assessment Year</label>
-              <input
-                type="text"
+              <select
                 value={newAy}
                 onChange={(e) => setNewAy(e.target.value)}
-                placeholder="2026-27"
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono"
-              />
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono text-xs"
+              >
+                {dynamicAYs.map((ay) => (
+                  <option key={ay} value={ay}>
+                    AY {ay} {ay === currentAY ? '(Current)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

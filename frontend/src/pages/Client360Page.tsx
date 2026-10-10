@@ -58,6 +58,7 @@ import {
   complianceApplicabilityApi,
   complianceObligationsApi,
   complianceCalendarApi,
+  complianceHealthApi,
   complianceWorkApi,
   employeeApi,
 } from '../api/endpoints';
@@ -88,6 +89,7 @@ import {
   DeadlineStatus,
   ComplianceDeadlineDto,
   ClientComplianceDeadlineSummaryDto,
+  ClientComplianceHealthDto,
   ServiceCatalogItem,
   ClientServiceType,
   ClientServiceStatus,
@@ -255,6 +257,10 @@ export const Client360Page: React.FC = () => {
   const [clientDeadlineSummary, setClientDeadlineSummary] = useState<ClientComplianceDeadlineSummaryDto | null>(null);
   const [isLoadingDeadlines, setIsLoadingDeadlines] = useState(false);
 
+  // Phase 29.8 Compliance Health & Intelligence State
+  const [complianceHealth, setComplianceHealth] = useState<ClientComplianceHealthDto | null>(null);
+  const [isLoadingHealth, setIsLoadingHealth] = useState(false);
+
   useEffect(() => {
     if (clientId) {
       loadClientOverview();
@@ -269,6 +275,7 @@ export const Client360Page: React.FC = () => {
       loadApplicability();
       loadObligations();
       loadDeadlines();
+      loadComplianceHealth();
     }
   }, [clientId]);
 
@@ -286,6 +293,19 @@ export const Client360Page: React.FC = () => {
       console.debug('Failed to load client compliance deadlines', err);
     } finally {
       setIsLoadingDeadlines(false);
+    }
+  };
+
+  const loadComplianceHealth = async () => {
+    if (!clientId) return;
+    try {
+      setIsLoadingHealth(true);
+      const data = await complianceHealthApi.getClientHealth(clientId);
+      setComplianceHealth(data);
+    } catch (err) {
+      console.debug('Failed to load client compliance health', err);
+    } finally {
+      setIsLoadingHealth(false);
     }
   };
 
@@ -2217,6 +2237,173 @@ export const Client360Page: React.FC = () => {
         {/* 3. COMPLIANCE TAB */}
         {activeTab === 'compliance' && (
           <div className="space-y-6">
+            {/* Compliance Health & Intelligence Card (Phase 29.8) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className={clsx(
+                    'p-2.5 rounded-xl border flex items-center justify-center',
+                    complianceHealth?.healthStatus === 'EXCELLENT' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                    complianceHealth?.healthStatus === 'GOOD' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                    complianceHealth?.healthStatus === 'AT_RISK' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                    complianceHealth?.healthStatus === 'CRITICAL' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                    'bg-slate-50 text-slate-600 border-slate-200'
+                  )}>
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900">
+                        Compliance Health & Intelligence
+                      </h3>
+                      <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                        Phase 29.8
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Deterministic compliance health evaluation, explainable risk radar signals, and next best actions.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {complianceHealth && (
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Health Score</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className={clsx(
+                            'text-xl font-black leading-none',
+                            complianceHealth.healthScore >= 90 ? 'text-emerald-600' :
+                            complianceHealth.healthScore >= 75 ? 'text-blue-600' :
+                            complianceHealth.healthScore >= 50 ? 'text-amber-600' : 'text-rose-600'
+                          )}>
+                            {complianceHealth.healthScore}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-bold">/ 100</span>
+                        </div>
+                      </div>
+                      <span className={clsx(
+                        'text-[10px] font-black uppercase px-2 py-0.5 rounded-md border',
+                        complianceHealth.healthStatus === 'EXCELLENT' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                        complianceHealth.healthStatus === 'GOOD' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                        complianceHealth.healthStatus === 'AT_RISK' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                        complianceHealth.healthStatus === 'CRITICAL' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                        'bg-slate-100 text-slate-700 border-slate-300'
+                      )}>
+                        {complianceHealth.healthStatus.replace('_', ' ')}
+                      </span>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<RefreshCw className={clsx('w-3.5 h-3.5', isLoadingHealth && 'animate-spin')} />}
+                    onClick={loadComplianceHealth}
+                  >
+                    Recalculate
+                  </Button>
+                </div>
+              </div>
+
+              {/* Health Metrics Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-100">
+                  <span className="text-[11px] font-semibold text-rose-700 block">Overdue</span>
+                  <span className="text-xl font-bold text-rose-900">{complianceHealth?.overdueCount ?? 0}</span>
+                </div>
+                <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-100">
+                  <span className="text-[11px] font-semibold text-amber-700 block">Due Soon (&le;3d)</span>
+                  <span className="text-xl font-bold text-amber-900">
+                    {(complianceHealth?.dueTodayCount ?? 0) + (complianceHealth?.dueWithin3DaysCount ?? 0)}
+                  </span>
+                </div>
+                <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100">
+                  <span className="text-[11px] font-semibold text-purple-700 block">Work Missing</span>
+                  <span className="text-xl font-bold text-purple-900">{complianceHealth?.workNotGeneratedCount ?? 0}</span>
+                </div>
+                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100">
+                  <span className="text-[11px] font-semibold text-blue-700 block">Open Obligations</span>
+                  <span className="text-xl font-bold text-blue-900">{complianceHealth?.openObligations ?? 0}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-500 block">Total Tracked</span>
+                  <span className="text-xl font-bold text-slate-900">{complianceHealth?.totalObligations ?? 0}</span>
+                </div>
+              </div>
+
+              {/* Next Best Actions (Top Recommendations) */}
+              {complianceHealth && complianceHealth.recommendations && complianceHealth.recommendations.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Top Actionable Recommendations
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {complianceHealth.recommendations.map((rec, idx) => (
+                      <div
+                        key={idx}
+                        className={clsx(
+                          'p-3.5 rounded-xl border flex flex-col justify-between gap-3',
+                          rec.severity === 'CRITICAL' ? 'bg-rose-50/40 border-rose-200' :
+                          rec.severity === 'HIGH' ? 'bg-amber-50/40 border-amber-200' :
+                          'bg-slate-50/60 border-slate-200'
+                        )}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-slate-900">
+                              {rec.title}
+                            </span>
+                            <span className={clsx(
+                              'text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border',
+                              rec.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                              rec.severity === 'HIGH' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                              'bg-slate-200 text-slate-700 border-slate-300'
+                            )}>
+                              {rec.severity}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            {rec.explanation}
+                          </p>
+                        </div>
+
+                        {rec.actionCode === 'GENERATE_WORK' && rec.obligationId && (
+                          <div className="flex justify-end pt-1">
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              isLoading={generatingWorkFor.has(rec.obligationId)}
+                              onClick={() => rec.obligationId && handleGenerateWork(rec.obligationId)}
+                            >
+                              Generate Work
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contributing Factors */}
+              {complianceHealth && complianceHealth.contributingFactors && complianceHealth.contributingFactors.length > 0 && (
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-400 block mb-1">
+                    Evaluation Factors:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {complianceHealth.contributingFactors.map((factor, idx) => (
+                      <span key={idx} className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                        {factor}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Compliance Profile & Statutory Facts Card (Phase 29.1) */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">

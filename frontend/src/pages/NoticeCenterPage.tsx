@@ -35,7 +35,9 @@ import {
   CreateTaxNoticeRequest,
   Client,
   Employee,
+  StatutoryNoticeType,
 } from '../types';
+import { getDynamicAssessmentYears, getCurrentAssessmentYear, getCurrentFinancialYear } from '../utils/taxYearUtils';
 import clsx from 'clsx';
 
 export const NoticeCenterPage: React.FC = () => {
@@ -63,6 +65,12 @@ export const NoticeCenterPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [noticeTypes, setNoticeTypes] = useState<StatutoryNoticeType[]>([]);
+  const [isNoticeTypesLoading, setIsNoticeTypesLoading] = useState(false);
+  const dynamicAYs = getDynamicAssessmentYears(6, 1);
+  const currentAY = getCurrentAssessmentYear();
+  const currentFY = getCurrentFinancialYear();
+
   const [formData, setFormData] = useState<CreateTaxNoticeRequest>({
     clientId: '',
     noticeNumber: '',
@@ -72,8 +80,8 @@ export const NoticeCenterPage: React.FC = () => {
     section: '143(1)',
     subject: '',
     description: '',
-    assessmentYear: '2024-25',
-    financialYear: '2023-24',
+    assessmentYear: currentAY,
+    financialYear: currentFY,
     taxPeriod: '',
     demandAmount: 0,
     receivedDate: new Date().toISOString().split('T')[0],
@@ -97,6 +105,51 @@ export const NoticeCenterPage: React.FC = () => {
     loadDashboardStats();
     loadLookupData();
   }, []);
+
+  useEffect(() => {
+    loadNoticeTypes(formData.department);
+  }, [formData.department]);
+
+  const loadNoticeTypes = async (dept: NoticeDepartment) => {
+    try {
+      setIsNoticeTypesLoading(true);
+      const types = await noticesApi.getNoticeTypes(dept);
+      setNoticeTypes(types || []);
+    } catch (err) {
+      console.error('Failed to load statutory notice types for department', dept, err);
+      setNoticeTypes([]);
+    } finally {
+      setIsNoticeTypesLoading(false);
+    }
+  };
+
+  const handleDepartmentChange = (newDept: NoticeDepartment) => {
+    // When department changes, reset noticeType and section appropriately
+    const defaultAuthorityMap: Record<NoticeDepartment, string> = {
+      INCOME_TAX: 'Income Tax Department, CPC Bengaluru',
+      GST: 'Central / State Goods and Services Tax Authority',
+      TDS: 'Income Tax Department, TRACES / CPC-TDS',
+      CUSTOMS: 'Central Board of Indirect Taxes and Customs (CBIC)',
+      OTHER: 'Statutory Authority',
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      department: newDept,
+      noticeType: '', // Cleared so user selects a valid type for the new department
+      section: '',
+      issuingAuthority: defaultAuthorityMap[newDept] || 'Statutory Authority',
+    }));
+  };
+
+  const handleNoticeTypeSelect = (selectedType: string) => {
+    const matched = noticeTypes.find((nt) => nt.label === selectedType || nt.code === selectedType);
+    setFormData((prev) => ({
+      ...prev,
+      noticeType: selectedType,
+      section: matched?.defaultSection ? matched.defaultSection : prev.section,
+    }));
+  };
 
   useEffect(() => {
     loadNotices();
@@ -777,7 +830,7 @@ export const NoticeCenterPage: React.FC = () => {
                     </label>
                     <select
                       value={formData.department}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value as NoticeDepartment })}
+                      onChange={(e) => handleDepartmentChange(e.target.value as NoticeDepartment)}
                       className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="INCOME_TAX">Income Tax Department (ITD)</option>
@@ -798,14 +851,34 @@ export const NoticeCenterPage: React.FC = () => {
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Notice Type / Category <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 143(1) Intimation, DRC-01 SCN"
-                      value={formData.noticeType}
-                      onChange={(e) => setFormData({ ...formData, noticeType: e.target.value })}
-                      required
-                      className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    />
+                    {isNoticeTypesLoading ? (
+                      <div className="py-2 px-3 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-400">
+                        Loading department notice types...
+                      </div>
+                    ) : noticeTypes.length > 0 ? (
+                      <select
+                        value={formData.noticeType}
+                        onChange={(e) => handleNoticeTypeSelect(e.target.value)}
+                        required
+                        className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Select Notice Type for {formData.department}...</option>
+                        {noticeTypes.map((nt) => (
+                          <option key={nt.code} value={nt.label}>
+                            {nt.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="e.g. Statutory Notice / Summons"
+                        value={formData.noticeType}
+                        onChange={(e) => setFormData({ ...formData, noticeType: e.target.value })}
+                        required
+                        className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      />
+                    )}
                   </div>
 
                   <div>
@@ -821,13 +894,18 @@ export const NoticeCenterPage: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Assessment Year</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 2024-25"
+                    <select
                       value={formData.assessmentYear || ''}
                       onChange={(e) => setFormData({ ...formData, assessmentYear: e.target.value })}
                       className="w-full py-2 px-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    />
+                    >
+                      <option value="">Select Assessment Year (AY)...</option>
+                      {dynamicAYs.map((ay) => (
+                        <option key={ay} value={ay}>
+                          AY {ay} {ay === currentAY ? '(Current)' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="md:col-span-3">

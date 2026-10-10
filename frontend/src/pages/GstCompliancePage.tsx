@@ -312,7 +312,7 @@ export const GstCompliancePage: React.FC = () => {
   };
 
   const eligibleClients = React.useMemo(() => {
-    const list: { id: string; clientId: string; name: string; gstin: string }[] = [];
+    const list: { id: string; clientId: string; gstProfileId?: string; name: string; gstin: string }[] = [];
     const seenGstins = new Set<string>();
 
     // 1. First add clients from Client Master having non-blank GSTIN
@@ -321,9 +321,11 @@ export const GstCompliancePage: React.FC = () => {
         const formattedGstin = c.gstin.trim().toUpperCase();
         if (!seenGstins.has(formattedGstin)) {
           seenGstins.add(formattedGstin);
+          const matchedProfile = profiles.find((p) => p.gstin?.trim().toUpperCase() === formattedGstin || p.clientId === c.id);
           list.push({
-            id: c.id,
+            id: matchedProfile?.id || c.id,
             clientId: c.id,
+            gstProfileId: matchedProfile?.id,
             name: c.displayName || c.tradeName || c.legalName || 'Client',
             gstin: formattedGstin,
           });
@@ -340,6 +342,7 @@ export const GstCompliancePage: React.FC = () => {
           list.push({
             id: p.id,
             clientId: p.clientId || p.id,
+            gstProfileId: p.id,
             name: p.clientName || p.tradeName || p.legalName || 'Client',
             gstin: formattedGstin,
           });
@@ -357,13 +360,13 @@ export const GstCompliancePage: React.FC = () => {
       return;
     }
 
-    const selectedItem = eligibleClients.find((c) => c.id === newProfileId || c.clientId === newProfileId);
+    const selectedItem = eligibleClients.find((c) => c.id === newProfileId || c.clientId === newProfileId || c.gstProfileId === newProfileId);
 
     try {
       setIsSubmitting(true);
       await gstApi.createFiling({
-        clientId: selectedItem?.clientId || newProfileId,
-        gstProfileId: profiles.find((p) => p.id === newProfileId || p.clientId === newProfileId)?.id,
+        clientId: selectedItem?.clientId,
+        gstProfileId: selectedItem?.gstProfileId,
         gstin: selectedItem?.gstin,
         returnType: newReturnType,
         returnPeriod: newPeriod,

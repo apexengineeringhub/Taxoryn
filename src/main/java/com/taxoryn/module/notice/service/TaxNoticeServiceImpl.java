@@ -273,6 +273,13 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
             throw new BusinessValidationException("A tax notice with number '" + request.getNoticeNumber() + "' already exists in this organization");
         }
 
+        // 2a. Department and Notice Type Compatibility Validation
+        if (request.getDepartment() != null && StringUtils.hasText(request.getNoticeType())) {
+            if (!com.taxoryn.module.notice.enums.StatutoryNoticeType.isValidForDepartment(request.getDepartment(), request.getNoticeType())) {
+                throw new BusinessValidationException("Notice type '" + request.getNoticeType() + "' is incompatible with department " + request.getDepartment());
+            }
+        }
+
         // 2b. Resolve Organization Operations Configuration
         com.taxoryn.module.notice.dto.TaxNoticeConfigDto config = configurationService.getEffectiveConfiguration(organizationId);
 
@@ -409,6 +416,14 @@ public class TaxNoticeServiceImpl implements TaxNoticeService {
         }
         if (request.getWorkflowId() != null) {
             entity.setWorkflowId(request.getWorkflowId());
+        }
+
+        NoticeDepartment effectiveDept = request.getDepartment() != null ? request.getDepartment() : entity.getDepartment();
+        String effectiveNoticeType = StringUtils.hasText(request.getNoticeType()) ? request.getNoticeType().trim() : entity.getNoticeType();
+        if (effectiveDept != null && StringUtils.hasText(effectiveNoticeType)) {
+            if (!com.taxoryn.module.notice.enums.StatutoryNoticeType.isValidForDepartment(effectiveDept, effectiveNoticeType)) {
+                throw new BusinessValidationException("Notice type '" + effectiveNoticeType + "' is incompatible with department " + effectiveDept);
+            }
         }
 
         if (request.getDinNumber() != null) entity.setDinNumber(request.getDinNumber());

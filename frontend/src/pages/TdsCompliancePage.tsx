@@ -223,6 +223,44 @@ export const TdsCompliancePage: React.FC = () => {
     }
   };
 
+  const eligibleTanProfiles = React.useMemo(() => {
+    const list: { id: string; name: string; tan: string }[] = [];
+    const seenTans = new Set<string>();
+
+    // 1. Profiles from TDS profiles
+    profiles.forEach((p) => {
+      if (p.tan && p.tan.trim()) {
+        const formattedTan = p.tan.trim().toUpperCase();
+        if (!seenTans.has(formattedTan)) {
+          seenTans.add(formattedTan);
+          list.push({
+            id: p.id,
+            name: p.clientName || 'Client Profile',
+            tan: formattedTan,
+          });
+        }
+      }
+    });
+
+    // 2. Clients from Client Master with TAN
+    clients.forEach((c) => {
+      if (c.tan && c.tan.trim()) {
+        const formattedTan = c.tan.trim().toUpperCase();
+        if (!seenTans.has(formattedTan)) {
+          seenTans.add(formattedTan);
+          const matchedProfile = profiles.find((p) => p.tan?.trim().toUpperCase() === formattedTan || p.clientId === c.id);
+          list.push({
+            id: matchedProfile?.id || c.id,
+            name: c.displayName || c.legalName || 'Client',
+            tan: formattedTan,
+          });
+        }
+      }
+    });
+
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [profiles, clients]);
+
   const handleBatchGenerate = async () => {
     try {
       setIsLoading(true);
@@ -1388,9 +1426,9 @@ export const TdsCompliancePage: React.FC = () => {
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium"
             >
               <option value="">-- Choose TAN --</option>
-              {profiles.map((p) => (
+              {eligibleTanProfiles.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.tan} - {p.clientName}
+                  {p.tan} - {p.name}
                 </option>
               ))}
             </select>

@@ -58,6 +58,24 @@ public class TaxNoticeController {
 
     private final TaxNoticeService noticeService;
 
+    @GetMapping("/types")
+    @PreAuthorize("hasAuthority('NOTICE_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
+    @Operation(summary = "Get statutory notice types by department", description = "Retrieves authoritative notice categories and section mappings for a department.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.notice.dto.StatutoryNoticeTypeDto>>> getNoticeTypes(
+            @RequestParam(required = false) com.taxoryn.module.notice.enums.NoticeDepartment department) {
+        List<com.taxoryn.module.notice.dto.StatutoryNoticeTypeDto> list = com.taxoryn.module.notice.enums.StatutoryNoticeType.getByDepartment(department)
+                .stream()
+                .map(t -> com.taxoryn.module.notice.dto.StatutoryNoticeTypeDto.builder()
+                        .code(t.name())
+                        .department(t.getDepartment())
+                        .defaultSection(t.getDefaultSection())
+                        .label(t.getLabel())
+                        .description(t.getDescription())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success("Statutory notice types retrieved successfully", list));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('NOTICE_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PARTNER') or hasRole('MANAGER') or hasRole('TAX_PROFESSIONAL') or hasRole('STAFF')")
     @Operation(summary = "List tax notices with filters and pagination")

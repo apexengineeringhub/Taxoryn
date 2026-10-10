@@ -60,6 +60,8 @@ import {
   ComplianceDeadlineRadarDto,
   ClientComplianceDeadlineSummaryDto,
   ComplianceCalendarQueryFilter,
+  ClientComplianceHealthDto,
+  PracticeComplianceHealthSummaryDto,
   ComplianceWorkItem,
   CreateComplianceWorkItemRequest,
   UpdateComplianceWorkItemRequest,
@@ -116,6 +118,8 @@ import {
   OrganizationModule,
   ProductModule,
   ProductModuleCode,
+  StatutoryNoticeType,
+  NoticeDepartment,
   TaxNoticeConfig,
   UpdateTaxNoticeConfigRequest,
   DocumentRequest,
@@ -2410,7 +2414,7 @@ export const practiceServicePricingApi = {
     const res = await apiClient.get<ApiResponse<PracticeServicePrice[]>>('/v1/practice/service-pricing');
     return res.data.data;
   },
-  update: async (serviceCode: string, payload: { pricingMode: 'DEFAULT' | 'CUSTOM'; customPrice?: number; enabled: boolean }) => {
+  update: async (serviceCode: string, payload: { pricingMode: 'DEFAULT' | 'CUSTOM'; customPrice?: number; taxRate?: number | null; enabled: boolean }) => {
     const res = await apiClient.put<ApiResponse<PracticeServicePrice>>(`/v1/practice/service-pricing/${encodeURIComponent(serviceCode)}`, payload);
     return res.data.data;
   },
@@ -3005,6 +3009,11 @@ export const noticesApi = {
   },
   getDashboardStats: async () => {
     const res = await apiClient.get<ApiResponse<NoticeDashboardStats>>('/v1/notices/dashboard/stats');
+    return res.data.data;
+  },
+  getNoticeTypes: async (department?: NoticeDepartment) => {
+    const params = department ? { department } : {};
+    const res = await apiClient.get<ApiResponse<StatutoryNoticeType[]>>('/v1/notices/types', { params });
     return res.data.data;
   },
   getNoticeById: async (id: string) => {
@@ -4118,6 +4127,29 @@ export const complianceCalendarApi = {
   ): Promise<ClientComplianceDeadlineSummaryDto> => {
     const res = await apiClient.get<ApiResponse<ClientComplianceDeadlineSummaryDto>>(
       `/v1/clients/${clientId}/compliance/calendar/summary`,
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+};
+
+export const complianceHealthApi = {
+  getClientHealth: async (
+    clientId: string,
+    referenceDate?: string
+  ): Promise<ClientComplianceHealthDto> => {
+    const res = await apiClient.get<ApiResponse<ClientComplianceHealthDto>>(
+      `/v1/clients/${clientId}/compliance/health`,
+      { params: referenceDate ? { referenceDate } : undefined }
+    );
+    return res.data.data;
+  },
+
+  getPracticeHealth: async (
+    referenceDate?: string
+  ): Promise<PracticeComplianceHealthSummaryDto> => {
+    const res = await apiClient.get<ApiResponse<PracticeComplianceHealthSummaryDto>>(
+      `/v1/compliance/health`,
       { params: referenceDate ? { referenceDate } : undefined }
     );
     return res.data.data;

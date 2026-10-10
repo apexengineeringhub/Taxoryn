@@ -34,4 +34,7 @@ public class PracticeServicePricingEntity extends TenantAuditableEntity {
     @Column(name = "enabled", nullable = false)
     @Builder.Default
     private boolean enabled = true;
+
+    @Column(name = "tax_rate", precision = 5, scale = 2)
+    private BigDecimal taxRate;
 }
