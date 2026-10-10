@@ -52,12 +52,7 @@ const BILLING_UNITS = [
   'PER_YEAR',
 ];
 
-const formatMoney = (value: number | null | undefined, currency: string = 'INR') =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: currency || 'INR',
-    maximumFractionDigits: 2,
-  }).format(value || 0);
+import { formatCurrency as formatMoney } from '../utils/currencyUtils';
 
 export const PracticeServicePricingPage: React.FC = () => {
   const [pricingServices, setPricingServices] = useState<PracticeServicePrice[]>([]);

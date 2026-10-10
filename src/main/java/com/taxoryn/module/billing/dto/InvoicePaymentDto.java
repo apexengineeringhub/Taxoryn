@@ -28,9 +28,16 @@ public class InvoicePaymentDto {
     private String receiptNumber;
     private LocalDate paymentDate;
     private BigDecimal amount;
+    @com.fasterxml.jackson.annotation.JsonAlias({"paymentMode", "payment_method", "payment_mode"})
+    @com.fasterxml.jackson.annotation.JsonProperty("paymentMethod")
     private PaymentMethod paymentMethod;
     private String referenceNumber;
     private String notes;
     private String recordedBy;
     private Instant recordedAt;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("paymentMode")
+    public String getPaymentMode() {
+        return paymentMethod != null ? paymentMethod.name() : null;
+    }
 }

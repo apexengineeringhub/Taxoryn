@@ -1443,6 +1443,7 @@ export interface Invoice {
   clientPan?: string;
   invoiceDate: string;
   dueDate: string;
+  currency?: string;
   subtotal: number;
   tax: number;
   discount?: number;
@@ -1476,7 +1477,9 @@ export interface InvoicePaymentRecord {
   invoiceId: string;
   amount: number;
   paymentDate: string;
-  paymentMode: 'BANK_TRANSFER' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER';
+  paymentMode?: 'BANK_TRANSFER' | 'UPI' | 'NEFT_RTGS' | 'CHEQUE' | 'CASH' | 'CARD' | 'OTHER' | string;
+  paymentMethod?: 'BANK_TRANSFER' | 'UPI' | 'NEFT_RTGS' | 'CHEQUE' | 'CASH' | 'CARD' | 'OTHER' | string;
+  receiptNumber?: string;
   referenceNumber?: string;
   notes?: string;
 }
@@ -2181,6 +2184,7 @@ export interface MarketplaceService {
 export interface MarketplaceReview {
   id: string;
   marketplaceProfileId: string;
+  leadId?: string;
   reviewerName: string;
   reviewerDesignation?: string;
   reviewerCompany?: string;
@@ -2189,7 +2193,31 @@ export interface MarketplaceReview {
   reviewComment: string;
   serviceTaken?: string;
   isVerifiedClient?: boolean;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'HIDDEN';
+  moderatedBy?: string;
+  moderatedAt?: string;
+  moderationNote?: string;
   createdAt: string;
+}
+
+export interface MarketplaceRatingSummary {
+  marketplaceProfileId: string;
+  averageRating: number;
+  totalReviews: number;
+  fiveStarCount: number;
+  fourStarCount: number;
+  threeStarCount: number;
+  twoStarCount: number;
+  oneStarCount: number;
+}
+
+export interface ReviewEligibility {
+  eligible: boolean;
+  alreadyReviewed: boolean;
+  existingReviewId?: string;
+  completedLeadId?: string;
+  serviceCategory?: string;
+  reason?: string;
 }
 
 export interface MarketplaceProfile {

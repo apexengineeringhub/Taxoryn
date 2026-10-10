@@ -71,6 +71,30 @@ public class MarketplaceAdminController {
         return ResponseEntity.ok(ApiResponse.success("Publish status updated", profile));
     }
 
+    @GetMapping("/reviews")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Get All Practitioner Reviews for Moderation", description = "Lists all submitted practitioner reviews filtered by status for platform moderation.")
+    public ResponseEntity<ApiResponse<PagedResponse<MarketplaceReviewDto>>> getReviewsForModeration(
+            @RequestParam(required = false) com.taxoryn.module.marketplace.entity.MarketplaceReviewEntity.ReviewStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size
+    ) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        PagedResponse<MarketplaceReviewDto> reviews = marketplaceService.getAllReviewsForAdmin(status, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Reviews retrieved for moderation", reviews));
+    }
+
+    @PatchMapping("/reviews/{id}/status")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Moderate Practitioner Review", description = "Approves, rejects, or hides a practitioner review, updating profile aggregate rating.")
+    public ResponseEntity<ApiResponse<MarketplaceReviewDto>> moderateReview(
+            @PathVariable UUID id,
+            @Valid @RequestBody ModerateReviewRequest request
+    ) {
+        MarketplaceReviewDto review = marketplaceService.moderateReview(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Review status updated successfully", review));
+    }
+
     @GetMapping("/stats")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Get Global Platform Marketplace KPIs", description = "Platform-wide metrics for searches, leads, verified firms, and conversion.")

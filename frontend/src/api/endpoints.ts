@@ -151,6 +151,8 @@ import {
   MarketplaceLead,
   MarketplaceConsultation,
   MarketplaceReview,
+  MarketplaceRatingSummary,
+  ReviewEligibility,
   MarketplaceVerification,
   MarketplaceStats,
   MarketplaceProposal,
@@ -1519,8 +1521,13 @@ export const billingApi = {
     const res = await apiClient.post<ApiResponse<Invoice>>(`/v1/invoices/${id}/cancel`);
     return res.data.data;
   },
-  recordPayment: async (invoiceId: string, payload: { amount: number; paymentMode: string; referenceNumber?: string; paymentDate: string; notes?: string }) => {
-    const res = await apiClient.post<ApiResponse<any>>(`/v1/invoices/${invoiceId}/payments`, payload);
+  recordPayment: async (invoiceId: string, payload: { amount: number; paymentMethod?: string; paymentMode?: string; referenceNumber?: string; paymentDate: string; notes?: string }) => {
+    const body = {
+      ...payload,
+      paymentMethod: payload.paymentMethod || payload.paymentMode || 'BANK_TRANSFER',
+      paymentMode: payload.paymentMode || payload.paymentMethod || 'BANK_TRANSFER',
+    };
+    const res = await apiClient.post<ApiResponse<any>>(`/v1/invoices/${invoiceId}/payments`, body);
     return res.data.data;
   },
   sendReminder: async (id: string) => {
@@ -1529,6 +1536,22 @@ export const billingApi = {
   },
   getDashboardStats: async () => {
     const res = await apiClient.get<ApiResponse<BillingDashboardStats>>('/v1/invoices/dashboard/stats');
+    return res.data.data;
+  },
+  getTdsCredits: async (params?: { clientId?: string; financialYear?: string }) => {
+    const res = await apiClient.get<ApiResponse<any[]>>('/v1/billing/tds-reconciliation/credits', { params });
+    return res.data.data;
+  },
+  recordTdsCredit: async (payload: any) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/billing/tds-reconciliation/credits', payload);
+    return res.data.data;
+  },
+  runTdsReconciliation: async (params?: { clientId?: string; financialYear?: string }) => {
+    const res = await apiClient.post<ApiResponse<any>>('/v1/billing/tds-reconciliation/run', null, { params });
+    return res.data.data;
+  },
+  getTdsReconciliationSummary: async (params?: { clientId?: string; financialYear?: string }) => {
+    const res = await apiClient.get<ApiResponse<any>>('/v1/billing/tds-reconciliation/summary', { params });
     return res.data.data;
   },
 };
@@ -2091,6 +2114,20 @@ export const marketplacePublicApi = {
     const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>(`/v1/marketplace/profiles/${profileId}/reviews`);
     return res.data.data;
   },
+  getReviewsPaged: async (profileId: string, page = 0, size = 10) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceReview>>>(`/v1/marketplace/profiles/${profileId}/reviews/page`, {
+      params: { page, size }
+    });
+    return res.data.data;
+  },
+  getRatingSummary: async (profileId: string) => {
+    const res = await apiClient.get<ApiResponse<MarketplaceRatingSummary>>(`/v1/marketplace/profiles/${profileId}/rating-summary`);
+    return res.data.data;
+  },
+  checkReviewEligibility: async (profileId: string) => {
+    const res = await apiClient.get<ApiResponse<ReviewEligibility>>(`/v1/marketplace/profiles/${profileId}/reviews/eligibility`);
+    return res.data.data;
+  },
   submitLead: async (payload: CreateMarketplaceLeadRequest) => {
     const res = await apiClient.post<ApiResponse<MarketplaceLead>>('/v1/marketplace/leads', payload);
     return res.data.data;
@@ -2103,7 +2140,7 @@ export const marketplacePublicApi = {
     const res = await apiClient.get<ApiResponse<{ marketplaceProfileId: string; date: string; bookedSlots: string[]; availableSlots: string[] }>>(`/v1/marketplace/profiles/${profileId}/availability`, { params: { date } });
     return res.data.data;
   },
-  submitReview: async (payload: { marketplaceProfileId: string; reviewerName: string; reviewerDesignation?: string; reviewerCompany?: string; rating: number; reviewTitle?: string; reviewComment: string; serviceTaken?: string }) => {
+  submitReview: async (payload: { marketplaceProfileId: string; reviewerName?: string; reviewerDesignation?: string; reviewerCompany?: string; rating: number; reviewTitle?: string; reviewComment: string; serviceTaken?: string; leadId?: string }) => {
     const res = await apiClient.post<ApiResponse<MarketplaceReview>>('/v1/marketplace/reviews', payload);
     return res.data.data;
   },
@@ -2306,6 +2343,10 @@ export const marketplacePracticeApi = {
     const res = await apiClient.delete<ApiResponse<void>>(`/v1/marketplace/practice-profile/tax-services/${taxServiceId}`);
     return res.data;
   },
+  getMyReviews: async () => {
+    const res = await apiClient.get<ApiResponse<MarketplaceReview[]>>('/v1/practice/marketplace/reviews');
+    return res.data.data;
+  },
 };
 
 // --- 15. Platform Admin Marketplace Governance ---
@@ -2316,6 +2357,14 @@ export const marketplaceAdminApi = {
   },
   processVerification: async (id: string, payload: { verificationStatus: string; rejectionReason?: string }) => {
     const res = await apiClient.post<ApiResponse<MarketplaceVerification>>(`/v1/admin/marketplace/verifications/${id}/process`, payload);
+    return res.data.data;
+  },
+  getReviewsForModeration: async (params?: { status?: string; page?: number; size?: number }) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<MarketplaceReview>>>('/v1/admin/marketplace/reviews', { params });
+    return res.data.data;
+  },
+  moderateReview: async (id: string, payload: { status: string; moderationNote?: string }) => {
+    const res = await apiClient.patch<ApiResponse<MarketplaceReview>>(`/v1/admin/marketplace/reviews/${id}/status`, payload);
     return res.data.data;
   },
   toggleFeatured: async (id: string, isFeatured: boolean) => {

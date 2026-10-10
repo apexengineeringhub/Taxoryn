@@ -1,4 +1,5 @@
 import { Invoice } from '../types';
+import { formatCurrency } from './currencyUtils';
 
 function numberToWordsINR(num: number): string {
   if (!num || num <= 0) return 'Zero Rupees Only';
@@ -40,7 +41,7 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
   if (!doc) return;
 
   const currencyFmt = (val: number = 0) => {
-    return '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formatCurrency(val, invoice.currency || 'INR');
   };
 
   const fallbackRate = invoice.subtotal && invoice.subtotal > 0 && invoice.tax != null
@@ -112,12 +113,15 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
   const paymentsHtml = invoice.payments && invoice.payments.length > 0 ? `
     <div style="margin-top: 16px; padding: 10px 14px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
       <div style="font-weight: 700; font-size: 11px; color: #166534; margin-bottom: 4px;">RECORDED PAYMENT RECEIPTS:</div>
-      ${invoice.payments.map((p) => `
+      ${invoice.payments.map((p) => {
+        const method = (p.paymentMethod || p.paymentMode || 'BANK_TRANSFER').replace(/_/g, ' ');
+        return `
         <div style="display: flex; justify-content: space-between; font-size: 11px; font-family: monospace; color: #14532d; padding: 2px 0;">
-          <span>${p.paymentDate} &bull; ${p.paymentMode} ${p.referenceNumber ? `(Ref: ${p.referenceNumber})` : ''}</span>
+          <span>${p.paymentDate || 'Date Unrecorded'} &bull; ${method} ${p.referenceNumber ? `(Ref: ${p.referenceNumber})` : ''}</span>
           <strong style="color: #166534;">${currencyFmt(p.amount)}</strong>
         </div>
-      `).join('')}
+      `;
+      }).join('')}
     </div>
   ` : '';
 

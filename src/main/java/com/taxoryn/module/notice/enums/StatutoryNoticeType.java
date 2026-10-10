@@ -89,15 +89,33 @@ public enum StatutoryNoticeType {
         // 2. Check if it explicitly belongs to another distinct department (cross-department incompatibility check)
         for (StatutoryNoticeType other : values()) {
             if (other.getDepartment() != department && other.getDepartment() != NoticeDepartment.OTHER) {
+                String otherSec = other.getDefaultSection().toLowerCase();
+                String otherLabel = other.getLabel().toLowerCase();
                 if (other.name().equalsIgnoreCase(clean)
-                        || other.getLabel().equalsIgnoreCase(clean)
-                        || clean.startsWith(other.getDefaultSection().toLowerCase())) {
+                        || otherLabel.equalsIgnoreCase(clean)
+                        || clean.startsWith(otherSec)
+                        || clean.contains(otherSec)
+                        || clean.contains(other.name().toLowerCase())) {
                     return false; // Specifically matches another department, so invalid for this department
                 }
             }
         }
 
-        // 3. Permissive for custom/legacy strings as long as not conflicting with another department
+        // 3. Check department prefix keywords: e.g. "GST" under INCOME_TAX or "ITD"/"Income Tax" under GST
+        if (department != NoticeDepartment.GST && (clean.contains("gst") || clean.startsWith("drc-") || clean.startsWith("asmt-") || clean.startsWith("gstr-"))) {
+            return false;
+        }
+        if (department != NoticeDepartment.INCOME_TAX && (clean.contains("income tax") || clean.startsWith("itd_") || clean.startsWith("143(") || clean.startsWith("148") || clean.startsWith("139("))) {
+            return false;
+        }
+        if (department != NoticeDepartment.TDS && (clean.contains("tds") || clean.contains("traces") || clean.startsWith("200a") || clean.startsWith("201("))) {
+            return false;
+        }
+        if (department != NoticeDepartment.CUSTOMS && clean.contains("customs")) {
+            return false;
+        }
+
+        // 4. Permissive for general custom/legacy strings as long as not conflicting with another department
         return true;
     }
 }

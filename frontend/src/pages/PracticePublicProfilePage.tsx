@@ -34,7 +34,7 @@ import { SeoHead } from '../components/common/SeoHead';
 import { TaxorynLogo } from '../components/common/TaxorynLogo';
 import { useAuth } from '../context/AuthContext';
 import { marketplacePublicApi } from '../api/endpoints';
-import { MarketplaceProfile, MarketplaceService, MarketplaceReview, PublicTaxService, LearnContentSummary } from '../types';
+import { MarketplaceProfile, MarketplaceService, MarketplaceReview, PublicTaxService, LearnContentSummary, MarketplaceRatingSummary, ReviewEligibility } from '../types';
 import { generatePracticeProfileSchema, generateBreadcrumbSchema } from '../utils/schemaGenerators';
 import { saveBookingIntent, getBookingIntent, clearBookingIntent } from '../utils/bookingIntent';
 import clsx from 'clsx';
@@ -56,6 +56,9 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
   const [profile, setProfile] = useState<MarketplaceProfile | null>(null);
   const [services, setServices] = useState<MarketplaceService[]>([]);
   const [reviews, setReviews] = useState<MarketplaceReview[]>([]);
+  const [ratingSummary, setRatingSummary] = useState<MarketplaceRatingSummary | null>(null);
+  const [eligibility, setEligibility] = useState<ReviewEligibility | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'SERVICES' | 'LOCATIONS' | 'ABOUT' | 'REVIEWS' | 'GUIDES'>('SERVICES');
@@ -139,14 +142,18 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
 
       setProfile(prof);
 
-      // Load additional packages and reviews if not already populated
-      const [svcRes, revRes] = await Promise.all([
+      // Load additional packages, reviews, and rating summary
+      const [svcRes, revRes, summaryRes, eligRes] = await Promise.all([
         marketplacePublicApi.getServices(prof.id).catch(() => []),
         marketplacePublicApi.getReviews(prof.id).catch(() => []),
+        marketplacePublicApi.getRatingSummary(prof.id).catch(() => null),
+        isAuthenticated ? marketplacePublicApi.checkReviewEligibility(prof.id).catch(() => null) : Promise.resolve(null),
       ]);
 
       setServices(svcRes);
       setReviews(revRes);
+      if (summaryRes) setRatingSummary(summaryRes);
+      if (eligRes) setEligibility(eligRes);
 
       const targetTsId = searchParams.get('taxServiceId');
       const targetTsName = searchParams.get('taxServiceName');
@@ -307,20 +314,33 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
+    setReviewError(null);
+
+    if (!isAuthenticated) {
+      navigate('/login?redirect=' + encodeURIComponent(location.pathname));
+      return;
+    }
+
+    if (reviewForm.reviewComment.trim().length < 10) {
+      setReviewError('Review comment must be at least 10 characters.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await marketplacePublicApi.submitReview({
         marketplaceProfileId: profile.id,
-        reviewerName: reviewForm.reviewerName,
-        reviewerDesignation: reviewForm.reviewerDesignation,
-        reviewerCompany: reviewForm.reviewerCompany,
+        reviewerName: reviewForm.reviewerName?.trim() || undefined,
+        reviewerDesignation: reviewForm.reviewerDesignation?.trim() || undefined,
+        reviewerCompany: reviewForm.reviewerCompany?.trim() || undefined,
         rating: reviewForm.rating,
-        reviewTitle: reviewForm.reviewTitle,
-        reviewComment: reviewForm.reviewComment,
-        serviceTaken: reviewForm.serviceTaken,
+        reviewTitle: reviewForm.reviewTitle?.trim() || undefined,
+        reviewComment: reviewForm.reviewComment.trim(),
+        serviceTaken: reviewForm.serviceTaken?.trim() || eligibility?.serviceCategory || undefined,
+        leadId: eligibility?.completedLeadId || undefined,
       });
 
-      setSuccessMessage('Your review has been submitted for platform verification. Thank you for your feedback!');
+      setSuccessMessage('Your review has been submitted for platform moderation. Thank you for your feedback!');
       setShowReviewModal(false);
       setReviewForm({
         reviewerName: '',
@@ -334,7 +354,7 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
       setTimeout(() => setSuccessMessage(null), 7000);
       fetchProfileData();
     } catch (err: any) {
-      alert('Failed to submit review: ' + (err?.response?.data?.message || err.message));
+      setReviewError(err?.response?.data?.message || err.message || 'Failed to submit review');
     } finally {
       setIsSubmitting(false);
     }
@@ -860,18 +880,80 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
                   </Button>
                 </div>
 
+                {/* Rating Summary & Star Breakdown */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                    <div className="text-center md:text-left space-y-2">
+                      <div className="text-4xl font-extrabold text-slate-900">
+                        {ratingSummary ? ratingSummary.averageRating.toFixed(1) : Number(profile.averageRating || 0).toFixed(1)}
+                      </div>
+                      <div className="flex items-center justify-center md:justify-start gap-1 text-amber-500">
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const currentAvg = ratingSummary ? Number(ratingSummary.averageRating) : Number(profile.averageRating || 0);
+                          return (
+                            <Star
+                              key={star}
+                              className={`w-5 h-5 ${star <= Math.round(currentAvg) ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`}
+                            />
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Based on {ratingSummary ? ratingSummary.totalReviews : (profile.totalReviews || displayedReviews.length)} verified client reviews
+                      </p>
+                    </div>
+
+                    {/* Star Breakdown Bars */}
+                    <div className="md:col-span-2 space-y-1.5 text-xs">
+                      {[5, 4, 3, 2, 1].map((stars) => {
+                        const total = ratingSummary?.totalReviews || displayedReviews.length || 1;
+                        let count = 0;
+                        if (ratingSummary) {
+                          if (stars === 5) count = ratingSummary.fiveStarCount;
+                          else if (stars === 4) count = ratingSummary.fourStarCount;
+                          else if (stars === 3) count = ratingSummary.threeStarCount;
+                          else if (stars === 2) count = ratingSummary.twoStarCount;
+                          else if (stars === 1) count = ratingSummary.oneStarCount;
+                        } else {
+                          count = displayedReviews.filter((r) => r.rating === stars).length;
+                        }
+                        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                        return (
+                          <div key={stars} className="flex items-center gap-2">
+                            <span className="w-8 text-slate-500 font-medium text-right">{stars} ★</span>
+                            <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                              <div className="bg-amber-400 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="w-8 text-slate-400 text-[11px]">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
                 {displayedReviews.length > 0 ? (
                   <div className="space-y-4">
                     {displayedReviews.map((rev) => (
                       <div key={rev.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-900 text-sm">{rev.reviewerName}</span>
-                            {rev.isVerifiedClient && (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                <CheckCircle2 className="w-3 h-3" /> Verified Client
-                              </span>
-                            )}
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-xs">
+                              {rev.reviewerName ? rev.reviewerName.charAt(0).toUpperCase() : 'C'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-slate-900 text-sm">{rev.reviewerName}</span>
+                                {rev.isVerifiedClient && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                    <CheckCircle2 className="w-3 h-3" /> Verified Client
+                                  </span>
+                                )}
+                              </div>
+                              {rev.reviewerDesignation && (
+                                <p className="text-[11px] text-slate-400">{rev.reviewerDesignation}</p>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center gap-1 text-amber-500">
                             {[...Array(rev.rating || 5)].map((_, i) => (
@@ -887,8 +969,19 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
                         <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{rev.reviewComment}</p>
 
                         <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100">
-                          <span>{rev.serviceTaken || 'Tax Advisory'}</span>
-                          {rev.reviewerCompany && <span>{rev.reviewerCompany}</span>}
+                          <span className="font-medium text-slate-500">{rev.serviceTaken || 'Tax Advisory'}</span>
+                          <div className="flex items-center gap-3">
+                            {rev.reviewerCompany && <span>{rev.reviewerCompany}</span>}
+                            {rev.createdAt && (
+                              <span>
+                                {new Date(rev.createdAt).toLocaleDateString('en-IN', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1373,76 +1466,151 @@ export const PracticePublicProfilePage: React.FC<PracticePublicProfilePageProps>
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-lg">Submit Verified Review</h3>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Submit Verified Review</h3>
+                <p className="text-xs text-slate-500">For {profile.displayName}</p>
+              </div>
               <button
-                onClick={() => setShowReviewModal(false)}
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setReviewError(null);
+                }}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleReviewSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {!isAuthenticated ? (
+              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-4">
+                <ShieldCheck className="w-10 h-10 text-indigo-600 mx-auto" />
+                <div className="space-y-1">
+                  <h4 className="font-semibold text-slate-900 text-sm">Authentication Required</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    To maintain reviews integrity and prevent spam, only verified clients who have engaged this practitioner through Taxoryn can submit a review.
+                  </p>
+                </div>
+                <div className="pt-2 flex justify-center gap-3">
+                  <Button variant="outline" size="sm" onClick={() => setShowReviewModal(false)}>
+                    Close
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => navigate('/login?redirect=' + encodeURIComponent(location.pathname))}
+                  >
+                    Sign In to Continue
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleReviewSubmit} className="space-y-4">
+                {/* Authenticated Account Badge */}
+                <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-900 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <User className="w-3.5 h-3.5 text-indigo-600" /> Reviewing as: <strong>{user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : 'Client'}</strong>
+                  </span>
+                  <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                    Authenticated
+                  </span>
+                </div>
+
+                {/* Eligibility Notice */}
+                {eligibility && !eligibility.eligible && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-0.5">
+                    <span className="font-semibold block">Notice:</span>
+                    <span>{eligibility.reason || 'You can only review a practitioner after completing an engagement or service with them.'}</span>
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {reviewError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                    {reviewError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Rating (1-5 Stars) *</label>
+                    <select
+                      value={reviewForm.rating}
+                      onChange={(e) => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none font-semibold text-amber-600"
+                    >
+                      <option value={5}>★★★★★ (5 Stars - Excellent)</option>
+                      <option value={4}>★★★★☆ (4 Stars - Very Good)</option>
+                      <option value={3}>★★★☆☆ (3 Stars - Average)</option>
+                      <option value={2}>★★☆☆☆ (2 Stars - Below Average)</option>
+                      <option value={1}>★☆☆☆☆ (1 Star - Poor)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Service Taken</label>
+                    <input
+                      type="text"
+                      value={reviewForm.serviceTaken}
+                      onChange={(e) => setReviewForm({ ...reviewForm, serviceTaken: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none"
+                      placeholder="e.g. GST Return Filing"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Your Name *</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Review Headline</label>
                   <input
                     type="text"
-                    required
-                    value={reviewForm.reviewerName}
-                    onChange={(e) => setReviewForm({ ...reviewForm, reviewerName: e.target.value })}
+                    maxLength={150}
+                    value={reviewForm.reviewTitle}
+                    onChange={(e) => setReviewForm({ ...reviewForm, reviewTitle: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none"
-                    placeholder="e.g. Priya Iyer"
+                    placeholder="e.g. Prompt GST notice resolution and clear guidance"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Rating (1-5 Stars) *</label>
-                  <select
-                    value={reviewForm.rating}
-                    onChange={(e) => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none font-semibold text-amber-600"
-                  >
-                    <option value={5}>★★★★★ (5 Stars - Excellent)</option>
-                    <option value={4}>★★★★☆ (4 Stars - Very Good)</option>
-                    <option value={3}>★★★☆☆ (3 Stars - Average)</option>
-                    <option value={2}>★★☆☆☆ (2 Stars - Below Average)</option>
-                    <option value={1}>★☆☆☆☆ (1 Star - Poor)</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-slate-700">Review Details *</label>
+                    <span className={`text-[11px] ${reviewForm.reviewComment.trim().length < 10 ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                      {reviewForm.reviewComment.trim().length} / 2000 (min 10 chars)
+                    </span>
+                  </div>
+                  <textarea
+                    required
+                    rows={4}
+                    maxLength={2000}
+                    value={reviewForm.reviewComment}
+                    onChange={(e) => setReviewForm({ ...reviewForm, reviewComment: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none resize-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Share your experience working with this practitioner (at least 10 characters)..."
+                  />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Review Headline</label>
-                <input
-                  type="text"
-                  value={reviewForm.reviewTitle}
-                  onChange={(e) => setReviewForm({ ...reviewForm, reviewTitle: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none"
-                  placeholder="e.g. Prompt GST notice resolution"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Review Details *</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={reviewForm.reviewComment}
-                  onChange={(e) => setReviewForm({ ...reviewForm, reviewComment: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none resize-none"
-                  placeholder="Share your experience working with this practice..."
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowReviewModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
-                  {isSubmitting ? 'Submitting...' : 'Submit for Verification'}
-                </Button>
-              </div>
-            </form>
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowReviewModal(false);
+                      setReviewError(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isSubmitting || reviewForm.reviewComment.trim().length < 10 || (eligibility ? !eligibility.eligible : false)}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Submit for Moderation'}
+                  </Button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

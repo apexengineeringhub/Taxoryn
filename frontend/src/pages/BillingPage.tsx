@@ -16,6 +16,8 @@ import {
   Trash2,
   ExternalLink,
   Tag,
+  RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -25,6 +27,7 @@ import { billingApi, clientApi, practiceServicePricingApi, PracticeServicePrice 
 import { Invoice, InvoiceLineItem, Client, BulkCreateInvoicesRequest } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { printTaxInvoice } from '../utils/invoicePrinter';
+import { formatCurrency } from '../utils/currencyUtils';
 
 const serviceTypeForModule = (moduleCode: string): InvoiceLineItem['service'] => {
   if (moduleCode === 'GST') return 'GST_FILING';
@@ -60,15 +63,30 @@ export const BillingPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'ISSUED' | 'PAID' | 'PARTIALLY_PAID' | 'DRAFT' | 'OVERDUE'>(() => {
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ISSUED' | 'PAID' | 'PARTIALLY_PAID' | 'DRAFT' | 'OVERDUE' | 'TDS_RECONCILIATION'>(() => {
     const s = searchParams.get('status')?.toUpperCase() || searchParams.get('tab')?.toUpperCase();
     if (s === 'PAID') return 'PAID';
     if (s === 'ISSUED' || s === 'OUTSTANDING' || s === 'UNPAID') return 'ISSUED';
     if (s === 'PARTIALLY_PAID') return 'PARTIALLY_PAID';
     if (s === 'DRAFT') return 'DRAFT';
     if (s === 'OVERDUE') return 'OVERDUE';
+    if (s === 'TDS_RECONCILIATION' || s === 'TDS') return 'TDS_RECONCILIATION';
     return 'ALL';
   });
+
+  // TDS Reconciliation State
+  const [tdsReconSummary, setTdsReconSummary] = useState<any | null>(null);
+  const [isLoadingTdsRecon, setIsLoadingTdsRecon] = useState(false);
+  const [isRecordTdsModalOpen, setIsRecordTdsModalOpen] = useState(false);
+  const [tdsClientId, setTdsClientId] = useState('');
+  const [tdsDeductorPan, setTdsDeductorPan] = useState('');
+  const [tdsDeductorName, setTdsDeductorName] = useState('');
+  const [tdsSectionCode, setTdsSectionCode] = useState('194J');
+  const [tdsFinancialYear, setTdsFinancialYear] = useState('2025-26');
+  const [tdsGrossAmount, setTdsGrossAmount] = useState<number>(0);
+  const [tdsDeductedAmount, setTdsDeductedAmount] = useState<number>(0);
+  const [tdsCertNo, setTdsCertNo] = useState('');
+  const [tdsSourceType, setTdsSourceType] = useState('FORM_26AS_IMPORT');
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(
@@ -81,6 +99,7 @@ export const BillingPage: React.FC = () => {
 
   // Payment Recording State
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [paymentMode, setPaymentMode] = useState('BANK_TRANSFER');
   const [referenceNo, setReferenceNo] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
@@ -192,10 +211,6 @@ export const BillingPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to load clients', err);
     }
-  };
-
-  const formatCurrency = (val: number = 0) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(val);
   };
 
   const getTaxRateLabel = (inv: Invoice) => {
@@ -477,9 +492,10 @@ export const BillingPage: React.FC = () => {
       setIsSubmitting(true);
       await billingApi.recordPayment(selectedInvoice.id, {
         amount: paymentAmount,
+        paymentMethod: paymentMode,
         paymentMode,
         referenceNumber: referenceNo,
-        paymentDate: new Date().toISOString().split('T')[0],
+        paymentDate: paymentDate || new Date().toISOString().split('T')[0],
         notes: paymentNotes,
       });
       alert(`Recorded payment of ${formatCurrency(paymentAmount)} against ${selectedInvoice.invoiceNumber}!`);
@@ -507,9 +523,72 @@ export const BillingPage: React.FC = () => {
       await billingApi.sendReminder(inv.id);
       alert(`WhatsApp payment reminder dispatched for invoice ${inv.invoiceNumber}!`);
     } catch (err: any) {
-      alert(`Failed to send WhatsApp reminder: ${err.message}`);
+      alert(`Failed to send reminder: ${err.message}`);
     }
   };
+
+  const handleFetchTdsRecon = async () => {
+    try {
+      setIsLoadingTdsRecon(true);
+      const summary = await billingApi.getTdsReconciliationSummary();
+      setTdsReconSummary(summary);
+    } catch (err: any) {
+      console.error('Failed to fetch TDS reconciliation:', err);
+    } finally {
+      setIsLoadingTdsRecon(false);
+    }
+  };
+
+  const handleRunTdsRecon = async () => {
+    try {
+      setIsLoadingTdsRecon(true);
+      const summary = await billingApi.runTdsReconciliation();
+      setTdsReconSummary(summary);
+      alert('TDS credit reconciliation executed successfully! Matches and discrepancies updated.');
+    } catch (err: any) {
+      alert(`Reconciliation error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsLoadingTdsRecon(false);
+    }
+  };
+
+  const handleRecordTdsCredit = async () => {
+    if (!tdsClientId || tdsGrossAmount <= 0 || tdsDeductedAmount <= 0) {
+      alert('Please select a client and enter valid gross and TDS amounts.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const selectedClient = clients.find(c => c.id === tdsClientId);
+      await billingApi.recordTdsCredit({
+        clientId: tdsClientId,
+        deductorPan: tdsDeductorPan || selectedClient?.pan || 'UNKNOWNPAN',
+        deductorName: tdsDeductorName || selectedClient?.displayName || 'Client',
+        sectionCode: tdsSectionCode,
+        financialYear: tdsFinancialYear,
+        grossAmount: tdsGrossAmount,
+        tdsDeducted: tdsDeductedAmount,
+        sourceType: tdsSourceType,
+        certificateNumber: tdsCertNo,
+      });
+      alert('TDS credit recorded successfully! Running automatic reconciliation...');
+      setIsRecordTdsModalOpen(false);
+      setTdsGrossAmount(0);
+      setTdsDeductedAmount(0);
+      setTdsCertNo('');
+      await handleRunTdsRecon();
+    } catch (err: any) {
+      alert(`Failed to record TDS credit: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'TDS_RECONCILIATION') {
+      handleFetchTdsRecon();
+    }
+  }, [activeTab]);
 
   const handleCancelInvoice = async (inv: Invoice) => {
     if (!window.confirm(`Are you sure you want to cancel invoice ${inv.invoiceNumber}?`)) return;
@@ -634,6 +713,7 @@ export const BillingPage: React.FC = () => {
               onClick={() => {
                 setSelectedInvoice(row);
                 setPaymentAmount(row.balanceDue);
+                setPaymentDate(new Date().toISOString().split('T')[0]);
                 setIsPaymentModalOpen(true);
               }}
               title="Record Client Payment"
@@ -779,6 +859,7 @@ export const BillingPage: React.FC = () => {
           { key: 'PARTIALLY_PAID', label: 'Partially Paid', count: tabCounts.PARTIALLY_PAID },
           { key: 'DRAFT', label: 'Drafts', count: tabCounts.DRAFT },
           { key: 'OVERDUE', label: 'Overdue', count: tabCounts.OVERDUE },
+          { key: 'TDS_RECONCILIATION', label: 'TDS Reconciliation', count: tdsReconSummary ? tdsReconSummary.matchedCount + tdsReconSummary.discrepancyCount : 0 },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -799,8 +880,230 @@ export const BillingPage: React.FC = () => {
         ))}
       </div>
 
+      {/* TDS Reconciliation Tab Content */}
+      {activeTab === 'TDS_RECONCILIATION' && (
+        <div className="space-y-6">
+          {/* Header Actions & Explainer */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-bold text-slate-900">Automatic TDS Credit Reconciliation</h3>
+                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-full border border-indigo-200">
+                  Section 194J / 194C / Form 26AS
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                Reconciles practice fee receivables against client withholding tax deductions recorded in Form 26AS, AIS, or Form 16A certificates.
+                TDS credits represent withholding tax assets and do not alter cash collections or mark invoices as paid without practitioner review.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => setIsRecordTdsModalOpen(true)}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                Record TDS Credit
+              </Button>
+              <Button
+                onClick={handleRunTdsRecon}
+                disabled={isLoadingTdsRecon}
+                leftIcon={<RefreshCw className={`w-4 h-4 ${isLoadingTdsRecon ? 'animate-spin' : ''}`} />}
+              >
+                Run Automatic Match
+              </Button>
+            </div>
+          </div>
+
+          {/* KPI Distinction Strip: Cash vs TDS Credit vs Balance */}
+          {tdsReconSummary && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span className="text-xs font-semibold text-slate-500">Gross Fee Invoiced</span>
+                <p className="text-xl font-black text-slate-900 mt-1">{formatCurrency(tdsReconSummary.totalGrossInvoiced)}</p>
+                <span className="text-[10px] text-slate-400 font-mono">{tdsReconSummary.totalInvoicesCount} practice invoices</span>
+              </div>
+
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span className="text-xs font-semibold text-slate-500">Cash Received Against Invoice</span>
+                <p className="text-xl font-black text-emerald-600 mt-1">{formatCurrency(tdsReconSummary.totalCashReceived)}</p>
+                <span className="text-[10px] text-slate-400 font-mono">Direct bank/cash receipts</span>
+              </div>
+
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span className="text-xs font-semibold text-slate-500">TDS Deduction Reported</span>
+                <p className="text-xl font-black text-indigo-600 mt-1">{formatCurrency(tdsReconSummary.totalTdsReported)}</p>
+                <span className="text-[10px] text-indigo-500 font-medium">
+                  Matched: {formatCurrency(tdsReconSummary.totalTdsMatched)} | Discrepancy: {formatCurrency(tdsReconSummary.totalTdsDiscrepancy)}
+                </span>
+              </div>
+
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span className="text-xs font-semibold text-slate-500">Receivable Balance Due</span>
+                <p className="text-xl font-black text-amber-600 mt-1">{formatCurrency(tdsReconSummary.totalReceivableBalance)}</p>
+                <span className="text-[10px] text-amber-600 font-medium">Net pending collection</span>
+              </div>
+            </div>
+          )}
+
+          {/* Matched Items Section */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Exact Reconciled Matches</h4>
+                <p className="text-xs text-slate-500">Client PAN, invoice billing base, and statutory deduction rate (10% / 2%) match Form 26AS records.</p>
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
+                {tdsReconSummary?.matchedCount || 0} Matches
+              </span>
+            </div>
+            {tdsReconSummary?.matchedItems && tdsReconSummary.matchedItems.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-4">Invoice #</th>
+                      <th className="py-2.5 px-4">Client</th>
+                      <th className="py-2.5 px-4">Deductor PAN</th>
+                      <th className="py-2.5 px-4">Section</th>
+                      <th className="py-2.5 px-4 text-right">Invoice Subtotal</th>
+                      <th className="py-2.5 px-4 text-right">TDS Deducted</th>
+                      <th className="py-2.5 px-4">Match Status</th>
+                      <th className="py-2.5 px-4">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {tdsReconSummary.matchedItems.map((item: any) => (
+                      <tr key={item.matchId || item.invoiceId} className="hover:bg-slate-50/50">
+                        <td className="py-2.5 px-4 font-mono font-bold text-brand-700">{item.invoiceNumber}</td>
+                        <td className="py-2.5 px-4 font-semibold text-slate-900">{item.clientName}</td>
+                        <td className="py-2.5 px-4 font-mono text-slate-600">{item.deductorPan}</td>
+                        <td className="py-2.5 px-4 font-bold text-slate-700">{item.sectionCode}</td>
+                        <td className="py-2.5 px-4 text-right font-mono">{formatCurrency(item.invoiceSubtotal)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-700">{formatCurrency(item.actualTdsDeducted)}</td>
+                        <td className="py-2.5 px-4">
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200">
+                            EXACT_MATCH
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-500">{item.remarks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-500">
+                No exact matched TDS credits found. Record a TDS credit or click &quot;Run Automatic Match&quot;.
+              </div>
+            )}
+          </div>
+
+          {/* Discrepancies Section */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Rate Discrepancies & Amount Mismatches</h4>
+                <p className="text-xs text-slate-500">Gross billing aligns with client record, but tax rate deducted differs from standard statutory rate or timing mismatch exists.</p>
+              </div>
+              <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-200">
+                {tdsReconSummary?.discrepancyCount || 0} Discrepancies
+              </span>
+            </div>
+            {tdsReconSummary?.discrepancyItems && tdsReconSummary.discrepancyItems.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-4">Invoice #</th>
+                      <th className="py-2.5 px-4">Client</th>
+                      <th className="py-2.5 px-4">Deductor PAN</th>
+                      <th className="py-2.5 px-4 text-right">Invoice Subtotal</th>
+                      <th className="py-2.5 px-4 text-right">Expected TDS</th>
+                      <th className="py-2.5 px-4 text-right">Actual TDS</th>
+                      <th className="py-2.5 px-4 text-right">Discrepancy (₹)</th>
+                      <th className="py-2.5 px-4">Discrepancy Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {tdsReconSummary.discrepancyItems.map((item: any) => (
+                      <tr key={item.matchId || item.invoiceId} className="hover:bg-slate-50/50">
+                        <td className="py-2.5 px-4 font-mono font-bold text-brand-700">{item.invoiceNumber}</td>
+                        <td className="py-2.5 px-4 font-semibold text-slate-900">{item.clientName}</td>
+                        <td className="py-2.5 px-4 font-mono text-slate-600">{item.deductorPan}</td>
+                        <td className="py-2.5 px-4 text-right font-mono">{formatCurrency(item.invoiceSubtotal)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono text-slate-600">{formatCurrency(item.expectedTdsAmount)} ({item.expectedTdsRate}%)</td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-600">{formatCurrency(item.actualTdsDeducted)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-700">{formatCurrency(item.rateDiscrepancy)}</td>
+                        <td className="py-2.5 px-4 text-slate-600 font-medium">{item.remarks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-500">
+                No rate or amount discrepancies detected across reconciled records.
+              </div>
+            )}
+          </div>
+
+          {/* Unmatched Invoices / Receivables */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Unmatched Practice Receivables</h4>
+                <p className="text-xs text-slate-500">Invoices issued without a matching client TDS withholding deposit in the government ledger.</p>
+              </div>
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg border border-slate-300">
+                {tdsReconSummary?.unmatchedInvoicesCount || 0} Unmatched Invoices
+              </span>
+            </div>
+            {tdsReconSummary?.unmatchedInvoices && tdsReconSummary.unmatchedInvoices.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-4">Invoice #</th>
+                      <th className="py-2.5 px-4">Client</th>
+                      <th className="py-2.5 px-4">Client PAN</th>
+                      <th className="py-2.5 px-4 text-right">Invoice Total</th>
+                      <th className="py-2.5 px-4 text-right">Cash Received</th>
+                      <th className="py-2.5 px-4 text-right">Balance Due</th>
+                      <th className="py-2.5 px-4">Reconciliation Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {tdsReconSummary.unmatchedInvoices.map((inv: any) => (
+                      <tr key={inv.invoiceId} className="hover:bg-slate-50/50">
+                        <td className="py-2.5 px-4 font-mono font-bold text-brand-700">{inv.invoiceNumber}</td>
+                        <td className="py-2.5 px-4 font-semibold text-slate-900">{inv.clientName}</td>
+                        <td className="py-2.5 px-4 font-mono text-slate-600">{inv.clientPan || 'N/A'}</td>
+                        <td className="py-2.5 px-4 text-right font-mono">{formatCurrency(inv.invoiceTotal)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono text-emerald-600">{formatCurrency(inv.cashReceived)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono font-bold text-amber-600">{formatCurrency(inv.receivableBalance)}</td>
+                        <td className="py-2.5 px-4">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-full border border-slate-300">
+                            UNMATCHED_INVOICE
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-500">
+                All practice invoices have attributable TDS credits.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Empty State Banner when 0 invoices */}
-      {invoices.length === 0 && !isLoading && (
+      {activeTab !== 'TDS_RECONCILIATION' && invoices.length === 0 && !isLoading && (
         <div className="bg-gradient-to-r from-brand-50 via-purple-50 to-indigo-50 border border-brand-200 rounded-2xl p-8 text-center space-y-4">
           <div className="w-14 h-14 bg-white shadow-sm border border-brand-200 rounded-2xl flex items-center justify-center mx-auto text-brand-600">
             <Receipt className="w-7 h-7" />
@@ -837,12 +1140,151 @@ export const BillingPage: React.FC = () => {
       )}
 
       {/* Invoices Data Table */}
-      <DataTable
-        columns={columns}
-        data={filteredInvoices}
-        isLoading={isLoading}
-        searchPlaceholder="Search by invoice number, client name, PAN, GSTIN..."
-      />
+      {activeTab !== 'TDS_RECONCILIATION' && (
+        <DataTable
+          columns={columns}
+          data={filteredInvoices}
+          isLoading={isLoading}
+          searchPlaceholder="Search by invoice number, client name, PAN, GSTIN..."
+        />
+      )}
+
+      {/* =========================================================================
+          0. RECORD TDS CREDIT MODAL
+          ========================================================================= */}
+      <Modal
+        isOpen={isRecordTdsModalOpen}
+        onClose={() => setIsRecordTdsModalOpen(false)}
+        title="Record Inward TDS Withholding Credit"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Log a TDS withholding entry made by a client against practice professional fees (e.g. from Form 16A or Form 26AS).
+          </p>
+
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">Select Client *</label>
+            <select
+              value={tdsClientId}
+              onChange={(e) => {
+                const cid = e.target.value;
+                setTdsClientId(cid);
+                const cl = clients.find(c => c.id === cid);
+                if (cl) {
+                  setTdsDeductorPan(cl.pan || '');
+                  setTdsDeductorName(cl.displayName || '');
+                }
+              }}
+              className="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">-- Choose Client --</option>
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>{c.displayName} ({c.pan || 'No PAN'})</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Deductor PAN</label>
+              <input
+                type="text"
+                value={tdsDeductorPan}
+                onChange={(e) => setTdsDeductorPan(e.target.value.toUpperCase())}
+                placeholder="ABCDE1234F"
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-mono uppercase"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Section Code</label>
+              <select
+                value={tdsSectionCode}
+                onChange={(e) => setTdsSectionCode(e.target.value)}
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold"
+              >
+                <option value="194J">194J - Professional & Technical Fees (10%)</option>
+                <option value="194C">194C - Contractor / Subcontractor (2%)</option>
+                <option value="194H">194H - Commission / Brokerage (5%)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Financial Year</label>
+              <select
+                value={tdsFinancialYear}
+                onChange={(e) => setTdsFinancialYear(e.target.value)}
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg"
+              >
+                <option value="2025-26">FY 2025-26 (AY 2026-27)</option>
+                <option value="2024-25">FY 2024-25 (AY 2025-26)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Source Type</label>
+              <select
+                value={tdsSourceType}
+                onChange={(e) => setTdsSourceType(e.target.value)}
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg"
+              >
+                <option value="FORM_26AS_IMPORT">Form 26AS Import</option>
+                <option value="AIS_IMPORT">AIS Import</option>
+                <option value="FORM_16A_UPLOAD">Form 16A Certificate</option>
+                <option value="MANUAL_ENTRY">Manual Entry</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Gross Fee Credited (₹) *</label>
+              <input
+                type="number"
+                value={tdsGrossAmount || ''}
+                onChange={(e) => {
+                  const gross = Number(e.target.value);
+                  setTdsGrossAmount(gross);
+                  const rate = tdsSectionCode === '194C' ? 0.02 : 0.10;
+                  setTdsDeductedAmount(Math.round(gross * rate));
+                }}
+                placeholder="e.g. 50000"
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">TDS Deducted (₹) *</label>
+              <input
+                type="number"
+                value={tdsDeductedAmount || ''}
+                onChange={(e) => setTdsDeductedAmount(Number(e.target.value))}
+                placeholder="e.g. 5000"
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-mono font-bold text-indigo-700"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">Certificate # / Remarks (Optional)</label>
+            <input
+              type="text"
+              value={tdsCertNo}
+              onChange={(e) => setTdsCertNo(e.target.value)}
+              placeholder="e.g. CERT-16A-2026-001"
+              className="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-mono"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsRecordTdsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRecordTdsCredit} disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save & Reconcile'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* =========================================================================
           1. CREATE INDIVIDUAL INVOICE MODAL
@@ -1323,28 +1765,43 @@ export const BillingPage: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Receipt Amount (₹) *</label>
-            <input
-              type="number"
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(Number(e.target.value))}
-              className="w-full text-xs font-mono font-bold px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Receipt Amount (₹) *</label>
+              <input
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                className="w-full text-xs font-mono font-bold px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Date *</label>
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Mode</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Method *</label>
               <select
                 value={paymentMode}
                 onChange={(e) => setPaymentMode(e.target.value)}
                 className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
               >
-                <option value="BANK_TRANSFER">Bank Transfer / NEFT / RTGS</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
                 <option value="UPI">UPI / QR Code</option>
+                <option value="NEFT_RTGS">NEFT / RTGS</option>
                 <option value="CHEQUE">Cheque / Demand Draft</option>
-                <option value="CASH">Cash Payment</option>
+                <option value="CASH">Cash</option>
+                <option value="CARD">Credit / Debit Card</option>
+                <option value="OTHER">Other / Direct Adjustment</option>
               </select>
             </div>
 
@@ -1593,12 +2050,18 @@ export const BillingPage: React.FC = () => {
                 <div className="border border-emerald-200 bg-emerald-50/50 p-3 rounded-lg text-xs space-y-1">
                   <span className="font-bold text-emerald-900 block">Recorded Payment Receipts:</span>
                   <div className="divide-y divide-emerald-100">
-                    {selectedInvoice.payments.map((pmt, pIdx) => (
-                      <div key={pIdx} className="flex justify-between py-1 font-mono text-[11px]">
-                        <span>{pmt.paymentDate} - {pmt.paymentMode} {pmt.referenceNumber ? `(Ref: ${pmt.referenceNumber})` : ''}</span>
-                        <strong className="text-emerald-800">{formatCurrency(pmt.amount)}</strong>
-                      </div>
-                    ))}
+                    {selectedInvoice.payments.map((pmt, pIdx) => {
+                      const method = pmt.paymentMethod || pmt.paymentMode || 'BANK_TRANSFER';
+                      const formattedMethod = method.replace(/_/g, ' ');
+                      return (
+                        <div key={pIdx} className="flex justify-between py-1 font-mono text-[11px]">
+                          <span>
+                            {pmt.paymentDate || 'Date Unrecorded'} &bull; {formattedMethod} {pmt.referenceNumber ? `(Ref: ${pmt.referenceNumber})` : ''}
+                          </span>
+                          <strong className="text-emerald-800">{formatCurrency(pmt.amount)}</strong>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
