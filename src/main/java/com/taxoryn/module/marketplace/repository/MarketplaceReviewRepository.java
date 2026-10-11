@@ -15,6 +15,21 @@ public interface MarketplaceReviewRepository extends JpaRepository<MarketplaceRe
             MarketplaceReviewEntity.ReviewStatus status
     );
 
+    org.springframework.data.domain.Page<MarketplaceReviewEntity> findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
+            UUID marketplaceProfileId,
+            MarketplaceReviewEntity.ReviewStatus status,
+            org.springframework.data.domain.Pageable pageable
+    );
+
+    org.springframework.data.domain.Page<MarketplaceReviewEntity> findByStatusOrderByCreatedAtDesc(
+            MarketplaceReviewEntity.ReviewStatus status,
+            org.springframework.data.domain.Pageable pageable
+    );
+
+    org.springframework.data.domain.Page<MarketplaceReviewEntity> findAllByOrderByCreatedAtDesc(
+            org.springframework.data.domain.Pageable pageable
+    );
+
     List<MarketplaceReviewEntity> findAllByOrganizationId(UUID organizationId);
 
     List<MarketplaceReviewEntity> findAllByCustomerIdOrderByCreatedAtDesc(UUID customerId);
@@ -23,5 +38,21 @@ public interface MarketplaceReviewRepository extends JpaRepository<MarketplaceRe
 
     boolean existsByLeadId(UUID leadId);
 
+    boolean existsByCustomerIdAndMarketplaceProfileId(UUID customerId, UUID marketplaceProfileId);
+
     long countByCustomerId(UUID customerId);
+
+    long countByMarketplaceProfileIdAndStatus(UUID marketplaceProfileId, MarketplaceReviewEntity.ReviewStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(AVG(r.rating), 0.0) FROM MarketplaceReviewEntity r WHERE r.marketplaceProfileId = :profileId AND r.status = :status")
+    Double getAverageRatingByProfileIdAndStatus(
+            @org.springframework.data.repository.query.Param("profileId") UUID profileId,
+            @org.springframework.data.repository.query.Param("status") MarketplaceReviewEntity.ReviewStatus status
+    );
+
+    @org.springframework.data.jpa.repository.Query("SELECT r.rating, COUNT(r) FROM MarketplaceReviewEntity r WHERE r.marketplaceProfileId = :profileId AND r.status = :status GROUP BY r.rating")
+    List<Object[]> getRatingBreakdownByProfileIdAndStatus(
+            @org.springframework.data.repository.query.Param("profileId") UUID profileId,
+            @org.springframework.data.repository.query.Param("status") MarketplaceReviewEntity.ReviewStatus status
+    );
 }

@@ -880,6 +880,7 @@ export interface Client360Overview {
   complianceApplicability?: ComplianceApplicabilitySummaryDto;
   complianceObligations?: ComplianceObligationSummaryDto;
   complianceDeadlines?: ClientComplianceDeadlineSummaryDto;
+  complianceHealth?: ClientComplianceHealthDto;
 }
 
 export type ContactRole =
@@ -1442,6 +1443,7 @@ export interface Invoice {
   clientPan?: string;
   invoiceDate: string;
   dueDate: string;
+  currency?: string;
   subtotal: number;
   tax: number;
   discount?: number;
@@ -1475,7 +1477,9 @@ export interface InvoicePaymentRecord {
   invoiceId: string;
   amount: number;
   paymentDate: string;
-  paymentMode: 'BANK_TRANSFER' | 'UPI' | 'CHEQUE' | 'CASH' | 'OTHER';
+  paymentMode?: 'BANK_TRANSFER' | 'UPI' | 'NEFT_RTGS' | 'CHEQUE' | 'CASH' | 'CARD' | 'OTHER' | string;
+  paymentMethod?: 'BANK_TRANSFER' | 'UPI' | 'NEFT_RTGS' | 'CHEQUE' | 'CASH' | 'CARD' | 'OTHER' | string;
+  receiptNumber?: string;
   referenceNumber?: string;
   notes?: string;
 }
@@ -2180,6 +2184,7 @@ export interface MarketplaceService {
 export interface MarketplaceReview {
   id: string;
   marketplaceProfileId: string;
+  leadId?: string;
   reviewerName: string;
   reviewerDesignation?: string;
   reviewerCompany?: string;
@@ -2188,7 +2193,31 @@ export interface MarketplaceReview {
   reviewComment: string;
   serviceTaken?: string;
   isVerifiedClient?: boolean;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'HIDDEN';
+  moderatedBy?: string;
+  moderatedAt?: string;
+  moderationNote?: string;
   createdAt: string;
+}
+
+export interface MarketplaceRatingSummary {
+  marketplaceProfileId: string;
+  averageRating: number;
+  totalReviews: number;
+  fiveStarCount: number;
+  fourStarCount: number;
+  threeStarCount: number;
+  twoStarCount: number;
+  oneStarCount: number;
+}
+
+export interface ReviewEligibility {
+  eligible: boolean;
+  alreadyReviewed: boolean;
+  existingReviewId?: string;
+  completedLeadId?: string;
+  serviceCategory?: string;
+  reason?: string;
 }
 
 export interface MarketplaceProfile {
@@ -4125,6 +4154,14 @@ export interface FinancialReport {
 // 28. Tax Notice Management
 // ==============================================================================
 export type NoticeDepartment = 'INCOME_TAX' | 'GST' | 'TDS' | 'CUSTOMS' | 'OTHER';
+
+export interface StatutoryNoticeType {
+  code: string;
+  department: NoticeDepartment;
+  defaultSection?: string;
+  label: string;
+  description?: string;
+}
 
 export type NoticeRisk = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -6770,5 +6807,104 @@ export interface ComplianceCalendarQueryFilter {
   size?: number;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
+}
+
+// =============================================================================
+// Phase 29.8: Compliance Health & Intelligence Types
+// =============================================================================
+
+export type ComplianceHealthStatus = 'EXCELLENT' | 'GOOD' | 'AT_RISK' | 'CRITICAL' | 'NO_DATA';
+
+export type ComplianceRiskSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export type ComplianceRiskSignalCode =
+  | 'OVERDUE_OBLIGATION'
+  | 'DUE_TODAY'
+  | 'DUE_SOON'
+  | 'WORK_NOT_GENERATED'
+  | 'NO_WORK_TEMPLATE'
+  | 'INSUFFICIENT_APPLICABILITY_DATA'
+  | 'MISSING_COMPLIANCE_PROFILE'
+  | 'MISSING_DUE_DATE';
+
+export type ComplianceActionCode =
+  | 'REVIEW_OVERDUE_OBLIGATION'
+  | 'GENERATE_WORK'
+  | 'START_WORK'
+  | 'CONFIGURE_WORK_TEMPLATE'
+  | 'UPDATE_COMPLIANCE_PROFILE'
+  | 'CALCULATE_DUE_DATE'
+  | 'RESOLVE_APPLICABILITY_DATA';
+
+export interface ComplianceRiskSignalDto {
+  signalCode: ComplianceRiskSignalCode;
+  severity: ComplianceRiskSeverity;
+  priority: number;
+  title: string;
+  explanation: string;
+  clientId: string;
+  obligationId?: string;
+  ruleCode?: string;
+  domain?: ComplianceRuleDomain;
+  periodKey?: string;
+  dueDate?: string;
+  workInstanceId?: string;
+  actionCode?: ComplianceActionCode;
+  recommendedAction?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ComplianceRecommendationDto {
+  actionCode: ComplianceActionCode;
+  title: string;
+  explanation: string;
+  severity: ComplianceRiskSeverity;
+  priority: number;
+  clientId: string;
+  obligationId?: string;
+  ruleCode?: string;
+  domain?: ComplianceRuleDomain;
+  targetType: string;
+  targetId: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ClientComplianceHealthDto {
+  clientId: string;
+  clientDisplayName?: string;
+  healthScore: number;
+  healthStatus: ComplianceHealthStatus;
+  contributingFactors: string[];
+  totalObligations: number;
+  openObligations: number;
+  overdueCount: number;
+  dueTodayCount: number;
+  dueWithin3DaysCount: number;
+  workNotGeneratedCount: number;
+  missingDueDateCount: number;
+  insufficientDataCount: number;
+  criticalRiskCount: number;
+  highRiskCount: number;
+  risks: ComplianceRiskSignalDto[];
+  recommendations: ComplianceRecommendationDto[];
+  calculatedAt: string;
+  referenceDate: string;
+}
+
+export interface PracticeComplianceHealthSummaryDto {
+  organizationId: string;
+  totalClients: number;
+  totalActiveObligations: number;
+  totalOverdueObligations: number;
+  totalDueTodayObligations: number;
+  totalDueWithin3DaysObligations: number;
+  totalWorkNotGeneratedObligations: number;
+  criticalClientsCount: number;
+  atRiskClientsCount: number;
+  goodClientsCount: number;
+  excellentClientsCount: number;
+  topAtRiskClients: ClientComplianceHealthDto[];
+  calculatedAt: string;
+  referenceDate: string;
 }
 

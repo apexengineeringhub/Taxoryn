@@ -21,7 +21,9 @@ import {
   Sparkles,
   Info,
   X,
-  FileText
+  FileText,
+  ArrowLeft,
+  Menu,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -43,6 +45,7 @@ export const TeamChatPage: React.FC = () => {
   const [mode, setMode] = useState<ChatMode>('CHANNEL');
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [mobileConversationOpen, setMobileConversationOpen] = useState<boolean>(false);
 
   // Data State
   const [channels, setChannels] = useState<EmployeeChatChannel[]>([]);
@@ -373,9 +376,11 @@ export const TeamChatPage: React.FC = () => {
       </div>
 
       {/* Main Split Layout */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* Left Sidebar: Channels & Colleagues */}
-        <div className="w-80 border-r border-slate-800/80 bg-slate-900/60 flex flex-col shrink-0">
+        <div className={`w-full md:w-80 border-r border-slate-800/80 bg-slate-900/60 flex flex-col shrink-0 ${
+          mobileConversationOpen ? 'hidden md:flex' : 'flex'
+        }`}>
           {/* Search Box */}
           <div className="p-3 border-b border-slate-800/80">
             <div className="relative">
@@ -413,6 +418,7 @@ export const TeamChatPage: React.FC = () => {
                         setMode('CHANNEL');
                         setSelectedChannelId(ch.id);
                         setSelectedContactId(null);
+                        setMobileConversationOpen(true);
                       }}
                       className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left text-xs transition-all ${
                         isSelected
@@ -460,6 +466,7 @@ export const TeamChatPage: React.FC = () => {
                           setMode('DIRECT');
                           setSelectedContactId(contact.employeeId);
                           setSelectedChannelId(null);
+                          setMobileConversationOpen(true);
                         }}
                         className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all ${
                           isSelected
@@ -526,10 +533,22 @@ export const TeamChatPage: React.FC = () => {
         </div>
 
         {/* Right Pane: Active Chat Room */}
-        <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
+        <div className={`flex-1 flex flex-col min-w-0 bg-slate-950 ${
+          !mobileConversationOpen ? 'hidden md:flex' : 'flex'
+        }`}>
           {/* Room Header */}
-          <div className="px-6 py-3.5 border-b border-slate-800/80 bg-slate-900/50 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="px-4 sm:px-6 py-3.5 border-b border-slate-800/80 bg-slate-900/50 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              {/* Mobile Back Button */}
+              <button
+                onClick={() => setMobileConversationOpen(false)}
+                className="md:hidden p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                title="Back to channels"
+                aria-label="Back to channels"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+
               {mode === 'CHANNEL' && activeChannel ? (
                 <>
                   <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">

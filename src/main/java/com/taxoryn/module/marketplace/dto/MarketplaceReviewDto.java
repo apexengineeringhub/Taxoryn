@@ -15,6 +15,7 @@ public class MarketplaceReviewDto {
 
     private UUID id;
     private UUID marketplaceProfileId;
+    private UUID leadId;
     private String reviewerName;
     private String reviewerDesignation;
     private String reviewerCompany;
@@ -23,5 +24,9 @@ public class MarketplaceReviewDto {
     private String reviewComment;
     private String serviceTaken;
     private Boolean isVerifiedClient;
+    private com.taxoryn.module.marketplace.entity.MarketplaceReviewEntity.ReviewStatus status;
+    private String moderatedBy;
+    private Instant moderatedAt;
+    private String moderationNote;
     private Instant createdAt;
 }

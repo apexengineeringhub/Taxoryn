@@ -91,6 +91,34 @@ public class MarketplacePublicController {
         return ResponseEntity.ok(ApiResponse.success("Reviews retrieved successfully", reviews));
     }
 
+    @GetMapping("/profiles/{id}/reviews/page")
+    @Operation(summary = "Get Paginated Verified Reviews", description = "Retrieves paginated approved reviews for a firm.")
+    public ResponseEntity<ApiResponse<PagedResponse<MarketplaceReviewDto>>> getReviewsPaged(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                Math.max(0, page), Math.max(1, size), org.springframework.data.domain.Sort.by("createdAt").descending()
+        );
+        PagedResponse<MarketplaceReviewDto> response = marketplaceService.getPublicReviewsPaged(id, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Reviews page retrieved successfully", response));
+    }
+
+    @GetMapping("/profiles/{id}/rating-summary")
+    @Operation(summary = "Get Practitioner Rating Summary", description = "Retrieves aggregate star breakdown, average rating, and total approved review count.")
+    public ResponseEntity<ApiResponse<MarketplaceRatingSummaryDto>> getRatingSummary(@PathVariable UUID id) {
+        MarketplaceRatingSummaryDto summary = marketplaceService.getProfileRatingSummary(id);
+        return ResponseEntity.ok(ApiResponse.success("Rating summary retrieved successfully", summary));
+    }
+
+    @GetMapping("/profiles/{id}/reviews/eligibility")
+    @Operation(summary = "Check Review Eligibility", description = "Checks whether the current user is eligible to submit a review for this practitioner.")
+    public ResponseEntity<ApiResponse<ReviewEligibilityDto>> checkReviewEligibility(@PathVariable UUID id) {
+        ReviewEligibilityDto eligibility = marketplaceService.checkReviewEligibility(id);
+        return ResponseEntity.ok(ApiResponse.success("Review eligibility evaluated", eligibility));
+    }
+
     @PostMapping("/leads")
     @Operation(summary = "Submit Inquiry / Request Callback", description = "Allows a prospective client to inquire about tax filing, notice assistance, or corporate formation.")
     public ResponseEntity<ApiResponse<MarketplaceLeadDto>> submitLead(@Valid @RequestBody CreateMarketplaceLeadRequest request) {

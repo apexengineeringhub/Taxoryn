@@ -55,11 +55,21 @@ public class MarketplaceReviewEntity extends AuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     @Builder.Default
-    private ReviewStatus status = ReviewStatus.APPROVED;
+    private ReviewStatus status = ReviewStatus.PENDING;
+
+    @Column(name = "moderated_by")
+    private String moderatedBy;
+
+    @Column(name = "moderated_at")
+    private java.time.Instant moderatedAt;
+
+    @Column(name = "moderation_note", length = 500)
+    private String moderationNote;
 
     public enum ReviewStatus {
         PENDING,
         APPROVED,
+        REJECTED,
         HIDDEN
     }
 }

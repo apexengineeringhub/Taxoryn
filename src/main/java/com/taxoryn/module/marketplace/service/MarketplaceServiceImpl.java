@@ -14,6 +14,7 @@ import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.entity.*;
 import com.taxoryn.module.marketplace.entity.MarketplaceConsultationEntity.ConsultationStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus;
+import com.taxoryn.module.marketplace.entity.MarketplaceCustomerProfileEntity.CustomerType;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.ProfessionalType;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VerificationStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceProfileEntity.VisibilityStatus;
@@ -53,6 +54,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final MarketplaceLeadRepository leadRepository;
     private final MarketplaceConsultationRepository consultationRepository;
     private final MarketplaceReviewRepository reviewRepository;
+    private final MarketplaceCustomerProfileRepository customerProfileRepository;
     private final MarketplaceEnquiryMessageRepository enquiryMessageRepository;
     private final MarketplaceVerificationRepository verificationRepository;
     private final PracticeLocationRepository locationRepository;
@@ -634,43 +636,134 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional
     public MarketplaceReviewDto submitPublicReview(SubmitMarketplaceReviewRequest request) {
+        com.taxoryn.core.security.SecurityUser currentUser = SecurityUtils.getCurrentUser()
+                .orElseThrow(() -> new com.taxoryn.core.exception.UnauthorizedException("Authentication is required to submit a practitioner review"));
+
+        UUID customerId = currentUser.getUserId();
+
         MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(request.getMarketplaceProfileId(), VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", request.getMarketplaceProfileId()));
 
-        int rating = request.getRating();
-        if (rating < 1 || rating > 5) {
-            throw new com.taxoryn.core.exception.BusinessValidationException("Rating must be between 1 and 5 stars");
+        if (profile.getOrganizationId().equals(currentUser.getOrganizationId())
+                && (currentUser.getRoles().contains("ORG_ADMIN") || currentUser.getRoles().contains("PRACTITIONER"))) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("Practitioners cannot review their own practice");
         }
 
-        UUID currentCustomerId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
+        Integer rating = request.getRating();
+        if (rating == null || rating < 1 || rating > 5) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("Rating must be an integer between 1 and 5 stars");
+        }
+
+        String comment = request.getReviewComment() != null ? request.getReviewComment().trim() : "";
+        if (comment.length() < 10) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("Review comment must be at least 10 characters");
+        }
+        if (comment.length() > 2000) {
+            throw new com.taxoryn.core.exception.BusinessValidationException("Review comment cannot exceed 2000 characters");
+        }
+
+        // Establish Authoritative Eligibility
+        MarketplaceLeadEntity resolvedLead = null;
+        if (request.getLeadId() != null) {
+            MarketplaceLeadEntity lead = leadRepository.findById(request.getLeadId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Enquiry", "id", request.getLeadId()));
+            if (!customerId.equals(lead.getCustomerId()) && !currentUser.getEmail().equalsIgnoreCase(lead.getClientEmail())) {
+                throw new com.taxoryn.core.exception.BusinessValidationException("Enquiry record is not associated with your account");
+            }
+            if (!profile.getId().equals(lead.getMarketplaceProfileId())) {
+                throw new com.taxoryn.core.exception.BusinessValidationException("Enquiry record belongs to a different practitioner");
+            }
+            if (lead.getEnquiryStatus() != EnquiryStatus.COMPLETED) {
+                throw new com.taxoryn.core.exception.BusinessValidationException("Reviews can only be submitted after engagement completion");
+            }
+            if (lead.getReviewId() != null || reviewRepository.existsByLeadId(lead.getId())) {
+                throw new com.taxoryn.core.exception.BusinessValidationException("A review has already been submitted for this completed engagement");
+            }
+            resolvedLead = lead;
+        } else {
+            List<MarketplaceLeadEntity> completedLeads = leadRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                    .filter(l -> profile.getId().equals(l.getMarketplaceProfileId()) && l.getEnquiryStatus() == EnquiryStatus.COMPLETED)
+                    .filter(l -> l.getReviewId() == null && !reviewRepository.existsByLeadId(l.getId()))
+                    .toList();
+
+            if (!completedLeads.isEmpty()) {
+                resolvedLead = completedLeads.get(0);
+            } else {
+                List<MarketplaceLeadEntity> leadsByEmail = leadRepository.findAllByOrganizationId(profile.getOrganizationId()).stream()
+                        .filter(l -> currentUser.getEmail().equalsIgnoreCase(l.getClientEmail())
+                                && profile.getId().equals(l.getMarketplaceProfileId())
+                                && l.getEnquiryStatus() == EnquiryStatus.COMPLETED)
+                        .filter(l -> l.getReviewId() == null && !reviewRepository.existsByLeadId(l.getId()))
+                        .toList();
+
+                if (!leadsByEmail.isEmpty()) {
+                    resolvedLead = leadsByEmail.get(0);
+                } else {
+                    if (reviewRepository.existsByCustomerIdAndMarketplaceProfileId(customerId, profile.getId())) {
+                        throw new com.taxoryn.core.exception.BusinessValidationException("A review has already been submitted for this practitioner");
+                    }
+                    boolean isFirmClient = currentUser.getClientId() != null && profile.getOrganizationId().equals(currentUser.getOrganizationId());
+                    if (!isFirmClient) {
+                        throw new com.taxoryn.core.exception.BusinessValidationException("You can only review a practitioner after completing an engagement or service with them");
+                    }
+                }
+            }
+        }
+
+        // Derive Reviewer Identity from Authenticated Principal (Anti-Spoofing)
+        MarketplaceCustomerProfileEntity customerProfile = customerProfileRepository != null
+                ? customerProfileRepository.findByUserId(customerId).orElse(null)
+                : null;
+
+        String authoritativeName;
+        if (customerProfile != null && StringUtils.hasText(customerProfile.getDisplayName())) {
+            authoritativeName = customerProfile.getDisplayName().trim();
+        } else if (resolvedLead != null && StringUtils.hasText(resolvedLead.getClientName())) {
+            authoritativeName = resolvedLead.getClientName().trim();
+        } else {
+            authoritativeName = userRepository.findById(customerId)
+                    .map(u -> (u.getFirstName() + " " + (u.getLastName() != null ? u.getLastName() : "")).trim())
+                    .filter(StringUtils::hasText)
+                    .orElseGet(() -> currentUser.getEmail().split("@")[0]);
+        }
+
+        String authoritativeDesignation = customerProfile != null && customerProfile.getCustomerType() != null
+                ? (customerProfile.getCustomerType() == CustomerType.BUSINESS ? "Business Owner" : "Individual Taxpayer")
+                : (StringUtils.hasText(request.getReviewerDesignation()) ? request.getReviewerDesignation().trim() : "Verified Client");
+
+        String authoritativeCompany = customerProfile != null && StringUtils.hasText(customerProfile.getBusinessName())
+                ? customerProfile.getBusinessName().trim()
+                : (StringUtils.hasText(request.getReviewerCompany()) ? request.getReviewerCompany().trim() : null);
+
+        String serviceTaken = resolvedLead != null && StringUtils.hasText(resolvedLead.getServiceCategory())
+                ? resolvedLead.getServiceCategory()
+                : (StringUtils.hasText(request.getServiceTaken()) ? request.getServiceTaken().trim() : "Tax Compliance Advisory");
 
         MarketplaceReviewEntity review = MarketplaceReviewEntity.builder()
                 .organizationId(profile.getOrganizationId())
                 .marketplaceProfileId(profile.getId())
-                .customerId(currentCustomerId)
-                .reviewerName(request.getReviewerName().trim())
-                .reviewerDesignation(request.getReviewerDesignation())
-                .reviewerCompany(request.getReviewerCompany())
+                .customerId(customerId)
+                .leadId(resolvedLead != null ? resolvedLead.getId() : null)
+                .reviewerName(authoritativeName)
+                .reviewerDesignation(authoritativeDesignation)
+                .reviewerCompany(authoritativeCompany)
                 .rating(rating)
-                .reviewTitle(request.getReviewTitle())
-                .reviewComment(request.getReviewComment().trim())
-                .serviceTaken(request.getServiceTaken())
-                .isVerifiedClient(false)
-                .status(MarketplaceReviewEntity.ReviewStatus.APPROVED)
+                .reviewTitle(StringUtils.hasText(request.getReviewTitle()) ? request.getReviewTitle().trim() : null)
+                .reviewComment(comment)
+                .serviceTaken(serviceTaken)
+                .isVerifiedClient(true)
+                .status(MarketplaceReviewEntity.ReviewStatus.PENDING)
                 .build();
 
         MarketplaceReviewEntity saved = reviewRepository.save(review);
 
-        // Recalculate average rating for APPROVED reviews
-        List<MarketplaceReviewEntity> allReviews = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
-                profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
-        );
-        double avg = allReviews.stream().mapToInt(MarketplaceReviewEntity::getRating).average().orElse(5.0);
-        profile.setAverageRating(BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP));
-        profile.setTotalReviews(allReviews.size());
-        profileRepository.save(profile);
+        if (resolvedLead != null) {
+            resolvedLead.setReviewId(saved.getId());
+            leadRepository.save(resolvedLead);
+        }
 
-        auditService.logEvent("MARKETPLACE_REVIEW_SUBMITTED", "MARKETPLACE_REVIEW", saved.getId().toString(), null, "Review submitted for " + profile.getDisplayName());
+        auditService.logEvent("MARKETPLACE_REVIEW_SUBMITTED", "MARKETPLACE_REVIEW", saved.getId().toString(), profile.getOrganizationId(),
+                "Review submitted by " + authoritativeName + " for practice: " + profile.getDisplayName() + " awaiting moderation");
 
         return mapper.toReviewDto(saved);
     }
@@ -693,6 +786,124 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
         );
         return mapper.toReviewDtoList(reviews);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<MarketplaceReviewDto> getPublicReviewsPaged(UUID marketplaceProfileId, Pageable pageable) {
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
+
+        org.springframework.data.domain.Page<MarketplaceReviewEntity> page = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
+                profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED, pageable
+        );
+        return PagedResponse.of(page, mapper::toReviewDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MarketplaceRatingSummaryDto getProfileRatingSummary(UUID marketplaceProfileId) {
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
+
+        Double avg = reviewRepository.getAverageRatingByProfileIdAndStatus(profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED);
+        long count = reviewRepository.countByMarketplaceProfileIdAndStatus(profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED);
+        List<Object[]> distribution = reviewRepository.getRatingBreakdownByProfileIdAndStatus(profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED);
+
+        Map<Integer, Long> starCounts = new HashMap<>();
+        for (Object[] row : distribution) {
+            if (row != null && row.length >= 2 && row[0] instanceof Number ratingNum && row[1] instanceof Number countNum) {
+                starCounts.put(ratingNum.intValue(), countNum.longValue());
+            }
+        }
+
+        BigDecimal roundedAvg = (count > 0 && avg != null)
+                ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+
+        return MarketplaceRatingSummaryDto.builder()
+                .marketplaceProfileId(profile.getId())
+                .averageRating(roundedAvg)
+                .totalReviews((int) count)
+                .fiveStarCount(starCounts.getOrDefault(5, 0L))
+                .fourStarCount(starCounts.getOrDefault(4, 0L))
+                .threeStarCount(starCounts.getOrDefault(3, 0L))
+                .twoStarCount(starCounts.getOrDefault(2, 0L))
+                .oneStarCount(starCounts.getOrDefault(1, 0L))
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReviewEligibilityDto checkReviewEligibility(UUID marketplaceProfileId) {
+        Optional<com.taxoryn.core.security.SecurityUser> userOpt = SecurityUtils.getCurrentUser();
+        if (userOpt.isEmpty()) {
+            return ReviewEligibilityDto.builder()
+                    .eligible(false)
+                    .alreadyReviewed(false)
+                    .reason("Authentication required to review practitioner")
+                    .build();
+        }
+
+        UUID customerId = userOpt.get().getUserId();
+        MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
+
+        if (profile.getOrganizationId().equals(userOpt.get().getOrganizationId())
+                && (userOpt.get().getRoles().contains("ORG_ADMIN") || userOpt.get().getRoles().contains("PRACTITIONER"))) {
+            return ReviewEligibilityDto.builder()
+                    .eligible(false)
+                    .alreadyReviewed(false)
+                    .reason("Practitioners cannot review their own practice")
+                    .build();
+        }
+
+        boolean alreadyReviewed = reviewRepository.existsByCustomerIdAndMarketplaceProfileId(customerId, profile.getId());
+        if (alreadyReviewed) {
+            UUID existingReviewId = reviewRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                    .filter(r -> r.getMarketplaceProfileId().equals(profile.getId()))
+                    .findFirst()
+                    .map(MarketplaceReviewEntity::getId)
+                    .orElse(null);
+
+            return ReviewEligibilityDto.builder()
+                    .eligible(false)
+                    .alreadyReviewed(true)
+                    .existingReviewId(existingReviewId)
+                    .reason("You have already reviewed this practitioner")
+                    .build();
+        }
+
+        List<MarketplaceLeadEntity> completedLeads = leadRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                .filter(l -> profile.getId().equals(l.getMarketplaceProfileId()) && l.getEnquiryStatus() == EnquiryStatus.COMPLETED)
+                .filter(l -> l.getReviewId() == null && !reviewRepository.existsByLeadId(l.getId()))
+                .toList();
+
+        if (!completedLeads.isEmpty()) {
+            MarketplaceLeadEntity lead = completedLeads.get(0);
+            return ReviewEligibilityDto.builder()
+                    .eligible(true)
+                    .alreadyReviewed(false)
+                    .completedLeadId(lead.getId())
+                    .serviceCategory(lead.getServiceCategory())
+                    .reason("Eligible to review completed service: " + (lead.getServiceCategory() != null ? lead.getServiceCategory() : "Tax Advisory"))
+                    .build();
+        }
+
+        boolean isFirmClient = userOpt.get().getClientId() != null && profile.getOrganizationId().equals(userOpt.get().getOrganizationId());
+        if (isFirmClient) {
+            return ReviewEligibilityDto.builder()
+                    .eligible(true)
+                    .alreadyReviewed(false)
+                    .reason("Eligible as verified client of this practice")
+                    .build();
+        }
+
+        return ReviewEligibilityDto.builder()
+                .eligible(false)
+                .alreadyReviewed(false)
+                .reason("No completed service or engagement found with this practitioner")
+                .build();
     }
 
     // =========================================================================
@@ -2485,5 +2696,63 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         if (!missingFields.isEmpty()) {
             throw new com.taxoryn.module.marketplace.exception.MarketplacePublishingIneligibleException(missingFields);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MarketplaceReviewDto> getMyPracticeReviews() {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        List<MarketplaceReviewEntity> reviews = reviewRepository.findAllByOrganizationId(orgId);
+        return mapper.toReviewDtoList(reviews);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<MarketplaceReviewDto> getAllReviewsForAdmin(MarketplaceReviewEntity.ReviewStatus status, Pageable pageable) {
+        org.springframework.data.domain.Page<MarketplaceReviewEntity> page = status != null
+                ? reviewRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
+                : reviewRepository.findAllByOrderByCreatedAtDesc(pageable);
+        return PagedResponse.of(page, mapper::toReviewDto);
+    }
+
+    @Override
+    @Transactional
+    public MarketplaceReviewDto moderateReview(UUID reviewId, ModerateReviewRequest request) {
+        MarketplaceReviewEntity review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Marketplace Review", "id", reviewId));
+
+        MarketplaceReviewEntity.ReviewStatus previousStatus = review.getStatus();
+        review.setStatus(request.getStatus());
+        review.setModeratedBy(SecurityUtils.getCurrentUserEmail());
+        review.setModeratedAt(Instant.now());
+        if (StringUtils.hasText(request.getModerationNote())) {
+            review.setModerationNote(request.getModerationNote().trim());
+        }
+
+        MarketplaceReviewEntity saved = reviewRepository.save(review);
+
+        if (saved.getStatus() == MarketplaceReviewEntity.ReviewStatus.APPROVED || previousStatus == MarketplaceReviewEntity.ReviewStatus.APPROVED) {
+            recalculateProfileRating(saved.getMarketplaceProfileId());
+        }
+
+        auditService.logEvent("MARKETPLACE_REVIEW_MODERATED", "MARKETPLACE_REVIEW", saved.getId().toString(), saved.getOrganizationId(),
+                "Review status changed from " + previousStatus + " to " + saved.getStatus() + " by " + SecurityUtils.getCurrentUserEmail());
+
+        return mapper.toReviewDto(saved);
+    }
+
+    private void recalculateProfileRating(UUID profileId) {
+        profileRepository.findById(profileId).ifPresent(profile -> {
+            Double avg = reviewRepository.getAverageRatingByProfileIdAndStatus(profileId, MarketplaceReviewEntity.ReviewStatus.APPROVED);
+            long count = reviewRepository.countByMarketplaceProfileIdAndStatus(profileId, MarketplaceReviewEntity.ReviewStatus.APPROVED);
+
+            BigDecimal roundedAvg = (count > 0 && avg != null)
+                    ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+
+            profile.setAverageRating(roundedAvg);
+            profile.setTotalReviews((int) count);
+            profileRepository.save(profile);
+        });
     }
 }

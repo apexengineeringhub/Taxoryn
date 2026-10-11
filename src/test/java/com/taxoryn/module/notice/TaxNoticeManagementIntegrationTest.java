@@ -712,4 +712,89 @@ class TaxNoticeManagementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reviewStatus").value("READY_FOR_SUBMISSION"));
     }
+
+    @Test
+    @DisplayName("Statutory notice types endpoint returns filtered types by department and full catalog when omitted")
+    void testStatutoryNoticeTypesEndpoint() throws Exception {
+        // 1. All notice types when department parameter is omitted
+        mockMvc.perform(get("/api/v1/notices/types")
+                        .header("Authorization", preparerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(greaterThanOrEqualTo(25))))
+                .andExpect(jsonPath("$.data[?(@.code == 'ITD_143_1')].department").value("INCOME_TAX"))
+                .andExpect(jsonPath("$.data[?(@.code == 'GST_DRC_01')].department").value("GST"));
+
+        // 2. Filtered by GST department
+        mockMvc.perform(get("/api/v1/notices/types")
+                        .param("department", "GST")
+                        .header("Authorization", preparerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(greaterThanOrEqualTo(8))))
+                .andExpect(jsonPath("$.data[*].department", everyItem(is("GST"))));
+
+        // 3. Filtered by TDS department
+        mockMvc.perform(get("/api/v1/notices/types")
+                        .param("department", "TDS")
+                        .header("Authorization", preparerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].department", everyItem(is("TDS"))));
+    }
+
+    @Test
+    @DisplayName("Department and notice-type compatibility validation rejects cross-department mismatches and accepts valid types")
+    void testDepartmentAndNoticeTypeCompatibilityValidation() throws Exception {
+        // 1. Incompatible combination: DRC-01 (GST) under INCOME_TAX department should be rejected
+        CreateTaxNoticeRequest invalidRequest = CreateTaxNoticeRequest.builder()
+                .clientId(client1.getId())
+                .noticeNumber("ITD-ERR-99901")
+                .department(NoticeDepartment.INCOME_TAX)
+                .noticeType("DRC-01 - Show Cause Notice (SCN)")
+                .section("73")
+                .subject("GST SCN erroneously posted under Income Tax")
+                .receivedDate(LocalDate.now())
+                .responseDueDate(LocalDate.now().plusDays(15))
+                .build();
+
+        mockMvc.perform(post("/api/v1/tax-notices")
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("incompatible with department")));
+
+        // 2. Compatible combination: 143(1) under INCOME_TAX should succeed
+        CreateTaxNoticeRequest validRequest = CreateTaxNoticeRequest.builder()
+                .clientId(client1.getId())
+                .noticeNumber("ITD-OK-99902")
+                .department(NoticeDepartment.INCOME_TAX)
+                .noticeType("143(1) - Summary Intimation")
+                .section("143(1)")
+                .subject("Valid 143(1) Intimation for AY 2026-27")
+                .receivedDate(LocalDate.now())
+                .responseDueDate(LocalDate.now().plusDays(15))
+                .build();
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/tax-notices")
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.noticeNumber").value("ITD-OK-99902"))
+                .andReturn();
+
+        String jsonResp = createResult.getResponse().getContentAsString();
+        String createdNoticeId = objectMapper.readTree(jsonResp).path("data").path("id").asText();
+
+        // 3. Update with incompatible department should be rejected
+        UpdateTaxNoticeRequest invalidUpdate = UpdateTaxNoticeRequest.builder()
+                .department(NoticeDepartment.GST) // Changed to GST but noticeType is still 143(1)
+                .build();
+
+        mockMvc.perform(put("/api/v1/tax-notices/" + createdNoticeId)
+                        .header("Authorization", preparerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidUpdate)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("incompatible with department")));
+    }
 }

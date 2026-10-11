@@ -46,6 +46,7 @@ export const ClientsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(() => searchParams.get('action') === 'new' || searchParams.get('create') === 'true');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ONBOARDING' | 'INACTIVE' | 'SUSPENDED' | 'ARCHIVED'>(
     () => {
       const s = searchParams.get('status')?.toUpperCase();
@@ -74,7 +75,7 @@ export const ClientsPage: React.FC = () => {
 
   useEffect(() => {
     loadClients();
-  }, [page, pageSize, statusFilter, portalStatusFilter]);
+  }, [page, pageSize, statusFilter, portalStatusFilter, searchTerm]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new' || searchParams.get('create') === 'true') {
@@ -95,6 +96,9 @@ export const ClientsPage: React.FC = () => {
       }
       if (portalStatusFilter !== 'ALL') {
         params.portalStatus = portalStatusFilter;
+      }
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
       }
       const res = await clientApi.getAll(params);
       setClients(res.content);
@@ -576,6 +580,18 @@ export const ClientsPage: React.FC = () => {
         data={clients}
         isLoading={isLoading}
         searchPlaceholder="Search clients by name, PAN, or GSTIN..."
+        onSearch={(q) => {
+          setSearchTerm(q);
+          setPage(0);
+        }}
+        totalElements={totalElements}
+        pageSize={pageSize}
+        pageNumber={page}
+        onPageChange={(newPage) => setPage(newPage)}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setPage(0);
+        }}
         minWidth="1080px"
       />
 

@@ -291,7 +291,7 @@ export const DashboardPage: React.FC = () => {
 
             {/* Alert: Overdue Compliance */}
             <Link
-              to="/compliance/workbench"
+              to="/calendar?status=OVERDUE"
               className={clsx(
                 'p-3.5 rounded-2xl border transition-all flex flex-col justify-between group',
                 overdueComplianceCount > 0
@@ -308,7 +308,7 @@ export const DashboardPage: React.FC = () => {
                   {isLoading ? '...' : overdueComplianceCount}
                 </span>
                 <span className="text-[10px] font-semibold text-rose-600 group-hover:underline flex items-center gap-0.5">
-                  Workbench <ArrowRight className="w-2.5 h-2.5" />
+                  Calendar <ArrowRight className="w-2.5 h-2.5" />
                 </span>
               </div>
             </Link>
@@ -831,20 +831,30 @@ export const DashboardPage: React.FC = () => {
                   dashboard.employeeWorkload.map((emp) => (
                     <tr key={emp.employeeId} className="table-row-hover">
                       <td className="px-5 py-3 font-semibold text-slate-900">
-                        {emp.employeeName}
+                        <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}`} className="hover:text-brand-600 hover:underline">
+                          {emp.employeeName}
+                        </Link>
                         <span className="block text-[10px] font-normal text-slate-400">{emp.employeeCode} • {emp.designation}</span>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{emp.department || 'General Tax'}</td>
-                      <td className="px-4 py-3 text-center font-bold text-slate-800">{emp.assignedTasks}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={clsx('px-2 py-0.5 rounded-full font-bold text-[11px]', emp.pendingTasks > 0 ? 'bg-amber-50 text-amber-700' : 'text-slate-400')}>
-                          {emp.pendingTasks}
-                        </span>
+                      <td className="px-4 py-3 text-center font-bold text-slate-800">
+                        <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}`} className="hover:underline">
+                          {emp.assignedTasks}
+                        </Link>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={clsx('px-2 py-0.5 rounded-full font-bold text-[11px]', emp.overdueTasks > 0 ? 'bg-rose-50 text-rose-700' : 'text-slate-400')}>
-                          {emp.overdueTasks}
-                        </span>
+                        <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}&status=TODO`} className="inline-block">
+                          <span className={clsx('px-2 py-0.5 rounded-full font-bold text-[11px]', emp.pendingTasks > 0 ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'text-slate-400')}>
+                            {emp.pendingTasks}
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}&status=OVERDUE`} className="inline-block">
+                          <span className={clsx('px-2 py-0.5 rounded-full font-bold text-[11px]', emp.overdueTasks > 0 ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'text-slate-400')}>
+                            {emp.overdueTasks}
+                          </span>
+                        </Link>
                       </td>
                     </tr>
                   ))
@@ -864,22 +874,24 @@ export const DashboardPage: React.FC = () => {
                 {dashboard.employeeWorkload.map((emp) => (
                   <li key={emp.employeeId} className="px-4 py-3 text-xs space-y-2">
                     <div>
-                      <p className="font-semibold text-slate-900">{emp.employeeName}</p>
+                      <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}`} className="font-semibold text-slate-900 hover:text-brand-600 hover:underline">
+                        {emp.employeeName}
+                      </Link>
                       <p className="text-[10px] text-slate-400">{emp.employeeCode} • {emp.designation} • {emp.department || 'General Tax'}</p>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                      <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}`} className="p-2 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100">
                         <p className="text-[10px] text-slate-500">Assigned</p>
                         <p className="font-bold text-slate-800">{emp.assignedTasks}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/50">
+                      </Link>
+                      <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}&status=TODO`} className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/50 hover:bg-amber-100/70">
                         <p className="text-[10px] text-amber-700">Pending</p>
                         <p className="font-bold text-amber-800">{emp.pendingTasks}</p>
-                      </div>
-                      <div className="p-2 rounded-lg bg-rose-50/70 border border-rose-200/50">
+                      </Link>
+                      <Link to={`/tasks?assignedTo=${encodeURIComponent(emp.employeeId)}&status=OVERDUE`} className="p-2 rounded-lg bg-rose-50/70 border border-rose-200/50 hover:bg-rose-100/70">
                         <p className="text-[10px] text-rose-700">Overdue</p>
                         <p className="font-bold text-rose-800">{emp.overdueTasks}</p>
-                      </div>
+                      </Link>
                     </div>
                   </li>
                 ))}

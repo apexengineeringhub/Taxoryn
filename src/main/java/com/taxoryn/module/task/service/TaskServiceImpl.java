@@ -672,9 +672,11 @@ public class TaskServiceImpl implements TaskService {
                     predicates.add(cb.disjunction());
                 }
             } else if (filterRequest.getScope() == TaskWorklistFilterRequest.WorklistScope.MY_WORK) {
-                Set<UUID> myCandidateIds = resolveCandidateAssigneeIds(scope.getUserId(), organizationId);
-                if (!myCandidateIds.isEmpty()) {
-                    predicates.add(root.get("assignedTo").in(myCandidateIds));
+                if (filterRequest.getAssignedTo() == null) {
+                    Set<UUID> myCandidateIds = resolveCandidateAssigneeIds(scope.getUserId(), organizationId);
+                    if (!myCandidateIds.isEmpty()) {
+                        predicates.add(root.get("assignedTo").in(myCandidateIds));
+                    }
                 }
             } else if (scope.isDepartmentManager()) {
                 Set<UUID> deptIds = scope.getAccessibleAssigneeIds();

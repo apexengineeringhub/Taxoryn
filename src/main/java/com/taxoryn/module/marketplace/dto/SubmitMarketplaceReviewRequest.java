@@ -19,7 +19,8 @@ public class SubmitMarketplaceReviewRequest {
     @NotNull(message = "Marketplace profile ID is required")
     private UUID marketplaceProfileId;
 
-    @NotBlank(message = "Reviewer name is required")
+    private UUID leadId;
+
     private String reviewerName;
 
     private String reviewerDesignation;
@@ -30,9 +31,11 @@ public class SubmitMarketplaceReviewRequest {
     @Max(value = 5, message = "Rating cannot exceed 5 stars")
     private Integer rating;
 
+    @jakarta.validation.constraints.Size(max = 150, message = "Review title cannot exceed 150 characters")
     private String reviewTitle;
 
     @NotBlank(message = "Review comment is required")
+    @jakarta.validation.constraints.Size(min = 10, max = 2000, message = "Review comment must be between 10 and 2000 characters")
     private String reviewComment;
 
     private String serviceTaken;

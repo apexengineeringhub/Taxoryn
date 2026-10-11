@@ -9,6 +9,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -92,6 +94,7 @@ public class UdinEntity extends TenantAuditableEntity {
     @Column(name = "verification_remarks", columnDefinition = "TEXT")
     private String verificationRemarks;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "financial_figures_json", columnDefinition = "JSONB")
     private String financialFiguresJson;
 

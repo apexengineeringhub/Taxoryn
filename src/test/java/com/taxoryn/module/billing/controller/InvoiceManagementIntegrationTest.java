@@ -366,4 +366,95 @@ class InvoiceManagementIntegrationTest {
                         .content(objectMapper.writeValueAsString(payment)))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("Payment History Date and Payment Method Accuracy: Persists authoritative payment date and method, survives retrieval, does not use invoice date")
+    void testPaymentHistoryDateAndMethodAccuracy() throws Exception {
+        // 1. Create an invoice with invoice date 10 days ago and due date 5 days ahead
+        TenantContext.setTenantId(tenantA.getId());
+        LocalDate invoiceDate = LocalDate.now().minusDays(10);
+        LocalDate dueDate = LocalDate.now().plusDays(5);
+        LocalDate actualPaymentDate = LocalDate.now().minusDays(2); // Distinct from invoiceDate and dueDate
+
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .clientId(clientA.getId())
+                .invoiceNumber("INV-2026-ACC-01")
+                .invoiceDate(invoiceDate)
+                .dueDate(dueDate)
+                .total(new BigDecimal("8000.00"))
+                .paidAmount(BigDecimal.ZERO)
+                .balanceDue(new BigDecimal("8000.00"))
+                .status(InvoiceEntity.InvoiceStatus.ISSUED)
+                .build();
+        invoice.setOrganizationId(tenantA.getId());
+        invoice = invoiceRepository.save(invoice);
+        TenantContext.clear();
+
+        // 2. Record payment using UPI via JSON with paymentMode alias
+        String paymentJsonWithAlias = """
+                {
+                    "amount": 5000.00,
+                    "paymentDate": "%s",
+                    "paymentMode": "UPI",
+                    "referenceNumber": "UPI/REF/998877",
+                    "notes": "Direct bank UPI credit"
+                }
+                """.formatted(actualPaymentDate);
+
+        MvcResult recordResult = mockMvc.perform(post("/api/v1/invoices/" + invoice.getId() + "/payments")
+                        .header("Authorization", "Bearer " + adminTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(paymentJsonWithAlias))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.paymentDate").value(actualPaymentDate.toString()))
+                .andExpect(jsonPath("$.data.paymentMethod").value("UPI"))
+                .andExpect(jsonPath("$.data.paymentMode").value("UPI"))
+                .andExpect(jsonPath("$.data.amount").value(5000.00))
+                .andReturn();
+
+        // 3. Retrieve invoice by ID and verify payments list uses the exact recorded payment date (not invoice date or due date)
+        mockMvc.perform(get("/api/v1/invoices/" + invoice.getId())
+                        .header("Authorization", "Bearer " + adminTokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.invoiceDate").value(invoiceDate.toString()))
+                .andExpect(jsonPath("$.data.dueDate").value(dueDate.toString()))
+                .andExpect(jsonPath("$.data.payments.length()").value(1))
+                .andExpect(jsonPath("$.data.payments[0].paymentDate").value(actualPaymentDate.toString()))
+                .andExpect(jsonPath("$.data.payments[0].paymentMethod").value("UPI"))
+                .andExpect(jsonPath("$.data.payments[0].paymentMode").value("UPI"));
+
+        // 4. Record second payment using NEFT_RTGS via paymentMethod field
+        LocalDate secondPaymentDate = LocalDate.now().minusDays(1);
+        String secondPaymentJson = """
+                {
+                    "amount": 3000.00,
+                    "paymentDate": "%s",
+                    "paymentMethod": "NEFT_RTGS",
+                    "referenceNumber": "HDFCN12345678",
+                    "notes": "NEFT final settlement"
+                }
+                """.formatted(secondPaymentDate);
+
+        mockMvc.perform(post("/api/v1/invoices/" + invoice.getId() + "/payments")
+                        .header("Authorization", "Bearer " + adminTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(secondPaymentJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.paymentDate").value(secondPaymentDate.toString()))
+                .andExpect(jsonPath("$.data.paymentMethod").value("NEFT_RTGS"))
+                .andExpect(jsonPath("$.data.paymentMode").value("NEFT_RTGS"))
+                .andExpect(jsonPath("$.data.amount").value(3000.00));
+
+        // 5. Verify invoice payment list returns both payments in chronological descending order
+        mockMvc.perform(get("/api/v1/invoices/" + invoice.getId() + "/payments")
+                        .header("Authorization", "Bearer " + adminTokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].paymentDate").value(secondPaymentDate.toString()))
+                .andExpect(jsonPath("$.data[0].paymentMethod").value("NEFT_RTGS"))
+                .andExpect(jsonPath("$.data[0].paymentMode").value("NEFT_RTGS"))
+                .andExpect(jsonPath("$.data[1].paymentDate").value(actualPaymentDate.toString()))
+                .andExpect(jsonPath("$.data[1].paymentMethod").value("UPI"))
+                .andExpect(jsonPath("$.data[1].paymentMode").value("UPI"));
+    }
 }

@@ -87,7 +87,8 @@ public class EngagementWorkServiceImpl implements EngagementWorkService {
                 .orElseThrow(() -> new ResourceNotFoundException("Engagement", "id", engagementId));
 
         if (engagement.getServiceId() == null) {
-            return List.of();
+            List<WorkTemplateEntity> allActive = workTemplateRepository.findAllActiveTemplates(organizationId);
+            return allActive.stream().map(this::mapTemplateDto).collect(Collectors.toList());
         }
 
         List<WorkTemplateEntity> activeTemplates = workTemplateRepository.findActiveTemplatesForService(engagement.getServiceId(), organizationId);

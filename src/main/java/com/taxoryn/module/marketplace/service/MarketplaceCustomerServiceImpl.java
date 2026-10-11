@@ -494,12 +494,10 @@ public class MarketplaceCustomerServiceImpl implements MarketplaceCustomerServic
 
         // Update Practice Profile Rating Stats
         practiceProfileRepository.findById(lead.getMarketplaceProfileId()).ifPresent(profile -> {
-            List<MarketplaceReviewEntity> allApproved = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
-                    profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
-            );
-            double avg = allApproved.stream().mapToInt(MarketplaceReviewEntity::getRating).average().orElse(5.0);
-            profile.setAverageRating(java.math.BigDecimal.valueOf(Math.round(avg * 100.0) / 100.0));
-            profile.setTotalReviews(allApproved.size());
+            Double avg = reviewRepository.getAverageRatingByProfileIdAndStatus(profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED);
+            long count = reviewRepository.countByMarketplaceProfileIdAndStatus(profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED);
+            profile.setAverageRating(java.math.BigDecimal.valueOf(avg != null ? avg : 0.0).setScale(2, java.math.RoundingMode.HALF_UP));
+            profile.setTotalReviews((int) count);
             practiceProfileRepository.save(profile);
         });
 

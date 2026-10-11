@@ -30,6 +30,8 @@ public class RecordPaymentRequest {
 
     @NotNull(message = "Payment method is required")
     @Schema(description = "Payment mode (BANK_TRANSFER, UPI, NEFT_RTGS, CHEQUE, CASH, CARD, OTHER)", example = "BANK_TRANSFER")
+    @com.fasterxml.jackson.annotation.JsonAlias({"paymentMode", "payment_method", "payment_mode"})
+    @com.fasterxml.jackson.annotation.JsonProperty("paymentMethod")
     @Builder.Default
     private PaymentMethod paymentMethod = PaymentMethod.BANK_TRANSFER;
 

@@ -38,6 +38,7 @@ import { useAuth } from '../context/AuthContext';
 import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
 import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi } from '../api/endpoints';
 import { usePortalChat } from '../hooks/usePortalChat';
+import { formatCurrency } from '../utils/currencyUtils';
 import {
   Client,
   ClientPortalDashboard,
@@ -611,12 +612,6 @@ export const ClientPortalManagementPage: React.FC = () => {
         {s}
       </span>
     );
-  };
-
-  // Currency formatter
-  const formatCurrency = (val?: number) => {
-    if (val === undefined || val === null) return '₹0.00';
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val);
   };
 
   // Outstanding balance & stats
@@ -1988,17 +1983,20 @@ export const ClientPortalManagementPage: React.FC = () => {
                 <div className="space-y-2">
                   <h4 className="font-bold text-emerald-800 uppercase tracking-wider text-[11px]">Payment Receipts</h4>
                   <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl overflow-hidden divide-y divide-emerald-100">
-                    {selectedInvoice.payments.map((p, idx) => (
-                      <div key={idx} className="p-3 flex items-center justify-between text-emerald-900">
-                        <div>
-                          <span className="font-bold block">
-                            {formatCurrency(p.amount)} via {p.paymentMode}
-                          </span>
-                          <span className="text-[10px] text-emerald-700">Ref: {p.referenceNumber || 'N/A'}</span>
+                    {selectedInvoice.payments.map((p, idx) => {
+                      const method = (p.paymentMethod || p.paymentMode || 'BANK_TRANSFER').replace(/_/g, ' ');
+                      return (
+                        <div key={idx} className="p-3 flex items-center justify-between text-emerald-900">
+                          <div>
+                            <span className="font-bold block">
+                              {formatCurrency(p.amount)} via {method}
+                            </span>
+                            <span className="text-[10px] text-emerald-700">Ref: {p.referenceNumber || 'N/A'}</span>
+                          </div>
+                          <span className="text-[11px] font-mono">{p.paymentDate || 'N/A'}</span>
                         </div>
-                        <span className="text-[11px] font-mono">{p.paymentDate}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

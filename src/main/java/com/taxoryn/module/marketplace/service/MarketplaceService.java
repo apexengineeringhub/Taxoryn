@@ -4,6 +4,7 @@ import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.marketplace.dto.*;
 import com.taxoryn.module.marketplace.entity.MarketplaceConsultationEntity.ConsultationStatus;
 import com.taxoryn.module.marketplace.entity.MarketplaceLeadEntity.LeadStatus;
+import com.taxoryn.module.marketplace.entity.MarketplaceReviewEntity.ReviewStatus;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
@@ -32,6 +33,12 @@ public interface MarketplaceService {
     List<MarketplaceServiceDto> getPublicServices(UUID marketplaceProfileId);
 
     List<MarketplaceReviewDto> getPublicReviews(UUID marketplaceProfileId);
+
+    PagedResponse<MarketplaceReviewDto> getPublicReviewsPaged(UUID marketplaceProfileId, Pageable pageable);
+
+    MarketplaceRatingSummaryDto getProfileRatingSummary(UUID marketplaceProfileId);
+
+    ReviewEligibilityDto checkReviewEligibility(UUID marketplaceProfileId);
 
     // 2. Practice Private Portal APIs
     PublicMarketplaceProfileDto getMyPracticeProfile();
@@ -100,6 +107,8 @@ public interface MarketplaceService {
 
     ProfileCompletenessDto getMyProfileCompleteness();
 
+    List<MarketplaceReviewDto> getMyPracticeReviews();
+
     // Practice Locations Management
     List<PracticeLocationDto> getMyPracticeLocations();
 
@@ -118,6 +127,10 @@ public interface MarketplaceService {
     void deletePracticeLocation(UUID locationId);
 
     // 3. Platform Super Admin APIs
+    PagedResponse<MarketplaceReviewDto> getAllReviewsForAdmin(ReviewStatus status, Pageable pageable);
+
+    MarketplaceReviewDto moderateReview(UUID reviewId, ModerateReviewRequest request);
+
     PagedResponse<MarketplaceVerificationDto> getPendingVerifications(Pageable pageable);
 
     MarketplaceVerificationDto processVerification(UUID verificationId, VerifyPractitionerRequest request);
