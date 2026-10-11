@@ -51,4 +51,13 @@ public class ComplianceCalendarQueryFilter extends PageRequestDto {
 
     @Schema(description = "Include completed and cancelled obligations in calendar (default: false for active radar)")
     private Boolean includeTerminal;
+
+    @Schema(description = "Filter by branch or office location identifier")
+    private UUID locationId;
+
+    @Schema(description = "Filter by assigned user identifier")
+    private UUID assignedUserId;
+
+    @Schema(description = "Filter by assigned employee identifier")
+    private UUID assignedEmployeeId;
 }

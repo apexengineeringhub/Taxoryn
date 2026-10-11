@@ -442,7 +442,10 @@ class MarketplaceReviewIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].reviewerName").value("Approved Client"))
-                .andExpect(jsonPath("$.data[0].rating").value(5));
+                .andExpect(jsonPath("$.data[0].rating").value(5))
+                .andExpect(jsonPath("$.data[0].moderatedBy").doesNotExist())
+                .andExpect(jsonPath("$.data[0].moderationNote").doesNotExist())
+                .andExpect(jsonPath("$.data[0].leadId").doesNotExist());
 
         // Fetch rating summary
         mockMvc.perform(get("/api/v1/marketplace/profiles/" + practiceProfile.getId() + "/rating-summary"))
@@ -529,5 +532,255 @@ class MarketplaceReviewIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.eligible").value(false))
                 .andExpect(jsonPath("$.data.alreadyReviewed").value(false));
+    }
+
+    @Test
+    @DisplayName("3.4.12 - Practice Reviews Feed adheres to strict multi-tenant isolation")
+    void testPracticeReviews_TenantIsolation() throws Exception {
+        // Create second practice organization
+        OrganizationEntity practiceOrgB = organizationRepository.save(OrganizationEntity.builder()
+                .name("Apex Tax Consultants " + UUID.randomUUID().toString().substring(0, 6))
+                .legalName("Apex Tax Consultants LLP")
+                .email("admin@apextax" + UUID.randomUUID().toString().substring(0, 4) + ".com")
+                .phone("+91 98200 99887")
+                .city("Mumbai")
+                .state("Maharashtra")
+                .pincode("400001")
+                .pan("AABCA9876F")
+                .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                .build());
+
+        RoleEntity orgAdminRole = roleRepository.findByCodeAndIsSystemRoleTrue("ORG_ADMIN").orElseThrow();
+        UserEntity practiceAdminUserB = userRepository.save(UserEntity.builder()
+                .organizationId(practiceOrgB.getId())
+                .email("admin@apextax" + UUID.randomUUID().toString().substring(0, 6) + ".com")
+                .passwordHash(passwordEncoder.encode("Password@123"))
+                .firstName("Suresh")
+                .lastName("Rao")
+                .status(UserEntity.UserStatus.ACTIVE)
+                .roles(new HashSet<>(Set.of(orgAdminRole)))
+                .build());
+
+        String practiceAdminTokenB = jwtTokenProvider.generateAccessToken(
+                practiceAdminUserB.getId(),
+                practiceOrgB.getId(),
+                practiceAdminUserB.getEmail(),
+                Set.of("ORG_ADMIN"),
+                Set.of("MARKETPLACE_VIEW", "MARKETPLACE_WRITE")
+        );
+
+        MarketplaceProfileEntity practiceProfileB = profileRepository.save(MarketplaceProfileEntity.builder()
+                .organizationId(practiceOrgB.getId())
+                .displayName("Apex Tax Consultants")
+                .slug("apex-tax-" + UUID.randomUUID().toString().substring(0, 6))
+                .isPublished(true)
+                .visibilityStatus(MarketplaceProfileEntity.VisibilityStatus.PUBLIC)
+                .averageRating(BigDecimal.ZERO)
+                .totalReviews(0)
+                .build());
+
+        // Review for Org A
+        reviewRepository.save(MarketplaceReviewEntity.builder()
+                .organizationId(practiceOrg.getId())
+                .marketplaceProfileId(practiceProfile.getId())
+                .reviewerName("Org A Client")
+                .rating(5)
+                .reviewComment("Review specifically for Practice A.")
+                .status(ReviewStatus.APPROVED)
+                .isVerifiedClient(true)
+                .build());
+
+        // Review for Org B
+        reviewRepository.save(MarketplaceReviewEntity.builder()
+                .organizationId(practiceOrgB.getId())
+                .marketplaceProfileId(practiceProfileB.getId())
+                .reviewerName("Org B Client")
+                .rating(4)
+                .reviewComment("Review specifically for Practice B.")
+                .status(ReviewStatus.APPROVED)
+                .isVerifiedClient(true)
+                .build());
+
+        // 1. Practice A requests /reviews -> should only see Org A's review
+        mockMvc.perform(get("/api/v1/marketplace/practice-profile/reviews")
+                        .header("Authorization", "Bearer " + practiceAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].reviewerName").value("Org A Client"))
+                .andExpect(jsonPath("$.data[0].moderatedBy").doesNotExist())
+                .andExpect(jsonPath("$.data[0].moderationNote").doesNotExist());
+
+        // 2. Practice B requests /reviews -> should only see Org B's review
+        mockMvc.perform(get("/api/v1/marketplace/practice-profile/reviews")
+                        .header("Authorization", "Bearer " + practiceAdminTokenB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].reviewerName").value("Org B Client"))
+                .andExpect(jsonPath("$.data[0].moderatedBy").doesNotExist())
+                .andExpect(jsonPath("$.data[0].moderationNote").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("3.4.13 - Public endpoints (list, page, profile) completely exclude admin identity and moderation notes")
+    void testPublicReviews_DoesNotLeakSensitiveAdminMetadata() throws Exception {
+        // Create an approved review that has moderation metadata
+        MarketplaceReviewEntity review = reviewRepository.save(MarketplaceReviewEntity.builder()
+                .organizationId(practiceOrg.getId())
+                .marketplaceProfileId(practiceProfile.getId())
+                .customerId(customerUser.getId())
+                .leadId(completedLead.getId())
+                .reviewerName("Aarav Mehta")
+                .rating(5)
+                .reviewTitle("Great GST Guidance")
+                .reviewComment("Comprehensive guidance on GST compliance and invoicing.")
+                .status(ReviewStatus.APPROVED)
+                .moderatedBy("superadmin.secret@taxoryn.internal")
+                .moderatedAt(java.time.Instant.now())
+                .moderationNote("CONFIDENTIAL: Verified with bank statement and ledger match.")
+                .isVerifiedClient(true)
+                .build());
+
+        // 1. Check GET /profiles/{id}/reviews
+        mockMvc.perform(get("/api/v1/marketplace/profiles/" + practiceProfile.getId() + "/reviews"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].reviewerName").value("Aarav Mehta"))
+                .andExpect(jsonPath("$.data[0].moderatedBy").doesNotExist())
+                .andExpect(jsonPath("$.data[0].moderationNote").doesNotExist())
+                .andExpect(jsonPath("$.data[0].leadId").doesNotExist());
+
+        // 2. Check GET /profiles/{id}/reviews/page
+        mockMvc.perform(get("/api/v1/marketplace/profiles/" + practiceProfile.getId() + "/reviews/page?page=0&size=10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].reviewerName").value("Aarav Mehta"))
+                .andExpect(jsonPath("$.data.content[0].moderatedBy").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].moderationNote").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].leadId").doesNotExist());
+
+        // 3. Check GET /profiles/{id} embedded recentReviews
+        mockMvc.perform(get("/api/v1/marketplace/profiles/" + practiceProfile.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recentReviews[0].reviewerName").value("Aarav Mehta"))
+                .andExpect(jsonPath("$.data.recentReviews[0].moderatedBy").doesNotExist())
+                .andExpect(jsonPath("$.data.recentReviews[0].moderationNote").doesNotExist())
+                .andExpect(jsonPath("$.data.recentReviews[0].leadId").doesNotExist());
+
+        // 4. Verify admin endpoint STILL retains moderation metadata
+        mockMvc.perform(get("/api/v1/admin/marketplace/reviews?status=APPROVED")
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].moderatedBy").value("superadmin.secret@taxoryn.internal"))
+                .andExpect(jsonPath("$.data.content[0].moderationNote").value("CONFIDENTIAL: Verified with bank statement and ledger match."));
+    }
+
+    @Test
+    @DisplayName("3.4.14 - Non-lead direct review duplicate constraint rejects duplicate submission gracefully")
+    void testDirectReview_NonLeadDuplicateConstraint_Rejected() throws Exception {
+        // Authenticated client of firm (without lead)
+        UUID firmClientId = UUID.randomUUID();
+        String firmClientToken = jwtTokenProvider.generateAccessToken(
+                customerUser.getId(),
+                practiceOrg.getId(),
+                firmClientId,
+                customerUser.getEmail(),
+                Set.of("MARKETPLACE_CUSTOMER"),
+                Set.of()
+        );
+
+        SubmitMarketplaceReviewRequest request = SubmitMarketplaceReviewRequest.builder()
+                .marketplaceProfileId(practiceProfile.getId())
+                .rating(5)
+                .reviewTitle("Direct Client Review")
+                .reviewComment("Direct engagement review for corporate accounting.")
+                .build();
+
+        // First submission succeeds
+        mockMvc.perform(post("/api/v1/marketplace/reviews")
+                        .header("Authorization", "Bearer " + firmClientToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Duplicate submission fails gracefully with 400 Bad Request
+        mockMvc.perform(post("/api/v1/marketplace/reviews")
+                        .header("Authorization", "Bearer " + firmClientToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("already been submitted")));
+    }
+
+    @Test
+    @DisplayName("3.4.15 - Direct review constraint allows distinct practitioner profiles for same customer")
+    void testDirectReview_DistinctPractitionerProfiles_Allowed() throws Exception {
+        // Create second practice organization and profile
+        OrganizationEntity practiceOrg2 = organizationRepository.save(OrganizationEntity.builder()
+                .name("Zenith Tax Partners " + UUID.randomUUID().toString().substring(0, 6))
+                .legalName("Zenith Tax Partners LLP")
+                .email("admin@zenith" + UUID.randomUUID().toString().substring(0, 4) + ".com")
+                .status(OrganizationEntity.OrganizationStatus.ACTIVE)
+                .build());
+
+        MarketplaceProfileEntity practiceProfile2 = profileRepository.save(MarketplaceProfileEntity.builder()
+                .organizationId(practiceOrg2.getId())
+                .displayName("Zenith Tax Partners")
+                .slug("zenith-tax-" + UUID.randomUUID().toString().substring(0, 6))
+                .isPublished(true)
+                .visibilityStatus(MarketplaceProfileEntity.VisibilityStatus.PUBLIC)
+                .averageRating(BigDecimal.ZERO)
+                .totalReviews(0)
+                .build());
+
+        // Client linked to practiceOrg
+        UUID firmClientId = UUID.randomUUID();
+        String firmClientToken1 = jwtTokenProvider.generateAccessToken(
+                customerUser.getId(),
+                practiceOrg.getId(),
+                firmClientId,
+                customerUser.getEmail(),
+                Set.of("MARKETPLACE_CUSTOMER"),
+                Set.of()
+        );
+
+        SubmitMarketplaceReviewRequest request1 = SubmitMarketplaceReviewRequest.builder()
+                .marketplaceProfileId(practiceProfile.getId())
+                .rating(5)
+                .reviewComment("Review for practice 1 from firm client.")
+                .build();
+
+        mockMvc.perform(post("/api/v1/marketplace/reviews")
+                        .header("Authorization", "Bearer " + firmClientToken1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request1)))
+                .andExpect(status().isCreated());
+
+        // Client also has completed lead with practiceOrg2
+        MarketplaceLeadEntity lead2 = leadRepository.save(MarketplaceLeadEntity.builder()
+                .organizationId(practiceOrg2.getId())
+                .marketplaceProfileId(practiceProfile2.getId())
+                .customerId(customerUser.getId())
+                .referenceNumber("TXN-ZENITH-" + UUID.randomUUID().toString().substring(0, 4).toUpperCase())
+                .clientName("Aarav Mehta")
+                .clientEmail(customerUser.getEmail())
+                .clientPhone("+91 98765 43210")
+                .city("Bengaluru")
+                .serviceCategory("ITR Filing")
+                .enquiryStatus(EnquiryStatus.COMPLETED)
+                .build());
+
+        SubmitMarketplaceReviewRequest request2 = SubmitMarketplaceReviewRequest.builder()
+                .marketplaceProfileId(practiceProfile2.getId())
+                .leadId(lead2.getId())
+                .rating(4)
+                .reviewComment("Review for practice 2 with distinct lead is completely allowed.")
+                .build();
+
+        mockMvc.perform(post("/api/v1/marketplace/reviews")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request2)))
+                .andExpect(status().isCreated());
+
+        assertEquals(2, reviewRepository.count());
     }
 }

@@ -25,6 +25,18 @@ public class ComplianceDeadlineDto {
     @Schema(description = "Obligation unique identifier")
     private UUID obligationId;
 
+    @Schema(description = "Obligation title or summary")
+    private String title;
+
+    @Schema(description = "Branch or office location unique identifier")
+    private UUID locationId;
+
+    @Schema(description = "Assigned user unique identifier")
+    private UUID assignedUserId;
+
+    @Schema(description = "Assigned employee unique identifier")
+    private UUID assignedEmployeeId;
+
     @Schema(description = "Client unique identifier")
     private UUID clientId;
 

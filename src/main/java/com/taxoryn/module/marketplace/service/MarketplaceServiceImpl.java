@@ -755,7 +755,13 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .status(MarketplaceReviewEntity.ReviewStatus.PENDING)
                 .build();
 
-        MarketplaceReviewEntity saved = reviewRepository.save(review);
+        MarketplaceReviewEntity saved;
+        try {
+            saved = reviewRepository.save(review);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            log.warn("Concurrent duplicate review detected for customer {} and profile {}: {}", customerId, profile.getId(), ex.getMessage());
+            throw new com.taxoryn.core.exception.BusinessValidationException("A review has already been submitted for this engagement or practitioner");
+        }
 
         if (resolvedLead != null) {
             resolvedLead.setReviewId(saved.getId());
@@ -779,25 +785,25 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<MarketplaceReviewDto> getPublicReviews(UUID marketplaceProfileId) {
+    public List<PublicMarketplaceReviewDto> getPublicReviews(UUID marketplaceProfileId) {
         MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
         List<MarketplaceReviewEntity> reviews = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
                 profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
         );
-        return mapper.toReviewDtoList(reviews);
+        return mapper.toPublicReviewDtoList(reviews);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PagedResponse<MarketplaceReviewDto> getPublicReviewsPaged(UUID marketplaceProfileId, Pageable pageable) {
+    public PagedResponse<PublicMarketplaceReviewDto> getPublicReviewsPaged(UUID marketplaceProfileId, Pageable pageable) {
         MarketplaceProfileEntity profile = profileRepository.findByIdAndIsPublishedTrueAndVisibilityStatus(marketplaceProfileId, VisibilityStatus.PUBLIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Marketplace Profile", "id", marketplaceProfileId));
 
         org.springframework.data.domain.Page<MarketplaceReviewEntity> page = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
                 profile.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED, pageable
         );
-        return PagedResponse.of(page, mapper::toReviewDto);
+        return PagedResponse.of(page, mapper::toPublicReviewDto);
     }
 
     @Override
@@ -2312,7 +2318,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         List<MarketplaceReviewEntity> reviews = reviewRepository.findByMarketplaceProfileIdAndStatusOrderByCreatedAtDesc(
                 entity.getId(), MarketplaceReviewEntity.ReviewStatus.APPROVED
         );
-        dto.setRecentReviews(mapper.toReviewDtoList(reviews));
+        dto.setRecentReviews(mapper.toPublicReviewDtoList(reviews));
         dto.setVisibilityStatus(entity.getVisibilityStatus());
 
         // Load Active Practice Locations
@@ -2700,10 +2706,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<MarketplaceReviewDto> getMyPracticeReviews() {
+    public List<PracticeMarketplaceReviewDto> getMyPracticeReviews() {
         UUID orgId = SecurityUtils.getCurrentOrganizationId();
         List<MarketplaceReviewEntity> reviews = reviewRepository.findAllByOrganizationId(orgId);
-        return mapper.toReviewDtoList(reviews);
+        return mapper.toPracticeReviewDtoList(reviews);
     }
 
     @Override

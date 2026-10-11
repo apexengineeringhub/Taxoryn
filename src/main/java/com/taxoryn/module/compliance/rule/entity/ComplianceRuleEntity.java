@@ -42,7 +42,7 @@ public class ComplianceRuleEntity extends AuditableEntity {
     @Column(name = "rule_code", nullable = false, length = 100)
     private String ruleCode;
 
-    @Column(name = "rule_name", nullable = false)
+    @Column(name = "rule_name")
     private String ruleName;
 
     @Column(name = "name")
@@ -58,19 +58,21 @@ public class ComplianceRuleEntity extends AuditableEntity {
     private Boolean isActive;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "domain", nullable = false, length = 50)
-    private ComplianceRuleDomain domain;
+    @Column(name = "domain", length = 50)
+    @Builder.Default
+    private ComplianceRuleDomain domain = ComplianceRuleDomain.OTHER;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "frequency", nullable = false, length = 50)
     private ComplianceRuleFrequency frequency;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "period_type", nullable = false, length = 50)
-    private CompliancePeriodType periodType;
+    @Column(name = "period_type", length = 50)
+    @Builder.Default
+    private CompliancePeriodType periodType = CompliancePeriodType.MONTH;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 50)
+    @Column(name = "status", length = 50)
     @Builder.Default
     private ComplianceRuleStatus status = ComplianceRuleStatus.ACTIVE;
 
@@ -96,7 +98,7 @@ public class ComplianceRuleEntity extends AuditableEntity {
     // --- Due Date Rule Metadata ---
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "due_date_rule_type", nullable = false, length = 50)
+    @Column(name = "due_date_rule_type", length = 50)
     @Builder.Default
     private DueDateRuleType dueDateRuleType = DueDateRuleType.DAY_OF_FOLLOWING_MONTH;
 
@@ -112,9 +114,13 @@ public class ComplianceRuleEntity extends AuditableEntity {
     @Column(name = "fixed_day")
     private Integer fixedDay;
 
-    @Column(name = "statutory_grace_days", nullable = false)
+    @Column(name = "statutory_grace_days")
     @Builder.Default
-    private int statutoryGraceDays = 0;
+    private Integer statutoryGraceDays = 0;
+
+    public int getStatutoryGraceDays() {
+        return statutoryGraceDays != null ? statutoryGraceDays : 0;
+    }
 
     @Column(name = "due_date_description", length = 255)
     private String dueDateDescription;

@@ -95,9 +95,7 @@ public class ComplianceRuleIntegrationTest {
     @BeforeEach
     void setUp() {
         TenantContext.clear();
-        complianceRuleRepository.findAll().stream()
-                .filter(r -> r.getOrganizationId() != null)
-                .forEach(complianceRuleRepository::delete);
+        complianceRuleRepository.deleteAll();
         organizationModuleRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
@@ -186,18 +184,13 @@ public class ComplianceRuleIntegrationTest {
 
         // 7. Ensure standard system rules are seeded if not present
         TenantContext.clear();
-        complianceRuleRepository.findAll().stream()
-                .filter(r -> r.getOrganizationId() != null)
-                .forEach(complianceRuleRepository::delete);
         seedStandardRulesIfEmpty();
     }
 
     @AfterEach
     void tearDown() {
         TenantContext.clear();
-        complianceRuleRepository.findAll().stream()
-                .filter(r -> r.getOrganizationId() != null)
-                .forEach(complianceRuleRepository::delete);
+        complianceRuleRepository.deleteAll();
         organizationModuleRepository.deleteAll();
         userRepository.deleteAll();
         organizationRepository.deleteAll();
@@ -205,6 +198,10 @@ public class ComplianceRuleIntegrationTest {
     }
 
     private void seedStandardRulesIfEmpty() {
+        complianceRuleRepository.findAllSystemRules().stream()
+                .filter(r -> r.getStatutoryAct() == null)
+                .forEach(complianceRuleRepository::delete);
+
         if (complianceRuleRepository.findAllSystemRules().isEmpty()) {
             complianceRuleRepository.save(ComplianceRuleEntity.builder()
                     .ruleCode("GST_GSTR1_MONTHLY")

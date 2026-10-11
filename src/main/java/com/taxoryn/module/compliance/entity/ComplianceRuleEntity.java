@@ -29,11 +29,25 @@ public class ComplianceRuleEntity extends AuditableEntity {
     @Column(name = "rule_code", nullable = false, length = 100)
     private String ruleCode;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name")
     private String name;
 
+    @Column(name = "rule_name")
+    private String ruleName;
+
+    @jakarta.persistence.PrePersist
+    @jakarta.persistence.PreUpdate
+    public void syncRuleName() {
+        if (ruleName == null && name != null) {
+            ruleName = name;
+        }
+        if (name == null && ruleName != null) {
+            name = ruleName;
+        }
+    }
+
     @Enumerated(EnumType.STRING)
-    @Column(name = "compliance_type", nullable = false, length = 50)
+    @Column(name = "compliance_type", length = 50)
     private ComplianceType complianceType;
 
     @Enumerated(EnumType.STRING)
@@ -64,6 +78,10 @@ public class ComplianceRuleEntity extends AuditableEntity {
     @Column(name = "is_system_rule", nullable = false)
     @Builder.Default
     private boolean systemRule = false;
+
+    @Column(name = "statutory_grace_days")
+    @Builder.Default
+    private Integer statutoryGraceDays = 0;
 
     public enum ComplianceType {
         GST,

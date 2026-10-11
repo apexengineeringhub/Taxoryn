@@ -42,4 +42,8 @@ public class ComplianceDeadlineSummaryDto {
 
     @Schema(description = "Count of cancelled obligations in scope (excluded from active radar)", example = "2")
     private long cancelled;
+
+    @Schema(description = "Total obligations count alias across active, completed, and cancelled", example = "150")
+    @Builder.Default
+    private long totalObligations = 0;
 }

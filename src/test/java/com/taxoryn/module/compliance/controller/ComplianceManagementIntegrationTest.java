@@ -195,6 +195,14 @@ class ComplianceManagementIntegrationTest {
     @AfterEach
     void tearDown() {
         TenantContext.clear();
+        obligationRepository.deleteAll();
+        taskRepository.deleteAll();
+        ruleRepository.deleteAll();
+        clientRepository.deleteAll();
+        employeeRepository.deleteAll();
+        userRepository.deleteAll();
+        organizationRepository.deleteAll();
+        roleRepository.deleteAll();
     }
 
     @Test
@@ -210,7 +218,7 @@ class ComplianceManagementIntegrationTest {
                 .descriptionTemplate("Annual filing of ROC Form MGT-7 for {period}")
                 .build();
 
-        mockMvc.perform(post("/api/v1/compliance/rules")
+        mockMvc.perform(post("/api/v1/compliance/calendar/rules")
                         .header("Authorization", adminToken1)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

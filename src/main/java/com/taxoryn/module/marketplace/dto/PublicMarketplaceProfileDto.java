@@ -140,7 +140,7 @@ public class PublicMarketplaceProfileDto {
     private List<PublicTaxServiceDto> offeredServices;
 
     @Schema(description = "Recent Approved Reviews")
-    private List<MarketplaceReviewDto> recentReviews;
+    private List<PublicMarketplaceReviewDto> recentReviews;
 
     @Schema(description = "Relevant educational guides from Taxoryn Learn matching offered tax services")
     private List<com.taxoryn.module.content.dto.ContentSummaryResponse> relatedLearnContent;

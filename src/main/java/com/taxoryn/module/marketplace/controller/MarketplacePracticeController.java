@@ -468,8 +468,8 @@ public class MarketplacePracticeController {
     @GetMapping("/reviews")
     @PreAuthorize("hasAuthority('MARKETPLACE_VIEW') or hasRole('ORG_ADMIN') or hasRole('PRACTITIONER') or hasRole('SUPER_ADMIN')")
     @Operation(summary = "Get Practice Client Reviews", description = "Retrieves all client reviews submitted for this practice organization.")
-    public ResponseEntity<ApiResponse<List<MarketplaceReviewDto>>> getMyPracticeReviews() {
-        List<MarketplaceReviewDto> reviews = marketplaceService.getMyPracticeReviews();
+    public ResponseEntity<ApiResponse<List<PracticeMarketplaceReviewDto>>> getMyPracticeReviews() {
+        List<PracticeMarketplaceReviewDto> reviews = marketplaceService.getMyPracticeReviews();
         return ResponseEntity.ok(ApiResponse.success("Practice reviews retrieved successfully", reviews));
     }
 }
