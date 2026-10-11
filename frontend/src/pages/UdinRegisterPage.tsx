@@ -114,9 +114,11 @@ export const UdinRegisterPage: React.FC = () => {
       ]);
 
       if (udinRes.status === 'fulfilled') {
-        setUdinList(udinRes.value.content || []);
+        setUdinList(udinRes.value?.content || []);
       } else {
-        setError('Failed to fetch UDIN records.');
+        const errReason = (udinRes as PromiseRejectedResult).reason;
+        const msg = errReason?.response?.data?.message || errReason?.message || 'Failed to fetch UDIN records.';
+        setError(msg);
       }
 
       if (summaryRes.status === 'fulfilled') {

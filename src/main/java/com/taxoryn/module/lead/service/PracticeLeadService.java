@@ -28,12 +28,16 @@ import com.taxoryn.module.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -61,16 +65,29 @@ public class PracticeLeadService {
         UUID scopeEmployee = currentEmployeeScope(organizationId);
         int safePage = Math.max(page, 0);
         int safeSize = size < 1 ? 20 : Math.min(size, MAX_PAGE_SIZE);
-        var result = leadRepository.findLeads(organizationId, status, priority, source,
-                assignedEmployeeId, trimToNull(serviceCode), trimToNull(search), scopeEmployee,
+        var spec = createSpecification(organizationId, status, priority, source,
+                assignedEmployeeId, trimToNull(serviceCode), trimToNull(search), scopeEmployee);
+        var result = leadRepository.findAll(spec,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Order.desc("createdAt"))));
         var pageLeads = result.getContent();
         var employeeIds = pageLeads.stream().map(PracticeLeadEntity::getAssignedEmployeeId).filter(java.util.Objects::nonNull).distinct().toList();
         var serviceCodes = pageLeads.stream().map(PracticeLeadEntity::getInterestedServiceCode).filter(StringUtils::hasText).distinct().toList();
-        var employeeNames = employeeIds.isEmpty() ? java.util.Map.<UUID, String>of() : employeeRepository.findAllByOrganizationIdAndIdIn(organizationId, employeeIds).stream()
-                .collect(java.util.stream.Collectors.toMap(EmployeeEntity::getId, EmployeeEntity::getFullName));
-        var serviceNames = serviceCodes.isEmpty() ? java.util.Map.<String, String>of() : serviceRepository.findAccessibleServicesByCodes(serviceCodes, organizationId).stream()
-                .collect(java.util.stream.Collectors.toMap(s -> s.getServiceCode(), s -> s.getServiceName(), (a, b) -> a));
+        var employeeNames = new java.util.HashMap<UUID, String>();
+        if (!employeeIds.isEmpty()) {
+            employeeRepository.findAllByOrganizationIdAndIdIn(organizationId, employeeIds).forEach(emp -> {
+                if (emp != null && emp.getId() != null) {
+                    employeeNames.put(emp.getId(), emp.getFullName());
+                }
+            });
+        }
+        var serviceNames = new java.util.HashMap<String, String>();
+        if (!serviceCodes.isEmpty()) {
+            serviceRepository.findAccessibleServicesByCodes(serviceCodes, organizationId).forEach(svc -> {
+                if (svc != null && svc.getServiceCode() != null && !serviceNames.containsKey(svc.getServiceCode())) {
+                    serviceNames.put(svc.getServiceCode(), svc.getServiceName());
+                }
+            });
+        }
         return PagedResponse.of(result, lead -> toDto(lead, employeeNames, serviceNames));
     }
 
@@ -321,10 +338,12 @@ public class PracticeLeadService {
                 || SecurityUtils.hasRole("CA_PARTNER")
                 || SecurityUtils.hasRole("MANAGER") || SecurityUtils.hasRole("TAX_MANAGER")
                 || SecurityUtils.hasRole("PRACTITIONER") || SecurityUtils.hasRole("TAX_PROFESSIONAL")
-                || SecurityUtils.hasRole("SENIOR_TAX_ASSOCIATE")) {
+                || SecurityUtils.hasRole("SENIOR_TAX_ASSOCIATE")
+                || SecurityUtils.hasAuthority("LEAD_VIEW_ALL")
+                || SecurityUtils.hasAuthority("LEAD_MANAGE")) {
             return null;
         }
-        UUID userId = SecurityUtils.getCurrentUserId();
+        UUID userId = SecurityUtils.getCurrentUser().map(com.taxoryn.core.security.SecurityUser::getUserId).orElse(null);
         if (userId == null) return null;
         return employeeRepository.findByOrganizationIdAndUserId(organizationId, userId)
                 .map(EmployeeEntity::getId)
@@ -390,5 +409,49 @@ public class PracticeLeadService {
         return PracticeLeadActivityDto.builder().id(activity.getId()).leadId(activity.getLeadId()).activityType(activity.getActivityType())
                 .subject(activity.getSubject()).content(activity.getContent()).occurredAt(activity.getOccurredAt())
                 .authorName(activity.getAuthorName()).createdAt(activity.getCreatedAt()).build();
+    }
+
+    private Specification<PracticeLeadEntity> createSpecification(
+            UUID organizationId,
+            LeadStatus status,
+            LeadPriority priority,
+            LeadSource source,
+            UUID assignedEmployeeId,
+            String serviceCode,
+            String search,
+            UUID scopeEmployee) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (priority != null) {
+                predicates.add(cb.equal(root.get("priority"), priority));
+            }
+            if (source != null) {
+                predicates.add(cb.equal(root.get("source"), source));
+            }
+            if (assignedEmployeeId != null) {
+                predicates.add(cb.equal(root.get("assignedEmployeeId"), assignedEmployeeId));
+            }
+            if (StringUtils.hasText(serviceCode)) {
+                predicates.add(cb.equal(root.get("interestedServiceCode"), serviceCode.trim()));
+            }
+            if (scopeEmployee != null) {
+                predicates.add(cb.equal(root.get("assignedEmployeeId"), scopeEmployee));
+            }
+            if (StringUtils.hasText(search)) {
+                String term = "%" + search.trim().toLowerCase() + "%";
+                Predicate nameMatch = cb.like(cb.lower(root.get("name")), term);
+                Predicate businessMatch = cb.and(cb.isNotNull(root.get("businessName")), cb.like(cb.lower(root.get("businessName")), term));
+                Predicate emailMatch = cb.and(cb.isNotNull(root.get("email")), cb.like(cb.lower(root.get("email")), term));
+                Predicate phoneMatch = cb.and(cb.isNotNull(root.get("phone")), cb.like(cb.lower(root.get("phone")), term));
+                predicates.add(cb.or(nameMatch, businessMatch, emailMatch, phoneMatch));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 }

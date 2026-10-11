@@ -179,29 +179,59 @@ public class UdinServiceImpl implements UdinService {
         Set<UUID> documentIds = page.getContent().stream().map(UdinEntity::getDocumentId).filter(Objects::nonNull).collect(Collectors.toSet());
         Set<UUID> invoiceIds = page.getContent().stream().map(UdinEntity::getInvoiceId).filter(Objects::nonNull).collect(Collectors.toSet());
 
-        Map<UUID, ClientEntity> clientMap = clientIds.isEmpty() ? Map.of() :
-                clientRepository.findAllById(clientIds).stream().collect(Collectors.toMap(ClientEntity::getId, c -> c));
+        Map<UUID, ClientEntity> clientMap = new java.util.HashMap<>();
+        if (!clientIds.isEmpty()) {
+            clientRepository.findAllById(clientIds).forEach(c -> {
+                if (c != null && c.getId() != null) {
+                    clientMap.put(c.getId(), c);
+                }
+            });
+        }
 
-        Map<UUID, EngagementEntity> engagementMap = engagementIds.isEmpty() ? Map.of() :
-                engagementRepository.findAllById(engagementIds).stream().collect(Collectors.toMap(EngagementEntity::getId, e -> e));
+        Map<UUID, EngagementEntity> engagementMap = new java.util.HashMap<>();
+        if (!engagementIds.isEmpty()) {
+            engagementRepository.findAllById(engagementIds).forEach(e -> {
+                if (e != null && e.getId() != null) {
+                    engagementMap.put(e.getId(), e);
+                }
+            });
+        }
 
-        Map<UUID, ServiceEntity> serviceMap = serviceIds.isEmpty() ? Map.of() :
-                serviceRepository.findAllById(serviceIds).stream().collect(Collectors.toMap(ServiceEntity::getId, s -> s));
+        Map<UUID, ServiceEntity> serviceMap = new java.util.HashMap<>();
+        if (!serviceIds.isEmpty()) {
+            serviceRepository.findAllById(serviceIds).forEach(s -> {
+                if (s != null && s.getId() != null) {
+                    serviceMap.put(s.getId(), s);
+                }
+            });
+        }
 
-        Map<UUID, DocumentEntity> documentMap = documentIds.isEmpty() ? Map.of() :
-                documentRepository.findAllById(documentIds).stream().collect(Collectors.toMap(DocumentEntity::getId, d -> d));
+        Map<UUID, DocumentEntity> documentMap = new java.util.HashMap<>();
+        if (!documentIds.isEmpty()) {
+            documentRepository.findAllById(documentIds).forEach(d -> {
+                if (d != null && d.getId() != null) {
+                    documentMap.put(d.getId(), d);
+                }
+            });
+        }
 
-        Map<UUID, InvoiceEntity> invoiceMap = invoiceIds.isEmpty() ? Map.of() :
-                invoiceRepository.findAllById(invoiceIds).stream().collect(Collectors.toMap(InvoiceEntity::getId, i -> i));
+        Map<UUID, InvoiceEntity> invoiceMap = new java.util.HashMap<>();
+        if (!invoiceIds.isEmpty()) {
+            invoiceRepository.findAllById(invoiceIds).forEach(i -> {
+                if (i != null && i.getId() != null) {
+                    invoiceMap.put(i.getId(), i);
+                }
+            });
+        }
 
         List<UdinDto> dtos = page.getContent().stream()
                 .map(e -> mapToDto(
                         e,
-                        clientMap.get(e.getClientId()),
-                        engagementMap.get(e.getEngagementId()),
-                        serviceMap.get(e.getServiceId()),
-                        documentMap.get(e.getDocumentId()),
-                        invoiceMap.get(e.getInvoiceId())
+                        e.getClientId() != null ? clientMap.get(e.getClientId()) : null,
+                        e.getEngagementId() != null ? engagementMap.get(e.getEngagementId()) : null,
+                        e.getServiceId() != null ? serviceMap.get(e.getServiceId()) : null,
+                        e.getDocumentId() != null ? documentMap.get(e.getDocumentId()) : null,
+                        e.getInvoiceId() != null ? invoiceMap.get(e.getInvoiceId()) : null
                 ))
                 .collect(Collectors.toList());
 
