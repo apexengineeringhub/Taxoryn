@@ -98,3 +98,21 @@ export const getAuthoritativeNavigationUrl = (item: WorkInventoryItemDto): strin
       return '/tasks';
   }
 };
+
+export const isValidIsoDate = (dateStr: string): boolean => {
+  if (!dateStr || typeof dateStr !== 'string') return false;
+  const trimmed = dateStr.trim();
+  // Strictly enforce YYYY-MM-DD pattern
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
+
+  const [yearStr, monthStr, dayStr] = trimmed.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
+
+  if (year < 1900 || year > 2100) return false;
+  if (month < 1 || month > 12) return false;
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  return day >= 1 && day <= daysInMonth;
+};

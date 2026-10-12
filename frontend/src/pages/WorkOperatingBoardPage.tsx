@@ -21,6 +21,7 @@ import {
   Briefcase,
   FileText,
   CheckSquare,
+  Info,
 } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -38,6 +39,7 @@ import {
   KANBAN_COLUMNS,
   isWorkItemOverdue,
   getAuthoritativeNavigationUrl,
+  isValidIsoDate,
 } from '../utils/workOperatingBoardUtils';
 import clsx from 'clsx';
 
@@ -57,6 +59,7 @@ export const WorkOperatingBoardPage: React.FC = () => {
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [dateValidationError, setDateValidationError] = useState<string | null>(null);
 
   // Pagination & Sorting state
   const [page, setPage] = useState(0);
@@ -98,6 +101,19 @@ export const WorkOperatingBoardPage: React.FC = () => {
 
   // Fetch Inventory items
   const fetchInventory = useCallback(async () => {
+    // Validate manual date input entries before query dispatch
+    if (fromDate.trim() && !isValidIsoDate(fromDate)) {
+      setDateValidationError('From Date must be a valid calendar date in YYYY-MM-DD format.');
+      setIsLoading(false);
+      return;
+    }
+    if (toDate.trim() && !isValidIsoDate(toDate)) {
+      setDateValidationError('To Date must be a valid calendar date in YYYY-MM-DD format.');
+      setIsLoading(false);
+      return;
+    }
+    setDateValidationError(null);
+
     const currentRequestId = ++activeRequestIdRef.current;
     setIsLoading(true);
     setError(null);
@@ -116,8 +132,8 @@ export const WorkOperatingBoardPage: React.FC = () => {
       if (selectedClientId) params.clientId = selectedClientId;
       if (selectedAssigneeId) params.assignedUserId = selectedAssigneeId;
       if (blockedOnly) params.blockedOnly = true;
-      if (fromDate) params.fromDate = fromDate;
-      if (toDate) params.toDate = toDate;
+      if (fromDate.trim()) params.fromDate = fromDate.trim();
+      if (toDate.trim()) params.toDate = toDate.trim();
 
       const paged = await workInventoryApi.getInventory(params);
       if (currentRequestId === activeRequestIdRef.current) {
@@ -201,6 +217,7 @@ export const WorkOperatingBoardPage: React.FC = () => {
     setBlockedOnly(false);
     setFromDate('');
     setToDate('');
+    setDateValidationError(null);
     setPage(0);
   };
 
@@ -500,28 +517,45 @@ export const WorkOperatingBoardPage: React.FC = () => {
               </span>
             </label>
 
-            {/* Date Range */}
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <span>Due:</span>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => {
-                  setFromDate(e.target.value);
-                  setPage(0);
-                }}
-                className="px-2 py-0.5 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-300"
-              />
-              <span>to</span>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => {
-                  setToDate(e.target.value);
-                  setPage(0);
-                }}
-                className="px-2 py-0.5 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-300"
-              />
+            {/* Date Range with YYYY-MM-DD Hint */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <span>Due:</span>
+                <input
+                  type="date"
+                  placeholder="YYYY-MM-DD"
+                  aria-label="Filter from due date (YYYY-MM-DD)"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value);
+                    setDateValidationError(null);
+                    setPage(0);
+                  }}
+                  className={clsx(
+                    'px-2 py-0.5 text-xs rounded-lg bg-slate-950 border text-slate-300 focus:outline-none',
+                    dateValidationError ? 'border-rose-600 focus:border-rose-500' : 'border-slate-800 focus:border-teal-500'
+                  )}
+                />
+                <span>to</span>
+                <input
+                  type="date"
+                  placeholder="YYYY-MM-DD"
+                  aria-label="Filter to due date (YYYY-MM-DD)"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value);
+                    setDateValidationError(null);
+                    setPage(0);
+                  }}
+                  className={clsx(
+                    'px-2 py-0.5 text-xs rounded-lg bg-slate-950 border text-slate-300 focus:outline-none',
+                    dateValidationError ? 'border-rose-600 focus:border-rose-500' : 'border-slate-800 focus:border-teal-500'
+                  )}
+                />
+                <span className="text-[10px] text-slate-500 font-mono tracking-tight hidden sm:inline">
+                  (YYYY-MM-DD)
+                </span>
+              </div>
             </div>
           </div>
 
@@ -554,6 +588,27 @@ export const WorkOperatingBoardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Date Validation Error Alert */}
+      {dateValidationError && (
+        <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-800/80 text-amber-200 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{dateValidationError}</span>
+          </div>
+          <button
+            onClick={() => {
+              setFromDate('');
+              setToDate('');
+              setDateValidationError(null);
+              setPage(0);
+            }}
+            className="text-amber-400 hover:text-amber-300 font-medium underline shrink-0 ml-3"
+          >
+            Clear Dates
+          </button>
+        </div>
+      )}
 
       {/* Error state */}
       {error && (
@@ -605,6 +660,22 @@ export const WorkOperatingBoardPage: React.FC = () => {
       {/* View: KANBAN */}
       {!isLoading && items.length > 0 && viewMode === 'kanban' && (
         <div className="space-y-4">
+          {/* Informational Guidance Banner when multiple pages exist */}
+          {totalPages > 1 && (
+            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-700/70 text-xs text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
+                <span>
+                  Showing page <strong className="text-white font-semibold">{page + 1}</strong> of{' '}
+                  <strong className="text-white font-semibold">{totalPages}</strong> ({items.length} cards displayed on this page out of <strong className="text-white font-semibold">{totalElements}</strong> total matching items).
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400 italic shrink-0">
+                Column counts reflect the currently loaded page. Adjust filters or page size to inspect specific subsets.
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-start">
             {KANBAN_COLUMNS.map((column) => {
               const colItems = kanbanBuckets[column.id] || [];
@@ -628,8 +699,9 @@ export const WorkOperatingBoardPage: React.FC = () => {
                       </h3>
                     </div>
                     <span
+                      title={`${colItems.length} items in this column on current page (${items.length} total on page ${page + 1})`}
                       className={clsx(
-                        'text-xs font-bold px-2 py-0.5 rounded-full',
+                        'text-xs font-bold px-2 py-0.5 rounded-full cursor-help',
                         column.badgeBg
                       )}
                     >
@@ -641,7 +713,7 @@ export const WorkOperatingBoardPage: React.FC = () => {
                   <div className="p-2 space-y-2.5 flex-1 overflow-y-auto max-h-[calc(100vh-280px)]">
                     {colItems.length === 0 ? (
                       <div className="h-32 flex items-center justify-center border border-dashed border-slate-800/80 rounded-xl text-xs text-slate-600">
-                        Empty
+                        Empty on this page
                       </div>
                     ) : (
                       colItems.map((item) => {
@@ -785,8 +857,10 @@ export const WorkOperatingBoardPage: React.FC = () => {
           {/* Kanban Pagination / Element Count Info */}
           <div className="p-3 rounded-xl bg-slate-900/50 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
             <div>
-              Showing page <span className="font-semibold text-white">{page + 1}</span> of{' '}
-              <span className="font-semibold text-white">{Math.max(1, totalPages)}</span> ({totalElements} total work items)
+              Showing <span className="font-semibold text-white">{items.length}</span> of{' '}
+              <span className="font-semibold text-white">{totalElements}</span> work items (Page{' '}
+              <span className="font-semibold text-white">{page + 1}</span> of{' '}
+              <span className="font-semibold text-white">{Math.max(1, totalPages)}</span>)
             </div>
             <div className="flex items-center gap-2">
               <Button

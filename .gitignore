@@ -105,3 +105,48 @@ yarn-error.log*
 data/
 data/documents/
 
+
+# ==========================================
+# Taxoryn Desktop - Generated installers
+# ==========================================
+
+# Electron Builder output
+release/
+dist/
+out/
+
+# Windows installers and executables
+*.exe
+*.msi
+*.msix
+*.appx
+
+# Windows installer packages and bundles
+*.nupkg
+*.blockmap
+
+# macOS installers and disk images
+*.dmg
+*.pkg
+
+# macOS application bundles
+*.app/
+
+# Linux desktop packages
+*.AppImage
+*.deb
+*.rpm
+
+# Electron / frontend build output
+frontend/dist/
+frontend/release/
+frontend/out/
+
+# Dependency directories
+node_modules/
+frontend/node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+
