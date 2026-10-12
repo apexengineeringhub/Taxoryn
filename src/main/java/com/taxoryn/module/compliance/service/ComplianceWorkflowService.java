@@ -53,6 +53,10 @@ public interface ComplianceWorkflowService {
 
     ComplianceWorkflowDto approveWorkflow(UUID workflowId, ApproveWorkflowRequest request);
 
+    ComplianceWorkflowDto authorizeFiling(UUID workflowId, com.taxoryn.module.compliance.qc.dto.AuthorizeFilingRequest request);
+
+    ComplianceWorkflowDto revokeFilingAuthorization(UUID workflowId, com.taxoryn.module.compliance.qc.dto.RevokeAuthorizationRequest request);
+
     ComplianceWorkflowDto markFiled(UUID workflowId, MarkWorkflowFiledRequest request);
 
     ComplianceWorkflowDto completeWorkflow(UUID workflowId, CompleteComplianceWorkflowRequest request);

@@ -5179,6 +5179,12 @@ export interface ComplianceWorkflowDto {
   startedAt?: string;
   submittedAt?: string;
   approvedAt?: string;
+  isAuthorized?: boolean;
+  authorizedAt?: string;
+  authorizedBy?: string;
+  authorizationMethod?: ComplianceAuthorizationMethod;
+  authorizationReference?: string;
+  authorizationNotes?: string;
   completedAt?: string;
   createdAt: string;
   updatedAt?: string;
@@ -5191,10 +5197,87 @@ export interface ComplianceWorkflowDetailDto {
   reviewNotes?: string;
   changesRequestedReason?: string;
   approvedBy?: string;
+  authorizedBy?: string;
+  authorizationNotes?: string;
   waitingRequestedBy?: string;
   filedBy?: string;
   completedBy?: string;
   notes?: string;
+}
+
+export type ComplianceQcStage =
+  | 'PREPARATION'
+  | 'VALIDATION'
+  | 'REVIEW'
+  | 'CORRECTION'
+  | 'APPROVAL'
+  | 'AUTHORIZATION'
+  | 'SUBMISSION';
+
+export type ComplianceAuthorizationMethod =
+  | 'CLIENT_CONSENT'
+  | 'DSC_SIGN_OFF'
+  | 'PRACTITIONER_AUTHORIZATION'
+  | 'PORTAL_CREDENTIALS';
+
+export interface ComplianceQcCheckItemDto {
+  checkKey: string;
+  checkName: string;
+  category: string;
+  passed: boolean;
+  required: boolean;
+  message?: string;
+}
+
+export interface ComplianceQcValidationResultDto {
+  valid: boolean;
+  totalChecks: number;
+  passedChecks: number;
+  checks: ComplianceQcCheckItemDto[];
+  blockers: string[];
+  warnings: string[];
+}
+
+export interface AuthorizeFilingRequest {
+  authorizationMethod: ComplianceAuthorizationMethod;
+  authorizationReference?: string;
+  authorizationNotes?: string;
+  authorizedBy?: string;
+}
+
+export interface RevokeAuthorizationRequest {
+  reason: string;
+}
+
+export interface ComplianceQcStatusDto {
+  workflowId: string;
+  complianceObligationId: string;
+  clientId: string;
+  clientName?: string;
+  stage: ComplianceQcStage;
+  workflowStatus: ComplianceWorkflowStatus;
+  isPreparationComplete: boolean;
+  isValidationPassed: boolean;
+  isUnderReview: boolean;
+  isChangesRequired: boolean;
+  isApproved: boolean;
+  isAuthorized: boolean;
+  isSubmitted: boolean;
+  approvedAt?: string;
+  approvedBy?: string;
+  reviewNotes?: string;
+  authorizedAt?: string;
+  authorizedBy?: string;
+  authorizationMethod?: string;
+  authorizationReference?: string;
+  authorizationNotes?: string;
+  filedDate?: string;
+  filedAt?: string;
+  filedBy?: string;
+  acknowledgementNumber?: string;
+  validationSummary?: ComplianceQcValidationResultDto;
+  nextActionableStep?: string;
+  allowedActions: string[];
 }
 
 export interface ComplianceWorkbenchSummaryDto {

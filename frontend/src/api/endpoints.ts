@@ -88,6 +88,10 @@ import {
   CompleteComplianceWorkflowRequest,
   UpdateChecklistItemRequest,
   CreateWorkflowTaskRequest,
+  ComplianceQcStatusDto,
+  ComplianceQcValidationResultDto,
+  AuthorizeFilingRequest,
+  RevokeAuthorizationRequest,
   Task,
   GstProfile,
   GstReturnFiling,
@@ -3493,6 +3497,28 @@ export const complianceWorkflowApi = {
 
   createWorkflowTask: async (workflowId: string, payload: CreateWorkflowTaskRequest): Promise<Task> => {
     const res = await apiClient.post<ApiResponse<Task>>(`/compliance/workflows/${workflowId}/tasks`, payload);
+    return res.data.data;
+  },
+};
+
+export const complianceQcApi = {
+  getQcStatus: async (workflowId: string): Promise<ComplianceQcStatusDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceQcStatusDto>>(`/compliance/workflows/${workflowId}/qc/status`);
+    return res.data.data;
+  },
+
+  validateForReview: async (workflowId: string): Promise<ComplianceQcValidationResultDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceQcValidationResultDto>>(`/compliance/workflows/${workflowId}/qc/validate`);
+    return res.data.data;
+  },
+
+  authorizeFiling: async (workflowId: string, payload: AuthorizeFilingRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/qc/authorize-filing`, payload);
+    return res.data.data;
+  },
+
+  revokeAuthorization: async (workflowId: string, payload: RevokeAuthorizationRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/qc/revoke-authorization`, payload);
     return res.data.data;
   },
 };

@@ -8,6 +8,8 @@ import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.compliance.dto.ApproveWorkflowRequest;
+import com.taxoryn.module.compliance.qc.dto.AuthorizeFilingRequest;
+import com.taxoryn.module.compliance.qc.model.ComplianceAuthorizationMethod;
 import com.taxoryn.module.compliance.dto.AssignComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.CompleteComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.CreateComplianceWorkflowRequest;
@@ -453,6 +455,18 @@ public class ComplianceWorkflowIntegrationTest {
                                 .build())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("READY_FOR_FILING"));
+
+        // 8b. Authorize Filing (Quality Control Stage)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/authorize-filing")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AuthorizeFilingRequest.builder()
+                                .authorizationMethod(ComplianceAuthorizationMethod.CLIENT_CONSENT)
+                                .authorizationReference("CLIENT-APPROVAL-2026-08")
+                                .authorizationNotes("Signed computation sheet received via email")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.authorized").value(true));
 
         // 9. Mark Filed (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/mark-filed")

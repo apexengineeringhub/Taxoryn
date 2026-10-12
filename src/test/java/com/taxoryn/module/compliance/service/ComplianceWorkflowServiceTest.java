@@ -94,6 +94,10 @@ class ComplianceWorkflowServiceTest {
     private PracticeSecurityScopeEvaluator securityScopeEvaluator;
     @Mock
     private AuditService auditService;
+    @Mock
+    private org.springframework.beans.factory.ObjectProvider<com.taxoryn.module.compliance.qc.service.ComplianceQualityControlService> qcServiceProvider;
+    @Mock
+    private com.taxoryn.module.compliance.qc.service.ComplianceQualityControlService qcService;
 
     @InjectMocks
     private ComplianceWorkflowServiceImpl workflowService;
@@ -135,6 +139,7 @@ class ComplianceWorkflowServiceTest {
                 .isFirmAdmin(true)
                 .build();
         when(securityScopeEvaluator.evaluateCurrentScope()).thenReturn(firmAdminScope);
+        org.mockito.Mockito.lenient().when(qcServiceProvider.getObject()).thenReturn(qcService);
     }
 
     @AfterEach
@@ -250,6 +255,7 @@ class ComplianceWorkflowServiceTest {
         assertThat(workflow.getApprovedAt()).isNotNull();
 
         // 4. Mark Filed
+        workflow.setAuthorized(true);
         MarkWorkflowFiledRequest filedReq = MarkWorkflowFiledRequest.builder()
                 .filedDate(LocalDate.of(2026, 8, 16))
                 .acknowledgementNumber("ARN123456789")

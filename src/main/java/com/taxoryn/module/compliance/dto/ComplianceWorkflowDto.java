@@ -141,6 +141,24 @@ public class ComplianceWorkflowDto {
     @Schema(description = "Workflow approved timestamp")
     private Instant approvedAt;
 
+    @Schema(description = "Whether filing has been explicitly authorized")
+    private boolean isAuthorized;
+
+    @Schema(description = "Filing authorization timestamp")
+    private Instant authorizedAt;
+
+    @Schema(description = "Authorizer email or name")
+    private String authorizedBy;
+
+    @Schema(description = "Filing authorization method")
+    private String authorizationMethod;
+
+    @Schema(description = "Filing authorization reference")
+    private String authorizationReference;
+
+    @Schema(description = "Filing authorization notes")
+    private String authorizationNotes;
+
     @Schema(description = "Workflow completion timestamp")
     private Instant completedAt;
 

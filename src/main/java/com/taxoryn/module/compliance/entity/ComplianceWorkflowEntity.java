@@ -135,6 +135,26 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
     @Column(name = "approved_by", length = 255)
     private String approvedBy;
 
+    // --- Filing Authorization (QC Gate) ---
+    @Column(name = "is_authorized", nullable = false)
+    @Builder.Default
+    private boolean isAuthorized = false;
+
+    @Column(name = "authorized_at")
+    private Instant authorizedAt;
+
+    @Column(name = "authorized_by", length = 255)
+    private String authorizedBy;
+
+    @Column(name = "authorization_method", length = 50)
+    private String authorizationMethod;
+
+    @Column(name = "authorization_reference", length = 255)
+    private String authorizationReference;
+
+    @Column(name = "authorization_notes", columnDefinition = "TEXT")
+    private String authorizationNotes;
+
     // --- Government Filing Execution Metadata ---
     @Column(name = "filed_date")
     private LocalDate filedDate;

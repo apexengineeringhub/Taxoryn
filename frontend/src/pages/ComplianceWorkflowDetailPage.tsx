@@ -27,8 +27,9 @@ import {
   Check,
   X,
   RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
-import { complianceWorkflowApi, employeeApi, reviewApi } from '../api/endpoints';
+import { complianceWorkflowApi, employeeApi, reviewApi, complianceQcApi } from '../api/endpoints';
 import {
   ComplianceWorkflowDetailDto,
   ComplianceWorkflowStatus,
@@ -36,6 +37,8 @@ import {
   Employee,
   Task,
   ReviewRequest,
+  ComplianceQcStatusDto,
+  ComplianceAuthorizationMethod,
 } from '../types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -66,6 +69,13 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [approveNotes, setApproveNotes] = useState('');
 
+  const [qcStatus, setQcStatus] = useState<ComplianceQcStatusDto | null>(null);
+  const [isAuthorizeModalOpen, setIsAuthorizeModalOpen] = useState(false);
+  const [authMethod, setAuthMethod] = useState<ComplianceAuthorizationMethod>('CLIENT_CONSENT');
+  const [authReference, setAuthReference] = useState('');
+  const [authNotes, setAuthNotes] = useState('');
+  const [authorizedByName, setAuthorizedByName] = useState('');
+
   const [isFiledModalOpen, setIsFiledModalOpen] = useState(false);
   const [filedDate, setFiledDate] = useState(new Date().toISOString().split('T')[0]);
   const [filedAckNumber, setFiledAckNumber] = useState('');
@@ -94,6 +104,11 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
         setReview(await reviewApi.getForResource(id));
       } catch {
         setReview(null);
+      }
+      try {
+        setQcStatus(await complianceQcApi.getQcStatus(id));
+      } catch {
+        setQcStatus(null);
       }
     } catch (err: any) {
       console.error('Failed to load workflow details', err);
@@ -205,6 +220,25 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
       fetchWorkflowDetail();
     } catch (err) {
       console.error('Failed to approve workflow', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitAuthorizeModal = async () => {
+    if (!id) return;
+    try {
+      setIsSubmitting(true);
+      await complianceQcApi.authorizeFiling(id, {
+        authorizationMethod: authMethod,
+        authorizationReference: authReference || undefined,
+        authorizationNotes: authNotes || undefined,
+        authorizedBy: authorizedByName || undefined,
+      });
+      setIsAuthorizeModalOpen(false);
+      fetchWorkflowDetail();
+    } catch (err: any) {
+      alert(`Failed to record filing authorization: ${err?.response?.data?.message || err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -391,9 +425,22 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
           ) : null}
 
           {workflow.workflowStatus === 'READY_FOR_FILING' ? (
-            <Button variant="primary" onClick={() => setIsFiledModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4" /> Record Government Filing
-            </Button>
+            <>
+              {!workflow.isAuthorized ? (
+                <Button variant="primary" onClick={() => setIsAuthorizeModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" /> Authorize Filing
+                </Button>
+              ) : null}
+              <Button
+                variant="primary"
+                onClick={() => setIsFiledModalOpen(true)}
+                disabled={!workflow.isAuthorized}
+                title={!workflow.isAuthorized ? 'Filing authorization is required prior to statutory submission' : undefined}
+                className={clsx('flex items-center gap-1.5', workflow.isAuthorized ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed')}
+              >
+                <FileCheck className="w-4 h-4" /> Record Government Filing
+              </Button>
+            </>
           ) : null}
 
           {workflow.workflowStatus === 'FILED' || workflow.workflowStatus === 'ACKNOWLEDGEMENT_PENDING' ? (
@@ -403,6 +450,34 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
           ) : null}
         </div>
       </div>
+
+      {/* Filing Authorization Status Banner */}
+      {workflow.isAuthorized && (
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between text-xs text-emerald-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Filing Authorized:</strong> Authorized via <strong>{workflow.authorizationMethod || 'CLIENT_CONSENT'}</strong>
+              {workflow.authorizedBy ? ` by ${workflow.authorizedBy}` : ''}
+              {workflow.authorizationReference ? ` (Ref: ${workflow.authorizationReference})` : ''}
+            </span>
+          </div>
+          {workflow.authorizedAt && <span className="text-slate-500">{new Date(workflow.authorizedAt).toLocaleDateString()}</span>}
+        </div>
+      )}
+      {!workflow.isAuthorized && workflow.workflowStatus === 'READY_FOR_FILING' && (
+        <div className="p-3 bg-purple-50 border border-purple-300 rounded-xl flex items-center justify-between text-xs text-purple-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-purple-600 shrink-0" />
+            <span>
+              <strong>Pending Authorization:</strong> Computation review is approved, but statutory filing has not been authorized. Record client or practitioner authorization before submitting to portal.
+            </span>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setIsAuthorizeModalOpen(true)} className="text-purple-700 border-purple-300 bg-white hover:bg-purple-50">
+            Authorize Now
+          </Button>
+        </div>
+      )}
 
       {/* Execution Stepper */}
       <Card className="p-4 border-slate-200">
@@ -782,6 +857,70 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
             <Button variant="outline" onClick={() => setIsApproveModalOpen(false)}>Cancel</Button>
             <Button variant="primary" disabled={isSubmitting} onClick={handleSubmitApproveModal}>
               {isSubmitting ? 'Approving...' : 'Approve for Filing'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Authorize Filing (Quality Control Stage) */}
+      <Modal
+        isOpen={isAuthorizeModalOpen}
+        onClose={() => setIsAuthorizeModalOpen(false)}
+        title="Authorize Statutory Filing"
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-600">
+            Record client confirmation or authorized signatory sign-off permitting official return upload to statutory portal.
+          </p>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">
+              Authorization Method <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={authMethod}
+              onChange={e => setAuthMethod(e.target.value as ComplianceAuthorizationMethod)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="CLIENT_CONSENT">Client Consent (Written / Email / Portal Sign-off)</option>
+              <option value="DSC_SIGN_OFF">Digital Signature Certificate (DSC Sign-off)</option>
+              <option value="PRACTITIONER_AUTHORIZATION">Practitioner Power-of-Attorney / Authorized Signatory</option>
+              <option value="PORTAL_CREDENTIALS">Statutory Portal OTP / EVC Verification</option>
+            </select>
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Authorizing Person / Signatory Name</label>
+            <input
+              type="text"
+              placeholder="e.g. Rahul Sharma (Managing Director)"
+              value={authorizedByName}
+              onChange={e => setAuthorizedByName(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Authorization Reference / Document #</label>
+            <input
+              type="text"
+              placeholder="e.g. EMAIL-CONF-2026-10-18 or DSC-TOKEN-44"
+              value={authReference}
+              onChange={e => setAuthReference(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Authorization Notes (Optional)</label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Client confirmed liability and verified input tax credit reconciliation."
+              value={authNotes}
+              onChange={e => setAuthNotes(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsAuthorizeModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" disabled={isSubmitting} onClick={handleSubmitAuthorizeModal} className="bg-purple-600 hover:bg-purple-700 text-white">
+              {isSubmitting ? 'Recording...' : 'Record Filing Authorization'}
             </Button>
           </div>
         </div>
