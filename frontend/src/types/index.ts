@@ -5220,22 +5220,41 @@ export type ComplianceAuthorizationMethod =
   | 'PRACTITIONER_AUTHORIZATION'
   | 'PORTAL_CREDENTIALS';
 
+export type ComplianceQcCheckStatus =
+  | 'PASS'
+  | 'FAIL'
+  | 'NOT_EVALUATED'
+  | 'NOT_APPLICABLE';
+
 export interface ComplianceQcCheckItemDto {
   checkKey: string;
   checkName: string;
   category: string;
+  description?: string;
+  status: ComplianceQcCheckStatus;
   passed: boolean;
+  severity: string;
   required: boolean;
+  correctiveHint?: string;
+  sourceReference?: string;
   message?: string;
+  evaluatedAt?: string;
+  checkVersion?: string;
 }
 
 export interface ComplianceQcValidationResultDto {
   valid: boolean;
   totalChecks: number;
   passedChecks: number;
+  failedChecks: number;
+  notEvaluatedChecks: number;
+  notApplicableChecks: number;
+  validatedAt?: string;
+  preparationFingerprint?: string;
   checks: ComplianceQcCheckItemDto[];
   blockers: string[];
   warnings: string[];
+  correctiveActions: string[];
 }
 
 export interface AuthorizeFilingRequest {

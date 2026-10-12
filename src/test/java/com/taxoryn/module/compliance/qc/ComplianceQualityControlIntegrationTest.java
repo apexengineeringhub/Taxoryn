@@ -54,6 +54,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -626,5 +628,120 @@ public class ComplianceQualityControlIntegrationTest {
                                 .authorizationMethod(ComplianceAuthorizationMethod.CLIENT_CONSENT)
                                 .build())))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Phase 31.2 Validation: Unassigned workflow returns NOT_EVALUATED for authority and separation, and blocks progression")
+    void testValidation_UnassignedWorkflow_ReturnsNotEvaluatedAndBlocks() throws Exception {
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        // Validate workflow while unassigned
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(false))
+                .andExpect(jsonPath("$.data.passedChecks").isNumber())
+                .andExpect(jsonPath("$.data.failedChecks").isNumber())
+                .andExpect(jsonPath("$.data.notEvaluatedChecks").value(greaterThan(0)))
+                .andExpect(jsonPath("$.data.blockers", hasItem("A reviewer must be assigned to the compliance workflow before review")))
+                .andExpect(jsonPath("$.data.preparationFingerprint").isNotEmpty())
+                .andExpect(jsonPath("$.data.correctiveActions", hasItem(containsString("Assign an active manager or practitioner as checker"))));
+    }
+
+    @Test
+    @DisplayName("Phase 31.2 Validation: Explains non-applicable rules for obligations without statutory registration requirements")
+    void testValidation_NonStatutoryObligation_ReturnsNotApplicable() throws Exception {
+        // Create an obligation type that is NOT GST, ITR, or TDS (e.g. STATUTORY_AUDIT)
+        ComplianceObligationEntity nonGstOb = ComplianceObligationEntity.builder()
+                .clientId(client.getId())
+                .locationId(location.getId())
+                .obligationType(ComplianceObligationType.STATUTORY_AUDIT)
+                .title("Annual Statutory Audit FY 2025-26")
+                .financialYear("2025-26")
+                .period("2026-FY")
+                .periodLabel("Financial Year 2025-26")
+                .statutoryDueDate(LocalDate.of(2026, 10, 31))
+                .internalTargetDate(LocalDate.of(2026, 10, 25))
+                .status(ComplianceObligationStatus.IN_PROGRESS)
+                .build();
+        nonGstOb.setOrganizationId(org.getId());
+        nonGstOb = obligationRepository.save(nonGstOb);
+
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + nonGstOb.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true))
+                .andExpect(jsonPath("$.data.notApplicableChecks").value(1))
+                .andExpect(jsonPath("$.data.checks[?(@.checkKey == 'STATUTORY_IDENTIFIER')].status", hasItem("NOT_APPLICABLE")));
+    }
+
+    @Test
+    @DisplayName("Phase 31.2 Privacy & Fingerprint: Identifiers are masked in validation messages and fingerprint is deterministic")
+    void testValidation_PrivacyMaskingAndFingerprintFreshness() throws Exception {
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // Validate workflow
+        String validationResp = mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.checks[?(@.checkKey == 'STATUTORY_IDENTIFIER')].message", hasItem(containsString("27******Z5"))))
+                .andReturn().getResponse().getContentAsString();
+
+        String fingerprint1 = objectMapper.readTree(validationResp).path("data").path("preparationFingerprint").asText();
+        assertThat(fingerprint1).startsWith("wf:").contains(":chk:").contains(":st:IN_PROGRESS");
+
+        // Submit for review - fingerprint should reflect state progression
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        String validationResp2 = mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String fingerprint2 = objectMapper.readTree(validationResp2).path("data").path("preparationFingerprint").asText();
+        assertThat(fingerprint2).contains(":st:UNDER_REVIEW");
+        assertThat(fingerprint2).isNotEqualTo(fingerprint1);
     }
 }

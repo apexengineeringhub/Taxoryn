@@ -19,6 +19,7 @@ import com.taxoryn.module.compliance.qc.dto.ComplianceQcCheckItemDto;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcStatusDto;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcValidationResultDto;
 import com.taxoryn.module.compliance.qc.dto.RevokeAuthorizationRequest;
+import com.taxoryn.module.compliance.qc.model.ComplianceQcCheckStatus;
 import com.taxoryn.module.compliance.qc.model.ComplianceQcStage;
 import com.taxoryn.module.compliance.qc.service.ComplianceQualityControlService;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
@@ -29,7 +30,6 @@ import com.taxoryn.module.employee.entity.EmployeeEntity;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -46,6 +46,8 @@ import java.util.UUID;
 @Slf4j
 @Service
 public class ComplianceQualityControlServiceImpl implements ComplianceQualityControlService {
+
+    private static final String RULE_VERSION = "1.0";
 
     private final ComplianceWorkflowRepository workflowRepository;
     private final ComplianceWorkflowChecklistItemRepository checklistItemRepository;
@@ -154,7 +156,7 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
                 "COMPLIANCE_PREPARATION_VALIDATED",
                 "COMPLIANCE_WORKFLOW",
                 workflow.getId().toString(),
-                null,
+                result.getPreparationFingerprint(),
                 result.isValid() ? "VALIDATION_PASSED" : "VALIDATION_BLOCKED: " + result.getBlockers().size() + " blockers"
         );
 
@@ -286,26 +288,39 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
             ClientEntity client,
             UUID orgId
     ) {
+        Instant now = Instant.now();
         List<ComplianceQcCheckItemDto> checks = new ArrayList<>();
         List<String> blockers = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
+        List<String> correctiveActions = new ArrayList<>();
 
         // Check 1: Workflow Lifecycle State Eligibility
         boolean stateEligible = workflow.getWorkflowStatus() == ComplianceWorkflowStatus.IN_PROGRESS
                 || workflow.getWorkflowStatus() == ComplianceWorkflowStatus.CHANGES_REQUIRED
                 || workflow.getWorkflowStatus() == ComplianceWorkflowStatus.UNDER_REVIEW
                 || workflow.getWorkflowStatus() == ComplianceWorkflowStatus.READY_FOR_FILING;
-        String stateMsg = stateEligible ? "Workflow status " + workflow.getWorkflowStatus() + " is eligible for review"
+        String stateMsg = stateEligible
+                ? "Workflow status " + workflow.getWorkflowStatus() + " is eligible for review"
                 : "Workflow status is " + workflow.getWorkflowStatus() + ". Preparation must be started before review submission.";
         checks.add(ComplianceQcCheckItemDto.builder()
                 .checkKey("STATE_ELIGIBILITY")
                 .checkName("Workflow Execution State")
                 .category("LIFECYCLE")
+                .description("Verifies that the workflow is in an active preparation, review, or correction lifecycle state")
+                .status(stateEligible ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
                 .passed(stateEligible)
                 .required(true)
+                .severity("BLOCKING")
                 .message(stateMsg)
+                .correctiveHint(stateEligible ? null : "Start workflow preparation before requesting review")
+                .sourceReference(workflow.getId().toString())
+                .evaluatedAt(now)
+                .checkVersion(RULE_VERSION)
                 .build());
-        if (!stateEligible) blockers.add(stateMsg);
+        if (!stateEligible) {
+            blockers.add(stateMsg);
+            correctiveActions.add("Transition workflow to IN_PROGRESS to begin preparation");
+        }
 
         // Check 2: Active Reviewer Assigned
         boolean reviewerAssigned = workflow.getReviewerEmployeeId() != null;
@@ -316,74 +331,118 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
                     .orElse(null);
             reviewerAssigned = reviewer != null;
         }
-        String reviewerMsg = reviewerAssigned ? "Active reviewer is assigned" : "A reviewer must be assigned to the compliance workflow before review";
+        String reviewerMsg = reviewerAssigned
+                ? "Active reviewer is assigned"
+                : "A reviewer must be assigned to the compliance workflow before review";
         checks.add(ComplianceQcCheckItemDto.builder()
                 .checkKey("REVIEWER_ASSIGNED")
                 .checkName("Active Reviewer Assignment")
                 .category("ASSIGNMENT")
+                .description("Ensures an active practice employee with an associated user account is designated as the reviewer")
+                .status(reviewerAssigned ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
                 .passed(reviewerAssigned)
                 .required(true)
+                .severity("BLOCKING")
                 .message(reviewerMsg)
+                .correctiveHint(reviewerAssigned ? null : "Assign an active employee with review privileges as the reviewer")
+                .sourceReference(workflow.getReviewerEmployeeId() != null ? workflow.getReviewerEmployeeId().toString() : null)
+                .evaluatedAt(now)
+                .checkVersion(RULE_VERSION)
                 .build());
-        if (!reviewerAssigned) blockers.add(reviewerMsg);
+        if (!reviewerAssigned) {
+            blockers.add(reviewerMsg);
+            correctiveActions.add("Assign an active manager or practitioner as checker");
+        }
 
         // Check 3: Reviewer Entitlement (REVIEW_APPROVE)
-        boolean reviewerAuthorized = false;
-        if (reviewer != null && reviewer.getUserId() != null) {
+        ComplianceQcCheckStatus authStatus;
+        String authMsg;
+        if (reviewer == null) {
+            authStatus = ComplianceQcCheckStatus.NOT_EVALUATED;
+            authMsg = "Reviewer authority cannot be evaluated because no active reviewer is assigned";
+        } else {
             UserEntity user = userRepository.findByIdAndOrganizationId(reviewer.getUserId(), orgId)
                     .filter(u -> u.getStatus() == UserEntity.UserStatus.ACTIVE)
                     .orElse(null);
-            if (user != null) {
-                reviewerAuthorized = user.getRoles().stream()
+            if (user == null) {
+                authStatus = ComplianceQcCheckStatus.FAIL;
+                authMsg = "Assigned reviewer user account is missing or inactive";
+            } else {
+                boolean hasPerm = user.getRoles().stream()
                         .flatMap(r -> r.getPermissions().stream())
                         .anyMatch(p -> "REVIEW_APPROVE".equals(p.getCode()));
+                authStatus = hasPerm ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL;
+                authMsg = hasPerm
+                        ? "Assigned reviewer has review approval authority"
+                        : "Assigned reviewer must have REVIEW_APPROVE permissions";
             }
         }
-        String authMsg = reviewerAuthorized ? "Assigned reviewer has review approval authority" : "Assigned reviewer must have REVIEW_APPROVE permissions";
+        boolean authPassed = authStatus == ComplianceQcCheckStatus.PASS;
         checks.add(ComplianceQcCheckItemDto.builder()
                 .checkKey("REVIEWER_AUTHORITY")
                 .checkName("Reviewer Approval Authority")
                 .category("RBAC")
-                .passed(reviewerAuthorized)
+                .description("Validates that the assigned reviewer possesses the REVIEW_APPROVE authority")
+                .status(authStatus)
+                .passed(authPassed)
                 .required(true)
+                .severity("BLOCKING")
                 .message(authMsg)
+                .correctiveHint(authPassed ? null : "Designate a reviewer who holds the REVIEW_APPROVE entitlement")
+                .sourceReference(reviewer != null && reviewer.getUserId() != null ? reviewer.getUserId().toString() : null)
+                .evaluatedAt(now)
+                .checkVersion(RULE_VERSION)
                 .build());
-        if (reviewer != null && !reviewerAuthorized) blockers.add(authMsg);
+        if (!authPassed && authStatus != ComplianceQcCheckStatus.NOT_EVALUATED) {
+            blockers.add(authMsg);
+            correctiveActions.add("Reassign review to a qualified reviewer with REVIEW_APPROVE permissions");
+        }
 
         // Check 4: Separation of Duties (Preparer != Reviewer)
-        boolean separationPass = true;
+        ComplianceQcCheckStatus sodStatus = ComplianceQcCheckStatus.PASS;
         String sodMsg = "Separation of duties satisfied";
         UUID currentUserId = SecurityUtils.getCurrentUserId();
-        if (reviewer != null && reviewer.getUserId() != null) {
+        if (reviewer == null) {
+            sodStatus = ComplianceQcCheckStatus.NOT_EVALUATED;
+            sodMsg = "Separation of duties cannot be evaluated because no active reviewer is assigned";
+        } else if (reviewer.getUserId() != null) {
             UUID reviewerUserId = reviewer.getUserId();
-            // Check against current actor
             if (currentUserId != null && currentUserId.equals(reviewerUserId) && workflow.getWorkflowStatus() != ComplianceWorkflowStatus.UNDER_REVIEW) {
-                // If caller is submitting review, preparer cannot be the assigned reviewer
-                separationPass = false;
+                sodStatus = ComplianceQcCheckStatus.FAIL;
                 sodMsg = "Separation of duties: The preparer cannot approve their own review";
             }
-            // Check against assigned preparer employee
             if (workflow.getAssignedEmployeeId() != null) {
                 EmployeeEntity preparerEmployee = employeeRepository.findByIdAndOrganizationId(workflow.getAssignedEmployeeId(), orgId).orElse(null);
                 if (preparerEmployee != null && reviewerUserId.equals(preparerEmployee.getUserId())) {
-                    separationPass = false;
+                    sodStatus = ComplianceQcCheckStatus.FAIL;
                     sodMsg = "Separation of duties violation: Assigned preparer and reviewer cannot be the same user";
                 }
             }
             if (workflow.getAssignedUserId() != null && reviewerUserId.equals(workflow.getAssignedUserId())) {
-                separationPass = false;
+                sodStatus = ComplianceQcCheckStatus.FAIL;
                 sodMsg = "Separation of duties violation: Assigned preparer and reviewer cannot be the same user";
             }
         }
+        boolean sodPassed = sodStatus == ComplianceQcCheckStatus.PASS;
         checks.add(ComplianceQcCheckItemDto.builder()
                 .checkKey("SEPARATION_OF_DUTIES")
                 .checkName("Maker-Checker Separation of Duties")
                 .category("POLICY")
-                .passed(separationPass)
+                .description("Enforces the Four-Eyes Principle: preparer and reviewer must be distinct users")
+                .status(sodStatus)
+                .passed(sodPassed)
                 .required(true)
+                .severity("BLOCKING")
                 .message(sodMsg)
+                .correctiveHint(sodPassed ? null : "Assign an independent colleague as checker to satisfy maker-checker policy")
+                .sourceReference(reviewer != null ? reviewer.getId().toString() : null)
+                .evaluatedAt(now)
+                .checkVersion(RULE_VERSION)
                 .build());
-        if (!separationPass) blockers.add(sodMsg);
+        if (!sodPassed && sodStatus != ComplianceQcCheckStatus.NOT_EVALUATED) {
+            blockers.add(sodMsg);
+            correctiveActions.add("Assign an independent reviewer distinct from the preparer");
+        }
 
         // Check 5: Preparation Checkpoints Completeness
         List<ComplianceWorkflowChecklistItemEntity> items = workflow.getChecklistItems();
@@ -396,9 +455,15 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
                     .checkKey("CHECKLIST_DOCUMENTS_RECEIVED")
                     .checkName("Supporting Documents Received")
                     .category("CHECKLIST")
+                    .description("Confirms that client documents, books, and statements have been received")
+                    .status(docsReceived ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
                     .passed(docsReceived)
                     .required(false)
+                    .severity("ADVISORY")
                     .message(docsReceived ? "Client accounting documents confirmed" : "Supporting documents not marked received")
+                    .correctiveHint(docsReceived ? null : "Mark the Receive Client Documents checklist checkpoint once records are obtained")
+                    .evaluatedAt(now)
+                    .checkVersion(RULE_VERSION)
                     .build());
             if (!docsReceived) warnings.add("Client supporting documents not marked received");
 
@@ -406,9 +471,15 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
                     .checkKey("CHECKLIST_DATA_VALIDATED")
                     .checkName("Data Reconciled & Validated")
                     .category("CHECKLIST")
+                    .description("Verifies that data reconciliation (e.g. 2B vs purchase register) has been performed")
+                    .status(dataValidated ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
                     .passed(dataValidated)
                     .required(false)
+                    .severity("ADVISORY")
                     .message(dataValidated ? "2B / books reconciliation completed" : "Data validation & reconciliation checkpoint incomplete")
+                    .correctiveHint(dataValidated ? null : "Complete data reconciliation checkpoint before submitting for review")
+                    .evaluatedAt(now)
+                    .checkVersion(RULE_VERSION)
                     .build());
             if (!dataValidated) warnings.add("Data reconciliation checkpoint is incomplete");
 
@@ -416,48 +487,177 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
                     .checkKey("CHECKLIST_COMPUTATION_PREPARED")
                     .checkName("Tax Computation Drafted")
                     .category("CHECKLIST")
+                    .description("Ensures that the draft statutory return computation sheet is prepared")
+                    .status(compPrepared ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
                     .passed(compPrepared)
                     .required(false)
+                    .severity("ADVISORY")
                     .message(compPrepared ? "Draft computation sheet prepared" : "Draft tax computation not marked prepared")
+                    .correctiveHint(compPrepared ? null : "Prepare computation sheet and mark the tax computation checkpoint")
+                    .evaluatedAt(now)
+                    .checkVersion(RULE_VERSION)
                     .build());
             if (!compPrepared) warnings.add("Draft tax computation sheet is not marked prepared");
+        } else {
+            // Checklist items missing or not seeded
+            checks.add(ComplianceQcCheckItemDto.builder()
+                    .checkKey("CHECKLIST_PREPARATION")
+                    .checkName("Preparation Checkpoints")
+                    .category("CHECKLIST")
+                    .description("Evaluates operational preparation checklist items")
+                    .status(ComplianceQcCheckStatus.NOT_EVALUATED)
+                    .passed(false)
+                    .required(false)
+                    .severity("ADVISORY")
+                    .message("No checklist checkpoints seeded for this compliance workflow")
+                    .correctiveHint("Initialize standard operational checklist items")
+                    .evaluatedAt(now)
+                    .checkVersion(RULE_VERSION)
+                    .build());
+            warnings.add("Checklist items are not initialized on this workflow");
         }
 
         // Check 6: Statutory Identifiers
         if (obligation != null && obligation.getObligationType() != null && client != null) {
             String obType = obligation.getObligationType().name();
-            boolean idPresent = true;
-            String idMsg = "Statutory registration present";
-            if (obType.contains("GST") && !StringUtils.hasText(client.getGstin())) {
-                idPresent = false;
-                idMsg = "Client has no registered GSTIN for GST obligation";
-            } else if (obType.contains("ITR") && !StringUtils.hasText(client.getPan())) {
-                idPresent = false;
-                idMsg = "Client has no registered PAN for Income Tax obligation";
+            boolean isGst = obType.contains("GST");
+            boolean isItr = obType.contains("ITR");
+            boolean isTds = obType.contains("TDS");
+
+            if (isGst) {
+                boolean gstPresent = StringUtils.hasText(client.getGstin());
+                checks.add(ComplianceQcCheckItemDto.builder()
+                        .checkKey("STATUTORY_IDENTIFIER")
+                        .checkName("Statutory Registration Identifier (GSTIN)")
+                        .category("PROFILE")
+                        .description("Validates that the client has a registered GSTIN for GST filings")
+                        .status(gstPresent ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
+                        .passed(gstPresent)
+                        .required(false)
+                        .severity("ADVISORY")
+                        .message(gstPresent ? "Client GSTIN is registered: " + maskIdentifier(client.getGstin()) : "Client has no registered GSTIN for GST obligation")
+                        .correctiveHint(gstPresent ? null : "Update client profile with a valid statutory GSTIN")
+                        .sourceReference(client.getId().toString())
+                        .evaluatedAt(now)
+                        .checkVersion(RULE_VERSION)
+                        .build());
+                if (!gstPresent) warnings.add("Client has no registered GSTIN for GST obligation");
+            } else if (isItr) {
+                boolean panPresent = StringUtils.hasText(client.getPan());
+                checks.add(ComplianceQcCheckItemDto.builder()
+                        .checkKey("STATUTORY_IDENTIFIER")
+                        .checkName("Statutory Registration Identifier (PAN)")
+                        .category("PROFILE")
+                        .description("Validates that the client has a registered PAN for Income Tax filings")
+                        .status(panPresent ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
+                        .passed(panPresent)
+                        .required(false)
+                        .severity("ADVISORY")
+                        .message(panPresent ? "Client PAN is registered: " + maskIdentifier(client.getPan()) : "Client has no registered PAN for Income Tax obligation")
+                        .correctiveHint(panPresent ? null : "Update client profile with a valid PAN")
+                        .sourceReference(client.getId().toString())
+                        .evaluatedAt(now)
+                        .checkVersion(RULE_VERSION)
+                        .build());
+                if (!panPresent) warnings.add("Client has no registered PAN for Income Tax obligation");
+            } else if (isTds) {
+                boolean panOrTan = StringUtils.hasText(client.getPan());
+                checks.add(ComplianceQcCheckItemDto.builder()
+                        .checkKey("STATUTORY_IDENTIFIER")
+                        .checkName("Statutory Registration Identifier (TDS/TAN)")
+                        .category("PROFILE")
+                        .description("Validates client identification for TDS/TCS obligations")
+                        .status(panOrTan ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
+                        .passed(panOrTan)
+                        .required(false)
+                        .severity("ADVISORY")
+                        .message(panOrTan ? "Client identifier present" : "Client has no registered PAN/TAN for TDS obligation")
+                        .correctiveHint(panOrTan ? null : "Update client profile with tax identification")
+                        .sourceReference(client.getId().toString())
+                        .evaluatedAt(now)
+                        .checkVersion(RULE_VERSION)
+                        .build());
+                if (!panOrTan) warnings.add("Client has no registered PAN/TAN for TDS obligation");
+            } else {
+                checks.add(ComplianceQcCheckItemDto.builder()
+                        .checkKey("STATUTORY_IDENTIFIER")
+                        .checkName("Statutory Registration Identifier")
+                        .category("PROFILE")
+                        .description("Validates statutory registration requirements")
+                        .status(ComplianceQcCheckStatus.NOT_APPLICABLE)
+                        .passed(true)
+                        .required(false)
+                        .severity("ADVISORY")
+                        .message("No statutory registration requirement defined for obligation type: " + obType)
+                        .evaluatedAt(now)
+                        .checkVersion(RULE_VERSION)
+                        .build());
             }
+        } else {
             checks.add(ComplianceQcCheckItemDto.builder()
                     .checkKey("STATUTORY_IDENTIFIER")
                     .checkName("Statutory Registration Identifier")
                     .category("PROFILE")
-                    .passed(idPresent)
+                    .description("Validates statutory registration requirements")
+                    .status(ComplianceQcCheckStatus.NOT_EVALUATED)
+                    .passed(false)
                     .required(false)
-                    .message(idMsg)
+                    .severity("ADVISORY")
+                    .message("Client or obligation record is not linked to workflow")
+                    .correctiveHint("Link an obligation and client to the compliance workflow")
+                    .evaluatedAt(now)
+                    .checkVersion(RULE_VERSION)
                     .build());
-            if (!idPresent) warnings.add(idMsg);
+            warnings.add("Client or obligation record is missing for statutory identifier validation");
         }
 
         int total = checks.size();
-        int passed = (int) checks.stream().filter(ComplianceQcCheckItemDto::isPassed).count();
+        int passed = (int) checks.stream().filter(c -> c.getStatus() == ComplianceQcCheckStatus.PASS).count();
+        int failed = (int) checks.stream().filter(c -> c.getStatus() == ComplianceQcCheckStatus.FAIL).count();
+        int notEvaluated = (int) checks.stream().filter(c -> c.getStatus() == ComplianceQcCheckStatus.NOT_EVALUATED).count();
+        int notApplicable = (int) checks.stream().filter(c -> c.getStatus() == ComplianceQcCheckStatus.NOT_APPLICABLE).count();
+
+        // Blocking: Any check with required=true that has status FAIL or NOT_EVALUATED
         boolean valid = blockers.isEmpty();
+
+        String fingerprint = computePreparationFingerprint(workflow);
 
         return ComplianceQcValidationResultDto.builder()
                 .valid(valid)
                 .totalChecks(total)
                 .passedChecks(passed)
+                .failedChecks(failed)
+                .notEvaluatedChecks(notEvaluated)
+                .notApplicableChecks(notApplicable)
+                .validatedAt(now)
+                .preparationFingerprint(fingerprint)
                 .checks(checks)
                 .blockers(blockers)
                 .warnings(warnings)
+                .correctiveActions(correctiveActions)
                 .build();
+    }
+
+    private String computePreparationFingerprint(ComplianceWorkflowEntity workflow) {
+        long version = workflow.getVersion() != null ? workflow.getVersion() : 0L;
+        int completedCount = 0;
+        int totalItems = 0;
+        if (workflow.getChecklistItems() != null) {
+            totalItems = workflow.getChecklistItems().size();
+            completedCount = (int) workflow.getChecklistItems().stream()
+                    .filter(ComplianceWorkflowChecklistItemEntity::isCompleted)
+                    .count();
+        }
+        return String.format("wf:%d:chk:%d/%d:st:%s",
+                version,
+                completedCount,
+                totalItems,
+                workflow.getWorkflowStatus().name());
+    }
+
+    private String maskIdentifier(String id) {
+        if (!StringUtils.hasText(id) || id.length() <= 4) return "****";
+        return id.substring(0, 2) + "******" + id.substring(id.length() - 2);
     }
 
     private ComplianceQcStage determineQcStage(ComplianceWorkflowEntity workflow, ComplianceQcValidationResultDto validationResult) {

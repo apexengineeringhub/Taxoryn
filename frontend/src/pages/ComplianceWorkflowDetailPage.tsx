@@ -70,6 +70,7 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
   const [approveNotes, setApproveNotes] = useState('');
 
   const [qcStatus, setQcStatus] = useState<ComplianceQcStatusDto | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
   const [isAuthorizeModalOpen, setIsAuthorizeModalOpen] = useState(false);
   const [authMethod, setAuthMethod] = useState<ComplianceAuthorizationMethod>('CLIENT_CONSENT');
   const [authReference, setAuthReference] = useState('');
@@ -241,6 +242,25 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
       alert(`Failed to record filing authorization: ${err?.response?.data?.message || err.message}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRunValidation = async () => {
+    if (!id) return;
+    try {
+      setIsValidating(true);
+      const res = await complianceQcApi.validateForReview(id);
+      const updatedStatus = await complianceQcApi.getQcStatus(id);
+      setQcStatus(updatedStatus);
+      if (res.valid) {
+        alert('All quality control validation checks passed. The return is eligible for review submission.');
+      } else {
+        alert(`Validation found ${res.blockers.length} blocking issues that must be addressed before review.`);
+      }
+    } catch (err: any) {
+      alert(`Validation error: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -634,6 +654,105 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </Card>
+
+          {/* Quality Control Validation & Findings (Phase 31.2) */}
+          <Card className="p-6 border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                  Pre-Review Quality Control Validation
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Deterministic readiness evaluation across eligibility, reviewer assignment, separation of duties, and profile requirements.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {qcStatus?.validationSummary && (
+                  <span className={clsx(
+                    'text-xs font-bold px-2.5 py-1 rounded-full border',
+                    qcStatus.validationSummary.valid
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  )}>
+                    {qcStatus.validationSummary.valid ? 'VALIDATION PASSED' : `${qcStatus.validationSummary.blockers.length} BLOCKER(S)`}
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRunValidation}
+                  disabled={isValidating}
+                  className="flex items-center gap-1.5 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                >
+                  <RefreshCw className={clsx('w-3.5 h-3.5', isValidating && 'animate-spin')} />
+                  {isValidating ? 'Validating...' : 'Run Validation'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Validation Findings List */}
+            {qcStatus?.validationSummary?.checks && qcStatus.validationSummary.checks.length > 0 ? (
+              <div className="divide-y divide-slate-100 mt-2">
+                {qcStatus.validationSummary.checks.map(check => (
+                  <div key={check.checkKey} className="py-3 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 shrink-0">
+                        {check.status === 'PASS' ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        ) : check.status === 'NOT_APPLICABLE' ? (
+                          <HelpCircle className="w-4 h-4 text-slate-400" />
+                        ) : check.status === 'NOT_EVALUATED' ? (
+                          <AlertCircle className="w-4 h-4 text-amber-500" />
+                        ) : (
+                          <AlertTriangle className={clsx('w-4 h-4', check.severity === 'BLOCKING' ? 'text-rose-600' : 'text-amber-500')} />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-slate-900">{check.checkName}</h4>
+                          <span className={clsx(
+                            'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                            check.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' :
+                            check.status === 'NOT_APPLICABLE' ? 'bg-slate-100 text-slate-600' :
+                            check.status === 'NOT_EVALUATED' ? 'bg-amber-100 text-amber-800' :
+                            check.severity === 'BLOCKING' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                          )}>
+                            {check.status}
+                          </span>
+                          {check.required && (
+                            <span className="text-[10px] font-bold text-rose-600 uppercase">Blocking</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">{check.message || check.description}</p>
+                        {check.correctiveHint && check.status !== 'PASS' && (
+                          <p className="text-xs text-indigo-700 font-medium mt-1">
+                            <strong>Correction Hint:</strong> {check.correctiveHint}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {check.sourceReference && (
+                      <span className="text-[11px] text-slate-400 font-mono shrink-0">
+                        {check.sourceReference.length > 12 ? `${check.sourceReference.substring(0, 10)}...` : check.sourceReference}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-6 text-center text-slate-400 text-xs">
+                No quality validation run yet. Click "Run Validation" to evaluate preparation readiness.
+              </div>
+            )}
+
+            {qcStatus?.validationSummary?.preparationFingerprint && (
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Rule Version: 1.0</span>
+                <span className="font-mono">Fingerprint: {qcStatus.validationSummary.preparationFingerprint}</span>
+              </div>
+            )}
           </Card>
 
           {/* Operational Linked Subtasks */}
