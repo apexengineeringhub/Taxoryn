@@ -6908,3 +6908,66 @@ export interface PracticeComplianceHealthSummaryDto {
   referenceDate: string;
 }
 
+// ==============================================================================
+// Work Operating System — Work Operating Model & Inventory (Phase 30.1 / 30.2)
+// ==============================================================================
+
+export type WorkInventoryType = 'WORK_INSTANCE' | 'COMPLIANCE_OBLIGATION' | 'TASK';
+
+export type WorkInventoryStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'BLOCKED'
+  | 'UNDER_REVIEW'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface WorkInventoryItemDto {
+  id: string;
+  workType: WorkInventoryType;
+  title: string;
+  normalizedStatus: WorkInventoryStatus;
+  rawStatus: string;
+  priority: string;
+  clientId?: string;
+  clientName?: string;
+  clientPan?: string;
+  engagementId?: string;
+  engagementName?: string;
+  complianceObligationId?: string;
+  ruleCode?: string;
+  dueDate?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  reviewerUserId?: string;
+  reviewerUserName?: string;
+  blocked: boolean;
+  blockedReason?: string;
+  nextActionableStep?: string;
+  totalTasks: number;
+  completedTasks: number;
+  createdAt?: string;
+  completedAt?: string;
+}
+
+export interface WorkInventoryFilterParams {
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
+  clientId?: string;
+  assignedUserId?: string;
+  workType?: WorkInventoryType;
+  status?: WorkInventoryStatus;
+  priority?: string;
+  blockedOnly?: boolean;
+  fromDate?: string;
+  toDate?: string;
+  search?: string;
+}
+
+

@@ -82,6 +82,7 @@ const WorkTemplatesPage = React.lazy(() => import('./pages/WorkTemplatesPage').t
 const DscRegisterPage = React.lazy(() => import('./pages/DscRegisterPage').then(m => ({ default: m.DscRegisterPage })));
 const UdinRegisterPage = React.lazy(() => import('./pages/UdinRegisterPage').then(m => ({ default: m.UdinRegisterPage })));
 const ComplianceRuleCatalogPage = React.lazy(() => import('./pages/ComplianceRuleCatalogPage').then(m => ({ default: m.ComplianceRuleCatalogPage })));
+const WorkOperatingBoardPage = React.lazy(() => import('./pages/WorkOperatingBoardPage').then(m => ({ default: m.WorkOperatingBoardPage })));
 
 
 import { RoleRouteGuard } from './components/common/RoleRouteGuard';
@@ -270,6 +271,22 @@ export const App: React.FC = () => {
                 element={
                   <ModuleRouteGuard moduleCode="CLIENTS">
                     <WorkTemplatesPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/work-board"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <WorkOperatingBoardPage />
+                  </ModuleRouteGuard>
+                }
+              />
+              <Route
+                path="/work/board"
+                element={
+                  <ModuleRouteGuard moduleCode="CLIENTS">
+                    <WorkOperatingBoardPage />
                   </ModuleRouteGuard>
                 }
               />

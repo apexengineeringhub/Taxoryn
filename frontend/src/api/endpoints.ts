@@ -3731,6 +3731,13 @@ export const workInstancesApi = {
   },
 };
 
+export const workInventoryApi = {
+  getInventory: async (params?: import('../types').WorkInventoryFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<import('../types').WorkInventoryItemDto>>>('/v1/work/inventory', { params });
+    return res.data.data;
+  },
+};
+
 
 // ============================================================================
 // Reminders & Automation API (P0.5)
