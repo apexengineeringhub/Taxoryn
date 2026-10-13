@@ -381,7 +381,7 @@ export interface PracticeDashboardOverview {
 }
 
 export interface DashboardFilterParams {
-  period?: 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_QUARTER' | 'THIS_YEAR' | 'CUSTOM' | 'ALL_TIME';
+  period?: 'TODAY' | 'THIS_WEEK' | 'LAST_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_QUARTER' | 'LAST_QUARTER' | 'THIS_YEAR' | 'LAST_YEAR' | 'CUSTOM' | 'ALL_TIME';
   startDate?: string;
   endDate?: string;
   locationId?: string;
@@ -6912,6 +6912,7 @@ export interface ComplianceDeadlineDto {
   obligationId: string;
   clientId: string;
   clientDisplayName?: string;
+  clientName?: string;
   clientPan?: string;
   ruleCode: string;
   ruleName: string;
@@ -6927,10 +6928,12 @@ export interface ComplianceDeadlineDto {
   dueDate?: string;
   priority: string;
   status: DeadlineStatus;
+  deadlineStatus?: DeadlineStatus;
   daysRemaining?: number;
   daysOverdue?: number;
   statutoryGraceDays?: number;
   explanation?: string;
+  dueDateExplanation?: string;
   calculatedAt?: string;
   statutoryAct?: string;
   statutorySection?: string;

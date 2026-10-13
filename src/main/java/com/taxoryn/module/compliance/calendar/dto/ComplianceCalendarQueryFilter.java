@@ -34,6 +34,14 @@ public class ComplianceCalendarQueryFilter extends PageRequestDto {
     @Schema(description = "Filter by deadline classification (e.g. OVERDUE, DUE_TODAY, DUE_THIS_WEEK, UPCOMING)")
     private DeadlineStatus deadlineStatus;
 
+    public void setStatus(DeadlineStatus status) {
+        this.deadlineStatus = status;
+    }
+
+    public DeadlineStatus getStatus() {
+        return this.deadlineStatus;
+    }
+
     @Schema(description = "Filter by underlying obligation lifecycle status (e.g. UPCOMING, IN_PROGRESS, COMPLETED)")
     private ComplianceObligationStatus obligationStatus;
 

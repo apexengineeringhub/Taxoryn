@@ -13,6 +13,10 @@ import com.taxoryn.module.compliance.dto.CompleteComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.MarkWorkflowFiledRequest;
 import com.taxoryn.module.compliance.dto.UpdateChecklistItemRequest;
 import com.taxoryn.module.compliance.dto.WaitClientWorkflowRequest;
+import com.taxoryn.module.compliance.qc.dto.AuthorizeFilingRequest;
+import com.taxoryn.module.compliance.qc.model.ComplianceAuthorizationMethod;
+import com.taxoryn.module.compliance.qc.repository.ComplianceQcAuthorizationRecordRepository;
+import com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository;
 import com.taxoryn.module.compliance.entity.ComplianceObligationEntity;
 import com.taxoryn.module.compliance.entity.ComplianceWorkflowEntity;
 import com.taxoryn.module.compliance.model.ComplianceObligationStatus;
@@ -72,6 +76,12 @@ class ComplianceWorkflowSecurityIntegrationTest {
 
     @Autowired
     private ComplianceWorkflowRepository workflowRepository;
+
+    @Autowired
+    private ComplianceQcAuthorizationRecordRepository authorizationRecordRepository;
+
+    @Autowired
+    private ComplianceQcReviewFindingRepository findingRepository;
 
     @Autowired
     private ComplianceWorkflowChecklistItemRepository checklistItemRepository;
@@ -258,6 +268,8 @@ class ComplianceWorkflowSecurityIntegrationTest {
     @AfterEach
     void tearDown() {
         TenantContext.clear();
+        authorizationRecordRepository.deleteAll();
+        findingRepository.deleteAll();
         checklistItemRepository.deleteAll();
         workflowRepository.deleteAll();
         obligationRepository.deleteAll();
@@ -422,6 +434,12 @@ class ComplianceWorkflowSecurityIntegrationTest {
                 .andExpect(jsonPath("$.data.workflowStatus").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.data.waitingForClient").value(false));
 
+        // 3.5 Validate (Phase 31.2 Pre-Review Validation Gate)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflow.getId() + "/qc/validate")
+                        .header("Authorization", "Bearer " + tenantAAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true));
+
         // 4. Submit Review
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflow.getId() + "/submit-review")
                         .header("Authorization", "Bearer " + tenantAAdminToken))
@@ -438,6 +456,19 @@ class ComplianceWorkflowSecurityIntegrationTest {
                         .content(objectMapper.writeValueAsString(approveReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("READY_FOR_FILING"));
+
+        // 5.5 Authorize (Phase 31.4 Quality Control Filing Authorization Gate)
+        AuthorizeFilingRequest authReq = AuthorizeFilingRequest.builder()
+                .authorizationMethod(ComplianceAuthorizationMethod.CLIENT_CONSENT)
+                .authorizationReference("EMAIL-AUTH-999")
+                .authorizationNotes("Client signed off on final computation")
+                .build();
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflow.getId() + "/qc/authorize-filing")
+                        .header("Authorization", "Bearer " + staffTokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(authReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.authorized").value(true));
 
         // 6. Mark Filed
         MarkWorkflowFiledRequest filedReq = MarkWorkflowFiledRequest.builder()

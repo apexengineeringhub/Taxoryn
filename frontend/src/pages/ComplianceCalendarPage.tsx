@@ -93,6 +93,7 @@ export const ComplianceCalendarPage: React.FC = () => {
       }
       if (selectedStatusTab !== 'ALL') {
         filter.status = selectedStatusTab as DeadlineStatus;
+        (filter as any).deadlineStatus = selectedStatusTab;
       }
 
       const [radarRes, calendarRes, summaryRes] = await Promise.allSettled([
@@ -110,7 +111,9 @@ export const ComplianceCalendarPage: React.FC = () => {
         setSummary(radarRes.value.summary);
       }
       if (calendarRes.status === 'fulfilled' && calendarRes.value) {
-        setDeadlines(calendarRes.value);
+        const val: any = calendarRes.value;
+        const list = Array.isArray(val) ? val : Array.isArray(val?.content) ? val.content : [];
+        setDeadlines(list);
       } else {
         setDeadlines([]);
       }
@@ -161,18 +164,23 @@ export const ComplianceCalendarPage: React.FC = () => {
 
   // Filtered Deadlines
   const filteredDeadlines = useMemo(() => {
-    if (!searchQuery.trim()) return deadlines;
+    const safeDeadlines = Array.isArray(deadlines) ? deadlines : [];
+    if (!searchQuery.trim()) return safeDeadlines;
     const q = searchQuery.toLowerCase();
-    return deadlines.filter((d) => {
+    return safeDeadlines.filter((d) => {
+      const status = d.status || (d as any).deadlineStatus || '';
       return (
-        d.ruleName.toLowerCase().includes(q) ||
-        d.ruleCode.toLowerCase().includes(q) ||
+        (d.ruleName && d.ruleName.toLowerCase().includes(q)) ||
+        (d.ruleCode && d.ruleCode.toLowerCase().includes(q)) ||
         (d.clientDisplayName && d.clientDisplayName.toLowerCase().includes(q)) ||
+        (d.clientName && d.clientName.toLowerCase().includes(q)) ||
         (d.clientPan && d.clientPan.toLowerCase().includes(q)) ||
         (d.periodLabel && d.periodLabel.toLowerCase().includes(q)) ||
         (d.explanation && d.explanation.toLowerCase().includes(q)) ||
+        ((d as any).dueDateExplanation && (d as any).dueDateExplanation.toLowerCase().includes(q)) ||
         (d.statutoryAct && d.statutoryAct.toLowerCase().includes(q)) ||
-        (d.statutoryFormCode && d.statutoryFormCode.toLowerCase().includes(q))
+        (d.statutoryFormCode && d.statutoryFormCode.toLowerCase().includes(q)) ||
+        status.toLowerCase().includes(q)
       );
     });
   }, [deadlines, searchQuery]);
@@ -376,7 +384,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-black text-rose-700 uppercase block tracking-wider">🚨 Overdue</span>
-            <p className="text-xl font-black text-rose-700 mt-1">{summary.overdueCount}</p>
+            <p className="text-xl font-black text-rose-700 mt-1">{summary.overdueCount ?? (summary as any).overdue ?? 0}</p>
           </div>
 
           {/* Due Today */}
@@ -390,7 +398,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-black text-amber-700 uppercase block tracking-wider">📅 Today</span>
-            <p className="text-xl font-black text-amber-700 mt-1">{summary.dueTodayCount}</p>
+            <p className="text-xl font-black text-amber-700 mt-1">{summary.dueTodayCount ?? (summary as any).dueToday ?? 0}</p>
           </div>
 
           {/* Due Tomorrow */}
@@ -404,7 +412,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-black text-orange-700 uppercase block tracking-wider">⏰ Tomorrow</span>
-            <p className="text-xl font-black text-orange-700 mt-1">{summary.dueTomorrowCount}</p>
+            <p className="text-xl font-black text-orange-700 mt-1">{summary.dueTomorrowCount ?? (summary as any).dueTomorrow ?? 0}</p>
           </div>
 
           {/* Within 3 Days */}
@@ -418,7 +426,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-black text-yellow-800 uppercase block tracking-wider">⚡ 3 Days</span>
-            <p className="text-xl font-black text-yellow-800 mt-1">{summary.dueWithin3DaysCount}</p>
+            <p className="text-xl font-black text-yellow-800 mt-1">{summary.dueWithin3DaysCount ?? (summary as any).dueWithin3Days ?? 0}</p>
           </div>
 
           {/* This Week */}
@@ -432,7 +440,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-black text-blue-700 uppercase block tracking-wider">🗓️ This Week</span>
-            <p className="text-xl font-black text-blue-700 mt-1">{summary.dueThisWeekCount}</p>
+            <p className="text-xl font-black text-blue-700 mt-1">{summary.dueThisWeekCount ?? (summary as any).dueThisWeek ?? 0}</p>
           </div>
 
           {/* Upcoming */}
@@ -446,7 +454,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-black text-indigo-700 uppercase block tracking-wider">⏳ Upcoming</span>
-            <p className="text-xl font-black text-indigo-700 mt-1">{summary.upcomingCount}</p>
+            <p className="text-xl font-black text-indigo-700 mt-1">{summary.upcomingCount ?? (summary as any).upcoming ?? 0}</p>
           </div>
 
           {/* No Due Date */}
@@ -460,7 +468,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-bold text-slate-500 uppercase block tracking-wider">❓ No Due Date</span>
-            <p className="text-xl font-black text-slate-700 mt-1">{summary.noDueDateCount}</p>
+            <p className="text-xl font-black text-slate-700 mt-1">{summary.noDueDateCount ?? (summary as any).noDueDate ?? 0}</p>
           </div>
 
           {/* Completed */}
@@ -474,7 +482,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             )}
           >
             <span className="text-[10px] font-black text-emerald-700 uppercase block tracking-wider">✅ Completed</span>
-            <p className="text-xl font-black text-emerald-700 mt-1">{summary.completedCount}</p>
+            <p className="text-xl font-black text-emerald-700 mt-1">{summary.completedCount ?? (summary as any).completed ?? 0}</p>
           </div>
         </div>
       )}
@@ -587,107 +595,114 @@ export const ComplianceCalendarPage: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredDeadlines.map((item) => (
-                <div
-                  key={item.obligationId}
-                  className={clsx(
-                    'p-4 bg-white border rounded-2xl shadow-2xs space-y-3 flex flex-col justify-between hover:shadow-md transition-all',
-                    item.status === 'OVERDUE'
-                      ? 'border-rose-300 bg-rose-50/10'
-                      : item.status === 'DUE_TODAY'
-                      ? 'border-amber-300 bg-amber-50/10 ring-1 ring-amber-300'
-                      : item.status === 'DUE_TOMORROW'
-                      ? 'border-orange-300'
-                      : 'border-slate-200'
-                  )}
-                >
-                  <div className="space-y-2">
-                    {/* Header: Domain & Status */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
-                        {item.domainDisplayName || item.domain}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        {getPriorityBadge(item.priority)}
-                        {getStatusBadge(item.status, item.daysRemaining, item.daysOverdue)}
-                      </div>
-                    </div>
+              {filteredDeadlines.map((item, idx) => {
+                const itemStatus = item.status || (item as any).deadlineStatus;
+                const clientName = item.clientDisplayName || (item as any).clientName || 'Client';
+                const explanation = item.explanation || (item as any).dueDateExplanation;
+                const clientLink = item.clientId ? `/clients/${item.clientId}?tab=compliance` : '#';
 
-                    {/* Rule Title & Code */}
-                    <div>
-                      <h4 className="font-bold text-xs text-slate-900 leading-snug">{item.ruleName}</h4>
-                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 font-mono">
-                        <span>{item.ruleCode}</span>
-                        {item.statutoryFormCode && (
-                          <>
-                            <span>•</span>
-                            <span className="font-semibold text-slate-600">{item.statutoryFormCode}</span>
-                          </>
-                        )}
-                        {item.periodLabel && (
-                          <>
-                            <span>•</span>
-                            <span>{item.periodLabel}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Client Info */}
-                    <div className="p-2 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Client:</span>
-                        <span className="font-bold text-slate-800">{item.clientDisplayName || 'Client'}</span>
-                      </div>
-                      {item.clientPan && (
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">PAN:</span>
-                          <span className="font-mono text-[11px] font-semibold text-slate-600">{item.clientPan}</span>
+                return (
+                  <div
+                    key={item.obligationId || idx}
+                    className={clsx(
+                      'p-4 bg-white border rounded-2xl shadow-2xs space-y-3 flex flex-col justify-between hover:shadow-md transition-all',
+                      itemStatus === 'OVERDUE'
+                        ? 'border-rose-300 bg-rose-50/10'
+                        : itemStatus === 'DUE_TODAY'
+                        ? 'border-amber-300 bg-amber-50/10 ring-1 ring-amber-300'
+                        : itemStatus === 'DUE_TOMORROW'
+                        ? 'border-orange-300'
+                        : 'border-slate-200'
+                    )}
+                  >
+                    <div className="space-y-2">
+                      {/* Header: Domain & Status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
+                          {item.domainDisplayName || item.domain}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {getPriorityBadge(item.priority)}
+                          {getStatusBadge(itemStatus, item.daysRemaining, item.daysOverdue)}
                         </div>
+                      </div>
+
+                      {/* Rule Title & Code */}
+                      <div>
+                        <h4 className="font-bold text-xs text-slate-900 leading-snug">{item.ruleName}</h4>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 font-mono">
+                          <span>{item.ruleCode}</span>
+                          {item.statutoryFormCode && (
+                            <>
+                              <span>•</span>
+                              <span className="font-semibold text-slate-600">{item.statutoryFormCode}</span>
+                            </>
+                          )}
+                          {item.periodLabel && (
+                            <>
+                              <span>•</span>
+                              <span>{item.periodLabel}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Client Info */}
+                      <div className="p-2 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Client:</span>
+                          <span className="font-bold text-slate-800">{clientName}</span>
+                        </div>
+                        {item.clientPan && (
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 block">PAN:</span>
+                            <span className="font-mono text-[11px] font-semibold text-slate-600">{item.clientPan}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Dual Due Date & Grace Days */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block">Statutory Due:</span>
+                          <span className="font-bold text-rose-700 font-mono">
+                            {item.statutoryDueDate || 'Not Configured'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block">Effective Due:</span>
+                          <span className="font-bold text-slate-900 font-mono">
+                            {item.dueDate || item.statutoryDueDate || '—'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Explanation */}
+                      {explanation && (
+                        <p className="text-[11px] text-slate-500 italic bg-slate-50/40 p-2 rounded-lg border border-slate-100/60 leading-relaxed">
+                          ℹ️ {explanation}
+                        </p>
                       )}
                     </div>
 
-                    {/* Dual Due Date & Grace Days */}
-                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 block">Statutory Due:</span>
-                        <span className="font-bold text-rose-700 font-mono">
-                          {item.statutoryDueDate || 'Not Configured'}
+                    {/* Footer Action */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      {item.statutoryAct && (
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          {item.statutoryAct} {item.statutorySection ? `§${item.statutorySection}` : ''}
                         </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 block">Effective Due:</span>
-                        <span className="font-bold text-slate-900 font-mono">
-                          {item.dueDate || item.statutoryDueDate || '—'}
-                        </span>
-                      </div>
+                      )}
+                      <Link
+                        to={clientLink}
+                        className="text-xs font-bold text-brand-600 hover:text-brand-800 inline-flex items-center gap-1 ml-auto"
+                      >
+                        <span>Client 360</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </Link>
                     </div>
-
-                    {/* Explanation */}
-                    {item.explanation && (
-                      <p className="text-[11px] text-slate-500 italic bg-slate-50/40 p-2 rounded-lg border border-slate-100/60 leading-relaxed">
-                        ℹ️ {item.explanation}
-                      </p>
-                    )}
                   </div>
-
-                  {/* Footer Action */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    {item.statutoryAct && (
-                      <span className="text-[10px] font-semibold text-slate-400">
-                        {item.statutoryAct} {item.statutorySection ? `§${item.statutorySection}` : ''}
-                      </span>
-                    )}
-                    <Link
-                      to={`/clients/${item.clientId}?tab=compliance`}
-                      className="text-xs font-bold text-brand-600 hover:text-brand-800 inline-flex items-center gap-1 ml-auto"
-                    >
-                      <span>Client 360</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -817,7 +832,7 @@ export const ComplianceCalendarPage: React.FC = () => {
                       <div className="text-[10px] text-slate-400 font-mono">{item.ruleCode} • Period: {item.periodLabel || item.periodKey}</div>
                     </td>
                     <td className="py-3 px-3">
-                      <div className="font-semibold text-slate-800">{item.clientDisplayName || 'Client'}</div>
+                      <div className="font-semibold text-slate-800">{item.clientDisplayName || (item as any).clientName || 'Client'}</div>
                       {item.clientPan && <span className="font-mono text-[10px] text-slate-400">PAN: {item.clientPan}</span>}
                     </td>
                     <td className="py-3 px-3 font-mono font-bold text-rose-700">
@@ -830,11 +845,11 @@ export const ComplianceCalendarPage: React.FC = () => {
                       {getPriorityBadge(item.priority)}
                     </td>
                     <td className="py-3 px-3">
-                      {getStatusBadge(item.status, item.daysRemaining, item.daysOverdue)}
+                      {getStatusBadge(item.status || (item as any).deadlineStatus, item.daysRemaining, item.daysOverdue)}
                     </td>
                     <td className="py-3 px-3 text-right">
                       <Link
-                        to={`/clients/${item.clientId}?tab=compliance`}
+                        to={item.clientId ? `/clients/${item.clientId}?tab=compliance` : '#'}
                         className="px-2 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 rounded text-[11px] font-bold inline-flex items-center gap-1"
                       >
                         <span>Client 360</span>
