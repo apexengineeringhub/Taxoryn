@@ -96,4 +96,14 @@ public class ComplianceDeadlineDto {
 
     @Schema(description = "Natural language explanation of statutory due date calculation")
     private String dueDateExplanation;
+
+    @Schema(description = "Frontend alias for deadline classification")
+    public DeadlineStatus getStatus() {
+        return deadlineStatus;
+    }
+
+    @Schema(description = "Frontend alias for explanation")
+    public String getExplanation() {
+        return dueDateExplanation;
+    }
 }

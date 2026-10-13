@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BrandingProvider } from './context/BrandingContext';
 import { AppShell } from './components/layout/AppShell';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Lazy Loaded Pages for Instant Initial Load & Low Memory Footprint
 const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -134,8 +135,9 @@ export const App: React.FC = () => {
       <BrandingProvider>
         <ModuleEntitlementProvider>
           <BrowserRouter>
-            <Suspense fallback={<PageLoadingFallback />}>
-              <Routes>
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoadingFallback />}>
+                <Routes>
             {/* Central SaaS Root Route */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             {/* Public Auth & Discovery Routes */}
@@ -894,7 +896,8 @@ export const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Suspense>
-      </BrowserRouter>
+      </ErrorBoundary>
+    </BrowserRouter>
         </ModuleEntitlementProvider>
       </BrandingProvider>
     </AuthProvider>

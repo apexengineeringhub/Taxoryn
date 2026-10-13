@@ -4200,11 +4200,18 @@ export const complianceCalendarApi = {
   getCalendar: async (
     params?: ComplianceCalendarQueryFilter
   ): Promise<ComplianceDeadlineDto[]> => {
-    const res = await apiClient.get<ApiResponse<ComplianceDeadlineDto[]>>(
+    const res = await apiClient.get<ApiResponse<any>>(
       '/v1/compliance/calendar',
       { params }
     );
-    return res.data.data;
+    const data = res.data.data;
+    if (Array.isArray(data)) {
+      return data;
+    }
+    if (data && Array.isArray(data.content)) {
+      return data.content;
+    }
+    return [];
   },
   getRadar: async (
     referenceDate?: string
@@ -4228,11 +4235,18 @@ export const complianceCalendarApi = {
     clientId: string,
     params?: ComplianceCalendarQueryFilter
   ): Promise<ComplianceDeadlineDto[]> => {
-    const res = await apiClient.get<ApiResponse<ComplianceDeadlineDto[]>>(
+    const res = await apiClient.get<ApiResponse<any>>(
       `/v1/clients/${clientId}/compliance/calendar`,
       { params }
     );
-    return res.data.data;
+    const data = res.data.data;
+    if (Array.isArray(data)) {
+      return data;
+    }
+    if (data && Array.isArray(data.content)) {
+      return data.content;
+    }
+    return [];
   },
   getClientSummary: async (
     clientId: string,

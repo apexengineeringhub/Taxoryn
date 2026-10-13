@@ -18,7 +18,7 @@ import java.util.UUID;
 @Schema(description = "Dashboard query filter payload")
 public class DashboardFilterRequest {
 
-    @Schema(description = "Reporting time period (TODAY, THIS_WEEK, THIS_MONTH, THIS_QUARTER, THIS_YEAR, CUSTOM, ALL_TIME)", example = "THIS_MONTH")
+    @Schema(description = "Reporting time period (TODAY, THIS_WEEK, LAST_WEEK, THIS_MONTH, LAST_MONTH, THIS_QUARTER, LAST_QUARTER, THIS_YEAR, LAST_YEAR, CUSTOM, ALL_TIME)", example = "THIS_MONTH")
     @Builder.Default
     private DashboardTimePeriod period = DashboardTimePeriod.ALL_TIME;
 
@@ -42,12 +42,20 @@ public class DashboardFilterRequest {
         return switch (period) {
             case TODAY -> today;
             case THIS_WEEK -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            case LAST_WEEK -> today.minusWeeks(1).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
             case THIS_MONTH -> today.with(TemporalAdjusters.firstDayOfMonth());
+            case LAST_MONTH -> today.minusMonths(1).with(TemporalAdjusters.firstDayOfMonth());
             case THIS_QUARTER -> {
                 int firstMonthOfQuarter = ((today.getMonthValue() - 1) / 3) * 3 + 1;
                 yield LocalDate.of(today.getYear(), firstMonthOfQuarter, 1);
             }
+            case LAST_QUARTER -> {
+                int currentQuarterFirstMonth = ((today.getMonthValue() - 1) / 3) * 3 + 1;
+                LocalDate firstDayOfThisQuarter = LocalDate.of(today.getYear(), currentQuarterFirstMonth, 1);
+                yield firstDayOfThisQuarter.minusMonths(3);
+            }
             case THIS_YEAR -> LocalDate.of(today.getYear(), 1, 1);
+            case LAST_YEAR -> LocalDate.of(today.getYear() - 1, 1, 1);
             case CUSTOM -> startDate;
             case ALL_TIME -> null;
         };
@@ -61,13 +69,21 @@ public class DashboardFilterRequest {
         return switch (period) {
             case TODAY -> today;
             case THIS_WEEK -> today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+            case LAST_WEEK -> today.minusWeeks(1).with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
             case THIS_MONTH -> today.with(TemporalAdjusters.lastDayOfMonth());
+            case LAST_MONTH -> today.minusMonths(1).with(TemporalAdjusters.lastDayOfMonth());
             case THIS_QUARTER -> {
                 int firstMonthOfQuarter = ((today.getMonthValue() - 1) / 3) * 3 + 1;
                 LocalDate firstDay = LocalDate.of(today.getYear(), firstMonthOfQuarter, 1);
                 yield firstDay.plusMonths(2).with(TemporalAdjusters.lastDayOfMonth());
             }
+            case LAST_QUARTER -> {
+                int currentQuarterFirstMonth = ((today.getMonthValue() - 1) / 3) * 3 + 1;
+                LocalDate firstDayOfThisQuarter = LocalDate.of(today.getYear(), currentQuarterFirstMonth, 1);
+                yield firstDayOfThisQuarter.minusDays(1);
+            }
             case THIS_YEAR -> LocalDate.of(today.getYear(), 12, 31);
+            case LAST_YEAR -> LocalDate.of(today.getYear() - 1, 12, 31);
             case CUSTOM -> endDate;
             case ALL_TIME -> null;
         };

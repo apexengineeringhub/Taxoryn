@@ -46,4 +46,15 @@ public class ComplianceDeadlineSummaryDto {
     @Schema(description = "Total obligations count alias across active, completed, and cancelled", example = "150")
     @Builder.Default
     private long totalObligations = 0;
+
+    public long getOverdueCount() { return overdue; }
+    public long getDueTodayCount() { return dueToday; }
+    public long getDueTomorrowCount() { return dueTomorrow; }
+    public long getDueWithin3DaysCount() { return dueWithin3Days; }
+    public long getDueThisWeekCount() { return dueThisWeek; }
+    public long getUpcomingCount() { return upcoming; }
+    public long getNoDueDateCount() { return noDueDate; }
+    public long getCompletedCount() { return completed; }
+    public long getCancelledCount() { return cancelled; }
+    public long getTotalActiveDeadlines() { return totalActive; }
 }

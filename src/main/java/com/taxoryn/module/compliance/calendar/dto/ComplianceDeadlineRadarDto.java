@@ -29,4 +29,8 @@ public class ComplianceDeadlineRadarDto {
 
     @Schema(description = "Top prioritized active deadlines requiring immediate attention")
     private List<ComplianceDeadlineDto> topDeadlines;
+
+    public LocalDate getReferenceDate() {
+        return asOfDate;
+    }
 }
