@@ -80,6 +80,12 @@ public class ComplianceWorkflowIntegrationTest {
     private ComplianceWorkflowChecklistItemRepository checklistItemRepository;
 
     @Autowired
+    private com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
+
+    @Autowired
+    private com.taxoryn.module.compliance.qc.repository.ComplianceQcAuthorizationRecordRepository authorizationRecordRepository;
+
+    @Autowired
     private ComplianceObligationRepository obligationRepository;
 
     @Autowired
@@ -294,6 +300,8 @@ public class ComplianceWorkflowIntegrationTest {
     }
 
     private void cleanUp() {
+        authorizationRecordRepository.deleteAll();
+        findingRepository.deleteAll();
         checklistItemRepository.deleteAll();
         workflowRepository.deleteAll();
         obligationRepository.deleteAll();

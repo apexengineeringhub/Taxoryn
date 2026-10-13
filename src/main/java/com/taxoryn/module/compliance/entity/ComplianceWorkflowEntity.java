@@ -231,9 +231,6 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
                     || targetStatus == ComplianceWorkflowStatus.CANCELLED;
             case IN_PROGRESS -> targetStatus == ComplianceWorkflowStatus.WAITING_FOR_CLIENT
                     || targetStatus == ComplianceWorkflowStatus.UNDER_REVIEW
-                    || targetStatus == ComplianceWorkflowStatus.READY_FOR_FILING
-                    || targetStatus == ComplianceWorkflowStatus.FILED
-                    || targetStatus == ComplianceWorkflowStatus.COMPLETED
                     || targetStatus == ComplianceWorkflowStatus.CANCELLED;
             case WAITING_FOR_CLIENT -> targetStatus == ComplianceWorkflowStatus.IN_PROGRESS
                     || targetStatus == ComplianceWorkflowStatus.READY

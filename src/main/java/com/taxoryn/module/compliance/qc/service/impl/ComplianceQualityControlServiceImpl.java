@@ -20,14 +20,17 @@ import com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewCycleDto;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcStatusDto;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcValidationResultDto;
+import com.taxoryn.module.compliance.qc.dto.ComplianceQcAuthorizationRecordDto;
 import com.taxoryn.module.compliance.qc.dto.CreateReviewFindingRequest;
 import com.taxoryn.module.compliance.qc.dto.ResolveFindingRequest;
 import com.taxoryn.module.compliance.qc.dto.RespondToFindingRequest;
 import com.taxoryn.module.compliance.qc.dto.RevokeAuthorizationRequest;
+import com.taxoryn.module.compliance.qc.entity.ComplianceQcAuthorizationRecordEntity;
 import com.taxoryn.module.compliance.qc.entity.ComplianceQcReviewFindingEntity;
 import com.taxoryn.module.compliance.qc.model.ComplianceQcCheckStatus;
 import com.taxoryn.module.compliance.qc.model.ComplianceQcFindingStatus;
 import com.taxoryn.module.compliance.qc.model.ComplianceQcStage;
+import com.taxoryn.module.compliance.qc.repository.ComplianceQcAuthorizationRecordRepository;
 import com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository;
 import com.taxoryn.module.compliance.qc.service.ComplianceQualityControlService;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
@@ -70,6 +73,7 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
     private final AuditService auditService;
     private final ComplianceWorkflowService workflowService;
     private final com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
+    private final com.taxoryn.module.compliance.qc.repository.ComplianceQcAuthorizationRecordRepository authorizationRecordRepository;
 
     public ComplianceQualityControlServiceImpl(
             ComplianceWorkflowRepository workflowRepository,
@@ -81,7 +85,8 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
             PracticeSecurityScopeEvaluator scopeEvaluator,
             AuditService auditService,
             @Lazy ComplianceWorkflowService workflowService,
-            com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository
+            com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository,
+            com.taxoryn.module.compliance.qc.repository.ComplianceQcAuthorizationRecordRepository authorizationRecordRepository
     ) {
         this.workflowRepository = workflowRepository;
         this.checklistItemRepository = checklistItemRepository;
@@ -93,6 +98,7 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
         this.auditService = auditService;
         this.workflowService = workflowService;
         this.findingRepository = findingRepository;
+        this.authorizationRecordRepository = authorizationRecordRepository;
     }
 
     @Override
@@ -232,6 +238,20 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
 
         ComplianceWorkflowEntity saved = workflowRepository.save(workflow);
 
+        // Record immutable authorization audit record
+        ComplianceQcAuthorizationRecordEntity record = ComplianceQcAuthorizationRecordEntity.builder()
+                .workflow(saved)
+                .action("GRANTED")
+                .authorizationMethod(request.getAuthorizationMethod().name())
+                .authorizationReference(request.getAuthorizationReference())
+                .authorizationNotes(request.getAuthorizationNotes())
+                .authorizedBy(authorizedByName)
+                .actorUserId(SecurityUtils.getCurrentUserId())
+                .actorEmail(actorEmail)
+                .build();
+        record.setOrganizationId(orgId);
+        authorizationRecordRepository.save(record);
+
         auditService.logEvent(
                 "COMPLIANCE_FILING_AUTHORIZED",
                 "COMPLIANCE_WORKFLOW",
@@ -265,6 +285,12 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
             throw new BusinessValidationException("Revocation reason is required");
         }
 
+        String actorEmail = SecurityUtils.getCurrentUserEmail();
+        UUID actorUserId = SecurityUtils.getCurrentUserId();
+        String previousMethod = workflow.getAuthorizationMethod();
+        String previousRef = workflow.getAuthorizationReference();
+        String previousAuthorizedBy = workflow.getAuthorizedBy();
+
         workflow.setAuthorized(false);
         workflow.setAuthorizedAt(null);
         workflow.setAuthorizedBy(null);
@@ -272,7 +298,34 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
         workflow.setAuthorizationReference(null);
         workflow.setAuthorizationNotes("Authorization revoked: " + request.getReason());
 
+        // Re-open checklist item CLIENT_CONFIRMATION_RECEIVED if present
+        if (workflow.getChecklistItems() != null) {
+            workflow.getChecklistItems().stream()
+                    .filter(i -> "CLIENT_CONFIRMATION_RECEIVED".equalsIgnoreCase(i.getItemKey()))
+                    .findFirst()
+                    .ifPresent(item -> {
+                        item.setCompleted(false);
+                        item.setCompletedAt(null);
+                        item.setCompletedByName(null);
+                        item.setCompletedByUserId(null);
+                    });
+        }
+
         ComplianceWorkflowEntity saved = workflowRepository.save(workflow);
+
+        // Record immutable authorization revocation record
+        ComplianceQcAuthorizationRecordEntity record = ComplianceQcAuthorizationRecordEntity.builder()
+                .workflow(saved)
+                .action("REVOKED")
+                .authorizationMethod(previousMethod)
+                .authorizationReference(previousRef)
+                .authorizedBy(previousAuthorizedBy)
+                .revocationReason(request.getReason())
+                .actorUserId(actorUserId)
+                .actorEmail(actorEmail)
+                .build();
+        record.setOrganizationId(orgId);
+        authorizationRecordRepository.save(record);
 
         auditService.logEvent(
                 "COMPLIANCE_AUTHORIZATION_REVOKED",
@@ -287,11 +340,101 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
 
     @Override
     @Transactional(readOnly = true)
+    public void verifyApprovalPrerequisites(UUID workflowId) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowWithChecklistOrThrow(workflowId, orgId);
+        validateClientAccess(scope, workflow.getClientId());
+
+        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.UNDER_REVIEW) {
+            throw new BusinessValidationException(String.format(
+                    "Workflow must be in UNDER_REVIEW status to be approved, but is currently %s", workflow.getWorkflowStatus()));
+        }
+
+        if (!SecurityUtils.hasAuthority("REVIEW_APPROVE")) {
+            throw new ForbiddenException("Missing permission: REVIEW_APPROVE");
+        }
+
+        if (workflow.getReviewerEmployeeId() == null) {
+            throw new BusinessValidationException("A reviewer must be assigned before review approval");
+        }
+        EmployeeEntity reviewer = employeeRepository.findByIdAndOrganizationId(workflow.getReviewerEmployeeId(), orgId)
+                .filter(e -> e.getStatus() == EmployeeEntity.EmployeeStatus.ACTIVE && e.getUserId() != null)
+                .orElseThrow(() -> new BusinessValidationException("Assigned reviewer must be active in this organization"));
+
+        UserEntity reviewerAccount = userRepository.findByIdAndOrganizationId(reviewer.getUserId(), orgId)
+                .filter(u -> u.getStatus() == UserEntity.UserStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessValidationException("Assigned reviewer account must be active in this organization"));
+
+        boolean reviewerAuthorized = reviewerAccount.getRoles().stream().flatMap(r -> r.getPermissions().stream())
+                .anyMatch(p -> "REVIEW_APPROVE".equals(p.getCode()));
+        if (!reviewerAuthorized) {
+            throw new BusinessValidationException("Assigned reviewer lacks review approval permission");
+        }
+
+        UUID currentUserId = SecurityUtils.getCurrentUserId();
+        if (!currentUserId.equals(reviewer.getUserId())) {
+            throw new ForbiddenException("Only the assigned reviewer may decide this compliance review");
+        }
+
+        if (workflow.getAssignedEmployeeId() != null) {
+            employeeRepository.findByIdAndOrganizationId(workflow.getAssignedEmployeeId(), orgId)
+                    .map(EmployeeEntity::getUserId)
+                    .filter(currentUserId::equals)
+                    .ifPresent(userId -> {
+                        throw new ForbiddenException("The preparer cannot approve their own review");
+                    });
+        }
+
+        verifyValidationFreshness(workflowId);
+
+        long unresolvedBlocking = findingRepository.countUnresolvedBlockingFindings(
+                orgId, workflow.getId(), List.of(ComplianceQcFindingStatus.OPEN, ComplianceQcFindingStatus.CORRECTED));
+        if (unresolvedBlocking > 0) {
+            throw new BusinessValidationException("Cannot approve compliance workflow: " + unresolvedBlocking + " blocking review finding(s) remain unresolved");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ComplianceQcAuthorizationRecordDto> getAuthorizationHistory(UUID workflowId) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, orgId);
+        validateClientAccess(scope, workflow.getClientId());
+
+        return authorizationRecordRepository
+                .findByOrganizationIdAndWorkflowIdOrderByCreatedAtDesc(orgId, workflowId)
+                .stream()
+                .map(this::mapAuthorizationRecordToDto)
+                .toList();
+    }
+
+    private ComplianceQcAuthorizationRecordDto mapAuthorizationRecordToDto(ComplianceQcAuthorizationRecordEntity entity) {
+        return ComplianceQcAuthorizationRecordDto.builder()
+                .id(entity.getId())
+                .workflowId(entity.getWorkflow().getId())
+                .action(entity.getAction())
+                .authorizationMethod(entity.getAuthorizationMethod())
+                .authorizationReference(entity.getAuthorizationReference())
+                .authorizationNotes(entity.getAuthorizationNotes())
+                .authorizedBy(entity.getAuthorizedBy())
+                .revocationReason(entity.getRevocationReason())
+                .actorUserId(entity.getActorUserId())
+                .actorEmail(entity.getActorEmail())
+                .createdAt(entity.getCreatedAt())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public void verifySubmissionPrerequisites(UUID workflowId) {
         UUID orgId = SecurityUtils.getCurrentOrganizationId();
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, orgId);
 
-        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.READY_FOR_FILING) {
+        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.READY_FOR_FILING
+                && workflow.getWorkflowStatus() != ComplianceWorkflowStatus.FILED
+                && workflow.getWorkflowStatus() != ComplianceWorkflowStatus.ACKNOWLEDGEMENT_PENDING) {
             throw new BusinessValidationException("Workflow must be in READY_FOR_FILING status prior to submission");
         }
         if (workflow.getApprovedAt() == null) {
@@ -313,7 +456,7 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
         }
 
         String currentFingerprint = computePreparationFingerprint(workflow);
-        if (!currentFingerprint.equals(workflow.getLastValidationFingerprint())) {
+        if (!isFingerprintFresh(currentFingerprint, workflow.getLastValidationFingerprint(), workflow.getWorkflowStatus())) {
             throw new BusinessValidationException("Validation result is stale: preparation data or checkpoints have been modified since last validation. Re-run validation before submitting for review.");
         }
 
@@ -331,6 +474,18 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
         if (!validationResult.isValid()) {
             throw new BusinessValidationException("Validation requirements not satisfied: " + String.join("; ", validationResult.getBlockers()));
         }
+    }
+
+    private boolean isFingerprintFresh(String current, String recorded, ComplianceWorkflowStatus status) {
+        if (current.equals(recorded)) {
+            return true;
+        }
+        if (status == ComplianceWorkflowStatus.UNDER_REVIEW) {
+            String currentChk = current.split(":st:")[0];
+            String recordedChk = recorded.split(":st:")[0];
+            return currentChk.equals(recordedChk);
+        }
+        return false;
     }
 
     @Override

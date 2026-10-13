@@ -5221,7 +5221,22 @@ export type ComplianceAuthorizationMethod =
   | 'CLIENT_CONSENT'
   | 'DSC_SIGN_OFF'
   | 'PRACTITIONER_AUTHORIZATION'
-  | 'PORTAL_CREDENTIALS';
+  | 'PORTAL_CREDENTIALS'
+  | 'AUTHORIZED_SIGNATORY';
+
+export interface ComplianceQcAuthorizationRecordDto {
+  id: string;
+  workflowId: string;
+  action: 'GRANTED' | 'REVOKED';
+  authorizationMethod?: string;
+  authorizationReference?: string;
+  authorizationNotes?: string;
+  authorizedBy?: string;
+  revocationReason?: string;
+  actorUserId?: string;
+  actorEmail?: string;
+  createdAt: string;
+}
 
 export type ComplianceQcCheckStatus =
   | 'PASS'

@@ -35,6 +35,22 @@ public interface ComplianceQualityControlService {
     ComplianceWorkflowDto revokeFilingAuthorization(UUID workflowId, RevokeAuthorizationRequest request);
 
     /**
+     * Verifies that all approval prerequisites are met prior to approval decision / READY_FOR_FILING:
+     * - Workflow is in UNDER_REVIEW status
+     * - Assigned reviewer exists, is active, and possesses REVIEW_APPROVE authority
+     * - Four-Eyes policy is respected (acting reviewer cannot be the preparer)
+     * - Pre-review validation is fresh and passing
+     * - Zero unresolved blocking review findings exist in the active cycle
+     * Throws BusinessValidationException or ForbiddenException if prerequisites are not satisfied.
+     */
+    void verifyApprovalPrerequisites(UUID workflowId);
+
+    /**
+     * Retrieves the complete immutable authorization event history for a workflow.
+     */
+    java.util.List<com.taxoryn.module.compliance.qc.dto.ComplianceQcAuthorizationRecordDto> getAuthorizationHistory(UUID workflowId);
+
+    /**
      * Verifies that all approval and authorization prerequisites are met prior to official submission.
      * Throws BusinessValidationException if prerequisites are not satisfied.
      */

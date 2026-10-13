@@ -1,8 +1,10 @@
 package com.taxoryn.module.compliance.controller;
 
+import com.taxoryn.core.exception.BusinessValidationException;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.compliance.dto.ApproveWorkflowRequest;
+import com.taxoryn.module.compliance.model.ComplianceWorkflowStatus;
 import com.taxoryn.module.compliance.dto.AssignComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.CompleteComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.ComplianceWorkbenchFilterRequest;
@@ -208,6 +210,10 @@ public class ComplianceWorkflowController {
             @PathVariable UUID workflowId,
             @Valid @RequestBody ApproveWorkflowRequest request
     ) {
+        ComplianceWorkflowDetailDto detail = workflowService.getWorkflowById(workflowId);
+        if (detail.getWorkflow().getWorkflowStatus() != ComplianceWorkflowStatus.UNDER_REVIEW) {
+            throw new BusinessValidationException("Workflow must be in UNDER_REVIEW status to be approved");
+        }
         var review = reviewService.getForResource("COMPLIANCE_WORK", workflowId);
         reviewService.approve(review.getId(), request.getNotes());
         ComplianceWorkflowDto updated = workflowService.getWorkflowById(workflowId).getWorkflow();

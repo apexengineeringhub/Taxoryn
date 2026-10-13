@@ -44,6 +44,7 @@ import {
   ComplianceAuthorizationMethod,
   ComplianceQcReviewFindingDto,
   ComplianceQcReviewCycleDto,
+  ComplianceQcAuthorizationRecordDto,
 } from '../types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -101,6 +102,10 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
   const [authNotes, setAuthNotes] = useState('');
   const [authorizedByName, setAuthorizedByName] = useState('');
 
+  const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [authHistory, setAuthHistory] = useState<ComplianceQcAuthorizationRecordDto[]>([]);
+
   const [isFiledModalOpen, setIsFiledModalOpen] = useState(false);
   const [filedDate, setFiledDate] = useState(new Date().toISOString().split('T')[0]);
   const [filedAckNumber, setFiledAckNumber] = useState('');
@@ -136,15 +141,18 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
         setQcStatus(null);
       }
       try {
-        const [fList, cList] = await Promise.all([
+        const [fList, cList, aList] = await Promise.all([
           complianceQcApi.getReviewFindings(id),
           complianceQcApi.getReviewCycles(id),
+          complianceQcApi.getAuthorizationHistory(id),
         ]);
         setFindings(fList || []);
         setReviewCycles(cList || []);
+        setAuthHistory(aList || []);
       } catch {
         setFindings([]);
         setReviewCycles([]);
+        setAuthHistory([]);
       }
     } catch (err: any) {
       console.error('Failed to load workflow details', err);
@@ -275,6 +283,23 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
       fetchWorkflowDetail();
     } catch (err: any) {
       alert(`Failed to record filing authorization: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitRevokeModal = async () => {
+    if (!id || !revokeReason.trim()) return;
+    try {
+      setIsSubmitting(true);
+      await complianceQcApi.revokeAuthorization(id, {
+        reason: revokeReason.trim(),
+      });
+      setIsRevokeModalOpen(false);
+      setRevokeReason('');
+      fetchWorkflowDetail();
+    } catch (err: any) {
+      alert(`Failed to revoke filing authorization: ${err?.response?.data?.message || err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -558,7 +583,11 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
                 <Button variant="primary" onClick={() => setIsAuthorizeModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4" /> Authorize Filing
                 </Button>
-              ) : null}
+              ) : (
+                <Button variant="outline" onClick={() => setIsRevokeModalOpen(true)} className="text-rose-700 border-rose-300 hover:bg-rose-50 flex items-center gap-1.5">
+                  <X className="w-4 h-4" /> Revoke Authorization
+                </Button>
+              )}
               <Button
                 variant="primary"
                 onClick={() => setIsFiledModalOpen(true)}
@@ -590,10 +619,32 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
               {workflow.authorizationReference ? ` (Ref: ${workflow.authorizationReference})` : ''}
             </span>
           </div>
-          {workflow.authorizedAt && <span className="text-slate-500">{new Date(workflow.authorizedAt).toLocaleDateString()}</span>}
+          <div className="flex items-center gap-3">
+            {workflow.authorizedAt && <span className="text-slate-500">{new Date(workflow.authorizedAt).toLocaleDateString()}</span>}
+            {workflow.workflowStatus === 'READY_FOR_FILING' && (
+              <Button variant="outline" size="sm" onClick={() => setIsRevokeModalOpen(true)} className="text-rose-700 border-rose-300 bg-white hover:bg-rose-50 text-xs py-1 px-2.5">
+                Revoke
+              </Button>
+            )}
+          </div>
         </div>
       )}
-      {!workflow.isAuthorized && workflow.workflowStatus === 'READY_FOR_FILING' && (
+      {!workflow.isAuthorized && workflow.authorizationNotes?.startsWith('Authorization revoked:') && (
+        <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between text-xs text-amber-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Filing Authorization Revoked:</strong> {workflow.authorizationNotes}
+            </span>
+          </div>
+          {workflow.workflowStatus === 'READY_FOR_FILING' && (
+            <Button variant="outline" size="sm" onClick={() => setIsAuthorizeModalOpen(true)} className="text-purple-700 border-purple-300 bg-white hover:bg-purple-50">
+              Re-Authorize Filing
+            </Button>
+          )}
+        </div>
+      )}
+      {!workflow.isAuthorized && workflow.workflowStatus === 'READY_FOR_FILING' && !workflow.authorizationNotes?.startsWith('Authorization revoked:') && (
         <div className="p-3 bg-purple-50 border border-purple-300 rounded-xl flex items-center justify-between text-xs text-purple-900 shadow-sm">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-purple-600 shrink-0" />
@@ -1140,6 +1191,127 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
                   <p className="text-slate-600">{detail.reviewNotes}</p>
                 </div>
               )}
+
+              {/* Approval Readiness Gates (when Under Review) */}
+              {workflow.workflowStatus === 'UNDER_REVIEW' && (
+                <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                  <span className="font-bold text-slate-700 block mb-1">Approval Readiness Gates</span>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Reviewer Assigned:</span>
+                    <span className={clsx('font-bold', workflow.reviewerEmployeeName ? 'text-emerald-700' : 'text-rose-600')}>
+                      {workflow.reviewerEmployeeName ? 'Ready' : 'Missing'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Four-Eyes Separation:</span>
+                    <span className={clsx('font-bold', workflow.assignedEmployeeId !== workflow.reviewerEmployeeId ? 'text-emerald-700' : 'text-rose-600')}>
+                      {workflow.assignedEmployeeId !== workflow.reviewerEmployeeId ? 'Separated' : 'Maker/Checker Conflict'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Preparation Validation:</span>
+                    <span className={clsx('font-bold', qcStatus?.isValidationPassed ? 'text-emerald-700' : 'text-rose-600')}>
+                      {qcStatus?.isValidationPassed ? 'Valid' : 'Requires Run'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Blocking Review Findings:</span>
+                    <span className={clsx('font-bold', (qcStatus?.unresolvedFindingsCount ?? 0) === 0 ? 'text-emerald-700' : 'text-rose-600')}>
+                      {(qcStatus?.unresolvedFindingsCount ?? 0) === 0 ? '0 Blockers' : `${qcStatus?.unresolvedFindingsCount} Unresolved`}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Filing Authorization & Provenance Card */}
+          <Card className="p-5 border-slate-200">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-purple-600" />
+                Filing Authorization Provenance
+              </span>
+              <span className={clsx(
+                'text-[10px] px-2 py-0.5 rounded-full font-bold',
+                workflow.isAuthorized ? 'bg-emerald-100 text-emerald-800' :
+                workflow.authorizationNotes?.startsWith('Authorization revoked:') ? 'bg-amber-100 text-amber-800' :
+                'bg-slate-100 text-slate-600'
+              )}>
+                {workflow.isAuthorized ? 'AUTHORIZED' : workflow.authorizationNotes?.startsWith('Authorization revoked:') ? 'REVOKED' : 'UNAUTHORIZED'}
+              </span>
+            </h3>
+
+            <div className="space-y-2.5 text-xs">
+              {workflow.isAuthorized && (
+                <>
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-500">Method:</span>
+                    <span className="font-semibold text-slate-800">{workflow.authorizationMethod || 'CLIENT_CONSENT'}</span>
+                  </div>
+                  {workflow.authorizedBy && (
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Authorized By:</span>
+                      <span className="font-semibold text-slate-800">{workflow.authorizedBy}</span>
+                    </div>
+                  )}
+                  {workflow.authorizationReference && (
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Reference:</span>
+                      <span className="font-mono text-purple-700">{workflow.authorizationReference}</span>
+                    </div>
+                  )}
+                  {workflow.authorizedAt && (
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Granted At:</span>
+                      <span className="text-slate-700">{new Date(workflow.authorizedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!workflow.isAuthorized && workflow.authorizationNotes?.startsWith('Authorization revoked:') && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-900">
+                  <span className="font-semibold block mb-0.5">Revocation Notice:</span>
+                  <p>{workflow.authorizationNotes}</p>
+                </div>
+              )}
+
+              {/* Provenance Event Log */}
+              {authHistory && authHistory.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Immutable Provenance Log</h4>
+                  <div className="space-y-2">
+                    {authHistory.map((rec) => (
+                      <div key={rec.id} className="p-2 rounded bg-slate-50 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={clsx(
+                            'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                            rec.action === 'GRANTED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          )}>
+                            {rec.action}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{new Date(rec.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        {rec.action === 'GRANTED' ? (
+                          <div className="text-[11px] text-slate-700">
+                            <span>{rec.authorizationMethod}</span>
+                            {rec.authorizedBy && <span className="text-slate-500"> by {rec.authorizedBy}</span>}
+                            {rec.authorizationReference && <div className="text-slate-500 font-mono text-[10px]">Ref: {rec.authorizationReference}</div>}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-rose-800">
+                            <span>Reason: {rec.revocationReason || 'No reason specified'}</span>
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-400 flex justify-between">
+                          <span>Recorded by {rec.actorEmail || 'System'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -1286,6 +1458,7 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
               <option value="DSC_SIGN_OFF">Digital Signature Certificate (DSC Sign-off)</option>
               <option value="PRACTITIONER_AUTHORIZATION">Practitioner Power-of-Attorney / Authorized Signatory</option>
               <option value="PORTAL_CREDENTIALS">Statutory Portal OTP / EVC Verification</option>
+              <option value="AUTHORIZED_SIGNATORY">Designated Authorized Signatory Formal Sign-off</option>
             </select>
           </div>
           <div>
@@ -1322,6 +1495,42 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
             <Button variant="outline" onClick={() => setIsAuthorizeModalOpen(false)}>Cancel</Button>
             <Button variant="primary" disabled={isSubmitting} onClick={handleSubmitAuthorizeModal} className="bg-purple-600 hover:bg-purple-700 text-white">
               {isSubmitting ? 'Recording...' : 'Record Filing Authorization'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Revoke Filing Authorization */}
+      <Modal
+        isOpen={isRevokeModalOpen}
+        onClose={() => setIsRevokeModalOpen(false)}
+        title="Revoke Statutory Filing Authorization"
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-600">
+            Revoking authorization halts statutory filing submission until fresh consent or authorization is recorded. Use this if figures require correction or updated client documents arrive.
+          </p>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">
+              Revocation Reason <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Client requested recalculation after discovering unrecorded purchase invoices."
+              value={revokeReason}
+              onChange={e => setRevokeReason(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsRevokeModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              disabled={isSubmitting || !revokeReason.trim()}
+              onClick={handleSubmitRevokeModal}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {isSubmitting ? 'Revoking...' : 'Confirm Revocation'}
             </Button>
           </div>
         </div>

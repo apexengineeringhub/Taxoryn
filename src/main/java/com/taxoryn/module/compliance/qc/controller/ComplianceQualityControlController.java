@@ -131,4 +131,14 @@ public class ComplianceQualityControlController {
         var finding = qcService.resolveFinding(workflowId, findingId, request);
         return ResponseEntity.ok(ApiResponse.success("Finding resolution recorded", finding));
     }
+
+    @GetMapping("/authorizations")
+    @PreAuthorize("hasAnyAuthority('TASK_VIEW', 'CLIENT_VIEW', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'REVIEW_APPROVE', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
+    @Operation(summary = "Get filing authorization history", description = "Retrieves complete immutable history of filing authorization grants and revocations.")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.compliance.qc.dto.ComplianceQcAuthorizationRecordDto>>> getAuthorizationHistory(
+            @PathVariable UUID workflowId
+    ) {
+        var history = qcService.getAuthorizationHistory(workflowId);
+        return ResponseEntity.ok(ApiResponse.success("Authorization history retrieved", history));
+    }
 }

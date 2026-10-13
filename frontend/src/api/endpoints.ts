@@ -90,6 +90,7 @@ import {
   CreateWorkflowTaskRequest,
   ComplianceQcStatusDto,
   ComplianceQcValidationResultDto,
+  ComplianceQcAuthorizationRecordDto,
   AuthorizeFilingRequest,
   RevokeAuthorizationRequest,
   Task,
@@ -3544,6 +3545,11 @@ export const complianceQcApi = {
 
   resolveFinding: async (workflowId: string, findingId: string, payload: { decision: string; reviewerNotes?: string }): Promise<any> => {
     const res = await apiClient.post<ApiResponse<any>>(`/compliance/workflows/${workflowId}/qc/findings/${findingId}/resolve`, payload);
+    return res.data.data;
+  },
+
+  getAuthorizationHistory: async (workflowId: string): Promise<ComplianceQcAuthorizationRecordDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceQcAuthorizationRecordDto[]>>(`/compliance/workflows/${workflowId}/qc/authorizations`);
     return res.data.data;
   },
 };

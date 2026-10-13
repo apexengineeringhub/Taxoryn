@@ -312,6 +312,20 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowStatus previousStatus = workflow.getWorkflowStatus();
         workflow.validateTransition(request.getStatus());
+
+        // Phase 31.4 Quality Control prerequisite gates for direct status transitions
+        if (request.getStatus() == ComplianceWorkflowStatus.READY_FOR_FILING) {
+            qcServiceProvider.getObject().verifyApprovalPrerequisites(workflowId);
+            workflow.setApprovedAt(Instant.now());
+            workflow.setApprovedBy(SecurityUtils.getCurrentUserEmail());
+        } else if (request.getStatus() == ComplianceWorkflowStatus.FILED) {
+            qcServiceProvider.getObject().verifySubmissionPrerequisites(workflowId);
+        } else if (request.getStatus() == ComplianceWorkflowStatus.COMPLETED) {
+            if (previousStatus != ComplianceWorkflowStatus.FILED && previousStatus != ComplianceWorkflowStatus.ACKNOWLEDGEMENT_PENDING) {
+                qcServiceProvider.getObject().verifySubmissionPrerequisites(workflowId);
+            }
+        }
+
         workflow.setWorkflowStatus(request.getStatus());
 
         if (request.getStatus() == ComplianceWorkflowStatus.IN_PROGRESS && workflow.getStartedAt() == null) {
@@ -749,19 +763,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
-        requireReviewPermission("REVIEW_APPROVE");
-        requireCurrentAssignedReviewer(workflow, organizationId);
 
-        // Enforce that all blocking review findings in the active cycle are resolved
-        qcServiceProvider.ifAvailable(qc -> {
-            long unresolved = findingRepository.countUnresolvedBlockingFindings(
-                    organizationId, workflow.getId(), java.util.List.of(
-                            com.taxoryn.module.compliance.qc.model.ComplianceQcFindingStatus.OPEN,
-                            com.taxoryn.module.compliance.qc.model.ComplianceQcFindingStatus.CORRECTED));
-            if (unresolved > 0) {
-                throw new BusinessValidationException("Cannot approve compliance workflow: " + unresolved + " blocking review finding(s) remain unresolved");
-            }
-        });
+        // Single authoritative backend approval gate (validates status, reviewer authority, Four-Eyes, freshness, findings)
+        qcServiceProvider.getObject().verifyApprovalPrerequisites(workflowId);
 
         workflow.validateTransition(ComplianceWorkflowStatus.READY_FOR_FILING);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -923,6 +927,12 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
+
+        // Phase 31.4 Quality Control prerequisite gate: if not previously filed, verify submission prerequisites
+        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.FILED
+                && workflow.getWorkflowStatus() != ComplianceWorkflowStatus.ACKNOWLEDGEMENT_PENDING) {
+            qcServiceProvider.getObject().verifySubmissionPrerequisites(workflowId);
+        }
 
         workflow.validateTransition(ComplianceWorkflowStatus.COMPLETED);
         String oldStatus = workflow.getWorkflowStatus().name();

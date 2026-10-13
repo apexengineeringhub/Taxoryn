@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -98,6 +99,9 @@ public class ComplianceQualityControlIntegrationTest {
 
     @Autowired
     private com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
+
+    @Autowired
+    private com.taxoryn.module.compliance.qc.repository.ComplianceQcAuthorizationRecordRepository authorizationRecordRepository;
 
     @Autowired
     private RoleRepository roleRepository;
@@ -325,6 +329,7 @@ public class ComplianceQualityControlIntegrationTest {
     }
 
     private void cleanUp() {
+        authorizationRecordRepository.deleteAll();
         findingRepository.deleteAll();
         checklistItemRepository.deleteAll();
         workflowRepository.deleteAll();
@@ -981,5 +986,201 @@ public class ComplianceQualityControlIntegrationTest {
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("UNDER_REVIEW"));
+    }
+
+    @Test
+    @DisplayName("Phase 31.4 Approval Gate: Enforces UNDER_REVIEW status and Four-Eyes separation")
+    void testPhase31_4_ApprovalGate_EnforcesUnderReviewStatusAndFourEyes() throws Exception {
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // 1. Attempt to approve when IN_PROGRESS -> Fails (400, must be in UNDER_REVIEW)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder().notes("Premature").build())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("message", containsString("UNDER_REVIEW")));
+
+        // 2. Validate and submit review
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.workflowStatus").value("UNDER_REVIEW"));
+
+        // 3. Maker (preparer) attempts to approve review -> Fails (403, Four-Eyes principle)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + makerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder().notes("Self approval").build())))
+                .andExpect(status().isForbidden());
+
+        // 4. Assigned Reviewer approves -> Succeeds
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder().notes("Verified and approved").build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.workflowStatus").value("READY_FOR_FILING"));
+    }
+
+    @Test
+    @DisplayName("Phase 31.4 Authorization History: Granted and Revoked Immutable Audit Trail")
+    void testPhase31_4_AuthorizationHistory_GrantAndRevocationAuditTrail() throws Exception {
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder().notes("Approved").build())))
+                .andExpect(status().isOk());
+
+        // 1. Initial authorization history is empty
+        mockMvc.perform(get("/api/v1/compliance/workflows/" + workflowId + "/qc/authorizations")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(0));
+
+        // 2. Authorize filing with AUTHORIZED_SIGNATORY
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/authorize-filing")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AuthorizeFilingRequest.builder()
+                                .authorizationMethod(ComplianceAuthorizationMethod.AUTHORIZED_SIGNATORY)
+                                .authorizedBy("Sunita Roy (Director)")
+                                .authorizationReference("BOARD-MIN-2026-09")
+                                .authorizationNotes("Board resolution authorized statutory return submission")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.authorized").value(true))
+                .andExpect(jsonPath("$.data.authorizationMethod").value("AUTHORIZED_SIGNATORY"));
+
+        // 3. History now has 1 GRANTED record
+        mockMvc.perform(get("/api/v1/compliance/workflows/" + workflowId + "/qc/authorizations")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].action").value("GRANTED"))
+                .andExpect(jsonPath("$.data[0].authorizationMethod").value("AUTHORIZED_SIGNATORY"))
+                .andExpect(jsonPath("$.data[0].authorizedBy").value("Sunita Roy (Director)"))
+                .andExpect(jsonPath("$.data[0].authorizationReference").value("BOARD-MIN-2026-09"));
+
+        // 4. Revoke filing authorization with reason
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/revoke-authorization")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(RevokeAuthorizationRequest.builder()
+                                .reason("Client reported discrepancy in sales credit notes requiring revision")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.authorized").value(false));
+
+        // 5. History now has 2 records, latest is REVOKED
+        mockMvc.perform(get("/api/v1/compliance/workflows/" + workflowId + "/qc/authorizations")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].action").value("REVOKED"))
+                .andExpect(jsonPath("$.data[0].revocationReason").value("Client reported discrepancy in sales credit notes requiring revision"))
+                .andExpect(jsonPath("$.data[1].action").value("GRANTED"));
+
+        // 6. Attempt to file return while revoked -> Blocked by QC gate
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/mark-filed")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(MarkWorkflowFiledRequest.builder()
+                                .filedDate(LocalDate.now())
+                                .acknowledgementNumber("ARN123456")
+                                .build())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("message", containsString("explicit filing authorization has not been granted")));
+    }
+
+    @Test
+    @DisplayName("Phase 31.4 Bypass Closure: Direct status updates and completeWorkflow blocked without prerequisites")
+    void testPhase31_4_BypassClosure_DirectStatusUpdatesBlocked() throws Exception {
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // 1. Attempt to jump directly to READY_FOR_FILING via PUT /status -> Blocked by transition & approval gates
+        mockMvc.perform(put("/api/v1/compliance/workflows/" + workflowId + "/status")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"READY_FOR_FILING\"}"))
+                .andExpect(status().isBadRequest());
+
+        // 2. Attempt to jump directly to FILED via PUT /status -> Blocked by transition & submission gates
+        mockMvc.perform(put("/api/v1/compliance/workflows/" + workflowId + "/status")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"FILED\"}"))
+                .andExpect(status().isBadRequest());
+
+        // 3. Attempt to jump directly to COMPLETED via PUT /status -> Blocked by transition & submission gates
+        mockMvc.perform(put("/api/v1/compliance/workflows/" + workflowId + "/status")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"COMPLETED\"}"))
+                .andExpect(status().isBadRequest());
+
+        // 4. Attempt to complete unfiled workflow via POST /complete -> Blocked by submission gate
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/complete")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"acknowledgementNumber\": \"ARN999\"}"))
+                .andExpect(status().isBadRequest());
     }
 }
