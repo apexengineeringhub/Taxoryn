@@ -93,7 +93,10 @@ export const ComplianceCalendarPage: React.FC = () => {
       }
       if (selectedStatusTab !== 'ALL') {
         filter.status = selectedStatusTab as DeadlineStatus;
-        (filter as any).deadlineStatus = selectedStatusTab;
+        filter.deadlineStatus = selectedStatusTab as DeadlineStatus;
+        if (selectedStatusTab === 'COMPLETED' || selectedStatusTab === 'CANCELLED') {
+          filter.includeTerminal = true;
+        }
       }
 
       const [radarRes, calendarRes, summaryRes] = await Promise.allSettled([
@@ -274,11 +277,11 @@ export const ComplianceCalendarPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-brand-50 text-brand-600">
-              <CalendarIcon className="w-6 h-6" />
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-brand-50 text-brand-600 shrink-0">
+              <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <span>Compliance Calendar & Deadline Radar</span>
           </h1>
@@ -287,12 +290,12 @@ export const ComplianceCalendarPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2.5">
+        <div className="flex items-center flex-wrap sm:flex-nowrap gap-2.5 shrink-0">
           {/* Reference Date Stepper */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-2xs">
             <button
               onClick={() => adjustReferenceDate(-1)}
-              className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors"
+              className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors"
               title="Previous Day"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -305,7 +308,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             />
             <button
               onClick={() => adjustReferenceDate(1)}
-              className="p-1 hover:bg-slate-100 rounded text-slate-600 transition-colors"
+              className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors"
               title="Next Day"
             >
               <ChevronRight className="w-4 h-4" />
@@ -313,7 +316,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             {referenceDate !== todayStr && (
               <button
                 onClick={handleSetToday}
-                className="ml-1 px-2 py-0.5 text-[10px] font-bold bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-md transition-colors"
+                className="ml-1 px-2 py-0.5 text-[10px] font-bold bg-brand-100 text-brand-700 hover:bg-brand-200 rounded-md transition-colors"
               >
                 Today
               </button>
@@ -490,7 +493,7 @@ export const ComplianceCalendarPage: React.FC = () => {
       {/* Filter Tabs & Search Bar */}
       <div className="space-y-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
         {/* Status Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-100">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 border-b border-slate-100 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {[
             { key: 'ALL', label: 'All Active Deadlines' },
             { key: 'OVERDUE', label: 'Overdue' },
@@ -501,26 +504,34 @@ export const ComplianceCalendarPage: React.FC = () => {
             { key: 'UPCOMING', label: 'Upcoming' },
             { key: 'NO_DUE_DATE', label: 'No Due Date' },
             { key: 'COMPLETED', label: 'Completed' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setSelectedStatusTab(tab.key)}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap',
-                selectedStatusTab === tab.key
-                  ? 'bg-brand-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ].map((tab) => {
+            const isActive = selectedStatusTab === tab.key;
+            const activeBg =
+              tab.key === 'OVERDUE'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : tab.key === 'COMPLETED'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-brand-600 text-white shadow-xs';
+
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setSelectedStatusTab(tab.key)}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap',
+                  isActive ? activeBg : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Domain Filter Pills & Search */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-            <span className="text-xs font-bold text-slate-400 mr-1 flex items-center gap-1">
+          <div className="flex items-center flex-wrap gap-1.5 w-full sm:w-auto">
+            <span className="text-xs font-bold text-slate-400 mr-1 flex items-center gap-1 shrink-0">
               <Filter className="w-3.5 h-3.5" /> Domain:
             </span>
             {[
@@ -548,7 +559,7 @@ export const ComplianceCalendarPage: React.FC = () => {
             ))}
           </div>
 
-          <div className="relative w-full sm:w-72">
+          <div className="relative w-full sm:w-72 shrink-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
@@ -584,14 +595,66 @@ export const ComplianceCalendarPage: React.FC = () => {
 
       {/* 1. RADAR / PRIORITY AGENDA VIEW */}
       {!isLoading && viewMode === 'RADAR' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* Radar Domain Breakdown Intelligence Strip */}
+          {radar?.domainBreakdown && Object.keys(radar.domainBreakdown).length > 0 && selectedDomain === 'ALL' && selectedStatusTab === 'ALL' && (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Compass className="w-4 h-4 text-brand-600" />
+                  Statutory Radar Domain Intelligence
+                </h3>
+                <span className="text-[11px] text-slate-400 font-medium">Click domain to filter</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+                {Object.entries(radar.domainBreakdown).map(([domainKey, dSummary]: [string, any]) => {
+                  const activeCount = dSummary.totalActive ?? dSummary.totalActiveDeadlines ?? 0;
+                  const overdueCount = dSummary.overdueCount ?? dSummary.overdue ?? 0;
+                  const completedCount = dSummary.completedCount ?? dSummary.completed ?? 0;
+                  return (
+                    <div
+                      key={domainKey}
+                      onClick={() => setSelectedDomain(domainKey)}
+                      className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-brand-400 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <span className="text-[10px] font-black text-slate-700 uppercase block font-mono truncate">{domainKey}</span>
+                      <div className="flex items-center justify-between mt-1 text-[11px]">
+                        <span className="font-bold text-slate-800">{activeCount} active</span>
+                        {overdueCount > 0 ? (
+                          <span className="font-black text-rose-600">{overdueCount} overdue</span>
+                        ) : (
+                          <span className="text-slate-400">{completedCount} done</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {filteredDeadlines.length === 0 ? (
-            <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-2">
+            <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-3">
               <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
               <p className="text-sm font-bold text-slate-700">No compliance deadlines found</p>
-              <p className="text-xs text-slate-400">
-                No statutory obligations match the selected reference date ({referenceDate}), domain, or status filter.
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                No statutory obligations match the selected reference date ({referenceDate}), domain ({selectedDomain}), or status filter ({selectedStatusTab}).
               </p>
+              {(selectedStatusTab !== 'ALL' || selectedDomain !== 'ALL' || searchQuery.trim()) && (
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedStatusTab('ALL');
+                      setSelectedDomain('ALL');
+                      setSearchQuery('');
+                    }}
+                  >
+                    Clear Filters & View All Active Deadlines
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -612,6 +675,8 @@ export const ComplianceCalendarPage: React.FC = () => {
                         ? 'border-amber-300 bg-amber-50/10 ring-1 ring-amber-300'
                         : itemStatus === 'DUE_TOMORROW'
                         ? 'border-orange-300'
+                        : itemStatus === 'COMPLETED'
+                        ? 'border-emerald-300 bg-emerald-50/20'
                         : 'border-slate-200'
                     )}
                   >

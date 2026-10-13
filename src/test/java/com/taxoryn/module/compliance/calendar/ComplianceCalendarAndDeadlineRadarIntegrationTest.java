@@ -509,6 +509,23 @@ public class ComplianceCalendarAndDeadlineRadarIntegrationTest {
     }
 
     @Test
+    @DisplayName("11b. Calendar Query: Deadline status COMPLETED returns completed obligations without manual includeTerminal")
+    void testGetCalendar_DeadlineStatusCompletedFilter() throws Exception {
+        TenantContext.setTenantId(orgA.getId());
+        createObligation(orgA.getId(), clientA1.getId(), "GST_COMPLETED_TEST", ComplianceRuleDomain.GST, CompliancePeriodType.MONTH, "2026-09", LocalDate.of(2026, 10, 10), ComplianceObligationStatus.COMPLETED, TaskPriority.MEDIUM);
+        TenantContext.clear();
+
+        mockMvc.perform(get("/api/v1/compliance/calendar")
+                        .header("Authorization", tokenA)
+                        .param("deadlineStatus", "COMPLETED")
+                        .param("referenceDate", "2026-10-20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.content.[0].deadlineStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.content.[0].ruleCode").value("GST_COMPLETED_TEST"));
+    }
+
+    @Test
     @DisplayName("12. Calendar Query: Maximum date range protection rejects spans exceeding 366 days")
     void testGetCalendar_DateRangeMaxLimit() throws Exception {
         mockMvc.perform(get("/api/v1/compliance/calendar")

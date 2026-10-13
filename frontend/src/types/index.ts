@@ -6976,6 +6976,8 @@ export interface ComplianceCalendarQueryFilter {
   referenceDate?: string;
   domain?: ComplianceRuleDomain;
   status?: DeadlineStatus;
+  deadlineStatus?: DeadlineStatus;
+  includeTerminal?: boolean;
   clientId?: string;
   ruleCode?: string;
   financialYear?: string;
