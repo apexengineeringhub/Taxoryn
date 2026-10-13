@@ -83,9 +83,13 @@ public class ComplianceCalendarServiceImpl implements ComplianceCalendarService 
             if (safeFilter.getRuleCode() != null && !safeFilter.getRuleCode().isBlank()) {
                 predicates.add(cb.equal(root.get("ruleCode"), safeFilter.getRuleCode().trim()));
             }
+            boolean includeTerminal = Boolean.TRUE.equals(safeFilter.getIncludeTerminal())
+                    || safeFilter.getDeadlineStatus() == DeadlineStatus.COMPLETED
+                    || safeFilter.getDeadlineStatus() == DeadlineStatus.CANCELLED;
+
             if (safeFilter.getObligationStatus() != null) {
                 predicates.add(cb.equal(root.get("status"), safeFilter.getObligationStatus()));
-            } else if (!Boolean.TRUE.equals(safeFilter.getIncludeTerminal())) {
+            } else if (!includeTerminal) {
                 predicates.add(root.get("status").in(
                         ComplianceObligationStatus.UPCOMING,
                         ComplianceObligationStatus.READY,

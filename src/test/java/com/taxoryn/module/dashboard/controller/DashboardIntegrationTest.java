@@ -387,4 +387,24 @@ class DashboardIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.clients.total").value(2));
     }
+
+    @Test
+    @DisplayName("GET /api/v1/dashboard/overview with period=LAST_MONTH succeeds")
+    void testGetOverviewWithLastMonthPeriod() throws Exception {
+        mockMvc.perform(get("/api/v1/dashboard/overview")
+                        .param("period", "LAST_MONTH")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/dashboard/overview with lowercase period=last_month succeeds")
+    void testGetOverviewWithLowercasePeriod() throws Exception {
+        mockMvc.perform(get("/api/v1/dashboard/overview")
+                        .param("period", "last_month")
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
 }
