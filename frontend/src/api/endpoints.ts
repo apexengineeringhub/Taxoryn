@@ -3521,6 +3521,31 @@ export const complianceQcApi = {
     const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/qc/revoke-authorization`, payload);
     return res.data.data;
   },
+
+  addReviewFinding: async (workflowId: string, payload: any): Promise<any> => {
+    const res = await apiClient.post<ApiResponse<any>>(`/compliance/workflows/${workflowId}/qc/findings`, payload);
+    return res.data.data;
+  },
+
+  getReviewFindings: async (workflowId: string): Promise<any[]> => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/compliance/workflows/${workflowId}/qc/findings`);
+    return res.data.data;
+  },
+
+  getReviewCycles: async (workflowId: string): Promise<any[]> => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/compliance/workflows/${workflowId}/qc/review-cycles`);
+    return res.data.data;
+  },
+
+  respondToFinding: async (workflowId: string, findingId: string, payload: { response: string }): Promise<any> => {
+    const res = await apiClient.post<ApiResponse<any>>(`/compliance/workflows/${workflowId}/qc/findings/${findingId}/respond`, payload);
+    return res.data.data;
+  },
+
+  resolveFinding: async (workflowId: string, findingId: string, payload: { decision: string; reviewerNotes?: string }): Promise<any> => {
+    const res = await apiClient.post<ApiResponse<any>>(`/compliance/workflows/${workflowId}/qc/findings/${findingId}/resolve`, payload);
+    return res.data.data;
+  },
 };
 
 export const capabilitiesApi = {

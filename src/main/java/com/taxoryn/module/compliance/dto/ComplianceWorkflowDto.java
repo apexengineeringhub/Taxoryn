@@ -159,6 +159,15 @@ public class ComplianceWorkflowDto {
     @Schema(description = "Filing authorization notes")
     private String authorizationNotes;
 
+    @Schema(description = "Active review cycle count", example = "1")
+    private int reviewCycle;
+
+    @Schema(description = "Last validated preparation fingerprint", example = "wf:1:chk:4/9:st:IN_PROGRESS")
+    private String lastValidationFingerprint;
+
+    @Schema(description = "Timestamp of last pre-review validation")
+    private Instant lastValidatedAt;
+
     @Schema(description = "Workflow completion timestamp")
     private Instant completedAt;
 

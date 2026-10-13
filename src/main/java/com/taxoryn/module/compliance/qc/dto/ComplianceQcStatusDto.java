@@ -102,6 +102,17 @@ public class ComplianceQcStatusDto {
     @Schema(description = "Validation details and check outcomes")
     private ComplianceQcValidationResultDto validationSummary;
 
+    // --- Review Cycles & Findings ---
+    @Schema(description = "Current review cycle number", example = "1")
+    private int reviewCycle;
+
+    @Schema(description = "Count of unresolved blocking findings", example = "0")
+    private int unresolvedFindingsCount;
+
+    @Schema(description = "List of review findings for the current/latest cycle")
+    @Builder.Default
+    private List<ComplianceQcReviewFindingDto> findings = new ArrayList<>();
+
     @Schema(description = "Actionable next step in the quality control chain", example = "Authorize filing with client confirmation")
     private String nextActionableStep;
 

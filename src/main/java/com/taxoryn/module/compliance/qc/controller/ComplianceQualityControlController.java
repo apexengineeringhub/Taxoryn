@@ -76,4 +76,59 @@ public class ComplianceQualityControlController {
         ComplianceWorkflowDto workflow = qcService.revokeFilingAuthorization(workflowId, request);
         return ResponseEntity.ok(ApiResponse.success("Filing authorization revoked", workflow));
     }
+
+    @PostMapping("/findings")
+    @PreAuthorize("hasAnyAuthority('REVIEW_APPROVE', 'REVIEW_REJECT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_MANAGER')")
+    @Operation(summary = "Record review finding", description = "Reviewer records a specific deficiency or finding during review.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto>> addReviewFinding(
+            @PathVariable UUID workflowId,
+            @Valid @RequestBody com.taxoryn.module.compliance.qc.dto.CreateReviewFindingRequest request
+    ) {
+        var finding = qcService.addReviewFinding(workflowId, request);
+        return ResponseEntity.ok(ApiResponse.success("Review finding recorded", finding));
+    }
+
+    @GetMapping("/findings")
+    @PreAuthorize("hasAnyAuthority('TASK_VIEW', 'CLIENT_VIEW', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'REVIEW_APPROVE', 'REVIEW_REJECT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
+    @Operation(summary = "Get review findings", description = "Retrieves all findings recorded across all review cycles for the workflow.")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto>>> getReviewFindings(
+            @PathVariable UUID workflowId
+    ) {
+        var findings = qcService.getReviewFindings(workflowId);
+        return ResponseEntity.ok(ApiResponse.success("Review findings retrieved", findings));
+    }
+
+    @GetMapping("/review-cycles")
+    @PreAuthorize("hasAnyAuthority('TASK_VIEW', 'CLIENT_VIEW', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'REVIEW_APPROVE', 'REVIEW_REJECT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_STAFF', 'ROLE_MANAGER')")
+    @Operation(summary = "Get review cycle history", description = "Retrieves review cycles with structured findings history.")
+    public ResponseEntity<ApiResponse<java.util.List<com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewCycleDto>>> getReviewCycles(
+            @PathVariable UUID workflowId
+    ) {
+        var cycles = qcService.getReviewCycles(workflowId);
+        return ResponseEntity.ok(ApiResponse.success("Review cycles retrieved", cycles));
+    }
+
+    @PostMapping("/findings/{findingId}/respond")
+    @PreAuthorize("hasAnyAuthority('TASK_EDIT', 'CLIENT_EDIT', 'REVIEW_SUBMIT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_STAFF', 'ROLE_PRACTITIONER', 'ROLE_MANAGER')")
+    @Operation(summary = "Respond to review finding", description = "Preparer records explanation and correction response for a finding.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto>> respondToFinding(
+            @PathVariable UUID workflowId,
+            @PathVariable UUID findingId,
+            @Valid @RequestBody com.taxoryn.module.compliance.qc.dto.RespondToFindingRequest request
+    ) {
+        var finding = qcService.respondToFinding(workflowId, findingId, request);
+        return ResponseEntity.ok(ApiResponse.success("Correction response recorded", finding));
+    }
+
+    @PostMapping("/findings/{findingId}/resolve")
+    @PreAuthorize("hasAnyAuthority('REVIEW_APPROVE', 'REVIEW_REJECT', 'ROLE_ORG_ADMIN', 'ROLE_ADMIN', 'ROLE_PRACTITIONER', 'ROLE_MANAGER')")
+    @Operation(summary = "Resolve or dismiss review finding", description = "Reviewer verifies correction and marks finding resolved or dismissed.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto>> resolveFinding(
+            @PathVariable UUID workflowId,
+            @PathVariable UUID findingId,
+            @Valid @RequestBody com.taxoryn.module.compliance.qc.dto.ResolveFindingRequest request
+    ) {
+        var finding = qcService.resolveFinding(workflowId, findingId, request);
+        return ResponseEntity.ok(ApiResponse.success("Finding resolution recorded", finding));
+    }
 }

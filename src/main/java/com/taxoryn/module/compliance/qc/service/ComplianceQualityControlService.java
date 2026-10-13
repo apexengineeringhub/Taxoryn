@@ -39,4 +39,38 @@ public interface ComplianceQualityControlService {
      * Throws BusinessValidationException if prerequisites are not satisfied.
      */
     void verifySubmissionPrerequisites(UUID workflowId);
+
+    /**
+     * Verifies that preparation validation has been executed, is currently passing, and is fresh.
+     * Throws BusinessValidationException if validation is missing, failing, or stale.
+     */
+    void verifyValidationFreshness(UUID workflowId);
+
+    /**
+     * Records a review finding on a compliance workflow during active review.
+     */
+    com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto addReviewFinding(
+            UUID workflowId, com.taxoryn.module.compliance.qc.dto.CreateReviewFindingRequest request);
+
+    /**
+     * Retrieves all findings recorded across all review cycles for a workflow.
+     */
+    java.util.List<com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto> getReviewFindings(UUID workflowId);
+
+    /**
+     * Retrieves review cycles history with findings grouped by cycle.
+     */
+    java.util.List<com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewCycleDto> getReviewCycles(UUID workflowId);
+
+    /**
+     * Preparer records a response to address a specific review finding.
+     */
+    com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto respondToFinding(
+            UUID workflowId, UUID findingId, com.taxoryn.module.compliance.qc.dto.RespondToFindingRequest request);
+
+    /**
+     * Reviewer resolves or dismisses a specific review finding.
+     */
+    com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto resolveFinding(
+            UUID workflowId, UUID findingId, com.taxoryn.module.compliance.qc.dto.ResolveFindingRequest request);
 }

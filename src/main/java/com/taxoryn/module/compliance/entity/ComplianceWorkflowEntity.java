@@ -129,6 +129,17 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
     @Column(name = "changes_requested_reason", columnDefinition = "TEXT")
     private String changesRequestedReason;
 
+    // --- Quality Control Review Cycle & Freshness Tracking ---
+    @Column(name = "review_cycle", nullable = false)
+    @Builder.Default
+    private int reviewCycle = 1;
+
+    @Column(name = "last_validation_fingerprint", length = 255)
+    private String lastValidationFingerprint;
+
+    @Column(name = "last_validated_at")
+    private Instant lastValidatedAt;
+
     @Column(name = "approved_at")
     private Instant approvedAt;
 

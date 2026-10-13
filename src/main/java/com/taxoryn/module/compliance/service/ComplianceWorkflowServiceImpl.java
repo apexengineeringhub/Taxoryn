@@ -84,6 +84,7 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final AuditService auditService;
     private final org.springframework.beans.factory.ObjectProvider<com.taxoryn.module.compliance.qc.service.ComplianceQualityControlService> qcServiceProvider;
+    private final com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
 
     // Standard 9 Execution Checkpoints
     private static final List<ChecklistSeedSpec> DEFAULT_CHECKLIST_SEEDS = List.of(
@@ -648,6 +649,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
             throw new ForbiddenException("The preparer cannot approve their own review");
         }
 
+        // Verify Phase 31.2 Pre-Review Validation Freshness
+        qcServiceProvider.ifAvailable(qc -> qc.verifyValidationFreshness(workflow.getId()));
+
         workflow.validateTransition(ComplianceWorkflowStatus.UNDER_REVIEW);
         String oldStatus = workflow.getWorkflowStatus().name();
 
@@ -715,6 +719,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
         workflow.setReviewedAt(Instant.now());
         workflow.setReviewedBy(SecurityUtils.getCurrentUserEmail());
 
+        // Increment review cycle for the upcoming correction cycle
+        workflow.setReviewCycle(workflow.getReviewCycle() + 1);
+
         workflowRepository.save(workflow);
 
         obligationRepository.findByIdAndOrganizationId(workflow.getComplianceObligationId(), organizationId)
@@ -744,6 +751,17 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
         validateClientAccess(scope, workflow.getClientId());
         requireReviewPermission("REVIEW_APPROVE");
         requireCurrentAssignedReviewer(workflow, organizationId);
+
+        // Enforce that all blocking review findings in the active cycle are resolved
+        qcServiceProvider.ifAvailable(qc -> {
+            long unresolved = findingRepository.countUnresolvedBlockingFindings(
+                    organizationId, workflow.getId(), java.util.List.of(
+                            com.taxoryn.module.compliance.qc.model.ComplianceQcFindingStatus.OPEN,
+                            com.taxoryn.module.compliance.qc.model.ComplianceQcFindingStatus.CORRECTED));
+            if (unresolved > 0) {
+                throw new BusinessValidationException("Cannot approve compliance workflow: " + unresolved + " blocking review finding(s) remain unresolved");
+            }
+        });
 
         workflow.validateTransition(ComplianceWorkflowStatus.READY_FOR_FILING);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -1321,6 +1339,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .authorizationMethod(workflow.getAuthorizationMethod())
                 .authorizationReference(workflow.getAuthorizationReference())
                 .authorizationNotes(workflow.getAuthorizationNotes())
+                .reviewCycle(workflow.getReviewCycle())
+                .lastValidationFingerprint(workflow.getLastValidationFingerprint())
+                .lastValidatedAt(workflow.getLastValidatedAt())
                 .completedAt(workflow.getCompletedAt())
                 .createdAt(workflow.getCreatedAt())
                 .updatedAt(workflow.getUpdatedAt())

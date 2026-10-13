@@ -97,6 +97,9 @@ public class ComplianceQualityControlIntegrationTest {
     private EmployeeRepository employeeRepository;
 
     @Autowired
+    private com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
+
+    @Autowired
     private RoleRepository roleRepository;
 
     @Autowired
@@ -322,6 +325,7 @@ public class ComplianceQualityControlIntegrationTest {
     }
 
     private void cleanUp() {
+        findingRepository.deleteAll();
         checklistItemRepository.deleteAll();
         workflowRepository.deleteAll();
         obligationRepository.deleteAll();
@@ -405,7 +409,12 @@ public class ComplianceQualityControlIntegrationTest {
                 .andExpect(jsonPath("$.data.changesRequired").value(true))
                 .andExpect(jsonPath("$.data.nextActionableStep").value(containsString("Inward RCM supplies liability discrepancy")));
 
-        // 5. Maker addresses findings and resubmits for review
+        // 5. Maker addresses findings, re-validates, and resubmits for review
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true));
+
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
@@ -505,6 +514,10 @@ public class ComplianceQualityControlIntegrationTest {
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
 
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
@@ -538,6 +551,10 @@ public class ComplianceQualityControlIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
 
@@ -728,7 +745,7 @@ public class ComplianceQualityControlIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
 
         String fingerprint1 = objectMapper.readTree(validationResp).path("data").path("preparationFingerprint").asText();
-        assertThat(fingerprint1).startsWith("wf:").contains(":chk:").contains(":st:IN_PROGRESS");
+        assertThat(fingerprint1).startsWith("chk:").contains(":st:IN_PROGRESS");
 
         // Submit for review - fingerprint should reflect state progression
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
@@ -743,5 +760,226 @@ public class ComplianceQualityControlIntegrationTest {
         String fingerprint2 = objectMapper.readTree(validationResp2).path("data").path("preparationFingerprint").asText();
         assertThat(fingerprint2).contains(":st:UNDER_REVIEW");
         assertThat(fingerprint2).isNotEqualTo(fingerprint1);
+    }
+
+    @Test
+    @DisplayName("Phase 31.3 Review Findings Lifecycle: Record, Respond, Resolve, Multi-Cycle History, and Approval Gate")
+    void testReviewFindings_FullLifecycleAndApprovalGate() throws Exception {
+        // 1. Initialize workflow
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // Validate first before submit
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true));
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // 2. Maker attempts to add finding -> Forbidden (Four-Eyes / Reviewer only)
+        com.taxoryn.module.compliance.qc.dto.CreateReviewFindingRequest findingReq =
+                com.taxoryn.module.compliance.qc.dto.CreateReviewFindingRequest.builder()
+                        .category("CALCULATION")
+                        .severity("BLOCKING")
+                        .description("ITC under Rule 42 does not reconcile with purchase register")
+                        .correctiveGuidance("Reverse Rs. 14,250 in Table 4(B)(2)")
+                        .sourceReference("Table 4(A)(5)")
+                        .build();
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/findings")
+                        .header("Authorization", "Bearer " + makerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(findingReq)))
+                .andExpect(status().isForbidden());
+
+        // 3. Reviewer records finding -> OK (Cycle 1)
+        String addFindingResp = mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/findings")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(findingReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("OPEN"))
+                .andExpect(jsonPath("$.data.reviewCycle").value(1))
+                .andExpect(jsonPath("$.data.severity").value("BLOCKING"))
+                .andReturn().getResponse().getContentAsString();
+
+        UUID findingId = UUID.fromString(objectMapper.readTree(addFindingResp).path("data").path("id").asText());
+
+        // 4. Reviewer attempts to approve with unresolved blocking finding -> Fails (400)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder().notes("Looks okay").build())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("blocking review finding")));
+
+        // 5. Reviewer requests changes -> advances workflow to reviewCycle = 2, status = CHANGES_REQUIRED
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/request-changes")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(RequestWorkflowChangesRequest.builder()
+                                .reason("Please resolve ITC discrepancy findings")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.workflowStatus").value("CHANGES_REQUIRED"))
+                .andExpect(jsonPath("$.data.reviewCycle").value(2));
+
+        // 6. Preparer validates while finding is still OPEN -> Validation fails due to open blocking finding
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(false))
+                .andExpect(jsonPath("$.data.blockers[0]", containsString("blocking review finding")));
+
+        // 7. Preparer tries to submit review without addressing finding -> Fails (400)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("unresolved blocking review findings")));
+
+        // 8. Preparer responds to finding -> status becomes CORRECTED
+        com.taxoryn.module.compliance.qc.dto.RespondToFindingRequest respondReq =
+                com.taxoryn.module.compliance.qc.dto.RespondToFindingRequest.builder()
+                        .response("Reversed Rs. 14,250 in Table 4(B)(2) as instructed")
+                        .build();
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/findings/" + findingId + "/respond")
+                        .header("Authorization", "Bearer " + makerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(respondReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CORRECTED"))
+                .andExpect(jsonPath("$.data.preparerResponse").value("Reversed Rs. 14,250 in Table 4(B)(2) as instructed"));
+
+        // 9. Re-run validation after response -> Validation now passes for resubmission
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true));
+
+        // 10. Resubmit review -> Succeeds (UNDER_REVIEW)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.workflowStatus").value("UNDER_REVIEW"));
+
+        // 11. Reviewer attempts to approve while finding is only CORRECTED (not yet RESOLVED) -> Fails (400)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder().notes("Premature approval").build())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("blocking review finding")));
+
+        // 12. Reviewer resolves finding -> status becomes RESOLVED
+        com.taxoryn.module.compliance.qc.dto.ResolveFindingRequest resolveReq =
+                com.taxoryn.module.compliance.qc.dto.ResolveFindingRequest.builder()
+                        .decision("RESOLVED")
+                        .reviewerNotes("Reversal verified in revised purchase ledger")
+                        .build();
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/findings/" + findingId + "/resolve")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resolveReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.data.resolutionDecision").value("RESOLVED"));
+
+        // 13. Reviewer approves -> Succeeds now that blocking findings are RESOLVED
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ApproveWorkflowRequest.builder().notes("All clear").build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.workflowStatus").value("READY_FOR_FILING"));
+
+        // 14. Check review cycles audit endpoint
+        mockMvc.perform(get("/api/v1/compliance/workflows/" + workflowId + "/qc/review-cycles")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].cycleNumber").value(1))
+                .andExpect(jsonPath("$.data[0].totalFindings").value(1))
+                .andExpect(jsonPath("$.data[0].unresolvedFindings").value(0));
+    }
+
+    @Test
+    @DisplayName("Phase 31.3 Validation Freshness: Stale Validation Blocks Submit-Review")
+    void testValidationFreshness_StaleValidationBlocksSubmission() throws Exception {
+        // Initialize workflow
+        String createResp = mockMvc.perform(post("/api/v1/compliance/obligations/" + obligation.getId() + "/workflow")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID workflowId = UUID.fromString(objectMapper.readTree(createResp).path("data").path("id").asText());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/assign")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AssignComplianceWorkflowRequest.builder()
+                                .assignedEmployeeId(makerEmployee.getId())
+                                .reviewerEmployeeId(reviewerEmployee.getId())
+                                .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        // 1. Submit review without having run validation -> Fails
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("message", containsString("Pre-review Quality Control validation has not been executed")));
+
+        // 2. Run validation -> Stores fresh fingerprint
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true));
+
+        // 3. Mutate checklist item (completes a step) -> Fingerprint becomes stale
+        ComplianceWorkflowEntity wf = workflowRepository.findById(workflowId).orElseThrow();
+        var checklistItems = checklistItemRepository.findByWorkflowIdAndOrganizationIdOrderBySequenceOrderAsc(workflowId, org.getId());
+        var firstItem = checklistItems.get(0);
+        firstItem.setCompleted(true);
+        checklistItemRepository.save(firstItem);
+
+        // Submit review -> Fails because computed fingerprint differs from stored lastValidationFingerprint
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("message", containsString("stale")));
+
+        // 4. Re-run validation to refresh fingerprint
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true));
+
+        // 5. Submit review -> Succeeds
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.workflowStatus").value("UNDER_REVIEW"));
     }
 }

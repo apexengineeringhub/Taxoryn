@@ -424,7 +424,11 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.data.workflowStatus").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.data.waitingForClient").value(false));
 
-        // 5. Submit for Review (by Maker)
+        // 5. Submit for Review (by Maker) - validates freshness first
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
@@ -440,7 +444,11 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("CHANGES_REQUIRED"));
 
-        // 7. Resubmit -> Submit review (by Maker)
+        // 7. Resubmit -> Re-validate and Submit review (by Maker)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
@@ -520,6 +528,10 @@ public class ComplianceWorkflowIntegrationTest {
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
 
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
@@ -572,6 +584,10 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
 

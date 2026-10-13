@@ -16,11 +16,19 @@ import com.taxoryn.module.compliance.entity.ComplianceWorkflowEntity;
 import com.taxoryn.module.compliance.model.ComplianceWorkflowStatus;
 import com.taxoryn.module.compliance.qc.dto.AuthorizeFilingRequest;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcCheckItemDto;
+import com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewCycleDto;
+import com.taxoryn.module.compliance.qc.dto.ComplianceQcReviewFindingDto;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcStatusDto;
 import com.taxoryn.module.compliance.qc.dto.ComplianceQcValidationResultDto;
+import com.taxoryn.module.compliance.qc.dto.CreateReviewFindingRequest;
+import com.taxoryn.module.compliance.qc.dto.ResolveFindingRequest;
+import com.taxoryn.module.compliance.qc.dto.RespondToFindingRequest;
 import com.taxoryn.module.compliance.qc.dto.RevokeAuthorizationRequest;
+import com.taxoryn.module.compliance.qc.entity.ComplianceQcReviewFindingEntity;
 import com.taxoryn.module.compliance.qc.model.ComplianceQcCheckStatus;
+import com.taxoryn.module.compliance.qc.model.ComplianceQcFindingStatus;
 import com.taxoryn.module.compliance.qc.model.ComplianceQcStage;
+import com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository;
 import com.taxoryn.module.compliance.qc.service.ComplianceQualityControlService;
 import com.taxoryn.module.compliance.repository.ComplianceObligationRepository;
 import com.taxoryn.module.compliance.repository.ComplianceWorkflowChecklistItemRepository;
@@ -38,10 +46,13 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -58,6 +69,7 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
     private final PracticeSecurityScopeEvaluator scopeEvaluator;
     private final AuditService auditService;
     private final ComplianceWorkflowService workflowService;
+    private final com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
 
     public ComplianceQualityControlServiceImpl(
             ComplianceWorkflowRepository workflowRepository,
@@ -68,7 +80,8 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
             UserRepository userRepository,
             PracticeSecurityScopeEvaluator scopeEvaluator,
             AuditService auditService,
-            @Lazy ComplianceWorkflowService workflowService
+            @Lazy ComplianceWorkflowService workflowService,
+            com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository
     ) {
         this.workflowRepository = workflowRepository;
         this.checklistItemRepository = checklistItemRepository;
@@ -79,6 +92,7 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
         this.scopeEvaluator = scopeEvaluator;
         this.auditService = auditService;
         this.workflowService = workflowService;
+        this.findingRepository = findingRepository;
     }
 
     @Override
@@ -134,13 +148,18 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
                 .filedBy(workflow.getFiledBy())
                 .acknowledgementNumber(workflow.getAcknowledgementNumber())
                 .validationSummary(validationResult)
+                .reviewCycle(workflow.getReviewCycle())
+                .unresolvedFindingsCount((int) findingRepository.countUnresolvedBlockingFindings(
+                        orgId, workflow.getId(), List.of(ComplianceQcFindingStatus.OPEN, ComplianceQcFindingStatus.CORRECTED)))
+                .findings(findingRepository.findByOrganizationIdAndWorkflowIdAndReviewCycleOrderByCreatedAtAsc(
+                        orgId, workflow.getId(), workflow.getReviewCycle()).stream().map(this::mapFindingToDto).toList())
                 .nextActionableStep(nextStep)
                 .allowedActions(allowedActions)
                 .build();
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ComplianceQcValidationResultDto validateForReview(UUID workflowId) {
         UUID orgId = SecurityUtils.getCurrentOrganizationId();
         PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
@@ -151,6 +170,11 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
         ClientEntity client = clientRepository.findByIdAndOrganizationId(workflow.getClientId(), orgId).orElse(null);
 
         ComplianceQcValidationResultDto result = evaluateValidation(workflow, obligation, client, orgId);
+
+        // Persist validation freshness fingerprint and timestamp on workflow
+        workflow.setLastValidationFingerprint(result.getPreparationFingerprint());
+        workflow.setLastValidatedAt(result.getValidatedAt());
+        workflowRepository.save(workflow);
 
         auditService.logEvent(
                 "COMPLIANCE_PREPARATION_VALIDATED",
@@ -276,6 +300,251 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
         if (!workflow.isAuthorized()) {
             throw new BusinessValidationException("Cannot submit compliance filing: explicit filing authorization has not been granted. Authorization is required prior to statutory submission.");
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void verifyValidationFreshness(UUID workflowId) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        ComplianceWorkflowEntity workflow = getWorkflowWithChecklistOrThrow(workflowId, orgId);
+
+        if (workflow.getLastValidationFingerprint() == null || workflow.getLastValidatedAt() == null) {
+            throw new BusinessValidationException("Pre-review Quality Control validation has not been executed for this workflow");
+        }
+
+        String currentFingerprint = computePreparationFingerprint(workflow);
+        if (!currentFingerprint.equals(workflow.getLastValidationFingerprint())) {
+            throw new BusinessValidationException("Validation result is stale: preparation data or checkpoints have been modified since last validation. Re-run validation before submitting for review.");
+        }
+
+        // Check if any unresolved blocking findings exist from prior review cycles
+        long unresolvedBlockers = findingRepository.countUnresolvedBlockingFindings(
+                orgId, workflowId, List.of(ComplianceQcFindingStatus.OPEN));
+        if (unresolvedBlockers > 0) {
+            throw new BusinessValidationException("Workflow has " + unresolvedBlockers + " unresolved blocking review findings that require correction before resubmission");
+        }
+
+        // Re-evaluate validation rules to ensure valid=true
+        ComplianceObligationEntity obligation = obligationRepository.findByIdAndOrganizationId(workflow.getComplianceObligationId(), orgId).orElse(null);
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(workflow.getClientId(), orgId).orElse(null);
+        ComplianceQcValidationResultDto validationResult = evaluateValidation(workflow, obligation, client, orgId);
+        if (!validationResult.isValid()) {
+            throw new BusinessValidationException("Validation requirements not satisfied: " + String.join("; ", validationResult.getBlockers()));
+        }
+    }
+
+    @Override
+    @Transactional
+    public ComplianceQcReviewFindingDto addReviewFinding(UUID workflowId, CreateReviewFindingRequest request) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, orgId);
+        validateClientAccess(scope, workflow.getClientId());
+
+        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.UNDER_REVIEW) {
+            throw new BusinessValidationException("Review findings can only be recorded when workflow is in UNDER_REVIEW status");
+        }
+
+        // Enforce Four-Eyes: only the assigned reviewer can record review findings
+        requireReviewerAuthority(workflow, orgId);
+
+        if (request == null || !StringUtils.hasText(request.getDescription())) {
+            throw new BusinessValidationException("Finding description is required");
+        }
+
+        String severity = "ADVISORY".equalsIgnoreCase(request.getSeverity()) ? "ADVISORY" : "BLOCKING";
+
+        ComplianceQcReviewFindingEntity finding = ComplianceQcReviewFindingEntity.builder()
+                .workflow(workflow)
+                .reviewCycle(workflow.getReviewCycle())
+                .category(StringUtils.hasText(request.getCategory()) ? request.getCategory() : "GENERAL")
+                .severity(severity)
+                .description(request.getDescription())
+                .correctiveGuidance(request.getCorrectiveGuidance())
+                .sourceReference(request.getSourceReference())
+                .status(ComplianceQcFindingStatus.OPEN)
+                .build();
+        finding.setOrganizationId(orgId);
+
+        ComplianceQcReviewFindingEntity saved = findingRepository.save(finding);
+
+        auditService.logEvent(
+                "COMPLIANCE_REVIEW_FINDING_RECORDED",
+                "COMPLIANCE_WORKFLOW",
+                workflow.getId().toString(),
+                "CYCLE_" + workflow.getReviewCycle(),
+                severity + ": " + request.getDescription()
+        );
+
+        return mapFindingToDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ComplianceQcReviewFindingDto> getReviewFindings(UUID workflowId) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, orgId);
+        validateClientAccess(scope, workflow.getClientId());
+
+        return findingRepository.findByOrganizationIdAndWorkflowIdOrderByReviewCycleAscCreatedAtAsc(orgId, workflowId)
+                .stream().map(this::mapFindingToDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ComplianceQcReviewCycleDto> getReviewCycles(UUID workflowId) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, orgId);
+        validateClientAccess(scope, workflow.getClientId());
+
+        List<ComplianceQcReviewFindingEntity> allFindings = findingRepository
+                .findByOrganizationIdAndWorkflowIdOrderByReviewCycleAscCreatedAtAsc(orgId, workflowId);
+
+        Map<Integer, List<ComplianceQcReviewFindingEntity>> grouped = allFindings.stream()
+                .collect(Collectors.groupingBy(ComplianceQcReviewFindingEntity::getReviewCycle));
+
+        int maxCycle = Math.max(workflow.getReviewCycle(), grouped.keySet().stream().max(Integer::compareTo).orElse(1));
+
+        List<ComplianceQcReviewCycleDto> result = new ArrayList<>();
+        for (int c = 1; c <= maxCycle; c++) {
+            List<ComplianceQcReviewFindingEntity> cycleFindings = grouped.getOrDefault(c, Collections.emptyList());
+            int unresolved = (int) cycleFindings.stream()
+                    .filter(f -> f.getStatus() == ComplianceQcFindingStatus.OPEN || f.getStatus() == ComplianceQcFindingStatus.CORRECTED)
+                    .count();
+            result.add(ComplianceQcReviewCycleDto.builder()
+                    .cycleNumber(c)
+                    .totalFindings(cycleFindings.size())
+                    .unresolvedFindings(unresolved)
+                    .findings(cycleFindings.stream().map(this::mapFindingToDto).toList())
+                    .build());
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public ComplianceQcReviewFindingDto respondToFinding(UUID workflowId, UUID findingId, RespondToFindingRequest request) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, orgId);
+        validateClientAccess(scope, workflow.getClientId());
+
+        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.CHANGES_REQUIRED
+                && workflow.getWorkflowStatus() != ComplianceWorkflowStatus.IN_PROGRESS) {
+            throw new BusinessValidationException("Responses can only be provided when workflow is in CHANGES_REQUIRED or IN_PROGRESS status");
+        }
+
+        ComplianceQcReviewFindingEntity finding = findingRepository.findByIdAndOrganizationId(findingId, orgId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review finding not found: " + findingId));
+
+        if (!finding.getWorkflow().getId().equals(workflowId)) {
+            throw new BusinessValidationException("Finding does not belong to specified workflow");
+        }
+
+        if (request == null || !StringUtils.hasText(request.getResponse())) {
+            throw new BusinessValidationException("Preparer response text is required");
+        }
+
+        finding.setPreparerResponse(request.getResponse());
+        finding.setRespondedAt(Instant.now());
+        finding.setRespondedByUserId(SecurityUtils.getCurrentUserId());
+        finding.setStatus(ComplianceQcFindingStatus.CORRECTED);
+
+        ComplianceQcReviewFindingEntity saved = findingRepository.save(finding);
+
+        auditService.logEvent(
+                "COMPLIANCE_REVIEW_FINDING_RESPONDED",
+                "COMPLIANCE_QC_FINDING",
+                saved.getId().toString(),
+                "OPEN",
+                "CORRECTED: " + request.getResponse()
+        );
+
+        return mapFindingToDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public ComplianceQcReviewFindingDto resolveFinding(UUID workflowId, UUID findingId, ResolveFindingRequest request) {
+        UUID orgId = SecurityUtils.getCurrentOrganizationId();
+        PracticeSecurityScope scope = scopeEvaluator.evaluateCurrentScope();
+        ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, orgId);
+        validateClientAccess(scope, workflow.getClientId());
+
+        // Enforce Four-Eyes: only the assigned reviewer can resolve review findings
+        requireReviewerAuthority(workflow, orgId);
+
+        ComplianceQcReviewFindingEntity finding = findingRepository.findByIdAndOrganizationId(findingId, orgId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review finding not found: " + findingId));
+
+        if (!finding.getWorkflow().getId().equals(workflowId)) {
+            throw new BusinessValidationException("Finding does not belong to specified workflow");
+        }
+
+        boolean isDismiss = "DISMISSED".equalsIgnoreCase(request != null ? request.getDecision() : "");
+        finding.setStatus(isDismiss ? ComplianceQcFindingStatus.DISMISSED : ComplianceQcFindingStatus.RESOLVED);
+        finding.setResolutionDecision(isDismiss ? "DISMISSED" : "RESOLVED");
+        finding.setResolvedAt(Instant.now());
+        finding.setResolvedByUserId(SecurityUtils.getCurrentUserId());
+        if (request != null && StringUtils.hasText(request.getReviewerNotes())) {
+            finding.setReviewerNotes(request.getReviewerNotes());
+        }
+
+        ComplianceQcReviewFindingEntity saved = findingRepository.save(finding);
+
+        auditService.logEvent(
+                "COMPLIANCE_REVIEW_FINDING_RESOLVED",
+                "COMPLIANCE_QC_FINDING",
+                saved.getId().toString(),
+                "CORRECTED",
+                finding.getStatus().name()
+        );
+
+        return mapFindingToDto(saved);
+    }
+
+    private void requireReviewerAuthority(ComplianceWorkflowEntity workflow, UUID orgId) {
+        if (!SecurityUtils.hasAuthority("REVIEW_APPROVE") && !SecurityUtils.hasAuthority("REVIEW_REJECT")) {
+            throw new ForbiddenException("Missing review decision permissions (REVIEW_APPROVE / REVIEW_REJECT required)");
+        }
+        if (workflow.getReviewerEmployeeId() == null) {
+            throw new BusinessValidationException("No reviewer assigned to this workflow");
+        }
+        EmployeeEntity reviewer = employeeRepository.findByIdAndOrganizationId(workflow.getReviewerEmployeeId(), orgId).orElse(null);
+        if (reviewer == null || reviewer.getUserId() == null) {
+            throw new BusinessValidationException("Assigned reviewer record is invalid");
+        }
+        if (reviewer.getUserId().equals(workflow.getAssignedUserId())) {
+            throw new ForbiddenException("Four-Eyes violation: Preparer cannot act as reviewer");
+        }
+        if (!SecurityUtils.getCurrentUserId().equals(reviewer.getUserId()) && !SecurityUtils.hasRole("ORG_ADMIN")) {
+            throw new ForbiddenException("Only the assigned reviewer can record or resolve review findings");
+        }
+    }
+
+    private ComplianceQcReviewFindingDto mapFindingToDto(ComplianceQcReviewFindingEntity entity) {
+        return ComplianceQcReviewFindingDto.builder()
+                .id(entity.getId())
+                .workflowId(entity.getWorkflow().getId())
+                .reviewCycle(entity.getReviewCycle())
+                .category(entity.getCategory())
+                .severity(entity.getSeverity())
+                .description(entity.getDescription())
+                .correctiveGuidance(entity.getCorrectiveGuidance())
+                .sourceReference(entity.getSourceReference())
+                .status(entity.getStatus())
+                .preparerResponse(entity.getPreparerResponse())
+                .respondedAt(entity.getRespondedAt())
+                .respondedByUserId(entity.getRespondedByUserId())
+                .resolutionDecision(entity.getResolutionDecision())
+                .resolvedAt(entity.getResolvedAt())
+                .resolvedByUserId(entity.getResolvedByUserId())
+                .reviewerNotes(entity.getReviewerNotes())
+                .createdAt(entity.getCreatedAt())
+                .createdBy(entity.getCreatedBy())
+                .build();
     }
 
     // =========================================================================
@@ -611,6 +880,30 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
             warnings.add("Client or obligation record is missing for statutory identifier validation");
         }
 
+        // Check 7: Review Findings Resolution (Enforce no open blocking findings)
+        long openBlockers = findingRepository.countUnresolvedBlockingFindings(
+                orgId, workflow.getId(), List.of(ComplianceQcFindingStatus.OPEN));
+        boolean findingsPassed = openBlockers == 0;
+        checks.add(ComplianceQcCheckItemDto.builder()
+                .checkKey("REVIEW_FINDINGS_RESOLVED")
+                .checkName("Review Findings Resolution")
+                .category("REVIEW")
+                .description("Ensures all blocking review findings recorded by reviewers are addressed")
+                .status(findingsPassed ? ComplianceQcCheckStatus.PASS : ComplianceQcCheckStatus.FAIL)
+                .passed(findingsPassed)
+                .required(true)
+                .severity("BLOCKING")
+                .message(findingsPassed ? "Zero open blocking review findings" : openBlockers + " open blocking review finding(s) require correction")
+                .correctiveHint(findingsPassed ? null : "Review the recorded findings list, provide correction responses, and address findings before resubmission")
+                .sourceReference("CYCLE_" + workflow.getReviewCycle())
+                .evaluatedAt(now)
+                .checkVersion(RULE_VERSION)
+                .build());
+        if (!findingsPassed) {
+            blockers.add(openBlockers + " blocking review finding(s) remain open and require correction");
+            correctiveActions.add("Address and resolve open review findings from cycle " + workflow.getReviewCycle());
+        }
+
         int total = checks.size();
         int passed = (int) checks.stream().filter(c -> c.getStatus() == ComplianceQcCheckStatus.PASS).count();
         int failed = (int) checks.stream().filter(c -> c.getStatus() == ComplianceQcCheckStatus.FAIL).count();
@@ -639,7 +932,6 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
     }
 
     private String computePreparationFingerprint(ComplianceWorkflowEntity workflow) {
-        long version = workflow.getVersion() != null ? workflow.getVersion() : 0L;
         int completedCount = 0;
         int totalItems = 0;
         if (workflow.getChecklistItems() != null) {
@@ -648,8 +940,7 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
                     .filter(ComplianceWorkflowChecklistItemEntity::isCompleted)
                     .count();
         }
-        return String.format("wf:%d:chk:%d/%d:st:%s",
-                version,
+        return String.format("chk:%d/%d:st:%s",
                 completedCount,
                 totalItems,
                 workflow.getWorkflowStatus().name());
@@ -710,6 +1001,9 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
             if (SecurityUtils.hasAuthority("REVIEW_SUBMIT")) {
                 actions.add("SUBMIT_REVIEW");
             }
+            if (stage == ComplianceQcStage.CORRECTION) {
+                actions.add("RESPOND_FINDING");
+            }
         }
         if (stage == ComplianceQcStage.REVIEW) {
             if (SecurityUtils.hasAuthority("REVIEW_APPROVE")) {
@@ -718,6 +1012,8 @@ public class ComplianceQualityControlServiceImpl implements ComplianceQualityCon
             if (SecurityUtils.hasAuthority("REVIEW_REJECT")) {
                 actions.add("REQUEST_CHANGES");
             }
+            actions.add("RECORD_FINDING");
+            actions.add("RESOLVE_FINDING");
         }
         if (stage == ComplianceQcStage.APPROVAL) {
             actions.add("AUTHORIZE_FILING");

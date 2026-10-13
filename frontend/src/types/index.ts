@@ -5185,6 +5185,9 @@ export interface ComplianceWorkflowDto {
   authorizationMethod?: ComplianceAuthorizationMethod;
   authorizationReference?: string;
   authorizationNotes?: string;
+  reviewCycle?: number;
+  lastValidationFingerprint?: string;
+  lastValidatedAt?: string;
   completedAt?: string;
   createdAt: string;
   updatedAt?: string;
@@ -5295,8 +5298,62 @@ export interface ComplianceQcStatusDto {
   filedBy?: string;
   acknowledgementNumber?: string;
   validationSummary?: ComplianceQcValidationResultDto;
+  reviewCycle?: number;
+  unresolvedFindingsCount?: number;
+  findings?: ComplianceQcReviewFindingDto[];
   nextActionableStep?: string;
   allowedActions: string[];
+}
+
+export type ComplianceQcFindingStatus =
+  | 'OPEN'
+  | 'CORRECTED'
+  | 'RESOLVED'
+  | 'DISMISSED';
+
+export interface ComplianceQcReviewFindingDto {
+  id: string;
+  workflowId: string;
+  reviewCycle: number;
+  category: string;
+  severity: string;
+  description: string;
+  correctiveGuidance?: string;
+  sourceReference?: string;
+  status: ComplianceQcFindingStatus;
+  preparerResponse?: string;
+  respondedAt?: string;
+  respondedByUserId?: string;
+  resolutionDecision?: string;
+  resolvedAt?: string;
+  resolvedByUserId?: string;
+  reviewerNotes?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface ComplianceQcReviewCycleDto {
+  cycleNumber: number;
+  totalFindings: number;
+  unresolvedFindings: number;
+  findings: ComplianceQcReviewFindingDto[];
+}
+
+export interface CreateReviewFindingRequest {
+  category: string;
+  severity: string;
+  description: string;
+  correctiveGuidance?: string;
+  sourceReference?: string;
+}
+
+export interface RespondToFindingRequest {
+  response: string;
+}
+
+export interface ResolveFindingRequest {
+  decision: string;
+  reviewerNotes?: string;
 }
 
 export interface ComplianceWorkbenchSummaryDto {
