@@ -29,7 +29,7 @@ import java.util.UUID;
  * REST Controller for Compliance Calendar and Deadline Radar operations.
  */
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping({"/api/v1", "/api"})
 @RequiredArgsConstructor
 @Tag(name = "Compliance Calendar & Deadline Radar", description = "Phase 29.6: Projection and prioritization layer for statutory compliance deadlines")
 @SecurityRequirement(name = "BearerAuth")

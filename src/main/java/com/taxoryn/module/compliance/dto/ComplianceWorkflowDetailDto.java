@@ -37,6 +37,12 @@ public class ComplianceWorkflowDetailDto {
     @Schema(description = "Name/email of reviewer who approved the workflow")
     private String approvedBy;
 
+    @Schema(description = "Name/email of person who authorized filing")
+    private String authorizedBy;
+
+    @Schema(description = "Filing authorization notes")
+    private String authorizationNotes;
+
     @Schema(description = "Name/email of user who recorded waiting-for-client")
     private String waitingRequestedBy;
 

@@ -8,6 +8,8 @@ import com.taxoryn.module.client.entity.ClientEntity.ClientStatus;
 import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.compliance.dto.ApproveWorkflowRequest;
+import com.taxoryn.module.compliance.qc.dto.AuthorizeFilingRequest;
+import com.taxoryn.module.compliance.qc.model.ComplianceAuthorizationMethod;
 import com.taxoryn.module.compliance.dto.AssignComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.CompleteComplianceWorkflowRequest;
 import com.taxoryn.module.compliance.dto.CreateComplianceWorkflowRequest;
@@ -76,6 +78,12 @@ public class ComplianceWorkflowIntegrationTest {
 
     @Autowired
     private ComplianceWorkflowChecklistItemRepository checklistItemRepository;
+
+    @Autowired
+    private com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
+
+    @Autowired
+    private com.taxoryn.module.compliance.qc.repository.ComplianceQcAuthorizationRecordRepository authorizationRecordRepository;
 
     @Autowired
     private ComplianceObligationRepository obligationRepository;
@@ -292,6 +300,8 @@ public class ComplianceWorkflowIntegrationTest {
     }
 
     private void cleanUp() {
+        authorizationRecordRepository.deleteAll();
+        findingRepository.deleteAll();
         checklistItemRepository.deleteAll();
         workflowRepository.deleteAll();
         obligationRepository.deleteAll();
@@ -422,7 +432,11 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.data.workflowStatus").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.data.waitingForClient").value(false));
 
-        // 5. Submit for Review (by Maker)
+        // 5. Submit for Review (by Maker) - validates freshness first
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
@@ -438,7 +452,11 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("CHANGES_REQUIRED"));
 
-        // 7. Resubmit -> Submit review (by Maker)
+        // 7. Resubmit -> Re-validate and Submit review (by Maker)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/submit-review")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk())
@@ -453,6 +471,18 @@ public class ComplianceWorkflowIntegrationTest {
                                 .build())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.workflowStatus").value("READY_FOR_FILING"));
+
+        // 8b. Authorize Filing (Quality Control Stage)
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/authorize-filing")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AuthorizeFilingRequest.builder()
+                                .authorizationMethod(ComplianceAuthorizationMethod.CLIENT_CONSENT)
+                                .authorizationReference("CLIENT-APPROVAL-2026-08")
+                                .authorizationNotes("Signed computation sheet received via email")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.authorized").value(true));
 
         // 9. Mark Filed (by Maker)
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/mark-filed")
@@ -503,6 +533,10 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
 
@@ -558,6 +592,10 @@ public class ComplianceWorkflowIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/start")
+                        .header("Authorization", "Bearer " + makerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/compliance/workflows/" + workflowId + "/qc/validate")
                         .header("Authorization", "Bearer " + makerToken))
                 .andExpect(status().isOk());
 

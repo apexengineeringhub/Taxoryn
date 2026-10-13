@@ -5179,6 +5179,15 @@ export interface ComplianceWorkflowDto {
   startedAt?: string;
   submittedAt?: string;
   approvedAt?: string;
+  isAuthorized?: boolean;
+  authorizedAt?: string;
+  authorizedBy?: string;
+  authorizationMethod?: ComplianceAuthorizationMethod;
+  authorizationReference?: string;
+  authorizationNotes?: string;
+  reviewCycle?: number;
+  lastValidationFingerprint?: string;
+  lastValidatedAt?: string;
   completedAt?: string;
   createdAt: string;
   updatedAt?: string;
@@ -5191,10 +5200,175 @@ export interface ComplianceWorkflowDetailDto {
   reviewNotes?: string;
   changesRequestedReason?: string;
   approvedBy?: string;
+  authorizedBy?: string;
+  authorizationNotes?: string;
   waitingRequestedBy?: string;
   filedBy?: string;
   completedBy?: string;
   notes?: string;
+}
+
+export type ComplianceQcStage =
+  | 'PREPARATION'
+  | 'VALIDATION'
+  | 'REVIEW'
+  | 'CORRECTION'
+  | 'APPROVAL'
+  | 'AUTHORIZATION'
+  | 'SUBMISSION';
+
+export type ComplianceAuthorizationMethod =
+  | 'CLIENT_CONSENT'
+  | 'DSC_SIGN_OFF'
+  | 'PRACTITIONER_AUTHORIZATION'
+  | 'PORTAL_CREDENTIALS'
+  | 'AUTHORIZED_SIGNATORY';
+
+export interface ComplianceQcAuthorizationRecordDto {
+  id: string;
+  workflowId: string;
+  action: 'GRANTED' | 'REVOKED';
+  authorizationMethod?: string;
+  authorizationReference?: string;
+  authorizationNotes?: string;
+  authorizedBy?: string;
+  revocationReason?: string;
+  actorUserId?: string;
+  actorEmail?: string;
+  createdAt: string;
+}
+
+export type ComplianceQcCheckStatus =
+  | 'PASS'
+  | 'FAIL'
+  | 'NOT_EVALUATED'
+  | 'NOT_APPLICABLE';
+
+export interface ComplianceQcCheckItemDto {
+  checkKey: string;
+  checkName: string;
+  category: string;
+  description?: string;
+  status: ComplianceQcCheckStatus;
+  passed: boolean;
+  severity: string;
+  required: boolean;
+  correctiveHint?: string;
+  sourceReference?: string;
+  message?: string;
+  evaluatedAt?: string;
+  checkVersion?: string;
+}
+
+export interface ComplianceQcValidationResultDto {
+  valid: boolean;
+  totalChecks: number;
+  passedChecks: number;
+  failedChecks: number;
+  notEvaluatedChecks: number;
+  notApplicableChecks: number;
+  validatedAt?: string;
+  preparationFingerprint?: string;
+  checks: ComplianceQcCheckItemDto[];
+  blockers: string[];
+  warnings: string[];
+  correctiveActions: string[];
+}
+
+export interface AuthorizeFilingRequest {
+  authorizationMethod: ComplianceAuthorizationMethod;
+  authorizationReference?: string;
+  authorizationNotes?: string;
+  authorizedBy?: string;
+}
+
+export interface RevokeAuthorizationRequest {
+  reason: string;
+}
+
+export interface ComplianceQcStatusDto {
+  workflowId: string;
+  complianceObligationId: string;
+  clientId: string;
+  clientName?: string;
+  stage: ComplianceQcStage;
+  workflowStatus: ComplianceWorkflowStatus;
+  isPreparationComplete: boolean;
+  isValidationPassed: boolean;
+  isUnderReview: boolean;
+  isChangesRequired: boolean;
+  isApproved: boolean;
+  isAuthorized: boolean;
+  isSubmitted: boolean;
+  approvedAt?: string;
+  approvedBy?: string;
+  reviewNotes?: string;
+  authorizedAt?: string;
+  authorizedBy?: string;
+  authorizationMethod?: string;
+  authorizationReference?: string;
+  authorizationNotes?: string;
+  filedDate?: string;
+  filedAt?: string;
+  filedBy?: string;
+  acknowledgementNumber?: string;
+  validationSummary?: ComplianceQcValidationResultDto;
+  reviewCycle?: number;
+  unresolvedFindingsCount?: number;
+  findings?: ComplianceQcReviewFindingDto[];
+  nextActionableStep?: string;
+  allowedActions: string[];
+}
+
+export type ComplianceQcFindingStatus =
+  | 'OPEN'
+  | 'CORRECTED'
+  | 'RESOLVED'
+  | 'DISMISSED';
+
+export interface ComplianceQcReviewFindingDto {
+  id: string;
+  workflowId: string;
+  reviewCycle: number;
+  category: string;
+  severity: string;
+  description: string;
+  correctiveGuidance?: string;
+  sourceReference?: string;
+  status: ComplianceQcFindingStatus;
+  preparerResponse?: string;
+  respondedAt?: string;
+  respondedByUserId?: string;
+  resolutionDecision?: string;
+  resolvedAt?: string;
+  resolvedByUserId?: string;
+  reviewerNotes?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface ComplianceQcReviewCycleDto {
+  cycleNumber: number;
+  totalFindings: number;
+  unresolvedFindings: number;
+  findings: ComplianceQcReviewFindingDto[];
+}
+
+export interface CreateReviewFindingRequest {
+  category: string;
+  severity: string;
+  description: string;
+  correctiveGuidance?: string;
+  sourceReference?: string;
+}
+
+export interface RespondToFindingRequest {
+  response: string;
+}
+
+export interface ResolveFindingRequest {
+  decision: string;
+  reviewerNotes?: string;
 }
 
 export interface ComplianceWorkbenchSummaryDto {
@@ -6907,4 +7081,67 @@ export interface PracticeComplianceHealthSummaryDto {
   calculatedAt: string;
   referenceDate: string;
 }
+
+// ==============================================================================
+// Work Operating System — Work Operating Model & Inventory (Phase 30.1 / 30.2)
+// ==============================================================================
+
+export type WorkInventoryType = 'WORK_INSTANCE' | 'COMPLIANCE_OBLIGATION' | 'TASK';
+
+export type WorkInventoryStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'BLOCKED'
+  | 'UNDER_REVIEW'
+  | 'READY_FOR_FILING'
+  | 'FILED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface WorkInventoryItemDto {
+  id: string;
+  workType: WorkInventoryType;
+  title: string;
+  normalizedStatus: WorkInventoryStatus;
+  rawStatus: string;
+  priority: string;
+  clientId?: string;
+  clientName?: string;
+  clientPan?: string;
+  engagementId?: string;
+  engagementName?: string;
+  complianceObligationId?: string;
+  ruleCode?: string;
+  dueDate?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  reviewerUserId?: string;
+  reviewerUserName?: string;
+  blocked: boolean;
+  blockedReason?: string;
+  nextActionableStep?: string;
+  totalTasks: number;
+  completedTasks: number;
+  createdAt?: string;
+  completedAt?: string;
+}
+
+export interface WorkInventoryFilterParams {
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDirection?: 'ASC' | 'DESC';
+  clientId?: string;
+  assignedUserId?: string;
+  workType?: WorkInventoryType;
+  status?: WorkInventoryStatus;
+  priority?: string;
+  blockedOnly?: boolean;
+  fromDate?: string;
+  toDate?: string;
+  search?: string;
+}
+
 

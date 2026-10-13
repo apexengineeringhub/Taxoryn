@@ -32,9 +32,9 @@ public interface MarketplaceService {
 
     List<MarketplaceServiceDto> getPublicServices(UUID marketplaceProfileId);
 
-    List<MarketplaceReviewDto> getPublicReviews(UUID marketplaceProfileId);
+    List<PublicMarketplaceReviewDto> getPublicReviews(UUID marketplaceProfileId);
 
-    PagedResponse<MarketplaceReviewDto> getPublicReviewsPaged(UUID marketplaceProfileId, Pageable pageable);
+    PagedResponse<PublicMarketplaceReviewDto> getPublicReviewsPaged(UUID marketplaceProfileId, Pageable pageable);
 
     MarketplaceRatingSummaryDto getProfileRatingSummary(UUID marketplaceProfileId);
 
@@ -107,7 +107,7 @@ public interface MarketplaceService {
 
     ProfileCompletenessDto getMyProfileCompleteness();
 
-    List<MarketplaceReviewDto> getMyPracticeReviews();
+    List<PracticeMarketplaceReviewDto> getMyPracticeReviews();
 
     // Practice Locations Management
     List<PracticeLocationDto> getMyPracticeLocations();

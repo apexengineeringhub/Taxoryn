@@ -27,8 +27,12 @@ import {
   Check,
   X,
   RefreshCw,
+  ShieldCheck,
+  MessageSquare,
+  AlertOctagon,
+  CornerDownRight,
 } from 'lucide-react';
-import { complianceWorkflowApi, employeeApi, reviewApi } from '../api/endpoints';
+import { complianceWorkflowApi, employeeApi, reviewApi, complianceQcApi } from '../api/endpoints';
 import {
   ComplianceWorkflowDetailDto,
   ComplianceWorkflowStatus,
@@ -36,6 +40,11 @@ import {
   Employee,
   Task,
   ReviewRequest,
+  ComplianceQcStatusDto,
+  ComplianceAuthorizationMethod,
+  ComplianceQcReviewFindingDto,
+  ComplianceQcReviewCycleDto,
+  ComplianceQcAuthorizationRecordDto,
 } from '../types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -66,6 +75,37 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [approveNotes, setApproveNotes] = useState('');
 
+  const [qcStatus, setQcStatus] = useState<ComplianceQcStatusDto | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [findings, setFindings] = useState<ComplianceQcReviewFindingDto[]>([]);
+  const [reviewCycles, setReviewCycles] = useState<ComplianceQcReviewCycleDto[]>([]);
+
+  // Finding Modals State
+  const [isAddFindingModalOpen, setIsAddFindingModalOpen] = useState(false);
+  const [findingCategory, setFindingCategory] = useState('CALCULATION');
+  const [findingSeverity, setFindingSeverity] = useState('BLOCKING');
+  const [findingDescription, setFindingDescription] = useState('');
+  const [findingGuidance, setFindingGuidance] = useState('');
+  const [findingRef, setFindingRef] = useState('');
+
+  const [isRespondModalOpen, setIsRespondModalOpen] = useState(false);
+  const [selectedFinding, setSelectedFinding] = useState<ComplianceQcReviewFindingDto | null>(null);
+  const [preparerResponseText, setPreparerResponseText] = useState('');
+
+  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+  const [resolutionDecision, setResolutionDecision] = useState<'RESOLVED' | 'DISMISSED'>('RESOLVED');
+  const [resolutionNotes, setResolutionNotes] = useState('');
+
+  const [isAuthorizeModalOpen, setIsAuthorizeModalOpen] = useState(false);
+  const [authMethod, setAuthMethod] = useState<ComplianceAuthorizationMethod>('CLIENT_CONSENT');
+  const [authReference, setAuthReference] = useState('');
+  const [authNotes, setAuthNotes] = useState('');
+  const [authorizedByName, setAuthorizedByName] = useState('');
+
+  const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [authHistory, setAuthHistory] = useState<ComplianceQcAuthorizationRecordDto[]>([]);
+
   const [isFiledModalOpen, setIsFiledModalOpen] = useState(false);
   const [filedDate, setFiledDate] = useState(new Date().toISOString().split('T')[0]);
   const [filedAckNumber, setFiledAckNumber] = useState('');
@@ -94,6 +134,25 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
         setReview(await reviewApi.getForResource(id));
       } catch {
         setReview(null);
+      }
+      try {
+        setQcStatus(await complianceQcApi.getQcStatus(id));
+      } catch {
+        setQcStatus(null);
+      }
+      try {
+        const [fList, cList, aList] = await Promise.all([
+          complianceQcApi.getReviewFindings(id),
+          complianceQcApi.getReviewCycles(id),
+          complianceQcApi.getAuthorizationHistory(id),
+        ]);
+        setFindings(fList || []);
+        setReviewCycles(cList || []);
+        setAuthHistory(aList || []);
+      } catch {
+        setFindings([]);
+        setReviewCycles([]);
+        setAuthHistory([]);
       }
     } catch (err: any) {
       console.error('Failed to load workflow details', err);
@@ -207,6 +266,134 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
       console.error('Failed to approve workflow', err);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitAuthorizeModal = async () => {
+    if (!id) return;
+    try {
+      setIsSubmitting(true);
+      await complianceQcApi.authorizeFiling(id, {
+        authorizationMethod: authMethod,
+        authorizationReference: authReference || undefined,
+        authorizationNotes: authNotes || undefined,
+        authorizedBy: authorizedByName || undefined,
+      });
+      setIsAuthorizeModalOpen(false);
+      fetchWorkflowDetail();
+    } catch (err: any) {
+      alert(`Failed to record filing authorization: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitRevokeModal = async () => {
+    if (!id || !revokeReason.trim()) return;
+    try {
+      setIsSubmitting(true);
+      await complianceQcApi.revokeAuthorization(id, {
+        reason: revokeReason.trim(),
+      });
+      setIsRevokeModalOpen(false);
+      setRevokeReason('');
+      fetchWorkflowDetail();
+    } catch (err: any) {
+      alert(`Failed to revoke filing authorization: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddFinding = async () => {
+    if (!id || !findingDescription.trim()) return;
+    try {
+      setIsSubmitting(true);
+      await complianceQcApi.addReviewFinding(id, {
+        category: findingCategory,
+        severity: findingSeverity,
+        description: findingDescription.trim(),
+        correctiveGuidance: findingGuidance.trim() || undefined,
+        sourceReference: findingRef.trim() || undefined,
+      });
+      setIsAddFindingModalOpen(false);
+      setFindingDescription('');
+      setFindingGuidance('');
+      setFindingRef('');
+      fetchWorkflowDetail();
+    } catch (err: any) {
+      alert(`Failed to record review finding: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenRespondModal = (f: ComplianceQcReviewFindingDto) => {
+    setSelectedFinding(f);
+    setPreparerResponseText(f.preparerResponse || '');
+    setIsRespondModalOpen(true);
+  };
+
+  const handleSubmitResponse = async () => {
+    if (!id || !selectedFinding || !preparerResponseText.trim()) return;
+    try {
+      setIsSubmitting(true);
+      await complianceQcApi.respondToFinding(id, selectedFinding.id, {
+        response: preparerResponseText.trim(),
+      });
+      setIsRespondModalOpen(false);
+      setSelectedFinding(null);
+      setPreparerResponseText('');
+      fetchWorkflowDetail();
+    } catch (err: any) {
+      alert(`Failed to respond to finding: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenResolveModal = (f: ComplianceQcReviewFindingDto) => {
+    setSelectedFinding(f);
+    setResolutionDecision('RESOLVED');
+    setResolutionNotes(f.reviewerNotes || '');
+    setIsResolveModalOpen(true);
+  };
+
+  const handleSubmitResolution = async () => {
+    if (!id || !selectedFinding) return;
+    try {
+      setIsSubmitting(true);
+      await complianceQcApi.resolveFinding(id, selectedFinding.id, {
+        decision: resolutionDecision,
+        reviewerNotes: resolutionNotes.trim() || undefined,
+      });
+      setIsResolveModalOpen(false);
+      setSelectedFinding(null);
+      setResolutionNotes('');
+      fetchWorkflowDetail();
+    } catch (err: any) {
+      alert(`Failed to resolve finding: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRunValidation = async () => {
+    if (!id) return;
+    try {
+      setIsValidating(true);
+      const res = await complianceQcApi.validateForReview(id);
+      const updatedStatus = await complianceQcApi.getQcStatus(id);
+      setQcStatus(updatedStatus);
+      if (res.valid) {
+        alert('All quality control validation checks passed. The return is eligible for review submission.');
+      } else {
+        alert(`Validation found ${res.blockers.length} blocking issues that must be addressed before review.`);
+      }
+    } catch (err: any) {
+      alert(`Validation error: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -391,9 +578,26 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
           ) : null}
 
           {workflow.workflowStatus === 'READY_FOR_FILING' ? (
-            <Button variant="primary" onClick={() => setIsFiledModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4" /> Record Government Filing
-            </Button>
+            <>
+              {!workflow.isAuthorized ? (
+                <Button variant="primary" onClick={() => setIsAuthorizeModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" /> Authorize Filing
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => setIsRevokeModalOpen(true)} className="text-rose-700 border-rose-300 hover:bg-rose-50 flex items-center gap-1.5">
+                  <X className="w-4 h-4" /> Revoke Authorization
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                onClick={() => setIsFiledModalOpen(true)}
+                disabled={!workflow.isAuthorized}
+                title={!workflow.isAuthorized ? 'Filing authorization is required prior to statutory submission' : undefined}
+                className={clsx('flex items-center gap-1.5', workflow.isAuthorized ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed')}
+              >
+                <FileCheck className="w-4 h-4" /> Record Government Filing
+              </Button>
+            </>
           ) : null}
 
           {workflow.workflowStatus === 'FILED' || workflow.workflowStatus === 'ACKNOWLEDGEMENT_PENDING' ? (
@@ -403,6 +607,56 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
           ) : null}
         </div>
       </div>
+
+      {/* Filing Authorization Status Banner */}
+      {workflow.isAuthorized && (
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between text-xs text-emerald-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Filing Authorized:</strong> Authorized via <strong>{workflow.authorizationMethod || 'CLIENT_CONSENT'}</strong>
+              {workflow.authorizedBy ? ` by ${workflow.authorizedBy}` : ''}
+              {workflow.authorizationReference ? ` (Ref: ${workflow.authorizationReference})` : ''}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {workflow.authorizedAt && <span className="text-slate-500">{new Date(workflow.authorizedAt).toLocaleDateString()}</span>}
+            {workflow.workflowStatus === 'READY_FOR_FILING' && (
+              <Button variant="outline" size="sm" onClick={() => setIsRevokeModalOpen(true)} className="text-rose-700 border-rose-300 bg-white hover:bg-rose-50 text-xs py-1 px-2.5">
+                Revoke
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      {!workflow.isAuthorized && workflow.authorizationNotes?.startsWith('Authorization revoked:') && (
+        <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between text-xs text-amber-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Filing Authorization Revoked:</strong> {workflow.authorizationNotes}
+            </span>
+          </div>
+          {workflow.workflowStatus === 'READY_FOR_FILING' && (
+            <Button variant="outline" size="sm" onClick={() => setIsAuthorizeModalOpen(true)} className="text-purple-700 border-purple-300 bg-white hover:bg-purple-50">
+              Re-Authorize Filing
+            </Button>
+          )}
+        </div>
+      )}
+      {!workflow.isAuthorized && workflow.workflowStatus === 'READY_FOR_FILING' && !workflow.authorizationNotes?.startsWith('Authorization revoked:') && (
+        <div className="p-3 bg-purple-50 border border-purple-300 rounded-xl flex items-center justify-between text-xs text-purple-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-purple-600 shrink-0" />
+            <span>
+              <strong>Pending Authorization:</strong> Computation review is approved, but statutory filing has not been authorized. Record client or practitioner authorization before submitting to portal.
+            </span>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setIsAuthorizeModalOpen(true)} className="text-purple-700 border-purple-300 bg-white hover:bg-purple-50">
+            Authorize Now
+          </Button>
+        </div>
+      )}
 
       {/* Execution Stepper */}
       <Card className="p-4 border-slate-200">
@@ -561,6 +815,279 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
             </div>
           </Card>
 
+          {/* Quality Control Validation & Findings (Phase 31.2) */}
+          <Card className="p-6 border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                  Pre-Review Quality Control Validation
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Deterministic readiness evaluation across eligibility, reviewer assignment, separation of duties, and profile requirements.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {qcStatus?.validationSummary && (
+                  <span className={clsx(
+                    'text-xs font-bold px-2.5 py-1 rounded-full border',
+                    qcStatus.validationSummary.valid
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  )}>
+                    {qcStatus.validationSummary.valid ? 'VALIDATION PASSED' : `${qcStatus.validationSummary.blockers.length} BLOCKER(S)`}
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRunValidation}
+                  disabled={isValidating}
+                  className="flex items-center gap-1.5 text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                >
+                  <RefreshCw className={clsx('w-3.5 h-3.5', isValidating && 'animate-spin')} />
+                  {isValidating ? 'Validating...' : 'Run Validation'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Validation Findings List */}
+            {qcStatus?.validationSummary?.checks && qcStatus.validationSummary.checks.length > 0 ? (
+              <div className="divide-y divide-slate-100 mt-2">
+                {qcStatus.validationSummary.checks.map(check => (
+                  <div key={check.checkKey} className="py-3 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 shrink-0">
+                        {check.status === 'PASS' ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        ) : check.status === 'NOT_APPLICABLE' ? (
+                          <HelpCircle className="w-4 h-4 text-slate-400" />
+                        ) : check.status === 'NOT_EVALUATED' ? (
+                          <AlertCircle className="w-4 h-4 text-amber-500" />
+                        ) : (
+                          <AlertTriangle className={clsx('w-4 h-4', check.severity === 'BLOCKING' ? 'text-rose-600' : 'text-amber-500')} />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-slate-900">{check.checkName}</h4>
+                          <span className={clsx(
+                            'text-[10px] font-bold px-1.5 py-0.2 rounded',
+                            check.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' :
+                            check.status === 'NOT_APPLICABLE' ? 'bg-slate-100 text-slate-600' :
+                            check.status === 'NOT_EVALUATED' ? 'bg-amber-100 text-amber-800' :
+                            check.severity === 'BLOCKING' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                          )}>
+                            {check.status}
+                          </span>
+                          {check.required && (
+                            <span className="text-[10px] font-bold text-rose-600 uppercase">Blocking</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">{check.message || check.description}</p>
+                        {check.correctiveHint && check.status !== 'PASS' && (
+                          <p className="text-xs text-indigo-700 font-medium mt-1">
+                            <strong>Correction Hint:</strong> {check.correctiveHint}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {check.sourceReference && (
+                      <span className="text-[11px] text-slate-400 font-mono shrink-0">
+                        {check.sourceReference.length > 12 ? `${check.sourceReference.substring(0, 10)}...` : check.sourceReference}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-6 text-center text-slate-400 text-xs">
+                No quality validation run yet. Click "Run Validation" to evaluate preparation readiness.
+              </div>
+            )}
+
+            {qcStatus?.validationSummary?.preparationFingerprint && (
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Rule Version: 1.0</span>
+                <span className="font-mono">Fingerprint: {qcStatus.validationSummary.preparationFingerprint}</span>
+              </div>
+            )}
+          </Card>
+
+          {/* Review Findings & Correction Workflow (Phase 31.3) */}
+          <Card className="p-6 border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-indigo-600" />
+                  Review Findings & Correction Log
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 ml-1">
+                    Cycle {workflow.reviewCycle || 1}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Track structured reviewer findings, preparer responses, and checker resolutions across review cycles.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {workflow.workflowStatus === 'UNDER_REVIEW' && (canRejectReview || canApproveReview) && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setIsAddFindingModalOpen(true)}
+                    className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Record Finding
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Findings List */}
+            {findings.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No review findings logged. All checks currently clear for this review cycle.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 mt-2 space-y-3">
+                {findings.map(f => (
+                  <div key={f.id} className="pt-3 pb-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5 shrink-0">
+                          {f.status === 'RESOLVED' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          ) : f.status === 'DISMISSED' ? (
+                            <Check className="w-4 h-4 text-slate-400" />
+                          ) : f.status === 'CORRECTED' ? (
+                            <Clock className="w-4 h-4 text-blue-600" />
+                          ) : (
+                            <AlertOctagon className={clsx('w-4 h-4', f.severity === 'BLOCKING' ? 'text-rose-600' : 'text-amber-500')} />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                              {f.category}
+                            </span>
+                            <span className={clsx(
+                              'text-[10px] font-bold px-1.5 py-0.2 rounded uppercase',
+                              f.severity === 'BLOCKING' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                            )}>
+                              {f.severity}
+                            </span>
+                            <span className={clsx(
+                              'text-[10px] font-bold px-1.5 py-0.2 rounded uppercase',
+                              f.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' :
+                              f.status === 'CORRECTED' ? 'bg-blue-100 text-blue-800' :
+                              f.status === 'DISMISSED' ? 'bg-slate-100 text-slate-600' :
+                              'bg-amber-100 text-amber-800'
+                            )}>
+                              {f.status}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              Cycle {f.reviewCycle} · {new Date(f.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          <p className="text-sm text-slate-900 font-medium mt-1.5">{f.description}</p>
+                          {f.correctiveGuidance && (
+                            <p className="text-xs text-indigo-700 font-medium mt-1">
+                              <strong>Corrective Guidance:</strong> {f.correctiveGuidance}
+                            </p>
+                          )}
+                          {f.sourceReference && (
+                            <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                              Ref: {f.sourceReference}
+                            </p>
+                          )}
+
+                          {/* Preparer Response Thread */}
+                          {f.preparerResponse && (
+                            <div className="mt-2.5 p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-blue-950 flex items-start gap-2">
+                              <CornerDownRight className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-semibold text-blue-900">Preparer Response:</span> {f.preparerResponse}
+                                {f.respondedAt && (
+                                  <span className="text-[10px] text-blue-600 block mt-0.5">
+                                    Responded on {new Date(f.respondedAt).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Reviewer Resolution Thread */}
+                          {(f.status === 'RESOLVED' || f.status === 'DISMISSED') && (
+                            <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs text-emerald-950 flex items-start gap-2">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-semibold text-emerald-900">Decision ({f.resolutionDecision}):</span> {f.reviewerNotes || 'Marked resolved by reviewer.'}
+                                {f.resolvedAt && (
+                                  <span className="text-[10px] text-emerald-600 block mt-0.5">
+                                    Resolved on {new Date(f.resolvedAt).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Preparer Action: Respond when CHANGES_REQUIRED / IN_PROGRESS and OPEN */}
+                        {f.status === 'OPEN' && (workflow.workflowStatus === 'CHANGES_REQUIRED' || workflow.workflowStatus === 'IN_PROGRESS') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenRespondModal(f)}
+                            className="text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
+                          >
+                            Respond
+                          </Button>
+                        )}
+
+                        {/* Reviewer Action: Resolve / Dismiss when UNDER_REVIEW and (OPEN or CORRECTED) */}
+                        {workflow.workflowStatus === 'UNDER_REVIEW' && (f.status === 'OPEN' || f.status === 'CORRECTED') && (canRejectReview || canApproveReview) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenResolveModal(f)}
+                            className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                          >
+                            Resolve / Dismiss
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Review Cycles Audit Log */}
+            {reviewCycles.length > 1 && (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Review Cycle Audit</h4>
+                <div className="flex flex-wrap gap-2">
+                  {reviewCycles.map(c => (
+                    <div key={c.cycleNumber} className="text-xs px-2.5 py-1 rounded bg-slate-50 border border-slate-200 flex items-center gap-1.5">
+                      <span className="font-semibold text-slate-800">Cycle {c.cycleNumber}:</span>
+                      <span className="text-slate-500">{c.totalFindings} findings</span>
+                      {c.unresolvedFindings > 0 ? (
+                        <span className="text-rose-600 font-medium">({c.unresolvedFindings} open)</span>
+                      ) : (
+                        <span className="text-emerald-600 font-medium">(all resolved)</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+
           {/* Operational Linked Subtasks */}
           <Card className="p-6 border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
@@ -662,6 +1189,127 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
                 <div className="p-2.5 bg-slate-50 rounded border border-slate-200">
                   <span className="font-semibold text-slate-700 block mb-1">Review Remarks:</span>
                   <p className="text-slate-600">{detail.reviewNotes}</p>
+                </div>
+              )}
+
+              {/* Approval Readiness Gates (when Under Review) */}
+              {workflow.workflowStatus === 'UNDER_REVIEW' && (
+                <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                  <span className="font-bold text-slate-700 block mb-1">Approval Readiness Gates</span>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Reviewer Assigned:</span>
+                    <span className={clsx('font-bold', workflow.reviewerEmployeeName ? 'text-emerald-700' : 'text-rose-600')}>
+                      {workflow.reviewerEmployeeName ? 'Ready' : 'Missing'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Four-Eyes Separation:</span>
+                    <span className={clsx('font-bold', workflow.assignedEmployeeId !== workflow.reviewerEmployeeId ? 'text-emerald-700' : 'text-rose-600')}>
+                      {workflow.assignedEmployeeId !== workflow.reviewerEmployeeId ? 'Separated' : 'Maker/Checker Conflict'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Preparation Validation:</span>
+                    <span className={clsx('font-bold', qcStatus?.isValidationPassed ? 'text-emerald-700' : 'text-rose-600')}>
+                      {qcStatus?.isValidationPassed ? 'Valid' : 'Requires Run'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Blocking Review Findings:</span>
+                    <span className={clsx('font-bold', (qcStatus?.unresolvedFindingsCount ?? 0) === 0 ? 'text-emerald-700' : 'text-rose-600')}>
+                      {(qcStatus?.unresolvedFindingsCount ?? 0) === 0 ? '0 Blockers' : `${qcStatus?.unresolvedFindingsCount} Unresolved`}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Filing Authorization & Provenance Card */}
+          <Card className="p-5 border-slate-200">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-purple-600" />
+                Filing Authorization Provenance
+              </span>
+              <span className={clsx(
+                'text-[10px] px-2 py-0.5 rounded-full font-bold',
+                workflow.isAuthorized ? 'bg-emerald-100 text-emerald-800' :
+                workflow.authorizationNotes?.startsWith('Authorization revoked:') ? 'bg-amber-100 text-amber-800' :
+                'bg-slate-100 text-slate-600'
+              )}>
+                {workflow.isAuthorized ? 'AUTHORIZED' : workflow.authorizationNotes?.startsWith('Authorization revoked:') ? 'REVOKED' : 'UNAUTHORIZED'}
+              </span>
+            </h3>
+
+            <div className="space-y-2.5 text-xs">
+              {workflow.isAuthorized && (
+                <>
+                  <div className="flex justify-between py-1 border-b border-slate-100">
+                    <span className="text-slate-500">Method:</span>
+                    <span className="font-semibold text-slate-800">{workflow.authorizationMethod || 'CLIENT_CONSENT'}</span>
+                  </div>
+                  {workflow.authorizedBy && (
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Authorized By:</span>
+                      <span className="font-semibold text-slate-800">{workflow.authorizedBy}</span>
+                    </div>
+                  )}
+                  {workflow.authorizationReference && (
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Reference:</span>
+                      <span className="font-mono text-purple-700">{workflow.authorizationReference}</span>
+                    </div>
+                  )}
+                  {workflow.authorizedAt && (
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Granted At:</span>
+                      <span className="text-slate-700">{new Date(workflow.authorizedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!workflow.isAuthorized && workflow.authorizationNotes?.startsWith('Authorization revoked:') && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-900">
+                  <span className="font-semibold block mb-0.5">Revocation Notice:</span>
+                  <p>{workflow.authorizationNotes}</p>
+                </div>
+              )}
+
+              {/* Provenance Event Log */}
+              {authHistory && authHistory.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Immutable Provenance Log</h4>
+                  <div className="space-y-2">
+                    {authHistory.map((rec) => (
+                      <div key={rec.id} className="p-2 rounded bg-slate-50 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={clsx(
+                            'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                            rec.action === 'GRANTED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          )}>
+                            {rec.action}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{new Date(rec.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        {rec.action === 'GRANTED' ? (
+                          <div className="text-[11px] text-slate-700">
+                            <span>{rec.authorizationMethod}</span>
+                            {rec.authorizedBy && <span className="text-slate-500"> by {rec.authorizedBy}</span>}
+                            {rec.authorizationReference && <div className="text-slate-500 font-mono text-[10px]">Ref: {rec.authorizationReference}</div>}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-rose-800">
+                            <span>Reason: {rec.revocationReason || 'No reason specified'}</span>
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-400 flex justify-between">
+                          <span>Recorded by {rec.actorEmail || 'System'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -782,6 +1430,107 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
             <Button variant="outline" onClick={() => setIsApproveModalOpen(false)}>Cancel</Button>
             <Button variant="primary" disabled={isSubmitting} onClick={handleSubmitApproveModal}>
               {isSubmitting ? 'Approving...' : 'Approve for Filing'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Authorize Filing (Quality Control Stage) */}
+      <Modal
+        isOpen={isAuthorizeModalOpen}
+        onClose={() => setIsAuthorizeModalOpen(false)}
+        title="Authorize Statutory Filing"
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-600">
+            Record client confirmation or authorized signatory sign-off permitting official return upload to statutory portal.
+          </p>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">
+              Authorization Method <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={authMethod}
+              onChange={e => setAuthMethod(e.target.value as ComplianceAuthorizationMethod)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="CLIENT_CONSENT">Client Consent (Written / Email / Portal Sign-off)</option>
+              <option value="DSC_SIGN_OFF">Digital Signature Certificate (DSC Sign-off)</option>
+              <option value="PRACTITIONER_AUTHORIZATION">Practitioner Power-of-Attorney / Authorized Signatory</option>
+              <option value="PORTAL_CREDENTIALS">Statutory Portal OTP / EVC Verification</option>
+              <option value="AUTHORIZED_SIGNATORY">Designated Authorized Signatory Formal Sign-off</option>
+            </select>
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Authorizing Person / Signatory Name</label>
+            <input
+              type="text"
+              placeholder="e.g. Rahul Sharma (Managing Director)"
+              value={authorizedByName}
+              onChange={e => setAuthorizedByName(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Authorization Reference / Document #</label>
+            <input
+              type="text"
+              placeholder="e.g. EMAIL-CONF-2026-10-18 or DSC-TOKEN-44"
+              value={authReference}
+              onChange={e => setAuthReference(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Authorization Notes (Optional)</label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Client confirmed liability and verified input tax credit reconciliation."
+              value={authNotes}
+              onChange={e => setAuthNotes(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsAuthorizeModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" disabled={isSubmitting} onClick={handleSubmitAuthorizeModal} className="bg-purple-600 hover:bg-purple-700 text-white">
+              {isSubmitting ? 'Recording...' : 'Record Filing Authorization'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Revoke Filing Authorization */}
+      <Modal
+        isOpen={isRevokeModalOpen}
+        onClose={() => setIsRevokeModalOpen(false)}
+        title="Revoke Statutory Filing Authorization"
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-600">
+            Revoking authorization halts statutory filing submission until fresh consent or authorization is recorded. Use this if figures require correction or updated client documents arrive.
+          </p>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">
+              Revocation Reason <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Client requested recalculation after discovering unrecorded purchase invoices."
+              value={revokeReason}
+              onChange={e => setRevokeReason(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsRevokeModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              disabled={isSubmitting || !revokeReason.trim()}
+              onClick={handleSubmitRevokeModal}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {isSubmitting ? 'Revoking...' : 'Confirm Revocation'}
             </Button>
           </div>
         </div>
@@ -915,6 +1664,185 @@ export const ComplianceWorkflowDetailPage: React.FC = () => {
             <Button variant="outline" onClick={() => setIsTaskModalOpen(false)}>Cancel</Button>
             <Button variant="primary" disabled={!taskTitle || isSubmitting} onClick={handleCreateTask}>
               {isSubmitting ? 'Creating...' : 'Create Task'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Add Review Finding (Reviewer) */}
+      <Modal
+        isOpen={isAddFindingModalOpen}
+        onClose={() => setIsAddFindingModalOpen(false)}
+        title="Record Quality Review Finding"
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-slate-600 text-xs">
+            Log a structured finding for the preparer. Blocking findings must be resolved before approval.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">Category *</label>
+              <select
+                value={findingCategory}
+                onChange={e => setFindingCategory(e.target.value)}
+                className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="CALCULATION">Calculation / Computation</option>
+                <option value="DOCUMENTATION">Documentation / Invoices</option>
+                <option value="STATUTORY_RULE">Statutory Rule / Section</option>
+                <option value="CLIENT_DATA">Client Master / PAN / GSTIN</option>
+                <option value="RECONCILIATION">Reconciliation / 26AS</option>
+                <option value="OTHER">Other / General Quality</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">Severity *</label>
+              <select
+                value={findingSeverity}
+                onChange={e => setFindingSeverity(e.target.value)}
+                className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="BLOCKING">BLOCKING (Halts Approval)</option>
+                <option value="ADVISORY">ADVISORY (Recommendation)</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Description *</label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Total eligible ITC does not match table 4(A)(5) of GSTR-2B by Rs. 14,250."
+              value={findingDescription}
+              onChange={e => setFindingDescription(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Corrective Guidance</label>
+            <input
+              type="text"
+              placeholder="e.g. Reverse ineligible ITC under Rule 42 or re-verify purchase register."
+              value={findingGuidance}
+              onChange={e => setFindingGuidance(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Source Reference / Field</label>
+            <input
+              type="text"
+              placeholder="e.g. Table 4(A)(5) / Invoice INV-2026-089"
+              value={findingRef}
+              onChange={e => setFindingRef(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsAddFindingModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              disabled={!findingDescription.trim() || isSubmitting}
+              onClick={handleAddFinding}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {isSubmitting ? 'Logging...' : 'Record Finding'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Respond to Finding (Preparer) */}
+      <Modal
+        isOpen={isRespondModalOpen}
+        onClose={() => setIsRespondModalOpen(false)}
+        title="Respond to Review Finding"
+      >
+        <div className="space-y-4 text-sm">
+          {selectedFinding && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
+                {selectedFinding.category} · {selectedFinding.severity}
+              </span>
+              <p className="text-sm font-semibold text-slate-900 mt-1">{selectedFinding.description}</p>
+              {selectedFinding.correctiveGuidance && (
+                <p className="text-xs text-indigo-700 mt-0.5">Hint: {selectedFinding.correctiveGuidance}</p>
+              )}
+            </div>
+          )}
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Preparer Explanation / Correction *</label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Reconciled purchase ledger. Ineligible ITC of Rs. 14,250 reversed in Table 4(B)(2)."
+              value={preparerResponseText}
+              onChange={e => setPreparerResponseText(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsRespondModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              disabled={!preparerResponseText.trim() || isSubmitting}
+              onClick={handleSubmitResponse}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Response'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Resolve / Dismiss Finding (Reviewer) */}
+      <Modal
+        isOpen={isResolveModalOpen}
+        onClose={() => setIsResolveModalOpen(false)}
+        title="Resolve / Dismiss Review Finding"
+      >
+        <div className="space-y-4 text-sm">
+          {selectedFinding && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
+                {selectedFinding.category} · {selectedFinding.severity}
+              </span>
+              <p className="text-sm font-semibold text-slate-900 mt-1">{selectedFinding.description}</p>
+              {selectedFinding.preparerResponse && (
+                <p className="text-xs text-blue-800 mt-1">
+                  <strong>Preparer Response:</strong> {selectedFinding.preparerResponse}
+                </p>
+              )}
+            </div>
+          )}
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Resolution Decision *</label>
+            <select
+              value={resolutionDecision}
+              onChange={e => setResolutionDecision(e.target.value as 'RESOLVED' | 'DISMISSED')}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="RESOLVED">RESOLVED (Correction accepted & verified)</option>
+              <option value="DISMISSED">DISMISSED (Exception granted or non-issue)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Reviewer Notes (Optional)</label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Verified revised purchase register and ITC reversal."
+              value={resolutionNotes}
+              onChange={e => setResolutionNotes(e.target.value)}
+              className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+            <Button variant="outline" onClick={() => setIsResolveModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              disabled={isSubmitting}
+              onClick={handleSubmitResolution}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isSubmitting ? 'Recording...' : 'Confirm Resolution'}
             </Button>
           </div>
         </div>

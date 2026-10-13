@@ -57,6 +57,14 @@ public interface MarketplaceMapper {
 
     List<MarketplaceReviewDto> toReviewDtoList(List<MarketplaceReviewEntity> entities);
 
+    PublicMarketplaceReviewDto toPublicReviewDto(MarketplaceReviewEntity entity);
+
+    List<PublicMarketplaceReviewDto> toPublicReviewDtoList(List<MarketplaceReviewEntity> entities);
+
+    PracticeMarketplaceReviewDto toPracticeReviewDto(MarketplaceReviewEntity entity);
+
+    List<PracticeMarketplaceReviewDto> toPracticeReviewDtoList(List<MarketplaceReviewEntity> entities);
+
     @Mapping(target = "organizationName", ignore = true)
     MarketplaceVerificationDto toVerificationDto(MarketplaceVerificationEntity entity);
 

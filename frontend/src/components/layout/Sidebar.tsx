@@ -36,6 +36,7 @@ import {
   Briefcase,
   Award,
   BookOpen,
+  Kanban,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
@@ -146,6 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       id: 'my-work',
       sectionTitle: 'MY WORK',
       items: [
+        { label: 'Work Board', path: '/work-board', icon: Kanban, requiredPermissions: ['TASK_VIEW', 'CLIENT_VIEW'], moduleCode: 'CLIENTS' },
         { label: isStaff ? 'My Assigned Tasks' : 'Tasks & Workflow', path: '/tasks', icon: CheckSquare, requiredPermissions: ['TASK_VIEW'], moduleCode: 'TASKS' },
         { label: 'Tax Calendar', path: '/calendar', icon: Calendar, requiredPermissions: ['TASK_VIEW', 'GST_VIEW', 'ITR_VIEW'] },
         { label: 'Recurring Work', path: '/work-templates', icon: Layers, requiredPermissions: ['CLIENT_VIEW'], moduleCode: 'CLIENTS' },

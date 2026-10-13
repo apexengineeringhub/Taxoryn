@@ -88,6 +88,11 @@ import {
   CompleteComplianceWorkflowRequest,
   UpdateChecklistItemRequest,
   CreateWorkflowTaskRequest,
+  ComplianceQcStatusDto,
+  ComplianceQcValidationResultDto,
+  ComplianceQcAuthorizationRecordDto,
+  AuthorizeFilingRequest,
+  RevokeAuthorizationRequest,
   Task,
   GstProfile,
   GstReturnFiling,
@@ -3497,6 +3502,58 @@ export const complianceWorkflowApi = {
   },
 };
 
+export const complianceQcApi = {
+  getQcStatus: async (workflowId: string): Promise<ComplianceQcStatusDto> => {
+    const res = await apiClient.get<ApiResponse<ComplianceQcStatusDto>>(`/compliance/workflows/${workflowId}/qc/status`);
+    return res.data.data;
+  },
+
+  validateForReview: async (workflowId: string): Promise<ComplianceQcValidationResultDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceQcValidationResultDto>>(`/compliance/workflows/${workflowId}/qc/validate`);
+    return res.data.data;
+  },
+
+  authorizeFiling: async (workflowId: string, payload: AuthorizeFilingRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/qc/authorize-filing`, payload);
+    return res.data.data;
+  },
+
+  revokeAuthorization: async (workflowId: string, payload: RevokeAuthorizationRequest): Promise<ComplianceWorkflowDto> => {
+    const res = await apiClient.post<ApiResponse<ComplianceWorkflowDto>>(`/compliance/workflows/${workflowId}/qc/revoke-authorization`, payload);
+    return res.data.data;
+  },
+
+  addReviewFinding: async (workflowId: string, payload: any): Promise<any> => {
+    const res = await apiClient.post<ApiResponse<any>>(`/compliance/workflows/${workflowId}/qc/findings`, payload);
+    return res.data.data;
+  },
+
+  getReviewFindings: async (workflowId: string): Promise<any[]> => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/compliance/workflows/${workflowId}/qc/findings`);
+    return res.data.data;
+  },
+
+  getReviewCycles: async (workflowId: string): Promise<any[]> => {
+    const res = await apiClient.get<ApiResponse<any[]>>(`/compliance/workflows/${workflowId}/qc/review-cycles`);
+    return res.data.data;
+  },
+
+  respondToFinding: async (workflowId: string, findingId: string, payload: { response: string }): Promise<any> => {
+    const res = await apiClient.post<ApiResponse<any>>(`/compliance/workflows/${workflowId}/qc/findings/${findingId}/respond`, payload);
+    return res.data.data;
+  },
+
+  resolveFinding: async (workflowId: string, findingId: string, payload: { decision: string; reviewerNotes?: string }): Promise<any> => {
+    const res = await apiClient.post<ApiResponse<any>>(`/compliance/workflows/${workflowId}/qc/findings/${findingId}/resolve`, payload);
+    return res.data.data;
+  },
+
+  getAuthorizationHistory: async (workflowId: string): Promise<ComplianceQcAuthorizationRecordDto[]> => {
+    const res = await apiClient.get<ApiResponse<ComplianceQcAuthorizationRecordDto[]>>(`/compliance/workflows/${workflowId}/qc/authorizations`);
+    return res.data.data;
+  },
+};
+
 export const capabilitiesApi = {
   getCapabilities: async (): Promise<OrganizationCapabilities> => {
     const res = await apiClient.get<ApiResponse<OrganizationCapabilities>>('/api/v1/capabilities');
@@ -3727,6 +3784,13 @@ export const workInstancesApi = {
   },
   updateStatus: async (id: string, payload: UpdateWorkInstanceStatusPayload) => {
     const res = await apiClient.patch<ApiResponse<WorkInstanceDto>>(`/v1/work-instances/${id}/status`, payload);
+    return res.data.data;
+  },
+};
+
+export const workInventoryApi = {
+  getInventory: async (params?: import('../types').WorkInventoryFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<import('../types').WorkInventoryItemDto>>>('/v1/work/inventory', { params });
     return res.data.data;
   },
 };

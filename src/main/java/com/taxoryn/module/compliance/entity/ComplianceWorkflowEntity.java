@@ -129,11 +129,42 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
     @Column(name = "changes_requested_reason", columnDefinition = "TEXT")
     private String changesRequestedReason;
 
+    // --- Quality Control Review Cycle & Freshness Tracking ---
+    @Column(name = "review_cycle", nullable = false)
+    @Builder.Default
+    private int reviewCycle = 1;
+
+    @Column(name = "last_validation_fingerprint", length = 255)
+    private String lastValidationFingerprint;
+
+    @Column(name = "last_validated_at")
+    private Instant lastValidatedAt;
+
     @Column(name = "approved_at")
     private Instant approvedAt;
 
     @Column(name = "approved_by", length = 255)
     private String approvedBy;
+
+    // --- Filing Authorization (QC Gate) ---
+    @Column(name = "is_authorized", nullable = false)
+    @Builder.Default
+    private boolean isAuthorized = false;
+
+    @Column(name = "authorized_at")
+    private Instant authorizedAt;
+
+    @Column(name = "authorized_by", length = 255)
+    private String authorizedBy;
+
+    @Column(name = "authorization_method", length = 50)
+    private String authorizationMethod;
+
+    @Column(name = "authorization_reference", length = 255)
+    private String authorizationReference;
+
+    @Column(name = "authorization_notes", columnDefinition = "TEXT")
+    private String authorizationNotes;
 
     // --- Government Filing Execution Metadata ---
     @Column(name = "filed_date")
@@ -200,9 +231,6 @@ public class ComplianceWorkflowEntity extends TenantAuditableEntity {
                     || targetStatus == ComplianceWorkflowStatus.CANCELLED;
             case IN_PROGRESS -> targetStatus == ComplianceWorkflowStatus.WAITING_FOR_CLIENT
                     || targetStatus == ComplianceWorkflowStatus.UNDER_REVIEW
-                    || targetStatus == ComplianceWorkflowStatus.READY_FOR_FILING
-                    || targetStatus == ComplianceWorkflowStatus.FILED
-                    || targetStatus == ComplianceWorkflowStatus.COMPLETED
                     || targetStatus == ComplianceWorkflowStatus.CANCELLED;
             case WAITING_FOR_CLIENT -> targetStatus == ComplianceWorkflowStatus.IN_PROGRESS
                     || targetStatus == ComplianceWorkflowStatus.READY

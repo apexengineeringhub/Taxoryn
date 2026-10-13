@@ -86,14 +86,14 @@ public class MarketplacePublicController {
 
     @GetMapping("/profiles/{id}/reviews")
     @Operation(summary = "Get Verified Reviews & Ratings", description = "Retrieves verified client reviews for a firm.")
-    public ResponseEntity<ApiResponse<List<MarketplaceReviewDto>>> getReviews(@PathVariable UUID id) {
-        List<MarketplaceReviewDto> reviews = marketplaceService.getPublicReviews(id);
+    public ResponseEntity<ApiResponse<List<PublicMarketplaceReviewDto>>> getReviews(@PathVariable UUID id) {
+        List<PublicMarketplaceReviewDto> reviews = marketplaceService.getPublicReviews(id);
         return ResponseEntity.ok(ApiResponse.success("Reviews retrieved successfully", reviews));
     }
 
     @GetMapping("/profiles/{id}/reviews/page")
     @Operation(summary = "Get Paginated Verified Reviews", description = "Retrieves paginated approved reviews for a firm.")
-    public ResponseEntity<ApiResponse<PagedResponse<MarketplaceReviewDto>>> getReviewsPaged(
+    public ResponseEntity<ApiResponse<PagedResponse<PublicMarketplaceReviewDto>>> getReviewsPaged(
             @PathVariable UUID id,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
@@ -101,7 +101,7 @@ public class MarketplacePublicController {
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
                 Math.max(0, page), Math.max(1, size), org.springframework.data.domain.Sort.by("createdAt").descending()
         );
-        PagedResponse<MarketplaceReviewDto> response = marketplaceService.getPublicReviewsPaged(id, pageable);
+        PagedResponse<PublicMarketplaceReviewDto> response = marketplaceService.getPublicReviewsPaged(id, pageable);
         return ResponseEntity.ok(ApiResponse.success("Reviews page retrieved successfully", response));
     }
 

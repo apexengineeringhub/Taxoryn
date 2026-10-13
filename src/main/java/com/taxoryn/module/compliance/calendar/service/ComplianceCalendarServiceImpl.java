@@ -97,6 +97,16 @@ public class ComplianceCalendarServiceImpl implements ComplianceCalendarService 
                 ));
             }
 
+            if (safeFilter.getLocationId() != null) {
+                predicates.add(cb.equal(root.get("locationId"), safeFilter.getLocationId()));
+            }
+            if (safeFilter.getAssignedUserId() != null) {
+                predicates.add(cb.equal(root.get("assignedUserId"), safeFilter.getAssignedUserId()));
+            }
+            if (safeFilter.getAssignedEmployeeId() != null) {
+                predicates.add(cb.equal(root.get("assignedEmployeeId"), safeFilter.getAssignedEmployeeId()));
+            }
+
             // Date Range filtering (statutoryDueDate prioritized over dueDate)
             if (safeFilter.getFrom() != null) {
                 predicates.add(cb.or(
@@ -333,6 +343,10 @@ public class ComplianceCalendarServiceImpl implements ComplianceCalendarService 
 
         return ComplianceDeadlineDto.builder()
                 .obligationId(ob.getId())
+                .title(ob.getTitle())
+                .locationId(ob.getLocationId())
+                .assignedUserId(ob.getAssignedUserId())
+                .assignedEmployeeId(ob.getAssignedEmployeeId())
                 .clientId(ob.getClientId())
                 .clientName(clientLegalName != null ? clientLegalName : clientDisplayName)
                 .clientDisplayName(clientDisplayName != null ? clientDisplayName : clientLegalName)
@@ -382,6 +396,7 @@ public class ComplianceCalendarServiceImpl implements ComplianceCalendarService 
         }
 
         long totalActive = overdue + dueToday + dueTomorrow + dueWithin3Days + dueThisWeek + upcoming + noDueDate;
+        long totalObligations = totalActive + completed + cancelled;
 
         return ComplianceDeadlineSummaryDto.builder()
                 .overdue(overdue)
@@ -392,6 +407,7 @@ public class ComplianceCalendarServiceImpl implements ComplianceCalendarService 
                 .upcoming(upcoming)
                 .noDueDate(noDueDate)
                 .totalActive(totalActive)
+                .totalObligations(totalObligations)
                 .completed(completed)
                 .cancelled(cancelled)
                 .build();

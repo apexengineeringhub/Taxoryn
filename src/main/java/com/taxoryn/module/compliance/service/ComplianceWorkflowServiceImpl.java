@@ -83,6 +83,8 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
     private final TaskMapper taskMapper;
     private final PracticeSecurityScopeEvaluator securityScopeEvaluator;
     private final AuditService auditService;
+    private final org.springframework.beans.factory.ObjectProvider<com.taxoryn.module.compliance.qc.service.ComplianceQualityControlService> qcServiceProvider;
+    private final com.taxoryn.module.compliance.qc.repository.ComplianceQcReviewFindingRepository findingRepository;
 
     // Standard 9 Execution Checkpoints
     private static final List<ChecklistSeedSpec> DEFAULT_CHECKLIST_SEEDS = List.of(
@@ -268,6 +270,8 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .reviewNotes(workflow.getReviewNotes())
                 .changesRequestedReason(workflow.getChangesRequestedReason())
                 .approvedBy(workflow.getApprovedBy())
+                .authorizedBy(workflow.getAuthorizedBy())
+                .authorizationNotes(workflow.getAuthorizationNotes())
                 .waitingRequestedBy(workflow.getWaitingRequestedBy())
                 .filedBy(workflow.getFiledBy())
                 .completedBy(workflow.getCompletedBy())
@@ -308,6 +312,20 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowStatus previousStatus = workflow.getWorkflowStatus();
         workflow.validateTransition(request.getStatus());
+
+        // Phase 31.4 Quality Control prerequisite gates for direct status transitions
+        if (request.getStatus() == ComplianceWorkflowStatus.READY_FOR_FILING) {
+            qcServiceProvider.getObject().verifyApprovalPrerequisites(workflowId);
+            workflow.setApprovedAt(Instant.now());
+            workflow.setApprovedBy(SecurityUtils.getCurrentUserEmail());
+        } else if (request.getStatus() == ComplianceWorkflowStatus.FILED) {
+            qcServiceProvider.getObject().verifySubmissionPrerequisites(workflowId);
+        } else if (request.getStatus() == ComplianceWorkflowStatus.COMPLETED) {
+            if (previousStatus != ComplianceWorkflowStatus.FILED && previousStatus != ComplianceWorkflowStatus.ACKNOWLEDGEMENT_PENDING) {
+                qcServiceProvider.getObject().verifySubmissionPrerequisites(workflowId);
+            }
+        }
+
         workflow.setWorkflowStatus(request.getStatus());
 
         if (request.getStatus() == ComplianceWorkflowStatus.IN_PROGRESS && workflow.getStartedAt() == null) {
@@ -645,6 +663,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
             throw new ForbiddenException("The preparer cannot approve their own review");
         }
 
+        // Verify Phase 31.2 Pre-Review Validation Freshness
+        qcServiceProvider.ifAvailable(qc -> qc.verifyValidationFreshness(workflow.getId()));
+
         workflow.validateTransition(ComplianceWorkflowStatus.UNDER_REVIEW);
         String oldStatus = workflow.getWorkflowStatus().name();
 
@@ -712,6 +733,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
         workflow.setReviewedAt(Instant.now());
         workflow.setReviewedBy(SecurityUtils.getCurrentUserEmail());
 
+        // Increment review cycle for the upcoming correction cycle
+        workflow.setReviewCycle(workflow.getReviewCycle() + 1);
+
         workflowRepository.save(workflow);
 
         obligationRepository.findByIdAndOrganizationId(workflow.getComplianceObligationId(), organizationId)
@@ -739,8 +763,9 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
-        requireReviewPermission("REVIEW_APPROVE");
-        requireCurrentAssignedReviewer(workflow, organizationId);
+
+        // Single authoritative backend approval gate (validates status, reviewer authority, Four-Eyes, freshness, findings)
+        qcServiceProvider.getObject().verifyApprovalPrerequisites(workflowId);
 
         workflow.validateTransition(ComplianceWorkflowStatus.READY_FOR_FILING);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -819,12 +844,27 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
     @Override
     @Transactional
+    public ComplianceWorkflowDto authorizeFiling(UUID workflowId, com.taxoryn.module.compliance.qc.dto.AuthorizeFilingRequest request) {
+        return qcServiceProvider.getObject().authorizeFiling(workflowId, request);
+    }
+
+    @Override
+    @Transactional
+    public ComplianceWorkflowDto revokeFilingAuthorization(UUID workflowId, com.taxoryn.module.compliance.qc.dto.RevokeAuthorizationRequest request) {
+        return qcServiceProvider.getObject().revokeFilingAuthorization(workflowId, request);
+    }
+
+    @Override
+    @Transactional
     public ComplianceWorkflowDto markFiled(UUID workflowId, MarkWorkflowFiledRequest request) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         PracticeSecurityScope scope = securityScopeEvaluator.evaluateCurrentScope();
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
+
+        // Phase 31 Quality Control prerequisite gate: ensure workflow is approved and explicitly authorized
+        qcServiceProvider.getObject().verifySubmissionPrerequisites(workflowId);
 
         workflow.validateTransition(ComplianceWorkflowStatus.FILED);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -887,6 +927,12 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
 
         ComplianceWorkflowEntity workflow = getWorkflowOrThrow(workflowId, organizationId);
         validateClientAccess(scope, workflow.getClientId());
+
+        // Phase 31.4 Quality Control prerequisite gate: if not previously filed, verify submission prerequisites
+        if (workflow.getWorkflowStatus() != ComplianceWorkflowStatus.FILED
+                && workflow.getWorkflowStatus() != ComplianceWorkflowStatus.ACKNOWLEDGEMENT_PENDING) {
+            qcServiceProvider.getObject().verifySubmissionPrerequisites(workflowId);
+        }
 
         workflow.validateTransition(ComplianceWorkflowStatus.COMPLETED);
         String oldStatus = workflow.getWorkflowStatus().name();
@@ -1297,6 +1343,15 @@ public class ComplianceWorkflowServiceImpl implements ComplianceWorkflowService 
                 .startedAt(workflow.getStartedAt())
                 .submittedAt(workflow.getSubmittedAt())
                 .approvedAt(workflow.getApprovedAt())
+                .isAuthorized(workflow.isAuthorized())
+                .authorizedAt(workflow.getAuthorizedAt())
+                .authorizedBy(workflow.getAuthorizedBy())
+                .authorizationMethod(workflow.getAuthorizationMethod())
+                .authorizationReference(workflow.getAuthorizationReference())
+                .authorizationNotes(workflow.getAuthorizationNotes())
+                .reviewCycle(workflow.getReviewCycle())
+                .lastValidationFingerprint(workflow.getLastValidationFingerprint())
+                .lastValidatedAt(workflow.getLastValidatedAt())
                 .completedAt(workflow.getCompletedAt())
                 .createdAt(workflow.getCreatedAt())
                 .updatedAt(workflow.getUpdatedAt())
