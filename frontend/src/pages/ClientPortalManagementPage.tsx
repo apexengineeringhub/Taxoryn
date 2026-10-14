@@ -30,6 +30,11 @@ import {
   WifiOff,
   Sparkles,
   UserCheck,
+  Paperclip,
+  X,
+  File,
+  Download,
+  Filter,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -54,6 +59,9 @@ import {
   ClientPortalMessage,
   ClientCommunication,
   ProductModuleCode,
+  MessageContextType,
+  PortalMessageAttachment,
+  SendClientPortalMessageRequest,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import { ClientContextBar } from '../components/common/ClientContextBar';
@@ -186,6 +194,17 @@ export const ClientPortalManagementPage: React.FC = () => {
   const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Contextual Messaging & Attachment State
+  const [selectedContext, setSelectedContext] = useState<{
+    contextType: MessageContextType;
+    contextId?: string;
+    contextTitle: string;
+  } | null>(null);
+  const [messageFilter, setMessageFilter] = useState<MessageContextType | 'ALL'>('ALL');
+  const [pendingAttachments, setPendingAttachments] = useState<PortalMessageAttachment[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState<boolean>(false);
+  const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
+
   // WebSocket Live Consultation Hook
   const { isConnected: isWsConnected, isTyping: isPeerTyping, sendTyping } = usePortalChat({
     clientId: isPracticeUser ? selectedClientId : undefined,
@@ -270,24 +289,95 @@ export const ClientPortalManagementPage: React.FC = () => {
     }
   }, [messages, activeTab, isPeerTyping]);
 
+  // Capture context from search params if present
+  useEffect(() => {
+    const cType = searchParams.get('contextType') as MessageContextType | null;
+    const cId = searchParams.get('contextId') || undefined;
+    const cTitle = searchParams.get('contextTitle') || undefined;
+    if (cType && cTitle) {
+      setSelectedContext({
+        contextType: cType,
+        contextId: cId,
+        contextTitle: cTitle,
+      });
+    }
+  }, [searchParams]);
+
+  const handleInitiateContextualMessage = (context: {
+    contextType: MessageContextType;
+    contextId?: string;
+    contextTitle: string;
+  }) => {
+    setSelectedContext(context);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', 'messages');
+    nextParams.set('contextType', context.contextType);
+    if (context.contextId) nextParams.set('contextId', context.contextId);
+    nextParams.set('contextTitle', context.contextTitle);
+    if (isPracticeUser && selectedClientId) {
+      nextParams.set('clientId', selectedClientId);
+    }
+    setSearchParams(nextParams);
+  };
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (file.size > 25 * 1024 * 1024) {
+      alert('File size exceeds the 25MB limit.');
+      return;
+    }
+
+    setIsUploadingAttachment(true);
+    try {
+      const attachment = isPracticeUser && selectedClientId
+        ? await portalApi.uploadPracticeMessageAttachment(selectedClientId, file)
+        : await portalApi.uploadMessageAttachment(file);
+
+      setPendingAttachments((prev) => [...prev, attachment]);
+    } catch (err: any) {
+      console.error('Failed to upload message attachment', err);
+      alert(`Failed to upload attachment: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const filteredMessages = useMemo(() => {
+    if (messageFilter === 'ALL') return messages;
+    return messages.filter((m) => (m.contextType || 'GENERAL') === messageFilter);
+  }, [messages, messageFilter]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = newMessageText.trim();
-    if (!text || isSendingMessage) return;
+    if ((!text && pendingAttachments.length === 0) || isSendingMessage) return;
     if (isPracticeUser && !selectedClientId) return;
 
     setIsSendingMessage(true);
     sendTyping(false);
     try {
+      const payload: SendClientPortalMessageRequest = {
+        messageBody: text || (pendingAttachments.length > 0 ? 'Sent attachment(s)' : ''),
+        contextType: selectedContext?.contextType || 'GENERAL',
+        contextId: selectedContext?.contextId,
+        contextTitle: selectedContext?.contextTitle,
+        attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
+      };
+
       const sent = isPracticeUser
-        ? await portalApi.sendPracticeClientMessage(selectedClientId, { messageBody: text })
-        : await portalApi.sendClientMessage({ messageBody: text });
+        ? await portalApi.sendPracticeClientMessage(selectedClientId, payload)
+        : await portalApi.sendClientMessage(payload);
 
       setMessages((prev) => {
         if (prev.some((m) => m.id === sent.id)) return prev;
         return [...prev, sent];
       });
       setNewMessageText('');
+      setPendingAttachments([]);
+      setSelectedContext(null);
     } catch (err: any) {
       console.error('Failed to send consultation message', err);
       alert(`Failed to send message: ${err?.response?.data?.message || err.message}`);
@@ -762,6 +852,7 @@ export const ClientPortalManagementPage: React.FC = () => {
               }
               setIsUploadModalOpen(true);
             }}
+            onInitiateContextualMessage={handleInitiateContextualMessage}
             isPracticeUser={isPracticeUser}
           />
 
@@ -1347,6 +1438,36 @@ export const ClientPortalManagementPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Context Filter Selector */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase mr-1 flex items-center gap-1">
+                  <Filter className="w-3 h-3 text-slate-400" />
+                  Context Filter:
+                </span>
+                {[
+                  { label: 'All Messages', value: 'ALL' },
+                  { label: 'General', value: 'GENERAL' },
+                  { label: 'Doc Requests', value: 'DOCUMENT_REQUEST' },
+                  { label: 'Doc Items', value: 'DOCUMENT_ITEM' },
+                  { label: 'Workflows', value: 'COMPLIANCE_WORKFLOW' },
+                  { label: 'Notices', value: 'NOTICE' },
+                ].map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setMessageFilter(f.value as any)}
+                    className={clsx(
+                      'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer',
+                      messageFilter === f.value
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
               {/* Quick Query Templates (For Client View) */}
               {!isPracticeUser && messages.length === 0 && (
                 <div className="p-3.5 bg-brand-50/50 border border-brand-100 rounded-xl space-y-2">
@@ -1376,24 +1497,30 @@ export const ClientPortalManagementPage: React.FC = () => {
 
               {/* Chat Thread */}
               <div className="border border-slate-200 rounded-xl p-4 min-h-[320px] max-h-[480px] overflow-y-auto space-y-3 bg-slate-50/40">
-                {messages.length === 0 ? (
+                {filteredMessages.length === 0 ? (
                   <div className="py-14 text-center space-y-3">
                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
                       <MessageCircle className="w-6 h-6" />
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-bold text-slate-800">
-                        {isPracticeUser ? 'No consultation messages yet' : 'Start your consultation'}
+                        {messageFilter !== 'ALL'
+                          ? `No messages matching context "${messageFilter}"`
+                          : isPracticeUser
+                          ? 'No consultation messages yet'
+                          : 'Start your consultation'}
                       </p>
                       <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        {isPracticeUser
+                        {messageFilter !== 'ALL'
+                          ? 'Switch to "All Messages" to view the complete communication history.'
+                          : isPracticeUser
                           ? `Send a message to ${activeClientName} to initiate consultation or provide status updates.`
                           : 'Send a message to your assigned tax practitioner. Messages and status updates are synchronized in real time.'}
                       </p>
                     </div>
                   </div>
                 ) : (
-                  messages.map((msg) => {
+                  filteredMessages.map((msg) => {
                     const isMe = isPracticeUser
                       ? msg.senderType === 'PRACTICE'
                       : msg.senderType === 'CLIENT';
@@ -1449,7 +1576,92 @@ export const ClientPortalManagementPage: React.FC = () => {
                               : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
                           )}
                         >
+                          {/* Contextual Badge on Message */}
+                          {msg.contextType && msg.contextType !== 'GENERAL' && (
+                            <div
+                              className={clsx(
+                                'text-[10px] font-bold px-2 py-0.5 rounded-md mb-2 inline-flex items-center gap-1 max-w-full truncate',
+                                isMe
+                                  ? 'bg-brand-700 text-brand-100'
+                                  : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                              )}
+                            >
+                              <span className="uppercase text-[9px] opacity-80">
+                                {msg.contextType.replace(/_/g, ' ')}:
+                              </span>
+                              <span className="truncate">{msg.contextTitle || msg.contextId}</span>
+                            </div>
+                          )}
+
                           <p className="whitespace-pre-wrap">{msg.messageBody}</p>
+
+                          {/* Message Attachments */}
+                          {msg.attachments && msg.attachments.length > 0 && (
+                            <div className="mt-2.5 space-y-1.5 pt-2 border-t border-black/10">
+                              {msg.attachments.map((att, idx) => (
+                                <div
+                                  key={idx}
+                                  className={clsx(
+                                    'flex items-center justify-between gap-2 p-2 rounded-lg text-xs',
+                                    isMe
+                                      ? 'bg-white/10 text-white'
+                                      : 'bg-slate-50 border border-slate-200 text-slate-800'
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2 overflow-hidden">
+                                    <File className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                    <span className="truncate font-medium">{att.fileName}</span>
+                                    {att.fileSize !== undefined && (
+                                      <span className="text-[10px] opacity-60">
+                                        ({(att.fileSize / 1024).toFixed(0)} KB)
+                                      </span>
+                                    )}
+                                  </div>
+                                  {att.downloadUrl ? (
+                                    <a
+                                      href={att.downloadUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download={att.fileName}
+                                      className={clsx(
+                                        'p-1 rounded hover:bg-black/10 transition-colors shrink-0',
+                                        isMe ? 'text-white' : 'text-brand-600'
+                                      )}
+                                      title="Download attachment"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </a>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const blob = await documentApi.download(att.documentId);
+                                          const url = window.URL.createObjectURL(blob);
+                                          const a = document.createElement('a');
+                                          a.href = url;
+                                          a.download = att.fileName;
+                                          document.body.appendChild(a);
+                                          a.click();
+                                          window.URL.revokeObjectURL(url);
+                                          document.body.removeChild(a);
+                                        } catch (e) {
+                                          console.error('Download failed', e);
+                                        }
+                                      }}
+                                      className={clsx(
+                                        'p-1 rounded hover:bg-black/10 transition-colors shrink-0',
+                                        isMe ? 'text-white' : 'text-brand-600'
+                                      )}
+                                      title="Download attachment"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           {isMe && (
                             <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-85">
@@ -1490,8 +1702,77 @@ export const ClientPortalManagementPage: React.FC = () => {
                 <div ref={messagesEndRef} />
               </div>
 
+              {/* Active Context Banner Above Composer */}
+              {selectedContext && (
+                <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 shadow-2xs animate-in fade-in">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className="font-bold text-[10px] bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded uppercase shrink-0">
+                      Context: {selectedContext.contextType.replace(/_/g, ' ')}
+                    </span>
+                    <span className="truncate font-semibold text-indigo-950">{selectedContext.contextTitle}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedContext(null)}
+                    className="text-indigo-600 hover:text-indigo-900 p-1 rounded-md hover:bg-indigo-100 transition-colors shrink-0"
+                    title="Clear context and send as general consultation"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Pending Attachments List Above Composer */}
+              {pendingAttachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                  {pendingAttachments.map((att, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 shadow-2xs"
+                    >
+                      <Paperclip className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="truncate max-w-[160px] font-medium">{att.fileName}</span>
+                      {att.fileSize !== undefined && (
+                        <span className="text-[10px] text-slate-400">
+                          ({(att.fileSize / 1024).toFixed(0)} KB)
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded hover:bg-slate-100"
+                        title="Remove attachment"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Message Composer */}
-              <form onSubmit={handleSendMessage} className="flex gap-2">
+              <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                <input
+                  type="file"
+                  ref={attachmentFileInputRef}
+                  className="hidden"
+                  onChange={handleAttachmentUpload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => attachmentFileInputRef.current?.click()}
+                  disabled={isUploadingAttachment || (isPracticeUser && !selectedClientId)}
+                  isLoading={isUploadingAttachment}
+                  leftIcon={<Paperclip className="w-4 h-4 text-slate-500" />}
+                  className="shrink-0"
+                  title="Attach file (up to 25MB)"
+                >
+                  Attach
+                </Button>
                 <input
                   type="text"
                   value={newMessageText}
@@ -1501,7 +1782,9 @@ export const ClientPortalManagementPage: React.FC = () => {
                   }}
                   onBlur={() => sendTyping(false)}
                   placeholder={
-                    isPracticeUser
+                    selectedContext
+                      ? `Type inquiry about ${selectedContext.contextTitle}...`
+                      : isPracticeUser
                       ? `Type a consultation reply or filing update to ${activeClientName}...`
                       : `Type your tax query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`
                   }
@@ -1513,7 +1796,10 @@ export const ClientPortalManagementPage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   isLoading={isSendingMessage}
-                  disabled={!newMessageText.trim() || (isPracticeUser && !selectedClientId)}
+                  disabled={
+                    (!newMessageText.trim() && pendingAttachments.length === 0) ||
+                    (isPracticeUser && !selectedClientId)
+                  }
                   leftIcon={<Send className="w-4 h-4" />}
                 >
                   Send

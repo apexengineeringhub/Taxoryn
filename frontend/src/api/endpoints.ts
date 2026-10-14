@@ -139,6 +139,8 @@ import {
   RegisterClientPortalUserRequest,
   ClientPortalMessage,
   SendClientPortalMessageRequest,
+  MessageContextType,
+  PortalMessageAttachment,
   TdsProfile,
   TdsReturn,
   TdsChallan,
@@ -1937,12 +1939,20 @@ export const portalApi = {
   },
 
   // Consultation Messages & Chat
-  getClientMessages: async () => {
-    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>('/v1/portal/messages');
+  getClientMessages: async (params?: { contextType?: MessageContextType; contextId?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>('/v1/portal/messages', { params });
     return res.data.data;
   },
   sendClientMessage: async (payload: SendClientPortalMessageRequest) => {
     const res = await apiClient.post<ApiResponse<ClientPortalMessage>>('/v1/portal/messages', payload);
+    return res.data.data;
+  },
+  uploadMessageAttachment: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<PortalMessageAttachment>>('/v1/portal/messages/attachments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data.data;
   },
   markClientMessagesRead: async () => {
@@ -1953,12 +1963,20 @@ export const portalApi = {
     const res = await apiClient.get<ApiResponse<number>>('/v1/portal/messages/unread-count');
     return res.data.data;
   },
-  getPracticeClientMessages: async (clientId: string) => {
-    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>(`/v1/portal/clients/${clientId}/messages`);
+  getPracticeClientMessages: async (clientId: string, params?: { contextType?: MessageContextType; contextId?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>(`/v1/portal/clients/${clientId}/messages`, { params });
     return res.data.data;
   },
   sendPracticeClientMessage: async (clientId: string, payload: SendClientPortalMessageRequest) => {
     const res = await apiClient.post<ApiResponse<ClientPortalMessage>>(`/v1/portal/clients/${clientId}/messages`, payload);
+    return res.data.data;
+  },
+  uploadPracticeMessageAttachment: async (clientId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<PortalMessageAttachment>>(`/v1/portal/clients/${clientId}/messages/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data.data;
   },
   markPracticeClientMessagesRead: async (clientId: string) => {

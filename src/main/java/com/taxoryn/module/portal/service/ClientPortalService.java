@@ -75,6 +75,8 @@ public interface ClientPortalService {
 
     List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getClientMessages();
 
+    List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getClientMessages(com.taxoryn.module.portal.entity.MessageContextType contextType, UUID contextId);
+
     com.taxoryn.module.portal.dto.ClientPortalMessageDto sendClientMessage(com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request);
 
     void markMessagesReadByClient();
@@ -83,9 +85,13 @@ public interface ClientPortalService {
 
     List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getMessagesForClient(UUID clientId);
 
+    List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getMessagesForClient(UUID clientId, com.taxoryn.module.portal.entity.MessageContextType contextType, UUID contextId);
+
     com.taxoryn.module.portal.dto.ClientPortalMessageDto sendPracticeMessageToClient(UUID clientId, com.taxoryn.module.portal.dto.SendClientPortalMessageRequest request);
 
     void markMessagesReadByPractice(UUID clientId);
 
     long getUnreadCountForPractice(UUID clientId);
+
+    com.taxoryn.module.portal.dto.PortalMessageAttachmentDto uploadMessageAttachment(org.springframework.web.multipart.MultipartFile file, UUID targetClientId);
 }

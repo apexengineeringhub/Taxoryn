@@ -405,9 +405,11 @@ public class ClientPortalController {
 
     @GetMapping("/messages")
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
-    @Operation(summary = "Client consultation messages", description = "Retrieves chronological message history between the authenticated client and their assigned tax practitioner.")
-    public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getClientMessages() {
-        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getClientMessages();
+    @Operation(summary = "Client consultation messages", description = "Retrieves chronological message history between the authenticated client and their assigned tax practitioner, optionally filtered by context.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getClientMessages(
+            @RequestParam(required = false) com.taxoryn.module.portal.entity.MessageContextType contextType,
+            @RequestParam(required = false) UUID contextId) {
+        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getClientMessages(contextType, contextId);
         return ResponseEntity.ok(ApiResponse.success("Messages retrieved successfully", list));
     }
 
@@ -419,6 +421,16 @@ public class ClientPortalController {
         com.taxoryn.module.portal.dto.ClientPortalMessageDto message = clientPortalService.sendClientMessage(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Message sent successfully", message));
+    }
+
+    @PostMapping(value = "/messages/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Upload client consultation message attachment", description = "Uploads and scans an attachment for a consultation message.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.portal.dto.PortalMessageAttachmentDto>> uploadClientMessageAttachment(
+            @RequestParam("file") MultipartFile file) {
+        com.taxoryn.module.portal.dto.PortalMessageAttachmentDto attachment = clientPortalService.uploadMessageAttachment(file, null);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Attachment uploaded successfully", attachment));
     }
 
     @PostMapping("/messages/read")
@@ -439,10 +451,12 @@ public class ClientPortalController {
 
     @GetMapping("/clients/{clientId}/messages")
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
-    @Operation(summary = "Practitioner gets client consultation messages", description = "Retrieves message history for a specific client under ABAC scope.")
+    @Operation(summary = "Practitioner gets client consultation messages", description = "Retrieves message history for a specific client under ABAC scope, optionally filtered by context.")
     public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getMessagesForClient(
-            @PathVariable UUID clientId) {
-        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getMessagesForClient(clientId);
+            @PathVariable UUID clientId,
+            @RequestParam(required = false) com.taxoryn.module.portal.entity.MessageContextType contextType,
+            @RequestParam(required = false) UUID contextId) {
+        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getMessagesForClient(clientId, contextType, contextId);
         return ResponseEntity.ok(ApiResponse.success("Client messages retrieved successfully", list));
     }
 
@@ -455,6 +469,17 @@ public class ClientPortalController {
         com.taxoryn.module.portal.dto.ClientPortalMessageDto message = clientPortalService.sendPracticeMessageToClient(clientId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Message sent successfully", message));
+    }
+
+    @PostMapping(value = "/clients/{clientId}/messages/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
+    @Operation(summary = "Upload practice consultation message attachment", description = "Uploads and scans an attachment from practitioner for a client message.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.portal.dto.PortalMessageAttachmentDto>> uploadPracticeMessageAttachment(
+            @PathVariable UUID clientId,
+            @RequestParam("file") MultipartFile file) {
+        com.taxoryn.module.portal.dto.PortalMessageAttachmentDto attachment = clientPortalService.uploadMessageAttachment(file, clientId);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Attachment uploaded successfully", attachment));
     }
 
     @PostMapping("/clients/{clientId}/messages/read")

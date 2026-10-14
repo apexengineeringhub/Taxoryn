@@ -1051,6 +1051,16 @@ export interface ClientContact {
   isPrimary: boolean;
 }
 
+export type MessageContextType = 'GENERAL' | 'DOCUMENT_REQUEST' | 'DOCUMENT_ITEM' | 'COMPLIANCE_WORKFLOW' | 'NOTICE';
+
+export interface PortalMessageAttachment {
+  documentId: string;
+  fileName: string;
+  fileSize?: number;
+  contentType?: string;
+  downloadUrl?: string;
+}
+
 export interface ClientPortalMessage {
   id: string;
   organizationId: string;
@@ -1060,6 +1070,11 @@ export interface ClientPortalMessage {
   senderName: string;
   senderEmail?: string;
   messageBody: string;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  parentMessageId?: string;
+  attachments?: PortalMessageAttachment[];
   attachmentsJson?: string;
   isReadByClient: boolean;
   readByClient?: boolean;
@@ -1072,6 +1087,11 @@ export interface ClientPortalMessage {
 
 export interface SendClientPortalMessageRequest {
   messageBody: string;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  parentMessageId?: string;
+  attachments?: PortalMessageAttachment[];
   attachmentsJson?: string;
 }
 
@@ -1436,6 +1456,7 @@ export interface DocumentItem {
 // 9. Billing & Invoices
 export interface Invoice {
   id: string;
+  organizationId?: string;
   invoiceNumber: string;
   clientId: string;
   clientName?: string;
@@ -1451,7 +1472,7 @@ export interface Invoice {
   totalAmount?: number;
   paidAmount: number;
   balanceDue: number;
-  status: 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED' | 'OVERDUE';
+  status: 'DRAFT' | 'ISSUED' | 'SENT' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED' | 'OVERDUE';
   notes?: string;
   terms?: string;
   items?: InvoiceLineItem[];

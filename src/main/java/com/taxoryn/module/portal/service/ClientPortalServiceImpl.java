@@ -55,6 +55,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -62,6 +63,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository;
+import com.taxoryn.module.notice.repository.TaxNoticeRepository;
+import com.taxoryn.module.portal.dto.PortalMessageAttachmentDto;
+import com.taxoryn.module.portal.entity.MessageContextType;
 
 import com.taxoryn.core.security.PasswordSecurityUtils;
 import com.taxoryn.module.audit.service.AuditService;
@@ -107,6 +115,12 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private final com.taxoryn.module.portal.repository.ClientPortalMessageRepository clientPortalMessageRepository;
     private final com.taxoryn.module.portal.websocket.PortalChatEventPublisher portalChatEventPublisher;
     private final com.taxoryn.core.security.PracticeSecurityScopeEvaluator securityScopeEvaluator;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ObjectMapper objectMapper;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ComplianceWorkflowRepository complianceWorkflowRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private TaxNoticeRepository taxNoticeRepository;
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
@@ -1030,9 +1044,27 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Override
     @Transactional(readOnly = true)
     public List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getClientMessages() {
+        return getClientMessages(null, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getClientMessages(MessageContextType contextType, UUID contextId) {
         UUID clientId = SecurityUtils.requireCurrentClientId();
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
-        return clientPortalMessageRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtAsc(organizationId, clientId).stream()
+
+        List<com.taxoryn.module.portal.entity.ClientPortalMessageEntity> list;
+        if (contextType != null && contextId != null) {
+            list = clientPortalMessageRepository.findAllByOrganizationIdAndClientIdAndContextTypeAndContextIdOrderByCreatedAtAsc(
+                    organizationId, clientId, contextType, contextId);
+        } else if (contextType != null) {
+            list = clientPortalMessageRepository.findAllByOrganizationIdAndClientIdAndContextTypeOrderByCreatedAtAsc(
+                    organizationId, clientId, contextType);
+        } else {
+            list = clientPortalMessageRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtAsc(organizationId, clientId);
+        }
+
+        return list.stream()
                 .map(this::mapMessageToDto)
                 .toList();
     }
@@ -1049,6 +1081,21 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
+        MessageContextType contextType = request.getContextType() != null ? request.getContextType() : MessageContextType.GENERAL;
+        UUID contextId = request.getContextId();
+        String contextTitle = resolveContextTitle(contextType, contextId, organizationId, clientId);
+        if (contextTitle == null && StringUtils.hasText(request.getContextTitle())) {
+            contextTitle = request.getContextTitle().trim();
+        }
+
+        if (request.getParentMessageId() != null) {
+            validateParentMessage(request.getParentMessageId(), organizationId, clientId);
+        }
+
+        String attachmentsJson = request.getAttachments() != null && !request.getAttachments().isEmpty()
+                ? serializeAttachments(request.getAttachments())
+                : request.getAttachmentsJson();
+
         UUID senderUserId = SecurityUtils.getCurrentUserId();
         UserEntity senderUser = userRepository.findById(senderUserId).orElse(null);
         String senderName = senderUser != null
@@ -1063,7 +1110,11 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .senderName(senderName)
                 .senderEmail(senderEmail)
                 .messageBody(request.getMessageBody().trim())
-                .attachmentsJson(request.getAttachmentsJson())
+                .contextType(contextType)
+                .contextId(contextId)
+                .contextTitle(contextTitle)
+                .parentMessageId(request.getParentMessageId())
+                .attachmentsJson(attachmentsJson)
                 .readByClient(true)
                 .readByPractice(false)
                 .build();
@@ -1124,13 +1175,30 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Override
     @Transactional(readOnly = true)
     public List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getMessagesForClient(UUID clientId) {
+        return getMessagesForClient(clientId, null, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getMessagesForClient(UUID clientId, MessageContextType contextType, UUID contextId) {
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
         ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
         validatePracticeClientAccess(client.getId());
 
-        return clientPortalMessageRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtAsc(organizationId, clientId).stream()
+        List<com.taxoryn.module.portal.entity.ClientPortalMessageEntity> list;
+        if (contextType != null && contextId != null) {
+            list = clientPortalMessageRepository.findAllByOrganizationIdAndClientIdAndContextTypeAndContextIdOrderByCreatedAtAsc(
+                    organizationId, clientId, contextType, contextId);
+        } else if (contextType != null) {
+            list = clientPortalMessageRepository.findAllByOrganizationIdAndClientIdAndContextTypeOrderByCreatedAtAsc(
+                    organizationId, clientId, contextType);
+        } else {
+            list = clientPortalMessageRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtAsc(organizationId, clientId);
+        }
+
+        return list.stream()
                 .map(this::mapMessageToDto)
                 .toList();
     }
@@ -1148,6 +1216,21 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
         validatePracticeClientAccess(client.getId());
 
+        MessageContextType contextType = request.getContextType() != null ? request.getContextType() : MessageContextType.GENERAL;
+        UUID contextId = request.getContextId();
+        String contextTitle = resolveContextTitle(contextType, contextId, organizationId, clientId);
+        if (contextTitle == null && StringUtils.hasText(request.getContextTitle())) {
+            contextTitle = request.getContextTitle().trim();
+        }
+
+        if (request.getParentMessageId() != null) {
+            validateParentMessage(request.getParentMessageId(), organizationId, clientId);
+        }
+
+        String attachmentsJson = request.getAttachments() != null && !request.getAttachments().isEmpty()
+                ? serializeAttachments(request.getAttachments())
+                : request.getAttachmentsJson();
+
         UUID senderUserId = SecurityUtils.getCurrentUserId();
         UserEntity senderUser = userRepository.findById(senderUserId).orElse(null);
         String senderName = senderUser != null
@@ -1162,7 +1245,11 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .senderName(senderName)
                 .senderEmail(senderEmail)
                 .messageBody(request.getMessageBody().trim())
-                .attachmentsJson(request.getAttachmentsJson())
+                .contextType(contextType)
+                .contextId(contextId)
+                .contextTitle(contextTitle)
+                .parentMessageId(request.getParentMessageId())
+                .attachmentsJson(attachmentsJson)
                 .readByClient(false)
                 .readByPractice(true)
                 .build();
@@ -1219,8 +1306,128 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         return clientPortalMessageRepository.countByOrganizationIdAndClientIdAndReadByPracticeFalse(organizationId, clientId);
     }
 
+    @Override
+    @Transactional
+    public PortalMessageAttachmentDto uploadMessageAttachment(MultipartFile file, UUID targetClientId) {
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestException("File payload cannot be empty");
+        }
+
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        UUID clientId;
+        if (SecurityUtils.isClientPortalUser()) {
+            clientId = SecurityUtils.requireCurrentClientId();
+        } else {
+            if (targetClientId == null) {
+                throw new BadRequestException("Target client ID is required for practitioner uploads");
+            }
+            validatePracticeClientAccess(targetClientId);
+            clientId = targetClientId;
+        }
+
+        clientRepository.findByIdAndOrganizationId(clientId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
+
+        var uploadReq = com.taxoryn.module.document.dto.UploadDocumentRequest.builder()
+                .clientId(clientId)
+                .documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.OTHER)
+                .notes("Consultation message attachment")
+                .build();
+
+        var docDto = documentService.uploadDocument(file, uploadReq);
+
+        return PortalMessageAttachmentDto.builder()
+                .documentId(docDto.getId())
+                .fileName(docDto.getFileName())
+                .fileSize(docDto.getFileSize())
+                .contentType(docDto.getContentType())
+                .downloadUrl("/api/v1/portal/documents/" + docDto.getId() + "/download")
+                .build();
+    }
+
+    private String resolveContextTitle(MessageContextType contextType, UUID contextId, UUID organizationId, UUID clientId) {
+        if (contextType == null || contextType == MessageContextType.GENERAL || contextId == null) {
+            return null;
+        }
+        return switch (contextType) {
+            case DOCUMENT_REQUEST -> {
+                var req = multiItemDocRequestRepository.findByIdAndOrganizationId(contextId, organizationId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Document request", "id", contextId));
+                if (!clientId.equals(req.getClientId())) {
+                    throw new BadRequestException("Document request does not belong to the active client.");
+                }
+                yield req.getRequestNumber() + (StringUtils.hasText(req.getPurpose()) ? ": " + req.getPurpose() : "");
+            }
+            case DOCUMENT_ITEM -> {
+                var item = multiItemDocRequestItemRepository.findByIdAndOrganizationId(contextId, organizationId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Document request item", "id", contextId));
+                if (!clientId.equals(item.getClientId())) {
+                    throw new BadRequestException("Document request item does not belong to the active client.");
+                }
+                String reqNum = item.getRequest() != null ? item.getRequest().getRequestNumber() + " / " : "";
+                yield reqNum + item.getTitle();
+            }
+            case COMPLIANCE_WORKFLOW -> {
+                if (complianceWorkflowRepository != null) {
+                    var wf = complianceWorkflowRepository.findByIdAndOrganizationId(contextId, organizationId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Compliance workflow", "id", contextId));
+                    if (!clientId.equals(wf.getClientId())) {
+                        throw new BadRequestException("Compliance workflow does not belong to the active client.");
+                    }
+                    yield "Compliance Workflow (" + wf.getWorkflowStatus() + ")";
+                }
+                yield "Compliance Workflow";
+            }
+            case NOTICE -> {
+                if (taxNoticeRepository != null) {
+                    var notice = taxNoticeRepository.findByIdAndOrganizationId(contextId, organizationId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Tax notice", "id", contextId));
+                    if (!clientId.equals(notice.getClientId())) {
+                        throw new BadRequestException("Tax notice does not belong to the active client.");
+                    }
+                    yield "Notice: " + (StringUtils.hasText(notice.getNoticeNumber()) ? notice.getNoticeNumber() : notice.getId().toString());
+                }
+                yield "Tax Notice";
+            }
+            default -> null;
+        };
+    }
+
+    private void validateParentMessage(UUID parentMessageId, UUID organizationId, UUID clientId) {
+        var parent = clientPortalMessageRepository.findByIdAndOrganizationId(parentMessageId, organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Parent message", "id", parentMessageId));
+        if (!clientId.equals(parent.getClientId())) {
+            throw new BadRequestException("Parent message does not belong to this client conversation.");
+        }
+    }
+
+    private ObjectMapper getObjectMapper() {
+        return objectMapper != null ? objectMapper : new ObjectMapper().findAndRegisterModules();
+    }
+
+    private List<PortalMessageAttachmentDto> parseAttachments(String json) {
+        if (!StringUtils.hasText(json)) return Collections.emptyList();
+        try {
+            return getObjectMapper().readValue(json, new TypeReference<List<PortalMessageAttachmentDto>>() {});
+        } catch (Exception e) {
+            log.warn("Failed to parse attachmentsJson: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private String serializeAttachments(List<PortalMessageAttachmentDto> list) {
+        if (list == null || list.isEmpty()) return null;
+        try {
+            return getObjectMapper().writeValueAsString(list);
+        } catch (Exception e) {
+            log.warn("Failed to serialize attachments: {}", e.getMessage());
+            return null;
+        }
+    }
+
     private com.taxoryn.module.portal.dto.ClientPortalMessageDto mapMessageToDto(com.taxoryn.module.portal.entity.ClientPortalMessageEntity entity) {
         if (entity == null) return null;
+        List<PortalMessageAttachmentDto> attachments = parseAttachments(entity.getAttachmentsJson());
         return com.taxoryn.module.portal.dto.ClientPortalMessageDto.builder()
                 .id(entity.getId())
                 .organizationId(entity.getOrganizationId())
@@ -1230,6 +1437,11 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .senderName(entity.getSenderName())
                 .senderEmail(entity.getSenderEmail())
                 .messageBody(entity.getMessageBody())
+                .contextType(entity.getContextType())
+                .contextId(entity.getContextId())
+                .contextTitle(entity.getContextTitle())
+                .parentMessageId(entity.getParentMessageId())
+                .attachments(attachments)
                 .attachmentsJson(entity.getAttachmentsJson())
                 .isReadByClient(entity.isReadByClient())
                 .isReadByPractice(entity.isReadByPractice())

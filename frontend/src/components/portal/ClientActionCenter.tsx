@@ -26,6 +26,7 @@ import {
   DocumentRequestItem,
   ClientDocumentRequest,
   Invoice,
+  MessageContextType,
 } from '../../types';
 import { documentRequestApi, portalApi } from '../../api/endpoints';
 import { formatCurrency } from '../../utils/currencyUtils';
@@ -40,6 +41,11 @@ export interface ClientActionCenterProps {
   onRefresh: () => void;
   onNavigateTab: (tab: string) => void;
   onOpenUploadModal?: (request?: DocumentRequest | ClientDocumentRequest, item?: DocumentRequestItem) => void;
+  onInitiateContextualMessage?: (context: {
+    contextType: MessageContextType;
+    contextId?: string;
+    contextTitle: string;
+  }) => void;
   isPracticeUser?: boolean;
 }
 
@@ -54,6 +60,7 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
   onRefresh,
   onNavigateTab,
   onOpenUploadModal,
+  onInitiateContextualMessage,
   isPracticeUser = false,
 }) => {
   const [filter, setFilter] = useState<ActionFilter>('all');
@@ -591,6 +598,23 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+                    {onInitiateContextualMessage && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          onInitiateContextualMessage({
+                            contextType: 'DOCUMENT_ITEM',
+                            contextId: item.id,
+                            contextTitle: `${item.requestNumber ? item.requestNumber + ' - ' : ''}${item.title}`,
+                          })
+                        }
+                        leftIcon={<MessageSquare className="w-3.5 h-3.5 text-rose-600" />}
+                        className="text-xs font-semibold text-rose-700 border-rose-200 hover:bg-rose-50"
+                      >
+                        Ask Question
+                      </Button>
+                    )}
                     <Button
                       variant="primary"
                       size="sm"
@@ -667,6 +691,23 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+                    {onInitiateContextualMessage && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          onInitiateContextualMessage({
+                            contextType: 'DOCUMENT_ITEM',
+                            contextId: item.id,
+                            contextTitle: `${item.requestNumber ? item.requestNumber + ' - ' : ''}${item.title}`,
+                          })
+                        }
+                        leftIcon={<MessageSquare className="w-3.5 h-3.5 text-slate-500" />}
+                        className="text-xs text-slate-600 hover:text-brand-700"
+                      >
+                        Ask Query
+                      </Button>
+                    )}
                     <Button
                       variant="primary"
                       size="sm"
@@ -871,7 +912,16 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onNavigateTab('messages')}
+              onClick={() => {
+                if (onInitiateContextualMessage) {
+                  onInitiateContextualMessage({
+                    contextType: 'GENERAL',
+                    contextTitle: 'General Consultation',
+                  });
+                } else {
+                  onNavigateTab('messages');
+                }
+              }}
               leftIcon={<MessageSquare className="w-4 h-4 text-brand-600" />}
               className="text-xs font-bold"
             >

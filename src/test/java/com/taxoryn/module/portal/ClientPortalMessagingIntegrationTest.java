@@ -30,8 +30,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.mock.web.MockMultipartFile;
+import com.taxoryn.module.portal.entity.MessageContextType;
+import com.taxoryn.module.portal.dto.PortalMessageAttachmentDto;
+import com.taxoryn.module.docrequest.entity.DocumentRequestEntity;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,6 +78,12 @@ class ClientPortalMessagingIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private com.taxoryn.module.docrequest.repository.DocumentRequestRepository documentRequestRepository;
+
+    @Autowired
+    private com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository documentRequestItemRepository;
 
     private UUID tenantId;
     private OrganizationEntity organization;
@@ -229,6 +240,8 @@ class ClientPortalMessagingIntegrationTest {
     private void cleanData() {
         TenantContext.clear();
         clientPortalMessageRepository.deleteAll();
+        documentRequestItemRepository.deleteAll();
+        documentRequestRepository.deleteAll();
         auditLogRepository.deleteAll();
         userRepository.deleteAll();
         clientRepository.deleteAll();
@@ -372,5 +385,169 @@ class ClientPortalMessagingIntegrationTest {
         mockMvc.perform(get("/api/v1/portal/clients/" + clientA.getId() + "/messages")
                         .header("Authorization", "Bearer " + foreignAdminToken))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("CHAT-004: Client and Practitioner can send and retrieve contextual message linked to DocumentRequest")
+    void testContextualMessageWithDocumentRequest() throws Exception {
+        DocumentRequestEntity req = DocumentRequestEntity.builder()
+                .clientId(clientA.getId())
+                .requestNumber("REQ-2026-999")
+                .purpose("Q4 GST Invoices")
+                .status(DocumentRequestEntity.RequestStatus.SENT)
+                .build();
+        req.setOrganizationId(tenantId);
+        req = documentRequestRepository.save(req);
+
+        SendClientPortalMessageRequest clientMsg = SendClientPortalMessageRequest.builder()
+                .messageBody("Could you clarify which invoice series is needed for Q4 GST?")
+                .contextType(MessageContextType.DOCUMENT_REQUEST)
+                .contextId(req.getId())
+                .build();
+
+        mockMvc.perform(post("/api/v1/portal/messages")
+                        .header("Authorization", "Bearer " + clientAToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(clientMsg)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.contextType", is("DOCUMENT_REQUEST")))
+                .andExpect(jsonPath("$.data.contextId", is(req.getId().toString())))
+                .andExpect(jsonPath("$.data.contextTitle", containsString("REQ-2026-999: Q4 GST Invoices")));
+
+        mockMvc.perform(get("/api/v1/portal/clients/" + clientA.getId() + "/messages")
+                        .header("Authorization", "Bearer " + practitionerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data[0].contextType", is("DOCUMENT_REQUEST")))
+                .andExpect(jsonPath("$.data[0].contextTitle", containsString("REQ-2026-999")));
+    }
+
+    @Test
+    @DisplayName("CHAT-005: Client and Practitioner can filter messages by contextType and contextId")
+    void testFilterMessagesByContext() throws Exception {
+        DocumentRequestEntity req1 = DocumentRequestEntity.builder()
+                .clientId(clientA.getId())
+                .requestNumber("REQ-CTX-01")
+                .purpose("Bank Statements")
+                .status(DocumentRequestEntity.RequestStatus.SENT)
+                .build();
+        req1.setOrganizationId(tenantId);
+        req1 = documentRequestRepository.save(req1);
+
+        DocumentRequestEntity req2 = DocumentRequestEntity.builder()
+                .clientId(clientA.getId())
+                .requestNumber("REQ-CTX-02")
+                .purpose("ITR Computation")
+                .status(DocumentRequestEntity.RequestStatus.SENT)
+                .build();
+        req2.setOrganizationId(tenantId);
+        req2 = documentRequestRepository.save(req2);
+
+        mockMvc.perform(post("/api/v1/portal/messages")
+                        .header("Authorization", "Bearer " + clientAToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(SendClientPortalMessageRequest.builder()
+                                .messageBody("Question regarding Bank Statements")
+                                .contextType(MessageContextType.DOCUMENT_REQUEST)
+                                .contextId(req1.getId())
+                                .build())))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/portal/messages")
+                        .header("Authorization", "Bearer " + clientAToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(SendClientPortalMessageRequest.builder()
+                                .messageBody("Question regarding ITR Computation")
+                                .contextType(MessageContextType.DOCUMENT_REQUEST)
+                                .contextId(req2.getId())
+                                .build())))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/portal/messages")
+                        .header("Authorization", "Bearer " + clientAToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(SendClientPortalMessageRequest.builder()
+                                .messageBody("General query without context")
+                                .build())))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/portal/messages")
+                        .param("contextType", "DOCUMENT_REQUEST")
+                        .param("contextId", req1.getId().toString())
+                        .header("Authorization", "Bearer " + clientAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].messageBody", is("Question regarding Bank Statements")));
+
+        mockMvc.perform(get("/api/v1/portal/messages")
+                        .header("Authorization", "Bearer " + clientAToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(3)));
+    }
+
+    @Test
+    @DisplayName("CHAT-006: Rejects linking message to another client's document request (Cross-client context isolation)")
+    void testCrossClientContextIsolation() throws Exception {
+        TenantContext.setTenantId(foreignTenantId);
+        DocumentRequestEntity foreignReq = DocumentRequestEntity.builder()
+                .clientId(clientForeign.getId())
+                .requestNumber("REQ-FOREIGN-01")
+                .purpose("Foreign Documents")
+                .status(DocumentRequestEntity.RequestStatus.SENT)
+                .build();
+        foreignReq.setOrganizationId(foreignTenantId);
+        foreignReq = documentRequestRepository.save(foreignReq);
+        TenantContext.setTenantId(tenantId);
+
+        SendClientPortalMessageRequest maliciousMsg = SendClientPortalMessageRequest.builder()
+                .messageBody("Trying to probe foreign document request")
+                .contextType(MessageContextType.DOCUMENT_REQUEST)
+                .contextId(foreignReq.getId())
+                .build();
+
+        mockMvc.perform(post("/api/v1/portal/messages")
+                        .header("Authorization", "Bearer " + clientAToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(maliciousMsg)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("CHAT-007: Can upload message attachment and attach to consultation message")
+    void testMessageAttachmentUploadAndSend() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "bank_statement_march.pdf",
+                "application/pdf",
+                "%PDF-1.4 Mock PDF Content".getBytes()
+        );
+
+        String responseContent = mockMvc.perform(multipart("/api/v1/portal/messages/attachments")
+                        .file(file)
+                        .header("Authorization", "Bearer " + clientAToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.fileName", is("bank_statement_march.pdf")))
+                .andExpect(jsonPath("$.data.documentId", notNullValue()))
+                .andReturn().getResponse().getContentAsString();
+
+        PortalMessageAttachmentDto attachmentDto = objectMapper.readValue(
+                objectMapper.readTree(responseContent).get("data").toString(),
+                PortalMessageAttachmentDto.class
+        );
+
+        SendClientPortalMessageRequest clientMsg = SendClientPortalMessageRequest.builder()
+                .messageBody("Attached is the March bank statement for review.")
+                .attachments(List.of(attachmentDto))
+                .build();
+
+        mockMvc.perform(post("/api/v1/portal/messages")
+                        .header("Authorization", "Bearer " + clientAToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(clientMsg)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.attachments", hasSize(1)))
+                .andExpect(jsonPath("$.data.attachments[0].fileName", is("bank_statement_march.pdf")));
     }
 }

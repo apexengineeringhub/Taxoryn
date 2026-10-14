@@ -106,6 +106,12 @@ class ClientPortalServiceTest {
     private com.taxoryn.module.docrequest.repository.DocumentRequestRepository multiItemDocRequestRepository;
     @Mock
     private com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository multiItemDocRequestItemRepository;
+    @Mock
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    @Mock
+    private com.taxoryn.module.compliance.repository.ComplianceWorkflowRepository complianceWorkflowRepository;
+    @Mock
+    private com.taxoryn.module.notice.repository.TaxNoticeRepository taxNoticeRepository;
 
     @InjectMocks
     private ClientPortalServiceImpl portalService;
