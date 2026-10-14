@@ -28,6 +28,7 @@ import com.taxoryn.module.portal.dto.ClientPortalDashboardDto;
 import com.taxoryn.module.portal.dto.ClientPortalProfileDto;
 import com.taxoryn.module.portal.dto.ClientPortalUserDto;
 import com.taxoryn.module.portal.dto.ClientTaskDto;
+import com.taxoryn.module.portal.dto.ClientApprovalDto;
 import com.taxoryn.module.portal.dto.CreateClientDocumentRequest;
 import com.taxoryn.module.portal.dto.RegisterClientPortalUserRequest;
 import com.taxoryn.module.portal.dto.UpdateClientPortalProfileRequest;
@@ -121,6 +122,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     private ComplianceWorkflowRepository complianceWorkflowRepository;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private TaxNoticeRepository taxNoticeRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ClientApprovalService clientApprovalService;
 
     @Value("${taxoryn.auth.activation-url:${taxoryn.frontend.activation-url:${taxoryn.auth.activation-base-url:${taxoryn.mail.activation-url:${TAXORYN_ACTIVATION_URL:${taxoryn.frontend-url:${app.frontend-url:${TAXORYN_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}}}/activate}}}}}")
     private String activationBaseUrl = "http://localhost:5173/activate";
@@ -443,7 +446,18 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                     return dto;
                 }).toList();
 
-        long pendingActionItems = pendingDocs + pendingDocItems + unpaidCount;
+        long pendingApprovalsCount = 0;
+        List<ClientApprovalDto> pendingApprovals = List.of();
+        if (clientApprovalService != null) {
+            try {
+                pendingApprovalsCount = clientApprovalService.getPendingApprovalsCount(clientId);
+                pendingApprovals = clientApprovalService.getApprovalRequestsForClient(clientId, com.taxoryn.module.portal.entity.ClientApprovalStatus.PENDING, null, null);
+            } catch (Exception e) {
+                log.warn("Failed to load pending approvals for client dashboard: {}", e.getMessage());
+            }
+        }
+
+        long pendingActionItems = pendingDocs + pendingDocItems + unpaidCount + pendingApprovalsCount;
 
         return ClientPortalDashboardDto.builder()
                 .clientId(client.getId())
@@ -463,6 +477,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .activeItrReturnsCount(itrList.size())
                 .unpaidInvoicesCount(unpaidCount)
                 .outstandingBalance(outstanding)
+                .pendingApprovalsCount(pendingApprovalsCount)
                 .latestGstFilings(gstList)
                 .latestItrReturns(itrList)
                 .pendingDocumentRequests(docRequests)
@@ -470,6 +485,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .pendingTasks(clientTasks)
                 .recentNotifications(notifications)
                 .latestInvoices(latestInvoices)
+                .pendingApprovals(pendingApprovals)
                 .build();
     }
 

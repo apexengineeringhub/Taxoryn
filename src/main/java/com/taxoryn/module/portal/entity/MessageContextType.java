@@ -5,5 +5,6 @@ public enum MessageContextType {
     DOCUMENT_REQUEST,
     DOCUMENT_ITEM,
     COMPLIANCE_WORKFLOW,
-    NOTICE
+    NOTICE,
+    ENGAGEMENT
 }

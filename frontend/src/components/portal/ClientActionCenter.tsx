@@ -11,12 +11,19 @@ import {
   ChevronRight,
   Sparkles,
   ShieldAlert,
+  ShieldCheck,
   ArrowRight,
   Filter,
   CheckCheck,
   RefreshCw,
   FolderLock,
   MessageSquare,
+  Scale,
+  ThumbsUp,
+  ThumbsDown,
+  FileCheck,
+  Check,
+  Download,
 } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -27,8 +34,11 @@ import {
   ClientDocumentRequest,
   Invoice,
   MessageContextType,
+  ClientApproval,
+  ClientApprovalType,
+  ClientApprovalStatus,
 } from '../../types';
-import { documentRequestApi, portalApi } from '../../api/endpoints';
+import { documentRequestApi, portalApi, clientPortalApi } from '../../api/endpoints';
 import { formatCurrency } from '../../utils/currencyUtils';
 import clsx from 'clsx';
 
@@ -37,6 +47,7 @@ export interface ClientActionCenterProps {
   activeRequests: DocumentRequest[];
   pendingDocRequests: ClientDocumentRequest[];
   invoices: Invoice[];
+  approvals?: ClientApproval[];
   isLoading: boolean;
   onRefresh: () => void;
   onNavigateTab: (tab: string) => void;
@@ -49,13 +60,14 @@ export interface ClientActionCenterProps {
   isPracticeUser?: boolean;
 }
 
-type ActionFilter = 'all' | 'action_required' | 'under_review' | 'completed' | 'bills';
+type ActionFilter = 'all' | 'action_required' | 'approvals' | 'under_review' | 'completed' | 'bills';
 
 export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
   dashboard,
   activeRequests = [],
   pendingDocRequests = [],
   invoices = [],
+  approvals = [],
   isLoading,
   onRefresh,
   onNavigateTab,
@@ -68,6 +80,14 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const activeTargetItemRef = useRef<{ itemId: string; requestId?: string; isLegacy?: boolean } | null>(null);
+
+  // Approval Decision Modal State
+  const [selectedApprovalForDecision, setSelectedApprovalForDecision] = useState<ClientApproval | null>(null);
+  const [decisionMode, setDecisionMode] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [decisionNotes, setDecisionNotes] = useState<string>('');
+  const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [consentConfirmed, setConsentConfirmed] = useState<boolean>(false);
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState<boolean>(false);
 
   // 1. Extract and normalize all canonical items
   const canonicalItems = useMemo(() => {
@@ -269,8 +289,66 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
     return invoices.filter((inv) => inv.status !== 'PAID' && (inv.balanceDue || 0) > 0);
   }, [invoices]);
 
+  // 7. Pending Approvals & Consents
+  const pendingApprovals = useMemo(() => {
+    const list = approvals && approvals.length > 0
+      ? approvals
+      : dashboard?.pendingApprovals || [];
+    return list.filter((a) => a.status === 'PENDING');
+  }, [approvals, dashboard?.pendingApprovals]);
+
   // Counts
-  const totalActionRequiredCount = rejectedItems.length + pendingItems.length + unpaidInvoices.length;
+  const totalActionRequiredCount =
+    rejectedItems.length + pendingItems.length + unpaidInvoices.length + pendingApprovals.length;
+
+  const handleSubmitDecision = async () => {
+    if (!selectedApprovalForDecision || !decisionMode) return;
+    try {
+      setIsSubmittingDecision(true);
+      setFeedback(null);
+      if (decisionMode === 'APPROVE') {
+        await clientPortalApi.decideClientApproval(selectedApprovalForDecision.id, {
+          decision: 'APPROVE',
+          expectedContentVersion: selectedApprovalForDecision.contentVersion,
+          notes: decisionNotes.trim() || undefined,
+        });
+        setFeedback({
+          type: 'success',
+          message: `Approval and consent granted for "${selectedApprovalForDecision.title}". Your practitioner has been notified.`,
+        });
+      } else {
+        if (!rejectionReason.trim()) {
+          setFeedback({
+            type: 'error',
+            message: 'Please provide a reason when declining an approval request.',
+          });
+          setIsSubmittingDecision(false);
+          return;
+        }
+        await clientPortalApi.decideClientApproval(selectedApprovalForDecision.id, {
+          decision: 'REJECT',
+          rejectionReason: rejectionReason.trim(),
+        });
+        setFeedback({
+          type: 'success',
+          message: `Approval request declined. Your feedback has been forwarded to your practitioner.`,
+        });
+      }
+      setSelectedApprovalForDecision(null);
+      setDecisionMode(null);
+      setDecisionNotes('');
+      setRejectionReason('');
+      setConsentConfirmed(false);
+      onRefresh();
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.response?.data?.message || 'Failed to submit decision. Please try again.',
+      });
+    } finally {
+      setIsSubmittingDecision(false);
+    }
+  };
 
   // Handle direct file upload click
   const triggerItemUpload = (itemId: string, requestId?: string, isLegacy?: boolean) => {
@@ -517,7 +595,8 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
         </span>
         {[
           { id: 'all', label: `All Action Items (${totalActionRequiredCount + underReviewItems.length})` },
-          { id: 'action_required', label: `Action Required (${rejectedItems.length + pendingItems.length})` },
+          { id: 'action_required', label: `Action Required (${rejectedItems.length + pendingItems.length + pendingApprovals.length})` },
+          ...(pendingApprovals.length > 0 ? [{ id: 'approvals', label: `⚖️ Approvals (${pendingApprovals.length})` }] : []),
           { id: 'under_review', label: `Under Review (${underReviewItems.length})` },
           { id: 'completed', label: `Completed (${completedItems.length})` },
           { id: 'bills', label: `Bills Due (${unpaidInvoices.length})` },
@@ -536,6 +615,145 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
           </button>
         ))}
       </div>
+
+      {/* CATEGORY 0: ⚖️ Approvals & Consents Requiring Immediate Action */}
+      {(filter === 'all' || filter === 'action_required' || filter === 'approvals') && pendingApprovals.length > 0 && (
+        <Card
+          title="⚖️ Action Required: Client Approvals & Consent"
+          subtitle="Review computations, statutory filing consents, and agreements submitted by your practitioner"
+          className="border-indigo-300 bg-indigo-50/25 shadow-2xs"
+        >
+          <div className="space-y-3.5">
+            {pendingApprovals.map((approval) => {
+              const typeBadge = {
+                TAX_COMPUTATION_APPROVAL: { label: 'Tax Computation Approval', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+                FILING_CONSENT: { label: 'Statutory Filing Consent', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
+                DOCUMENT_SIGN_OFF: { label: 'Document Sign-Off', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+                ENGAGEMENT_TERMS: { label: 'Engagement Terms', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
+                INFORMATION_CONFIRMATION: { label: 'Info Confirmation', bg: 'bg-teal-100 text-teal-800 border-teal-200' },
+                GENERAL_APPROVAL: { label: 'General Approval', bg: 'bg-slate-100 text-slate-800 border-slate-200' },
+              }[approval.approvalType] || { label: approval.approvalType, bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+
+              return (
+                <div
+                  key={approval.id}
+                  className="bg-white p-4 sm:p-5 rounded-2xl border border-indigo-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-indigo-300"
+                >
+                  <div className="space-y-2 max-w-2xl">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={clsx('inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border', typeBadge.bg)}>
+                        <Scale className="w-3.5 h-3.5" />
+                        {typeBadge.label}
+                      </span>
+                      <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                        Version: {approval.contentVersion || 'v1.0'}
+                      </span>
+                      {approval.contextType && approval.contextType !== 'GENERAL' && (
+                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                          {approval.contextTitle || approval.contextType}
+                        </span>
+                      )}
+                      {approval.isExpired && (
+                        <span className="text-[10px] font-bold bg-rose-600 text-white px-2 py-0.5 rounded uppercase">
+                          Expired
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">{approval.title}</h3>
+                      {approval.description && (
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">{approval.description}</p>
+                      )}
+                    </div>
+
+                    {approval.documentName && (
+                      <div className="inline-flex items-center gap-2 bg-indigo-50/70 border border-indigo-100 px-3 py-1.5 rounded-xl text-xs text-indigo-900">
+                        <FileText className="w-4 h-4 text-indigo-600" />
+                        <span className="font-medium font-mono truncate max-w-xs">{approval.documentName}</span>
+                        {approval.documentDownloadUrl && (
+                          <a
+                            href={approval.documentDownloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline ml-2"
+                          >
+                            <Download className="w-3 h-3" />
+                            Download & Review
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 pt-0.5">
+                      {approval.requestedByName && (
+                        <span>
+                          Requested by: <strong className="text-slate-700">{approval.requestedByName}</strong>
+                        </span>
+                      )}
+                      {approval.expiresAt && (
+                        <span className="flex items-center gap-1 text-amber-700 font-medium">
+                          <Clock className="w-3 h-3" />
+                          Respond by: {new Date(approval.expiresAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 self-start md:self-center shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (onInitiateContextualMessage) {
+                          onInitiateContextualMessage({
+                            contextType: approval.contextType || 'GENERAL',
+                            contextId: approval.contextId,
+                            contextTitle: `Approval: ${approval.title}`,
+                          });
+                        } else {
+                          onNavigateTab('messages');
+                        }
+                      }}
+                      leftIcon={<MessageSquare className="w-3.5 h-3.5 text-slate-500" />}
+                      className="text-xs font-bold border-slate-300 hover:bg-slate-50 text-slate-700"
+                    >
+                      Discuss
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedApprovalForDecision(approval);
+                        setDecisionMode('REJECT');
+                        setRejectionReason('');
+                      }}
+                      leftIcon={<ThumbsDown className="w-3.5 h-3.5 text-rose-500" />}
+                      className="text-xs font-bold border-rose-200 text-rose-700 hover:bg-rose-50"
+                    >
+                      Decline
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedApprovalForDecision(approval);
+                        setDecisionMode('APPROVE');
+                        setDecisionNotes('');
+                        setConsentConfirmed(false);
+                      }}
+                      leftIcon={<Check className="w-3.5 h-3.5 text-white" />}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs"
+                    >
+                      Approve & Consent
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* CATEGORY 1: 🚨 Rejected Items Needing Immediate Correction */}
       {(filter === 'all' || filter === 'action_required') && rejectedItems.length > 0 && (
@@ -927,6 +1145,168 @@ export const ClientActionCenter: React.FC<ClientActionCenterProps> = ({
             >
               Message Consultant
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* APPROVAL DECISION MODAL */}
+      {selectedApprovalForDecision && decisionMode === 'APPROVE' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-black text-slate-900 text-base">Confirm Approval & Formal Consent</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedApprovalForDecision(null);
+                  setDecisionMode(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 font-bold text-lg"
+                aria-label="Close modal"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold text-slate-900">{selectedApprovalForDecision.title}</h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {selectedApprovalForDecision.description || 'Review the details and confirm your approval.'}
+              </p>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
+                <div>Terms Version: <strong className="font-mono text-slate-900">{selectedApprovalForDecision.contentVersion || 'v1.0'}</strong></div>
+                {selectedApprovalForDecision.documentName && (
+                  <div>Attached Document: <strong className="font-mono text-slate-900">{selectedApprovalForDecision.documentName}</strong></div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">
+                Approval Notes / Confirmation Remarks (Optional)
+              </label>
+              <textarea
+                value={decisionNotes}
+                onChange={(e) => setDecisionNotes(e.target.value)}
+                placeholder="e.g. Reviewed tax computation and confirmed turnover matches books."
+                rows={3}
+                className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="consentCheckbox"
+                checked={consentConfirmed}
+                onChange={(e) => setConsentConfirmed(e.target.checked)}
+                className="mt-0.5 rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              />
+              <label htmlFor="consentCheckbox" className="text-xs text-emerald-950 font-medium leading-snug cursor-pointer">
+                I confirm that I have reviewed the referenced figures, schedules, or document, and grant formal client consent for the practice to proceed.
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedApprovalForDecision(null);
+                  setDecisionMode(null);
+                }}
+                disabled={isSubmittingDecision}
+                className="text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSubmitDecision}
+                disabled={!consentConfirmed || isSubmittingDecision}
+                leftIcon={<Check className="w-3.5 h-3.5" />}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs disabled:opacity-50"
+              >
+                {isSubmittingDecision ? 'Submitting...' : 'Confirm Approval & Consent'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECTION / DECLINE MODAL */}
+      {selectedApprovalForDecision && decisionMode === 'REJECT' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-rose-700">
+                <ShieldAlert className="w-5 h-5 text-rose-600" />
+                <h3 className="font-black text-slate-900 text-base">Decline / Reject Approval Request</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedApprovalForDecision(null);
+                  setDecisionMode(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 font-bold text-lg"
+                aria-label="Close modal"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <h4 className="text-sm font-bold text-slate-900">{selectedApprovalForDecision.title}</h4>
+              <p className="text-xs text-slate-600">
+                Please explain why this approval cannot be granted. Your explanation is required so your tax consultant can update the computations or address discrepancies.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">
+                Reason for Declining <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="e.g. Schedule 115 turnover is missing overseas exports; please recheck invoice numbers INV-401 to 408."
+                rows={4}
+                className="w-full text-xs p-3 rounded-xl border border-rose-300 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              />
+              {!rejectionReason.trim() && (
+                <span className="text-[11px] text-rose-600 font-medium">
+                  A specific reason is mandatory to reject an approval request.
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedApprovalForDecision(null);
+                  setDecisionMode(null);
+                }}
+                disabled={isSubmittingDecision}
+                className="text-xs font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSubmitDecision}
+                disabled={!rejectionReason.trim() || isSubmittingDecision}
+                leftIcon={<XCircle className="w-3.5 h-3.5" />}
+                className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs disabled:opacity-50"
+              >
+                {isSubmittingDecision ? 'Submitting...' : 'Confirm Rejection'}
+              </Button>
+            </div>
           </div>
         </div>
       )}

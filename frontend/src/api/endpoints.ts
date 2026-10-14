@@ -141,6 +141,13 @@ import {
   SendClientPortalMessageRequest,
   MessageContextType,
   PortalMessageAttachment,
+  ClientApprovalType,
+  ClientApprovalStatus,
+  ClientApprovalDecision,
+  ClientApproval,
+  CreateClientApprovalRequest,
+  DecideClientApprovalRequest,
+  RevokeClientApprovalRequest,
   TdsProfile,
   TdsReturn,
   TdsChallan,
@@ -1987,7 +1994,35 @@ export const portalApi = {
     const res = await apiClient.get<ApiResponse<number>>(`/v1/portal/clients/${clientId}/messages/unread-count`);
     return res.data.data;
   },
+
+  // Approvals & Consent (Phase 32.5)
+  getClientApprovals: async (params?: { status?: ClientApprovalStatus }) => {
+    const res = await apiClient.get<ApiResponse<ClientApproval[]>>('/v1/portal/approvals', { params });
+    return res.data.data;
+  },
+  getClientApprovalById: async (approvalId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientApproval>>(`/v1/portal/approvals/${approvalId}`);
+    return res.data.data;
+  },
+  decideClientApproval: async (approvalId: string, payload: DecideClientApprovalRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientApproval>>(`/v1/portal/approvals/${approvalId}/decide`, payload);
+    return res.data.data;
+  },
+  getPracticeClientApprovals: async (clientId: string, params?: { status?: ClientApprovalStatus; contextType?: MessageContextType; contextId?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientApproval[]>>(`/v1/portal/clients/${clientId}/approvals`, { params });
+    return res.data.data;
+  },
+  createPracticeClientApproval: async (clientId: string, payload: CreateClientApprovalRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientApproval>>(`/v1/portal/clients/${clientId}/approvals`, payload);
+    return res.data.data;
+  },
+  revokePracticeClientApproval: async (clientId: string, approvalId: string, payload?: RevokeClientApprovalRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientApproval>>(`/v1/portal/clients/${clientId}/approvals/${approvalId}/revoke`, payload || {});
+    return res.data.data;
+  },
 };
+
+export const clientPortalApi = portalApi;
 
 // --- 13. Multi-Item Document Requests V1 ---
 export const documentRequestApi = {

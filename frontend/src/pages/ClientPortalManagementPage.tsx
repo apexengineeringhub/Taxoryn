@@ -35,13 +35,16 @@ import {
   File,
   Download,
   Filter,
+  Scale,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
 import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
-import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi } from '../api/endpoints';
+import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi, clientPortalApi } from '../api/endpoints';
 import { usePortalChat } from '../hooks/usePortalChat';
 import { formatCurrency } from '../utils/currencyUtils';
 import {
@@ -62,6 +65,11 @@ import {
   MessageContextType,
   PortalMessageAttachment,
   SendClientPortalMessageRequest,
+  ClientApproval,
+  ClientApprovalType,
+  ClientApprovalStatus,
+  CreateClientApprovalRequest,
+  RevokeClientApprovalRequest,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import { ClientContextBar } from '../components/common/ClientContextBar';
@@ -106,6 +114,19 @@ export const ClientPortalManagementPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Client Approvals State (Phase 32.5)
+  const [approvals, setApprovals] = useState<ClientApproval[]>([]);
+  const [isCreateApprovalModalOpen, setIsCreateApprovalModalOpen] = useState<boolean>(false);
+  const [approvalFilterStatus, setApprovalFilterStatus] = useState<string>('ALL');
+  const [createApprovalForm, setCreateApprovalForm] = useState<CreateClientApprovalRequest>({
+    title: '',
+    description: '',
+    approvalType: 'TAX_COMPUTATION_APPROVAL',
+    contentVersion: 'v1.0',
+    contextType: 'GENERAL',
+  });
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState<boolean>(false);
+
   // Active Request Counter to prevent race conditions on rapid switching
   const activeRequestIdRef = useRef<number>(0);
 
@@ -137,6 +158,12 @@ export const ClientPortalManagementPage: React.FC = () => {
     }
     return dashboard?.pendingDocumentsCount ?? pendingDocRequests.length;
   }, [activeRequestsList, dashboard?.pendingDocumentsCount, pendingDocRequests]);
+
+  // Pending Approvals Count (Phase 32.5)
+  const pendingApprovalsCount = useMemo(() => {
+    const list = approvals.filter((a) => a.status === 'PENDING');
+    return list.length > 0 ? list.length : dashboard?.pendingApprovalsCount || 0;
+  }, [approvals, dashboard?.pendingApprovalsCount]);
 
   // Derived selected client
   const selectedClient = useMemo(() => {
@@ -462,11 +489,12 @@ export const ClientPortalManagementPage: React.FC = () => {
     setPendingDocRequests([]);
     setActiveDocRequests([]);
     setClientUsers([]);
+    setApprovals([]);
 
     try {
       if (isClientUser) {
         // Logged-in Customer View
-        const [dash, gst, itr, invs, docs, pending, docRequests, msgsRes, unreadRes] = await Promise.allSettled([
+        const [dash, gst, itr, invs, docs, pending, docRequests, msgsRes, unreadRes, apprRes] = await Promise.allSettled([
           portalApi.getDashboard(),
           portalApi.getGstStatus(),
           portalApi.getItrStatus(),
@@ -476,6 +504,7 @@ export const ClientPortalManagementPage: React.FC = () => {
           documentRequestApi.getPortalRequests(),
           portalApi.getClientMessages(),
           portalApi.getClientMessagesUnreadCount(),
+          clientPortalApi.getClientApprovals(),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -498,9 +527,12 @@ export const ClientPortalManagementPage: React.FC = () => {
         if (unreadRes.status === 'fulfilled' && typeof unreadRes.value === 'number') {
           setUnreadMessagesCount(unreadRes.value);
         }
+        if (apprRes.status === 'fulfilled' && apprRes.value) {
+          setApprovals(apprRes.value);
+        }
       } else if (clientIdToLoad) {
         // Practice Preview View
-        const [dash, usersRes, docsRes, tdsRes, docRequests, msgsRes, unreadRes] = await Promise.allSettled([
+        const [dash, usersRes, docsRes, tdsRes, docRequests, msgsRes, unreadRes, apprRes] = await Promise.allSettled([
           portalApi.getDashboardPreview(clientIdToLoad),
           portalApi.getClientPortalUsers(clientIdToLoad),
           documentApi.getByClientId ? documentApi.getByClientId(clientIdToLoad) : documentApi.getAll({ clientId: clientIdToLoad }),
@@ -508,6 +540,7 @@ export const ClientPortalManagementPage: React.FC = () => {
           documentRequestApi.getByClient(clientIdToLoad),
           portalApi.getPracticeClientMessages(clientIdToLoad),
           portalApi.getPracticeClientMessagesUnreadCount(clientIdToLoad),
+          clientPortalApi.getPracticeClientApprovals(clientIdToLoad),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -550,6 +583,9 @@ export const ClientPortalManagementPage: React.FC = () => {
         }
         if (unreadRes.status === 'fulfilled' && typeof unreadRes.value === 'number') {
           setUnreadMessagesCount(unreadRes.value);
+        }
+        if (apprRes.status === 'fulfilled' && apprRes.value) {
+          setApprovals(apprRes.value);
         }
       }
     } catch (err) {
@@ -803,6 +839,12 @@ export const ClientPortalManagementPage: React.FC = () => {
             badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
             moduleCode: 'CLIENT_PORTAL' as ProductModuleCode,
           },
+          {
+            id: 'approvals',
+            label: pendingApprovalsCount > 0 ? `Approvals (${pendingApprovalsCount})` : 'Approvals & Consent',
+            icon: Scale,
+            badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
+          },
           ...(!isPracticeUser ? [{ id: 'communications', label: 'Communications', icon: MessageSquareText }] : []),
           ...(isPracticeUser ? [{ id: 'users', label: `Logins (${clientUsers.length})`, icon: KeyRound }] : []),
         ]
@@ -837,6 +879,7 @@ export const ClientPortalManagementPage: React.FC = () => {
             activeRequests={activeRequestsList}
             pendingDocRequests={pendingDocRequests}
             invoices={invoices}
+            approvals={approvals}
             isLoading={isLoading}
             onRefresh={() => loadPortalData(selectedClientId)}
             onNavigateTab={setActiveTab}
@@ -1844,6 +1887,209 @@ export const ClientPortalManagementPage: React.FC = () => {
         </section>
       )}
 
+      {/* TAB: Client Approvals & Formal Consent (Phase 32.5) */}
+      {activeTab === 'approvals' && (
+        <Card
+          title="⚖️ Client Approvals & Formal Consent"
+          subtitle="Audit log of statutory filing consents, computation approvals, and document sign-offs"
+          action={
+            isPracticeUser ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setCreateApprovalForm({
+                    title: '',
+                    description: '',
+                    approvalType: 'TAX_COMPUTATION_APPROVAL',
+                    contentVersion: 'v1.0',
+                    contextType: 'GENERAL',
+                  });
+                  setIsCreateApprovalModalOpen(true);
+                }}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                Request Approval
+              </Button>
+            ) : undefined
+          }
+        >
+          {/* Status Filter Tabs */}
+          <div className="flex items-center gap-2 pb-4 border-b border-slate-100 overflow-x-auto">
+            {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'REVOKED'].map((st) => {
+              const count =
+                st === 'ALL'
+                  ? approvals.length
+                  : approvals.filter((a) => a.status === st).length;
+              return (
+                <button
+                  key={st}
+                  onClick={() => setApprovalFilterStatus(st)}
+                  className={clsx(
+                    'px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer',
+                    approvalFilterStatus === st
+                      ? 'bg-brand-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  )}
+                >
+                  {st.charAt(0) + st.slice(1).toLowerCase()} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Approvals Listing */}
+          <div className="mt-4 space-y-3">
+            {approvals.filter((a) => approvalFilterStatus === 'ALL' || a.status === approvalFilterStatus).length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                No approvals found in this category.
+              </div>
+            ) : (
+              approvals
+                .filter((a) => approvalFilterStatus === 'ALL' || a.status === approvalFilterStatus)
+                .map((approval) => {
+                  const statusColors = {
+                    PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
+                    APPROVED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                    REJECTED: 'bg-rose-100 text-rose-800 border-rose-200',
+                    REVOKED: 'bg-slate-100 text-slate-700 border-slate-200',
+                    EXPIRED: 'bg-gray-100 text-gray-700 border-gray-200',
+                  }[approval.status] || 'bg-slate-100 text-slate-700 border-slate-200';
+
+                  return (
+                    <div
+                      key={approval.id}
+                      className="p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-all space-y-2.5"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={clsx('px-2.5 py-0.5 rounded-full text-[11px] font-bold border', statusColors)}>
+                            {approval.status}
+                          </span>
+                          <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">
+                            {approval.approvalType}
+                          </span>
+                          <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                            v{approval.contentVersion || '1.0'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          Created {new Date(approval.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">{approval.title}</h4>
+                        {approval.description && (
+                          <p className="text-xs text-slate-600 mt-0.5">{approval.description}</p>
+                        )}
+                      </div>
+
+                      {approval.documentName && (
+                        <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs text-slate-800">
+                          <FileText className="w-3.5 h-3.5 text-brand-600" />
+                          <span className="font-medium font-mono">{approval.documentName}</span>
+                          {approval.documentDownloadUrl && (
+                            <a
+                              href={approval.documentDownloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand-600 hover:underline text-[11px] font-bold ml-2"
+                            >
+                              Download
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Audit Provenance Details */}
+                      <div className="pt-2 border-t border-slate-100 text-xs space-y-1">
+                        <div className="text-slate-500">
+                          Requested by: <strong className="text-slate-700">{approval.requestedByName || 'Practice'}</strong>
+                          {approval.expiresAt && (
+                            <span> • Deadline: {new Date(approval.expiresAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+
+                        {approval.status === 'APPROVED' && (
+                          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-xs">
+                            <span className="font-bold">Approved by:</span> {approval.respondedByName} ({approval.respondedByEmail}) on{' '}
+                            {approval.respondedAt ? new Date(approval.respondedAt).toLocaleString() : ''}
+                            {approval.decisionNotes && (
+                              <p className="mt-0.5 italic">Client remarks: "{approval.decisionNotes}"</p>
+                            )}
+                          </div>
+                        )}
+
+                        {approval.status === 'REJECTED' && (
+                          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-900 text-xs">
+                            <span className="font-bold">Declined by:</span> {approval.respondedByName} on{' '}
+                            {approval.respondedAt ? new Date(approval.respondedAt).toLocaleString() : ''}
+                            {approval.rejectionReason && (
+                              <p className="mt-0.5 font-medium">Rejection Reason: {approval.rejectionReason}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {approval.status === 'REVOKED' && (
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-xs">
+                            <span className="font-bold">Revoked by:</span> {approval.revokedByName} on{' '}
+                            {approval.revokedAt ? new Date(approval.revokedAt).toLocaleString() : ''}
+                            {approval.revocationReason && (
+                              <p className="mt-0.5">Reason: {approval.revocationReason}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 pt-2">
+                        {isPracticeUser && approval.status === 'PENDING' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const reason = window.prompt('Enter reason for revoking this approval request:');
+                              if (reason !== null) {
+                                try {
+                                  await clientPortalApi.revokePracticeClientApproval(selectedClientId, approval.id, {
+                                    reason: reason.trim() || 'Revoked by practice',
+                                  });
+                                  loadPortalData(selectedClientId);
+                                } catch (err: any) {
+                                  alert(err?.response?.data?.message || 'Failed to revoke approval request');
+                                }
+                              }
+                            }}
+                            className="text-xs font-bold border-rose-200 text-rose-700 hover:bg-rose-50"
+                          >
+                            Revoke Request
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            handleInitiateContextualMessage({
+                              contextType: approval.contextType || 'GENERAL',
+                              contextId: approval.contextId,
+                              contextTitle: `Approval: ${approval.title}`,
+                            });
+                          }}
+                          leftIcon={<MessageSquare className="w-3.5 h-3.5" />}
+                          className="text-xs font-bold text-slate-600"
+                        >
+                          Message About This
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* TAB 6: Portal Users & Logins (For Practice Admins) */}
       {activeTab === 'users' && isPracticeUser && (
         <Card
@@ -2319,6 +2565,149 @@ export const ClientPortalManagementPage: React.FC = () => {
                 </Button>
                 <Button variant="primary" size="sm" type="submit">
                   Send Request to Client
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Create Client Approval Request (Phase 32.5) */}
+      {isCreateApprovalModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90dvh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Scale className="w-5 h-5 text-brand-600" />
+                Request Client Approval & Formal Consent
+              </h3>
+              <button
+                onClick={() => setIsCreateApprovalModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!selectedClientId) {
+                  alert('Please select a client first');
+                  return;
+                }
+                try {
+                  setIsSubmittingApproval(true);
+                  await clientPortalApi.createPracticeClientApproval(selectedClientId, createApprovalForm);
+                  setIsCreateApprovalModalOpen(false);
+                  loadPortalData(selectedClientId);
+                } catch (err: any) {
+                  alert(err?.response?.data?.message || 'Failed to create approval request');
+                } finally {
+                  setIsSubmittingApproval(false);
+                }
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Approval Title *</label>
+                <input
+                  type="text"
+                  value={createApprovalForm.title}
+                  onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, title: e.target.value })}
+                  placeholder="e.g. Approve AY 2024-25 Income Tax Computation"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Approval Type *</label>
+                <select
+                  value={createApprovalForm.approvalType}
+                  onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, approvalType: e.target.value as ClientApprovalType })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  required
+                >
+                  <option value="TAX_COMPUTATION_APPROVAL">Tax Computation Approval</option>
+                  <option value="FILING_CONSENT">Statutory Filing Consent</option>
+                  <option value="DOCUMENT_SIGN_OFF">Document Sign-off</option>
+                  <option value="ENGAGEMENT_TERMS">Engagement Terms & Scope</option>
+                  <option value="INFORMATION_CONFIRMATION">Information Confirmation</option>
+                  <option value="GENERAL_APPROVAL">General Approval</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Description / Instructions for Client</label>
+                <textarea
+                  value={createApprovalForm.description || ''}
+                  onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, description: e.target.value })}
+                  placeholder="e.g. Please verify the total computed income, Advance Tax credits, and Section 80C deductions before we file ITR-6."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Terms / Content Version</label>
+                  <input
+                    type="text"
+                    value={createApprovalForm.contentVersion || ''}
+                    onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, contentVersion: e.target.value })}
+                    placeholder="v1.0"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Response Deadline (Optional)</label>
+                  <input
+                    type="date"
+                    value={createApprovalForm.expiresAt ? createApprovalForm.expiresAt.substring(0, 10) : ''}
+                    onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, expiresAt: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono"
+                  />
+                </div>
+              </div>
+
+              {documents.length > 0 && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Attach Supporting Document (Optional)</label>
+                  <select
+                    value={createApprovalForm.documentId || ''}
+                    onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, documentId: e.target.value || undefined })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  >
+                    <option value="">-- No Attached Document --</option>
+                    {documents.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title || d.fileName} ({d.documentType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => setIsCreateApprovalModalOpen(false)}
+                  disabled={isSubmittingApproval}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  type="submit"
+                  disabled={isSubmittingApproval || !createApprovalForm.title}
+                  leftIcon={<Check className="w-4 h-4" />}
+                >
+                  {isSubmittingApproval ? 'Sending...' : 'Send Request to Client'}
                 </Button>
               </div>
             </form>

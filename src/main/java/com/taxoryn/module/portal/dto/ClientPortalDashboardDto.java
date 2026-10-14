@@ -36,6 +36,7 @@ public class ClientPortalDashboardDto {
     private long activeItrReturnsCount;
     private long unpaidInvoicesCount;
     private java.math.BigDecimal outstandingBalance;
+    private long pendingApprovalsCount;
 
     private List<ClientGstStatusDto> latestGstFilings;
     private List<ClientItrStatusDto> latestItrReturns;
@@ -44,4 +45,5 @@ public class ClientPortalDashboardDto {
     private List<ClientTaskDto> pendingTasks;
     private List<ClientNotificationDto> recentNotifications;
     private List<com.taxoryn.module.billing.dto.InvoiceDto> latestInvoices;
+    private List<ClientApprovalDto> pendingApprovals;
 }

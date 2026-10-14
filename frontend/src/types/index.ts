@@ -1051,7 +1051,83 @@ export interface ClientContact {
   isPrimary: boolean;
 }
 
-export type MessageContextType = 'GENERAL' | 'DOCUMENT_REQUEST' | 'DOCUMENT_ITEM' | 'COMPLIANCE_WORKFLOW' | 'NOTICE';
+export type MessageContextType = 'GENERAL' | 'DOCUMENT_REQUEST' | 'DOCUMENT_ITEM' | 'COMPLIANCE_WORKFLOW' | 'NOTICE' | 'ENGAGEMENT';
+
+export type ClientApprovalType =
+  | 'TAX_COMPUTATION_APPROVAL'
+  | 'FILING_CONSENT'
+  | 'DOCUMENT_SIGN_OFF'
+  | 'ENGAGEMENT_TERMS'
+  | 'INFORMATION_CONFIRMATION'
+  | 'GENERAL_APPROVAL';
+
+export type ClientApprovalStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'REVOKED';
+
+export type ClientApprovalDecision = 'APPROVE' | 'REJECT';
+
+export interface ClientApproval {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  title: string;
+  description?: string;
+  approvalType: ClientApprovalType;
+  status: ClientApprovalStatus;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  documentId?: string;
+  documentName?: string;
+  documentDownloadUrl?: string;
+  contentVersion?: string;
+  contentHash?: string;
+  requestedByUserId?: string;
+  requestedByName?: string;
+  requestedAt?: string;
+  expiresAt?: string;
+  isExpired?: boolean;
+  respondedByUserId?: string;
+  respondedByName?: string;
+  respondedByEmail?: string;
+  respondedAt?: string;
+  decisionNotes?: string;
+  rejectionReason?: string;
+  revokedByUserId?: string;
+  revokedByName?: string;
+  revokedAt?: string;
+  revocationReason?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CreateClientApprovalRequest {
+  title: string;
+  description?: string;
+  approvalType: ClientApprovalType;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  documentId?: string;
+  contentVersion?: string;
+  contentHash?: string;
+  expiresAt?: string;
+}
+
+export interface DecideClientApprovalRequest {
+  decision: ClientApprovalDecision;
+  expectedContentVersion?: string;
+  notes?: string;
+  rejectionReason?: string;
+}
+
+export interface RevokeClientApprovalRequest {
+  reason?: string;
+}
 
 export interface PortalMessageAttachment {
   documentId: string;
@@ -1955,6 +2031,8 @@ export interface ClientPortalDashboard {
   latestItrReturns: ClientItrStatus[];
   pendingDocumentRequests: ClientDocumentRequest[];
   activeMultiItemRequests?: DocumentRequest[];
+  pendingApprovalsCount?: number;
+  pendingApprovals?: ClientApproval[];
   pendingTasks: any[];
   recentNotifications: any[];
   latestInvoices: Invoice[];
