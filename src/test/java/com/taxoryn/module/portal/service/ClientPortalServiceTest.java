@@ -446,7 +446,7 @@ class ClientPortalServiceTest {
         when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
         when(multiItemDocRequestRepository.findAllByOrganizationIdAndClientIdAndStatusIn(eq(tenantId), eq(clientId), any()))
                 .thenReturn(List.of(docReqEntity));
-        when(multiItemDocRequestService.getClientPortalRequestById(reqId)).thenReturn(docReqDto);
+        when(multiItemDocRequestService.getRequestById(reqId)).thenReturn(docReqDto);
         when(docRequestRepository.countByOrganizationIdAndClientIdAndStatus(tenantId, clientId, com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus.PENDING)).thenReturn(0L);
         when(gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(tenantId, clientId)).thenReturn(List.of());
         when(itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(tenantId, clientId)).thenReturn(List.of());
@@ -571,6 +571,7 @@ class ClientPortalServiceTest {
         UUID itemId2 = UUID.randomUUID();
 
         com.taxoryn.module.docrequest.entity.DocumentRequestEntity canonicalReq = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                .requestNumber("REQ-2026-999")
                 .purpose("FY 2026-27 Tax Compliance")
                 .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
                 .clientId(clientId)
@@ -593,6 +594,7 @@ class ClientPortalServiceTest {
                 .title("GST Sales Summary")
                 .documentType(DocumentType.GST_INVOICE_SALE)
                 .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED)
+                .rejectionReason("Page 2 columns truncated")
                 .clientId(clientId)
                 .build();
         item2.setId(itemId2);
@@ -613,6 +615,9 @@ class ClientPortalServiceTest {
         assertEquals(com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus.PENDING, pendingList.get(0).getStatus());
         assertEquals("GST Sales Summary", pendingList.get(1).getTitle());
         assertEquals(com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus.REJECTED, pendingList.get(1).getStatus());
+        assertEquals("Page 2 columns truncated", pendingList.get(1).getRejectionReason());
+        assertEquals(reqId, pendingList.get(1).getRequestId());
+        assertEquals("REQ-2026-999", pendingList.get(1).getRequestNumber());
     }
 
     @Test

@@ -361,7 +361,7 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .findAllByOrganizationIdAndClientIdAndStatusIn(organizationId, clientId,
                         List.of(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT,
                                 com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.PARTIALLY_COMPLETED))
-                .stream().map(r -> multiItemDocRequestService.getClientPortalRequestById(r.getId())).toList();
+                .stream().map(r -> multiItemDocRequestService.getRequestById(r.getId())).toList();
 
         long pendingDocItems = 0;
         for (var req : multiItemRequests) {
@@ -630,6 +630,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                                     ? RequestStatus.REJECTED
                                     : RequestStatus.PENDING)
                             .uploadedDocumentId(item.getUploadedDocumentId())
+                            .rejectionReason(item.getRejectionReason())
+                            .requestId(req.getId())
+                            .requestNumber(req.getRequestNumber())
                             .build());
                 }
             }

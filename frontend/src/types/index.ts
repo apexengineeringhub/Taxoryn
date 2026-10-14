@@ -1716,6 +1716,9 @@ export interface ClientDocumentRequest {
   requestedAt: string;
   uploadedDocumentId?: string;
   uploadedDocumentName?: string;
+  rejectionReason?: string;
+  requestId?: string;
+  requestNumber?: string;
 }
 
 // Multi-Item Document Requests & Document Exchange

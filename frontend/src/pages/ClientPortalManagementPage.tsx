@@ -57,6 +57,7 @@ import {
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import { ClientContextBar } from '../components/common/ClientContextBar';
+import { ClientActionCenter } from '../components/portal/ClientActionCenter';
 import clsx from 'clsx';
 
 export const ClientPortalManagementPage: React.FC = () => {
@@ -695,7 +696,11 @@ export const ClientPortalManagementPage: React.FC = () => {
       {/* Compact Secondary Navigation Tabs */}
       <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200/90 pb-2 overflow-x-auto scrollbar-none select-none">
         {[
-          { id: 'overview', label: 'Overview', icon: Globe },
+          {
+            id: 'overview',
+            label: totalPendingDocItems > 0 ? `Action Center (${totalPendingDocItems})` : 'Action Center',
+            icon: ShieldCheck,
+          },
           { id: 'gst', label: `GST (${gstFilings.length})`, icon: Building2, moduleCode: 'GST' as ProductModuleCode },
           { id: 'itr', label: `ITR (${itrReturns.length})`, icon: FileSpreadsheet, moduleCode: 'ITR' as ProductModuleCode },
           { id: 'tds', label: `TDS (${tdsReturns.length})`, icon: Percent, moduleCode: 'TDS' as ProductModuleCode },
@@ -733,10 +738,34 @@ export const ClientPortalManagementPage: React.FC = () => {
           })}
       </div>
 
-      {/* TAB 1: Overview & Summary */}
-      {activeTab === 'overview' && (
+      {/* TAB 1: Action Center & Overview */}
+      {(activeTab === 'overview' || activeTab === 'actions') && (
         <div className="space-y-6">
-          {/* Quick Metrics */}
+          {/* Client Action Center: Unified Collaboration & Document Actions */}
+          <ClientActionCenter
+            dashboard={dashboard}
+            activeRequests={activeRequestsList}
+            pendingDocRequests={pendingDocRequests}
+            invoices={invoices}
+            isLoading={isLoading}
+            onRefresh={() => loadPortalData(selectedClientId)}
+            onNavigateTab={setActiveTab}
+            onOpenUploadModal={(req) => {
+              if (req) {
+                setSelectedDocRequest(req as ClientDocumentRequest);
+                setUploadForm({
+                  file: null,
+                  title: (req as any).title || (req as any).purpose || 'Document',
+                  category: 'CLIENT_UPLOAD',
+                  description: `Fulfilling request: ${(req as any).title || (req as any).purpose || ''}`,
+                });
+              }
+              setIsUploadModalOpen(true);
+            }}
+            isPracticeUser={isPracticeUser}
+          />
+
+          {/* Quick Filing Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {isModuleAvailable('GST') && (
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -773,101 +802,6 @@ export const ClientPortalManagementPage: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* Action Required: Multi-Item Document Requests & Legacy Requests */}
-          {(activeRequestsList.length > 0 || pendingDocRequests.length > 0) && (
-            <Card
-              title="🚨 Action Required: Pending Document Uploads"
-              subtitle="Please upload required tax and compliance documents to avoid delays"
-              className="border-amber-200 bg-amber-50/20 shadow-2xs"
-            >
-              <div className="space-y-3">
-                {activeRequestsList.map((req) => (
-                  <div
-                    key={req.id}
-                    className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">{req.purpose}</span>
-                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-                          {req.requestNumber}
-                        </span>
-                        {req.isOverdue && (
-                          <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded">
-                            OVERDUE
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        {((req.pendingItems || 0) + (req.rejectedItems || 0)) > 0
-                          ? `${(req.pendingItems || 0) + (req.rejectedItems || 0)} items remaining to upload`
-                          : req.items
-                          ? `${req.items.filter((i) => i.status === 'PENDING' || i.status === 'REJECTED').length} items remaining to upload`
-                          : 'Pending documents required'}
-                      </p>
-                      {req.dueDate && (
-                        <span className="text-[11px] text-amber-700 font-semibold block">
-                          Due Date: {req.dueDate}
-                        </span>
-                      )}
-                    </div>
-
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setActiveTab('documents')}
-                      leftIcon={<UploadCloud className="w-4 h-4" />}
-                    >
-                      Open Checklist & Upload
-                    </Button>
-                  </div>
-                ))}
-
-                {pendingDocRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">{req.title}</span>
-                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-                          {req.documentType}
-                        </span>
-                      </div>
-                      {req.description && (
-                        <p className="text-xs text-slate-500">{req.description}</p>
-                      )}
-                      {req.dueDate && (
-                        <span className="text-[11px] text-rose-600 font-semibold block">
-                          Due Date: {req.dueDate}
-                        </span>
-                      )}
-                    </div>
-
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedDocRequest(req);
-                        setUploadForm({
-                          file: null,
-                          title: req.title,
-                          category: 'CLIENT_UPLOAD',
-                          description: `Fulfilling request: ${req.title}`,
-                        });
-                        setIsUploadModalOpen(true);
-                      }}
-                      leftIcon={<UploadCloud className="w-4 h-4" />}
-                    >
-                      Upload Now
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
 
           {/* Dual Grid: Recent GST & ITR */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

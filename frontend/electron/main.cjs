@@ -1,4 +1,7 @@
 const { app, BrowserWindow, shell, dialog } = require('electron');
+const path = require('node:path');
+
+const APP_ICON = path.join(__dirname, 'assets', process.platform === 'win32' ? 'taxoryn.ico' : 'taxoryn-icon.png');
 
 const APP_URL = 'https://app.taxoryn.com/login';
 const TRUSTED_HOSTS = new Set(['app.taxoryn.com']);
@@ -21,6 +24,7 @@ function createWindow() {
     minHeight: 680,
     show: false,
     title: 'Taxoryn',
+    icon: APP_ICON,
     autoHideMenuBar: true,
     backgroundColor: '#f8fafc',
     webPreferences: {

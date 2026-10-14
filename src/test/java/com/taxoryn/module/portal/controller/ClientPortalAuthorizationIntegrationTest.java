@@ -359,4 +359,58 @@ class ClientPortalAuthorizationIntegrationTest {
                         .header("Authorization", clientUserToken))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("14. Client Action Center: Pending documents endpoint returns rejectionReason, requestId, and requestNumber")
+    void test14_ClientUserPendingDocumentsReturnsRejectionReasonAndRequestId() throws Exception {
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity docReq = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                .requestNumber("REQ-2026-ACT-01")
+                .purpose("GST Audit FY 2025-26")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .clientId(client1.getId())
+                .build();
+        docReq.setOrganizationId(org.getId());
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity savedReq = documentRequestRepository.save(docReq);
+
+        com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity rejectedItem = com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.builder()
+                .request(savedReq)
+                .title("Bank Statement Q1")
+                .documentType(com.taxoryn.module.document.entity.DocumentEntity.DocumentType.BANK_STATEMENT)
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED)
+                .rejectionReason("Page 3 signature missing; please re-upload complete PDF")
+                .clientId(client1.getId())
+                .build();
+        rejectedItem.setOrganizationId(org.getId());
+        documentRequestItemRepository.save(rejectedItem);
+
+        mockMvc.perform(get("/api/v1/portal/pending-documents")
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[?(@.id == '" + rejectedItem.getId() + "')].status").value("REJECTED"))
+                .andExpect(jsonPath("$.data[?(@.id == '" + rejectedItem.getId() + "')].rejectionReason").value("Page 3 signature missing; please re-upload complete PDF"))
+                .andExpect(jsonPath("$.data[?(@.id == '" + rejectedItem.getId() + "')].requestNumber").value("REQ-2026-ACT-01"))
+                .andExpect(jsonPath("$.data[?(@.id == '" + rejectedItem.getId() + "')].requestId").value(savedReq.getId().toString()));
+    }
+
+    @Test
+    @DisplayName("15. Client Action Center: Dashboard contains active multi-item requests without internal staff tasks")
+    void test15_ClientDashboardContainsActiveMultiItemRequestsWithoutInternalStaffTasks() throws Exception {
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity docReq = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                .requestNumber("REQ-2026-DASH-01")
+                .purpose("Annual ITR Verification")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .clientId(client1.getId())
+                .build();
+        docReq.setOrganizationId(org.getId());
+        documentRequestRepository.save(docReq);
+
+        mockMvc.perform(get("/api/v1/portal/dashboard")
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.activeMultiItemRequests").isArray())
+                .andExpect(jsonPath("$.data.pendingTasksCount").value(0))
+                .andExpect(jsonPath("$.data.pendingTasks", hasSize(0)));
+    }
 }
