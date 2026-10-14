@@ -32,9 +32,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,6 +77,15 @@ class ClientPortalAuthorizationIntegrationTest {
     @Autowired
     private ClientDocumentRequestRepository docRequestRepository;
 
+    @Autowired
+    private com.taxoryn.module.task.repository.TaskRepository taskRepository;
+
+    @Autowired
+    private com.taxoryn.module.docrequest.repository.DocumentRequestRepository documentRequestRepository;
+
+    @Autowired
+    private com.taxoryn.module.docrequest.repository.DocumentRequestItemRepository documentRequestItemRepository;
+
     private OrganizationEntity org;
     private ClientEntity client1;
     private ClientEntity client2;
@@ -84,6 +97,9 @@ class ClientPortalAuthorizationIntegrationTest {
     @BeforeEach
     void setUp() {
         TenantContext.clear();
+        taskRepository.deleteAll();
+        documentRequestItemRepository.deleteAll();
+        documentRequestRepository.deleteAll();
         docRequestRepository.deleteAll();
         notificationRepository.deleteAll();
         clientRepository.deleteAll();
@@ -273,5 +289,74 @@ class ClientPortalAuthorizationIntegrationTest {
         mockMvc.perform(get("/api/v1/portal/clients/" + client1.getId() + "/users")
                         .header("Authorization", clientAdminToken))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("10. Security Guard: Client portal user /tasks returns empty list and never leaks internal staff tasks or notes")
+    void testClientUserGetPortalTasksReturnsEmptyListWithoutLeakingInternalTasks() throws Exception {
+        // Create an internal practitioner task with confidential notes
+        com.taxoryn.module.task.entity.TaskEntity internalTask = com.taxoryn.module.task.entity.TaskEntity.builder()
+                .title("Internal Staff Audit: Scrutiny Check")
+                .description("Staff notes: Verification of mismatch in GSTR-2B")
+                .notes("Confidential practitioner memo: Client fee dispute regarding FY 2024-25 balance")
+                .clientId(client1.getId())
+                .status(com.taxoryn.module.task.entity.TaskEntity.TaskStatus.IN_PROGRESS)
+                .build();
+        internalTask.setOrganizationId(org.getId());
+        taskRepository.save(internalTask);
+
+        mockMvc.perform(get("/api/v1/portal/tasks")
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data", hasSize(0)))
+                .andExpect(content().string(not(containsString("Confidential practitioner memo"))))
+                .andExpect(content().string(not(containsString("Internal Staff Audit"))));
+    }
+
+    @Test
+    @DisplayName("11. Security Guard: Client portal user cannot access another client's document requests (404/403)")
+    void testClientUserCannotAccessAnotherClientDocumentRequests() throws Exception {
+        // Create a canonical document request for client2
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity docReq = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                .requestNumber("DOC-BETA-001")
+                .purpose("Confidential Financial Records for Beta")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .clientId(client2.getId())
+                .build();
+        docReq.setOrganizationId(org.getId());
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity saved = documentRequestRepository.save(docReq);
+
+        // Client 1 attempts to access Client 2's document request by ID
+        mockMvc.perform(get("/api/v1/portal/document-requests/" + saved.getId())
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/v1/portal/document-requests/v1/" + saved.getId())
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("12. Client User can access document requests via both canonical and v1 routes")
+    void testClientUserCanAccessDocumentRequestsViaBothCanonicalAndV1Routes() throws Exception {
+        mockMvc.perform(get("/api/v1/portal/document-requests")
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/v1/portal/document-requests/v1")
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @DisplayName("13. Security Guard: Client portal user cannot access practice-side client messages endpoint (403 Forbidden)")
+    void testClientUserCannotAccessPracticeClientMessagesEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/portal/clients/" + client2.getId() + "/messages")
+                        .header("Authorization", clientUserToken))
+                .andExpect(status().isForbidden());
     }
 }

@@ -54,6 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -373,8 +374,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         }
 
         // Legacy Counts
-        long pendingDocs = docRequestRepository.countByOrganizationIdAndClientIdAndStatus(organizationId, clientId, RequestStatus.PENDING);
-        long pendingTasks = taskRepository.countByOrganizationIdAndClientIdAndStatusNot(organizationId, clientId, TaskStatus.COMPLETED);
+        long pendingDocs = docRequestRepository != null
+                ? docRequestRepository.countByOrganizationIdAndClientIdAndStatus(organizationId, clientId, RequestStatus.PENDING)
+                : 0L;
 
         // Recent GST
         List<ClientGstStatusDto> gstList = gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(organizationId, clientId)
@@ -385,12 +387,20 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .stream().limit(10).map(this::mapItrReturn).toList();
 
         // Pending Document Requests (Legacy)
-        List<ClientDocumentRequestDto> docRequests = mapper.toDocRequestDtoList(
-                docRequestRepository.findAllByOrganizationIdAndClientIdAndStatus(organizationId, clientId, RequestStatus.PENDING));
+        List<ClientDocumentRequestDto> docRequests = (docRequestRepository != null)
+                ? mapper.toDocRequestDtoList(docRequestRepository.findAllByOrganizationIdAndClientIdAndStatus(organizationId, clientId, RequestStatus.PENDING))
+                : List.of();
 
         // Client Tasks
+        // SECURITY: TaskEntity represents internal practitioner staff tasks and lacks a client visibility flag.
+        // Default to denying access to records whose client visibility cannot be established.
         List<ClientTaskDto> clientTasks = taskRepository.findAllByOrganizationIdAndClientId(organizationId, clientId)
-                .stream().limit(10).map(this::mapClientTask).toList();
+                .stream()
+                .filter(t -> false) // Prevent leakage of internal tasks, notes, and assignments
+                .limit(10)
+                .map(this::mapClientTask)
+                .toList();
+        long pendingTasks = (long) clientTasks.size();
 
         // Recent Notifications
         List<ClientNotificationDto> notifications = mapper.toNotificationDtoList(
@@ -591,8 +601,52 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         UUID clientId = SecurityUtils.requireCurrentClientId();
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        return mapper.toDocRequestDtoList(
-                docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId));
+        List<ClientDocumentRequestDto> pendingList = new ArrayList<>();
+
+        // 1. Fetch active canonical multi-item requests and project pending items
+        List<com.taxoryn.module.docrequest.entity.DocumentRequestEntity> multiItemRequests = multiItemDocRequestRepository
+                .findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId);
+
+        for (var req : multiItemRequests) {
+            if (req.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.CANCELLED
+                    || req.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.COMPLETED) {
+                continue;
+            }
+            List<com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity> items = multiItemDocRequestItemRepository
+                    .findAllByRequestIdOrderByCreatedAtAsc(req.getId());
+            for (var item : items) {
+                if (item.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING
+                        || item.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED) {
+                    pendingList.add(ClientDocumentRequestDto.builder()
+                            .id(item.getId())
+                            .clientId(req.getClientId())
+                            .documentType(item.getDocumentType())
+                            .title(item.getTitle())
+                            .description(StringUtils.hasText(item.getDescription()) ? item.getDescription() : req.getPurpose())
+                            .dueDate(req.getDueDate())
+                            .financialYear(req.getFinancialYear())
+                            .assessmentYear(req.getAssessmentYear())
+                            .status(item.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED
+                                    ? RequestStatus.REJECTED
+                                    : RequestStatus.PENDING)
+                            .uploadedDocumentId(item.getUploadedDocumentId())
+                            .build());
+                }
+            }
+        }
+
+        // 2. Include pending legacy requests for backward compatibility
+        if (docRequestRepository != null) {
+            List<ClientDocumentRequestDto> legacyList = mapper.toDocRequestDtoList(
+                    docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId));
+            if (legacyList != null) {
+                pendingList.addAll(legacyList.stream()
+                        .filter(r -> r.getStatus() == RequestStatus.PENDING || r.getStatus() == RequestStatus.REJECTED)
+                        .toList());
+            }
+        }
+
+        return pendingList;
     }
 
     @Override
@@ -608,14 +662,59 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
         // If fulfilling a specific pending document request, update its status
         if (documentRequestId != null) {
-            docRequestRepository.findByIdAndOrganizationId(documentRequestId, organizationId)
-                    .ifPresent(req -> {
-                        if (Objects.equals(req.getClientId(), clientId)) {
-                            req.setStatus(RequestStatus.SUBMITTED);
-                            req.setUploadedDocumentId(uploadedDoc.getId());
-                            docRequestRepository.save(req);
-                        }
-                    });
+            // Check canonical DocumentRequestItem first
+            Optional<com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity> itemOpt = multiItemDocRequestItemRepository
+                    .findByIdAndOrganizationIdAndClientId(documentRequestId, organizationId, clientId);
+            if (itemOpt.isPresent()) {
+                var item = itemOpt.get();
+                item.setUploadedDocumentId(uploadedDoc.getId());
+                item.setUploadedAt(Instant.now());
+                item.setStatus(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.UPLOADED);
+                item.setRejectionReason(null);
+                multiItemDocRequestItemRepository.save(item);
+
+                var parentReq = item.getRequest();
+                if (parentReq != null && (parentReq.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT
+                        || parentReq.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.DRAFT)) {
+                    parentReq.setStatus(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.PARTIALLY_COMPLETED);
+                    multiItemDocRequestRepository.save(parentReq);
+                }
+            } else {
+                // Check canonical parent DocumentRequest
+                Optional<com.taxoryn.module.docrequest.entity.DocumentRequestEntity> reqOpt = multiItemDocRequestRepository
+                        .findByIdAndOrganizationIdAndClientId(documentRequestId, organizationId, clientId);
+                if (reqOpt.isPresent()) {
+                    var parentReq = reqOpt.get();
+                    List<com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity> items = multiItemDocRequestItemRepository
+                            .findAllByRequestIdOrderByCreatedAtAsc(parentReq.getId());
+                    items.stream()
+                            .filter(i -> i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING
+                                    || i.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED)
+                            .findFirst()
+                            .ifPresent(i -> {
+                                i.setUploadedDocumentId(uploadedDoc.getId());
+                                i.setUploadedAt(Instant.now());
+                                i.setStatus(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.UPLOADED);
+                                i.setRejectionReason(null);
+                                multiItemDocRequestItemRepository.save(i);
+                            });
+                    if (parentReq.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT
+                            || parentReq.getStatus() == com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.DRAFT) {
+                        parentReq.setStatus(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.PARTIALLY_COMPLETED);
+                        multiItemDocRequestRepository.save(parentReq);
+                    }
+                } else if (docRequestRepository != null) {
+                    // Fallback to legacy request
+                    docRequestRepository.findByIdAndOrganizationId(documentRequestId, organizationId)
+                            .ifPresent(req -> {
+                                if (Objects.equals(req.getClientId(), clientId)) {
+                                    req.setStatus(RequestStatus.SUBMITTED);
+                                    req.setUploadedDocumentId(uploadedDoc.getId());
+                                    docRequestRepository.save(req);
+                                }
+                            });
+                }
+            }
         }
 
         // Add confirmation notification
@@ -684,8 +783,14 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         UUID clientId = SecurityUtils.requireCurrentClientId();
         UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
+        // SECURITY: TaskEntity records represent internal staff tasks and lack a client-visibility flag.
+        // Prevent portal users from accessing internal practitioner tasks, assignments, and notes.
+        // Default to denying access to records whose client visibility cannot be established.
         return taskRepository.findAllByOrganizationIdAndClientId(organizationId, clientId)
-                .stream().map(this::mapClientTask).toList();
+                .stream()
+                .filter(t -> false) // Prevent leakage of internal tasks, notes, and employee assignments
+                .map(this::mapClientTask)
+                .toList();
     }
 
     @Override
@@ -723,7 +828,39 @@ public class ClientPortalServiceImpl implements ClientPortalService {
 
         validatePracticeClientAccess(client.getId());
 
-        ClientDocumentRequestEntity entity = ClientDocumentRequestEntity.builder()
+        // Delegate to canonical multi-item DocumentRequestService
+        com.taxoryn.module.docrequest.dto.CreateDocumentRequest canonicalRequest = com.taxoryn.module.docrequest.dto.CreateDocumentRequest.builder()
+                .clientId(client.getId())
+                .purpose(request.getTitle())
+                .message(request.getDescription())
+                .dueDate(request.getDueDate())
+                .financialYear(request.getFinancialYear())
+                .assessmentYear(request.getAssessmentYear())
+                .items(List.of(
+                        com.taxoryn.module.docrequest.dto.CreateDocumentRequestItem.builder()
+                                .title(request.getTitle())
+                                .description(request.getDescription())
+                                .documentType(request.getDocumentType())
+                                .required(true)
+                                .build()
+                ))
+                .build();
+
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto created = multiItemDocRequestService.createAndSendRequest(canonicalRequest);
+
+        UUID itemId = (created.getItems() != null && !created.getItems().isEmpty())
+                ? created.getItems().get(0).getId()
+                : created.getId();
+
+        // Also add to client-portal in-app notification feed
+        createNotification(organizationId, client.getId(),
+                "Document Requested: " + request.getTitle(),
+                "Your tax consultant has requested the following document: " + request.getTitle() +
+                        (request.getDueDate() != null ? " (Due by: " + request.getDueDate() + ")" : ""),
+                NotificationType.DOCUMENT_REQUESTED);
+
+        return ClientDocumentRequestDto.builder()
+                .id(itemId)
                 .clientId(client.getId())
                 .documentType(request.getDocumentType())
                 .title(request.getTitle())
@@ -733,38 +870,6 @@ public class ClientPortalServiceImpl implements ClientPortalService {
                 .assessmentYear(request.getAssessmentYear())
                 .status(RequestStatus.PENDING)
                 .build();
-        entity.setOrganizationId(organizationId);
-
-        ClientDocumentRequestEntity saved = docRequestRepository.save(entity);
-
-        // Notify client (client-portal notification feed)
-        createNotification(organizationId, client.getId(),
-                "Document Requested: " + request.getTitle(),
-                "Your tax consultant has requested the following document: " + request.getTitle() +
-                        (request.getDueDate() != null ? " (Due by: " + request.getDueDate() + ")" : ""),
-                NotificationType.DOCUMENT_REQUESTED);
-
-        // Also raise it through the central multi-channel notification engine so the client
-        // is optionally reached over email/SMS/WhatsApp in addition to the in-app portal feed.
-        try {
-            notificationService.notify(
-                    organizationId, null, client.getId(),
-                    com.taxoryn.module.notification.entity.NotificationEntity.NotificationType.DOCUMENT_REQUIRED,
-                    "Document Requested: " + request.getTitle(),
-                    "Your tax consultant has requested the following document: " + request.getTitle() +
-                            (request.getDueDate() != null ? " (Due by: " + request.getDueDate() + ")" : ""),
-                    Set.of(
-                            com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel.IN_APP,
-                            com.taxoryn.module.notification.entity.NotificationEntity.NotificationChannel.EMAIL
-                    ),
-                    "/portal/documents/requests/" + saved.getId(),
-                    "{\"documentRequestId\":\"" + saved.getId() + "\"}"
-            );
-        } catch (Exception ex) {
-            log.error("Failed to raise DOCUMENT_REQUIRED notification for request {}: {}", saved.getId(), ex.getMessage(), ex);
-        }
-
-        return mapper.toDocRequestDto(saved);
     }
 
     @Override
@@ -923,7 +1028,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Transactional(readOnly = true)
     public List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> getClientMessages() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        return clientPortalMessageRepository.findAllByClientIdOrderByCreatedAtAsc(clientId).stream()
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        return clientPortalMessageRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtAsc(organizationId, clientId).stream()
                 .map(this::mapMessageToDto)
                 .toList();
     }
@@ -936,9 +1042,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
         }
 
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        ClientEntity client = clientRepository.findById(clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
-        UUID organizationId = client.getOrganizationId();
 
         UUID senderUserId = SecurityUtils.getCurrentUserId();
         UserEntity senderUser = userRepository.findById(senderUserId).orElse(null);
@@ -998,10 +1104,9 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Transactional
     public void markMessagesReadByClient() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        ClientEntity client = clientRepository.findById(clientId).orElse(null);
-        UUID organizationId = client != null ? client.getOrganizationId() : SecurityUtils.getCurrentOrganizationId();
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
 
-        clientPortalMessageRepository.markAllReadByClient(clientId, Instant.now());
+        clientPortalMessageRepository.markAllReadByClient(organizationId, clientId, Instant.now());
         portalChatEventPublisher.publishMessagesRead(organizationId, clientId, "CLIENT");
     }
 
@@ -1009,7 +1114,8 @@ public class ClientPortalServiceImpl implements ClientPortalService {
     @Transactional(readOnly = true)
     public long getUnreadCountForClient() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        return clientPortalMessageRepository.countByClientIdAndReadByClientFalse(clientId);
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        return clientPortalMessageRepository.countByOrganizationIdAndClientIdAndReadByClientFalse(organizationId, clientId);
     }
 
     @Override

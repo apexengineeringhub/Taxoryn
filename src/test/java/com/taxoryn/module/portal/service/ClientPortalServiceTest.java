@@ -7,6 +7,7 @@ import com.taxoryn.module.client.entity.ClientEntity;
 import com.taxoryn.module.client.entity.ClientEntity.ClientType;
 import com.taxoryn.module.client.repository.ClientRepository;
 import com.taxoryn.module.document.dto.DocumentDownloadDto;
+import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.entity.DocumentEntity;
 import com.taxoryn.module.document.entity.DocumentEntity.DocumentType;
 import com.taxoryn.module.document.repository.DocumentRepository;
@@ -14,9 +15,11 @@ import com.taxoryn.module.document.service.DocumentService;
 import com.taxoryn.module.employee.repository.EmployeeRepository;
 import com.taxoryn.module.gst.repository.GstReturnFilingRepository;
 import com.taxoryn.module.itr.repository.ItrReturnRepository;
+import com.taxoryn.module.portal.dto.ClientDocumentRequestDto;
 import com.taxoryn.module.portal.dto.ClientPortalDashboardDto;
 import com.taxoryn.module.portal.dto.ClientPortalProfileDto;
 import com.taxoryn.module.portal.dto.ClientPortalUserDto;
+import com.taxoryn.module.portal.dto.ClientTaskDto;
 import com.taxoryn.module.portal.dto.RegisterClientPortalUserRequest;
 import com.taxoryn.module.portal.dto.UpdateClientPortalProfileRequest;
 import com.taxoryn.module.portal.mapper.ClientPortalMapper;
@@ -24,6 +27,7 @@ import com.taxoryn.module.portal.repository.ClientDocumentRequestRepository;
 import com.taxoryn.module.portal.repository.ClientNotificationRepository;
 import com.taxoryn.module.role.entity.RoleEntity;
 import com.taxoryn.module.role.repository.RoleRepository;
+import com.taxoryn.module.task.entity.TaskEntity;
 import com.taxoryn.module.task.repository.TaskRepository;
 import com.taxoryn.module.user.entity.UserEntity;
 import com.taxoryn.module.user.repository.UserRepository;
@@ -455,5 +459,212 @@ class ClientPortalServiceTest {
         assertEquals("DOC-2026-001", dashboard.getActiveMultiItemRequests().get(0).getRequestNumber());
         // 1 pending + 1 rejected = 2 pending items
         assertEquals(2, dashboard.getPendingDocumentsCount());
+    }
+
+    @Test
+    @DisplayName("Priority A Security: Internal practitioner tasks and notes are never returned to portal users")
+    void testInternalStaffTasksAreNeverReturnedToPortalUsers() {
+        TaskEntity internalTask = TaskEntity.builder()
+                .title("Internal Review: Preparation for scrutiny")
+                .description("Internal staff checklist: Review bank statements for fee dispute")
+                .notes("Confidential practitioner notes: Client owes Rs 50,000")
+                .assignedTo(UUID.randomUUID())
+                .status(TaskEntity.TaskStatus.IN_PROGRESS)
+                .build();
+        internalTask.setId(UUID.randomUUID());
+        internalTask.setOrganizationId(tenantId);
+        internalTask.setClientId(clientId);
+
+        when(taskRepository.findAllByOrganizationIdAndClientId(tenantId, clientId))
+                .thenReturn(List.of(internalTask));
+
+        List<ClientTaskDto> clientTasks = portalService.getClientTasks();
+
+        assertNotNull(clientTasks);
+        org.junit.jupiter.api.Assertions.assertTrue(clientTasks.isEmpty(),
+                "Internal staff tasks must never be exposed to client portal users");
+    }
+
+    @Test
+    @DisplayName("Priority A Security: Dashboard pendingTasksCount and pendingTasks never leak internal practitioner tasks")
+    void testDashboardDoesNotLeakInternalTasks() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("ABC Traders")
+                .pan("AAACB1234D")
+                .build();
+        client.setId(clientId);
+
+        TaskEntity internalTask = TaskEntity.builder()
+                .title("Internal staff task - do not disclose")
+                .description("Private memo")
+                .status(TaskEntity.TaskStatus.TODO)
+                .build();
+        internalTask.setId(UUID.randomUUID());
+        internalTask.setOrganizationId(tenantId);
+        internalTask.setClientId(clientId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+        when(multiItemDocRequestRepository.findAllByOrganizationIdAndClientIdAndStatusIn(eq(tenantId), eq(clientId), any()))
+                .thenReturn(List.of());
+        when(gstReturnFilingRepository.findAllByOrganizationIdAndClientIdOrderByDueDateDesc(tenantId, clientId)).thenReturn(List.of());
+        when(itrReturnRepository.findAllByOrganizationIdAndClientIdOrderByAssessmentYearDesc(tenantId, clientId)).thenReturn(List.of());
+        when(taskRepository.findAllByOrganizationIdAndClientId(tenantId, clientId)).thenReturn(List.of(internalTask));
+
+        ClientPortalDashboardDto dashboard = portalService.getDashboard();
+
+        assertNotNull(dashboard);
+        assertEquals(0L, dashboard.getPendingTasksCount(), "Internal task counts must not leak to client portal");
+        org.junit.jupiter.api.Assertions.assertTrue(dashboard.getPendingTasks().isEmpty(),
+                "Internal task list must never be returned on client portal dashboard");
+    }
+
+    @Test
+    @DisplayName("Priority B Consolidation: requestDocumentFromClient delegates to canonical MultiItemDocRequestService")
+    void testRequestDocumentFromClientDelegatesToCanonicalService() {
+        ClientEntity client = ClientEntity.builder()
+                .displayName("ABC Traders")
+                .build();
+        client.setId(clientId);
+
+        when(clientRepository.findByIdAndOrganizationId(clientId, tenantId)).thenReturn(Optional.of(client));
+
+        UUID canonicalRequestId = UUID.randomUUID();
+        UUID canonicalItemId = UUID.randomUUID();
+        com.taxoryn.module.docrequest.dto.DocumentRequestItemDto itemDto = com.taxoryn.module.docrequest.dto.DocumentRequestItemDto.builder()
+                .id(canonicalItemId)
+                .title("Form 16 Part A & B")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING)
+                .build();
+
+        com.taxoryn.module.docrequest.dto.DocumentRequestDto createdDto = com.taxoryn.module.docrequest.dto.DocumentRequestDto.builder()
+                .id(canonicalRequestId)
+                .requestNumber("DOC-2026-099")
+                .purpose("Form 16 Part A & B")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .items(List.of(itemDto))
+                .build();
+
+        when(multiItemDocRequestService.createAndSendRequest(any(com.taxoryn.module.docrequest.dto.CreateDocumentRequest.class)))
+                .thenReturn(createdDto);
+
+        com.taxoryn.module.portal.dto.CreateClientDocumentRequest request = com.taxoryn.module.portal.dto.CreateClientDocumentRequest.builder()
+                .clientId(clientId)
+                .documentType(DocumentType.FORM_16)
+                .title("Form 16 Part A & B")
+                .description("Please provide signed Form 16")
+                .build();
+
+        ClientDocumentRequestDto result = portalService.requestDocumentFromClient(request);
+
+        assertNotNull(result);
+        assertEquals(canonicalItemId, result.getId());
+        assertEquals("Form 16 Part A & B", result.getTitle());
+        assertEquals(com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus.PENDING, result.getStatus());
+        org.mockito.Mockito.verify(multiItemDocRequestService).createAndSendRequest(any(com.taxoryn.module.docrequest.dto.CreateDocumentRequest.class));
+    }
+
+    @Test
+    @DisplayName("Priority B Consolidation: getPendingDocuments derives checklist items from canonical requests")
+    void testGetPendingDocumentsDerivesFromCanonicalMultiItemRequests() {
+        UUID reqId = UUID.randomUUID();
+        UUID itemId1 = UUID.randomUUID();
+        UUID itemId2 = UUID.randomUUID();
+
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity canonicalReq = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                .purpose("FY 2026-27 Tax Compliance")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .clientId(clientId)
+                .build();
+        canonicalReq.setId(reqId);
+        canonicalReq.setOrganizationId(tenantId);
+
+        com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity item1 = com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.builder()
+                .request(canonicalReq)
+                .title("Bank Statement Q1")
+                .documentType(DocumentType.BANK_STATEMENT)
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING)
+                .clientId(clientId)
+                .build();
+        item1.setId(itemId1);
+        item1.setOrganizationId(tenantId);
+
+        com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity item2 = com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.builder()
+                .request(canonicalReq)
+                .title("GST Sales Summary")
+                .documentType(DocumentType.GST_INVOICE_SALE)
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.REJECTED)
+                .clientId(clientId)
+                .build();
+        item2.setId(itemId2);
+        item2.setOrganizationId(tenantId);
+
+        when(multiItemDocRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(tenantId, clientId))
+                .thenReturn(List.of(canonicalReq));
+        when(multiItemDocRequestItemRepository.findAllByRequestIdOrderByCreatedAtAsc(reqId))
+                .thenReturn(List.of(item1, item2));
+        when(docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(tenantId, clientId))
+                .thenReturn(List.of());
+
+        List<ClientDocumentRequestDto> pendingList = portalService.getPendingDocuments();
+
+        assertNotNull(pendingList);
+        assertEquals(2, pendingList.size());
+        assertEquals("Bank Statement Q1", pendingList.get(0).getTitle());
+        assertEquals(com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus.PENDING, pendingList.get(0).getStatus());
+        assertEquals("GST Sales Summary", pendingList.get(1).getTitle());
+        assertEquals(com.taxoryn.module.portal.entity.ClientDocumentRequestEntity.RequestStatus.REJECTED, pendingList.get(1).getStatus());
+    }
+
+    @Test
+    @DisplayName("Priority B Consolidation: uploadClientDocument fulfills canonical item and advances parent status")
+    void testUploadClientDocumentFulfillsCanonicalItemAndAdvancesParentStatus() {
+        UUID reqId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+
+        com.taxoryn.module.docrequest.entity.DocumentRequestEntity parentReq = com.taxoryn.module.docrequest.entity.DocumentRequestEntity.builder()
+                .purpose("FY 2026-27 Audit")
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.SENT)
+                .clientId(clientId)
+                .build();
+        parentReq.setId(reqId);
+        parentReq.setOrganizationId(tenantId);
+
+        com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity item = com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.builder()
+                .request(parentReq)
+                .title("Form 16")
+                .documentType(DocumentType.FORM_16)
+                .status(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.PENDING)
+                .clientId(clientId)
+                .build();
+        item.setId(itemId);
+        item.setOrganizationId(tenantId);
+
+        DocumentDto uploadedDoc = DocumentDto.builder()
+                .id(docId)
+                .fileName("Form16.pdf")
+                .documentType(DocumentType.FORM_16)
+                .build();
+
+        com.taxoryn.module.document.dto.UploadDocumentRequest uploadReq = com.taxoryn.module.document.dto.UploadDocumentRequest.builder()
+                .documentType(DocumentType.FORM_16)
+                .build();
+
+        org.springframework.web.multipart.MultipartFile mockFile = org.mockito.Mockito.mock(org.springframework.web.multipart.MultipartFile.class);
+
+        when(documentService.uploadDocument(eq(mockFile), any(com.taxoryn.module.document.dto.UploadDocumentRequest.class)))
+                .thenReturn(uploadedDoc);
+        when(multiItemDocRequestItemRepository.findByIdAndOrganizationIdAndClientId(itemId, tenantId, clientId))
+                .thenReturn(Optional.of(item));
+
+        DocumentDto result = portalService.uploadClientDocument(mockFile, uploadReq, itemId);
+
+        assertNotNull(result);
+        assertEquals(docId, result.getId());
+        assertEquals(com.taxoryn.module.docrequest.entity.DocumentRequestItemEntity.ItemStatus.UPLOADED, item.getStatus());
+        assertEquals(docId, item.getUploadedDocumentId());
+        assertEquals(com.taxoryn.module.docrequest.entity.DocumentRequestEntity.RequestStatus.PARTIALLY_COMPLETED, parentReq.getStatus());
+        org.mockito.Mockito.verify(multiItemDocRequestItemRepository).save(item);
+        org.mockito.Mockito.verify(multiItemDocRequestRepository).save(parentReq);
     }
 }

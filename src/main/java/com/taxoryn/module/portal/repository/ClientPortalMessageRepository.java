@@ -21,9 +21,15 @@ public interface ClientPortalMessageRepository extends JpaRepository<ClientPorta
 
     List<ClientPortalMessageEntity> findAllByClientIdOrderByCreatedAtAsc(UUID clientId);
 
+    long countByOrganizationIdAndClientIdAndReadByClientFalse(UUID organizationId, UUID clientId);
+
     long countByClientIdAndReadByClientFalse(UUID clientId);
 
     long countByOrganizationIdAndClientIdAndReadByPracticeFalse(UUID organizationId, UUID clientId);
+
+    @Modifying
+    @Query("UPDATE ClientPortalMessageEntity m SET m.readByClient = true, m.readAt = :readAt WHERE m.organizationId = :organizationId AND m.clientId = :clientId AND m.readByClient = false AND m.senderType = 'PRACTICE'")
+    int markAllReadByClient(@Param("organizationId") UUID organizationId, @Param("clientId") UUID clientId, @Param("readAt") Instant readAt);
 
     @Modifying
     @Query("UPDATE ClientPortalMessageEntity m SET m.readByClient = true, m.readAt = :readAt WHERE m.clientId = :clientId AND m.readByClient = false AND m.senderType = 'PRACTICE'")

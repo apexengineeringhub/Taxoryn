@@ -16,6 +16,8 @@ public interface DocumentRequestItemRepository extends JpaRepository<DocumentReq
 
     Optional<DocumentRequestItemEntity> findByIdAndClientId(UUID id, UUID clientId);
 
+    Optional<DocumentRequestItemEntity> findByIdAndOrganizationIdAndClientId(UUID id, UUID organizationId, UUID clientId);
+
     List<DocumentRequestItemEntity> findAllByRequestIdOrderByCreatedAtAsc(UUID requestId);
 
     long countByRequestIdAndStatus(UUID requestId, ItemStatus status);
