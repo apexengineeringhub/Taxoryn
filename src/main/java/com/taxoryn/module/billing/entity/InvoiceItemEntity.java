@@ -58,6 +58,9 @@ public class InvoiceItemEntity extends BaseEntity {
     @Builder.Default
     private BigDecimal unitPrice = BigDecimal.ZERO;
 
+    @Column(name = "sac_hsn_code", length = 20)
+    private String sacHsnCode;
+
     @Column(name = "tax_rate", nullable = false, precision = 5, scale = 2)
     @Builder.Default
     private BigDecimal taxRate = new BigDecimal("18.00");
@@ -65,6 +68,30 @@ public class InvoiceItemEntity extends BaseEntity {
     @Column(name = "tax", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal tax = BigDecimal.ZERO;
+
+    @Column(name = "cgst_rate", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal cgstRate = BigDecimal.ZERO;
+
+    @Column(name = "cgst_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal cgstAmount = BigDecimal.ZERO;
+
+    @Column(name = "sgst_rate", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal sgstRate = BigDecimal.ZERO;
+
+    @Column(name = "sgst_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal sgstAmount = BigDecimal.ZERO;
+
+    @Column(name = "igst_rate", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal igstRate = BigDecimal.ZERO;
+
+    @Column(name = "igst_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal igstAmount = BigDecimal.ZERO;
 
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     @Builder.Default

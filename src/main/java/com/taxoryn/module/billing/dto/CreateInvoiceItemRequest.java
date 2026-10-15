@@ -37,6 +37,9 @@ public class CreateInvoiceItemRequest {
     @Schema(description = "Description of professional services rendered", example = "GSTR-1 & GSTR-3B preparation and filing for August 2026")
     private String description;
 
+    @Schema(description = "Services Accounting Code (SAC) or HSN Code", example = "998231")
+    private String sacHsnCode;
+
     @NotNull(message = "Quantity is required")
     @DecimalMin(value = "0.01", message = "Quantity must be greater than 0")
     @Schema(description = "Quantity / hours", example = "1")

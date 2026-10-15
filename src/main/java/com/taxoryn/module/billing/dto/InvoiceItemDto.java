@@ -28,8 +28,15 @@ public class InvoiceItemDto {
     private String description;
     private BigDecimal quantity;
     private BigDecimal unitPrice;
+    private String sacHsnCode;
     private BigDecimal taxRate;
     private BigDecimal tax;
+    private BigDecimal cgstRate;
+    private BigDecimal cgstAmount;
+    private BigDecimal sgstRate;
+    private BigDecimal sgstAmount;
+    private BigDecimal igstRate;
+    private BigDecimal igstAmount;
     private BigDecimal amount;
     private UUID promotionId;
     private String promotionName;

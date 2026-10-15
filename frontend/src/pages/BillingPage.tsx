@@ -114,6 +114,8 @@ export const BillingPage: React.FC = () => {
   });
   const [newTerms, setNewTerms] = useState('1. Payment is due within 15 days of invoice date.\n2. Please mention Invoice Number in bank transfer remark.\n3. Late payment surcharge @ 18% p.a. applicable after due date.');
   const [newNotes, setNewNotes] = useState('Thank you for trusting us with your tax and compliance matters.');
+  const [newSeriesPrefix, setNewSeriesPrefix] = useState('INV');
+  const [newPlaceOfSupply, setNewPlaceOfSupply] = useState('');
   const [discountType, setDiscountType] = useState<'NONE' | 'FLAT' | 'PERCENTAGE'>('NONE');
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [newItems, setNewItems] = useState<Array<{
@@ -375,6 +377,8 @@ export const BillingPage: React.FC = () => {
         clientId: newClientId,
         invoiceDate: newInvoiceDate,
         dueDate: newDueDate,
+        seriesPrefix: newSeriesPrefix?.trim() ? newSeriesPrefix.trim().toUpperCase() : 'INV',
+        placeOfSupplyState: newPlaceOfSupply?.trim() ? newPlaceOfSupply.trim() : undefined,
         discount: Number(newInvoiceCalculations.discountAmount || 0),
         items: newItems.map((it) => ({
           service: it.service,
@@ -1297,9 +1301,9 @@ export const BillingPage: React.FC = () => {
         maxWidth="2xl"
       >
         <div className="space-y-5 max-h-[80vh] overflow-y-auto pr-1">
-          {/* Client & Date Selection */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-1">
+          {/* Client, Series & Date Selection */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="sm:col-span-2 lg:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1">Target Client *</label>
               <select
                 value={newClientId}
@@ -1316,6 +1320,18 @@ export const BillingPage: React.FC = () => {
             </div>
 
             <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Series Prefix</label>
+              <input
+                type="text"
+                placeholder="INV"
+                maxLength={10}
+                value={newSeriesPrefix}
+                onChange={(e) => setNewSeriesPrefix(e.target.value.toUpperCase())}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg font-mono uppercase"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Invoice Date *</label>
               <input
                 type="date"
@@ -1326,13 +1342,27 @@ export const BillingPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Due Date *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Due Date *</label>
               <input
                 type="date"
                 value={newDueDate}
                 onChange={(e) => setNewDueDate(e.target.value)}
                 className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg font-mono"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Place of Supply (POS State / Code)</label>
+              <input
+                type="text"
+                placeholder="Auto-detected from client GSTIN/address or 27"
+                value={newPlaceOfSupply}
+                onChange={(e) => setNewPlaceOfSupply(e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Leave empty to resolve automatically from client profile</span>
             </div>
           </div>
 

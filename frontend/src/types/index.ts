@@ -1610,6 +1610,16 @@ export interface Invoice {
   currency?: string;
   subtotal: number;
   tax: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  placeOfSupplyState?: string;
+  placeOfSupplyStateCode?: string;
+  supplierState?: string;
+  supplierStateCode?: string;
+  isRcm?: boolean;
+  financialYear?: string;
+  seriesPrefix?: string;
   discount?: number;
   total: number;
   totalAmount?: number;
@@ -1629,10 +1639,17 @@ export interface InvoiceLineItem {
   serviceCode?: string;
   description: string;
   hsnSacCode?: string;
+  sacHsnCode?: string;
   quantity: number;
   unitPrice: number;
   taxRate: number;
   tax?: number;
+  cgstRate?: number;
+  cgstAmount?: number;
+  sgstRate?: number;
+  sgstAmount?: number;
+  igstRate?: number;
+  igstAmount?: number;
   amount?: number;
 }
 

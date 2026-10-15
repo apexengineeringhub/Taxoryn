@@ -41,4 +41,16 @@ public class UpdateInvoiceRequest {
 
     @Schema(description = "Payment terms")
     private String terms;
+
+    @Schema(description = "Place of Supply State Name (e.g. Maharashtra, Delhi)")
+    private String placeOfSupplyState;
+
+    @Schema(description = "Place of Supply 2-digit GST State Code (e.g. 27, 07)")
+    private String placeOfSupplyStateCode;
+
+    @Schema(description = "Whether tax is payable under Reverse Charge Mechanism (RCM)")
+    private Boolean isRcm;
+
+    @Schema(description = "Configurable invoice numbering series prefix", example = "INV")
+    private String seriesPrefix;
 }
