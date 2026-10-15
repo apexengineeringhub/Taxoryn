@@ -19,6 +19,8 @@ public interface ClientPortalMessageRepository extends JpaRepository<ClientPorta
 
     List<ClientPortalMessageEntity> findAllByOrganizationIdAndClientIdOrderByCreatedAtAsc(UUID organizationId, UUID clientId);
 
+    List<ClientPortalMessageEntity> findAllByOrganizationIdAndReadByPracticeFalseOrderByCreatedAtAsc(UUID organizationId);
+
     List<ClientPortalMessageEntity> findAllByOrganizationIdAndClientIdAndContextTypeOrderByCreatedAtAsc(
             UUID organizationId, UUID clientId, com.taxoryn.module.portal.entity.MessageContextType contextType);
 

@@ -3619,17 +3619,14 @@ export const Client360Page: React.FC = () => {
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
                 {[
                   'ALL',
-                  'CLIENT',
-                  'PROFILE',
-                  'SERVICE',
-                  'CONTACT',
-                  'BRANCH',
-                  'RELATIONSHIP',
-                  'WORK',
-                  'DOCUMENT',
-                  'BILLING',
-                  'COMPLIANCE',
                   'COMMUNICATION',
+                  'APPROVAL',
+                  'DOCUMENT',
+                  'COMPLIANCE',
+                  'WORK',
+                  'CLIENT',
+                  'SERVICE',
+                  'BILLING',
                 ].map((cat) => {
                   const isSelected = timelineCategoryFilter === cat;
                   return (
@@ -3690,9 +3687,20 @@ export const Client360Page: React.FC = () => {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed">{desc}</p>
-                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-medium pt-0.5">
-                          <span>By: {actor}</span>
-                          {item.sourceModule && <span>• Module: {item.sourceModule}</span>}
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium pt-0.5">
+                          <div className="flex items-center gap-3">
+                            <span>By: {actor}</span>
+                            {item.sourceModule && <span>• Module: {item.sourceModule}</span>}
+                          </div>
+                          {item.actionUrl && (
+                            <Link
+                              to={item.actionUrl}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+                            >
+                              <span>Open Item</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          )}
                         </div>
                       </div>
                     );

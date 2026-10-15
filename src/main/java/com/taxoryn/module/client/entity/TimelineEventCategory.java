@@ -14,6 +14,7 @@ public enum TimelineEventCategory {
     WORK,
     DOCUMENT,
     COMPLIANCE,
+    APPROVAL,
     BILLING,
     PAYMENT,
     GOVERNMENT,

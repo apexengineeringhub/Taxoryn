@@ -3,7 +3,11 @@ package com.taxoryn.module.portal.controller;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.client.dto.ClientCommunicationDto;
+import com.taxoryn.module.client.dto.ClientTimelineFilterRequest;
+import com.taxoryn.module.client.dto.ClientTimelineItemDto;
+import com.taxoryn.module.client.entity.TimelineEventCategory;
 import com.taxoryn.module.client.service.ClientCommunicationTimelineService;
+import com.taxoryn.module.client.service.ClientTimelineService;
 import com.taxoryn.module.document.dto.DocumentDownloadDto;
 import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.dto.PresignedUrlResponse;
@@ -28,6 +32,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -49,6 +54,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,6 +70,7 @@ public class ClientPortalController {
     private final com.taxoryn.module.docrequest.service.DocumentRequestService documentRequestService;
     private final com.taxoryn.module.notice.service.TaxNoticeService taxNoticeService;
     private final ClientCommunicationTimelineService communicationTimelineService;
+    private final ClientTimelineService clientTimelineService;
 
     // =========================================================================
     // 1. User Management & Onboarding
@@ -509,5 +516,35 @@ public class ClientPortalController {
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success("Client communications retrieved",
                 communicationTimelineService.listClientVisibleEntries(clientId, page, size)));
+    }
+
+    @GetMapping("/clients/{clientId}/timeline")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Get client collaboration timeline", description = "Returns sanitized, client-visible collaboration events, document requests, approvals, and communication milestones.")
+    public ResponseEntity<ApiResponse<PagedResponse<ClientTimelineItemDto>>> getClientPortalTimeline(
+            @PathVariable UUID clientId,
+            @RequestParam(required = false) TimelineEventCategory category,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String contextType,
+            @RequestParam(required = false) String contextId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        ClientTimelineFilterRequest filter = ClientTimelineFilterRequest.builder()
+                .category(category)
+                .eventType(eventType)
+                .contextType(contextType)
+                .contextId(contextId)
+                .from(from)
+                .to(to)
+                .page(page)
+                .size(size)
+                .clientVisibleOnly(true)
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success("Client timeline retrieved",
+                clientTimelineService.getPortalClientTimeline(clientId, filter)));
     }
 }

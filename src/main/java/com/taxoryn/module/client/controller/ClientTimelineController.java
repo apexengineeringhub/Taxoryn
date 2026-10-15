@@ -36,6 +36,8 @@ public class ClientTimelineController {
             @PathVariable UUID clientId,
             @RequestParam(required = false) TimelineEventCategory category,
             @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String contextType,
+            @RequestParam(required = false) String contextId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(defaultValue = "0") int page,
@@ -44,6 +46,8 @@ public class ClientTimelineController {
         ClientTimelineFilterRequest filter = ClientTimelineFilterRequest.builder()
                 .category(category)
                 .eventType(eventType)
+                .contextType(contextType)
+                .contextId(contextId)
                 .from(from)
                 .to(to)
                 .page(page)

@@ -1129,6 +1129,73 @@ export interface RevokeClientApprovalRequest {
   reason?: string;
 }
 
+// Phase 32.6: Follow-up & Reminder Engine Types
+export type ReminderType =
+  | 'TASK_DUE'
+  | 'TASK_OVERDUE'
+  | 'FOLLOW_UP'
+  | 'DOCUMENT_COLLECTION'
+  | 'GENERAL'
+  | 'CLIENT_APPROVAL'
+  | 'DOCUMENT_REQUEST'
+  | 'UNANSWERED_COMMUNICATION'
+  | 'COMPLIANCE_DEADLINE'
+  | 'PRACTITIONER_FOLLOW_UP';
+
+export type ReminderStatus = 'PENDING' | 'TRIGGERED' | 'COMPLETED' | 'CANCELLED';
+
+export type ReminderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export interface FollowUpItem {
+  id: string;
+  organizationId: string;
+  clientId?: string;
+  clientName?: string;
+  category: ReminderType;
+  title: string;
+  description?: string;
+  priority: ReminderPriority;
+  status: ReminderStatus;
+  overdue: boolean;
+  referenceType?: string;
+  referenceId?: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  actionUrl?: string;
+  scheduledAt: string;
+  triggeredAt?: string;
+  lastAttemptAt?: string;
+  notificationAttempts?: number;
+  lastError?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface FollowUpFilterRequest {
+  clientId?: string;
+  category?: ReminderType;
+  status?: ReminderStatus;
+  priority?: ReminderPriority;
+  overdueOnly?: boolean;
+  page?: number;
+  size?: number;
+}
+
+export interface SendFollowUpNudgeRequest {
+  customMessage?: string;
+}
+
+export interface FollowUpEvaluationResult {
+  organizationId: string;
+  approvalsEvaluated: number;
+  documentRequestsEvaluated: number;
+  communicationsEvaluated: number;
+  complianceObligationsEvaluated: number;
+  totalRemindersCreated: number;
+  evaluatedAt: string;
+}
+
+
 export interface PortalMessageAttachment {
   documentId: string;
   fileName: string;
@@ -6317,6 +6384,7 @@ export type TimelineEventCategory =
   | 'WORK'
   | 'DOCUMENT'
   | 'COMPLIANCE'
+  | 'APPROVAL'
   | 'BILLING'
   | 'PAYMENT'
   | 'GOVERNMENT'
@@ -6363,12 +6431,19 @@ export interface ClientTimelineItemDto {
   severity: TimelineEventSeverity;
   relatedEntityId?: string;
   relatedEntityType?: string;
+  actionUrl?: string;
+  clientVisible?: boolean;
+  contextType?: string;
+  contextId?: string;
   metadata?: Record<string, any>;
 }
 
 export interface ClientTimelineFilterParams {
   category?: TimelineEventCategory;
   eventType?: string;
+  contextType?: string;
+  contextId?: string;
+  clientVisibleOnly?: boolean;
   from?: string;
   to?: string;
   page?: number;

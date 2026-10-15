@@ -30,6 +30,7 @@ public class ReminderScheduler {
 
     private final OrganizationRepository organizationRepository;
     private final ReminderService reminderService;
+    private final com.taxoryn.module.reminder.service.FollowUpReminderService followUpReminderService;
 
     @Value("${taxoryn.reminder.scheduler.batch-size:50}")
     private int batchSize;
@@ -51,6 +52,10 @@ public class ReminderScheduler {
         for (OrganizationEntity org : activeOrgs) {
             try {
                 TenantContext.setTenantId(org.getId());
+                // 1. Evaluate deterministic collaboration follow-ups for this tenant
+                followUpReminderService.evaluateFollowUps(org.getId());
+
+                // 2. Process all due reminders with retry and delivery handling
                 int triggered = reminderService.processAllDueReminders(org.getId(), batchSize);
                 totalTriggered += triggered;
                 if (triggered > 0) {

@@ -148,6 +148,9 @@ import {
   CreateClientApprovalRequest,
   DecideClientApprovalRequest,
   RevokeClientApprovalRequest,
+  FollowUpItem,
+  FollowUpEvaluationResult,
+  SendFollowUpNudgeRequest,
   TdsProfile,
   TdsReturn,
   TdsChallan,
@@ -2018,6 +2021,10 @@ export const portalApi = {
   },
   revokePracticeClientApproval: async (clientId: string, approvalId: string, payload?: RevokeClientApprovalRequest) => {
     const res = await apiClient.post<ApiResponse<ClientApproval>>(`/v1/portal/clients/${clientId}/approvals/${approvalId}/revoke`, payload || {});
+    return res.data.data;
+  },
+  getTimeline: async (clientId: string, params?: ClientTimelineFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientTimelineItemDto>>>(`/v1/portal/clients/${clientId}/timeline`, { params });
     return res.data.data;
   },
 };
@@ -3901,6 +3908,25 @@ export const reminderApi = {
   },
   getOverdueCount: async () => {
     const res = await apiClient.get<ApiResponse<number>>('/v1/reminders/overdue/count');
+    return res.data.data;
+  },
+  // Phase 32.6: Collaboration Follow-up & Reminder Engine APIs
+  getFollowUps: async (params?: Record<string, any>) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<FollowUpItem>>>('/v1/reminders/follow-ups', { params });
+    return res.data.data;
+  },
+  evaluateFollowUps: async () => {
+    const res = await apiClient.post<ApiResponse<FollowUpEvaluationResult>>('/v1/reminders/follow-ups/evaluate');
+    return res.data.data;
+  },
+  sendFollowUpNudge: async (id: string, data?: SendFollowUpNudgeRequest) => {
+    const res = await apiClient.post<ApiResponse<FollowUpItem>>(`/v1/reminders/follow-ups/${id}/nudge`, data || {});
+    return res.data.data;
+  },
+  resolveFollowUp: async (id: string, notes?: string) => {
+    const res = await apiClient.post<ApiResponse<FollowUpItem>>(`/v1/reminders/follow-ups/${id}/resolve`, null, {
+      params: notes ? { notes } : undefined,
+    });
     return res.data.data;
   },
 };

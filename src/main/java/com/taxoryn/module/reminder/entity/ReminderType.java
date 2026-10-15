@@ -15,5 +15,15 @@ public enum ReminderType {
     /** Reminder to collect documents from a client for an engagement. */
     DOCUMENT_COLLECTION,
     /** Generic reminder not tied to a specific system event. */
-    GENERAL
+    GENERAL,
+    /** Phase 32.6: Pending client approval reminder. */
+    CLIENT_APPROVAL,
+    /** Phase 32.6: Outstanding client document request reminder. */
+    DOCUMENT_REQUEST,
+    /** Phase 32.6: Unanswered client or practitioner message reminder. */
+    UNANSWERED_COMMUNICATION,
+    /** Phase 32.6: Upcoming compliance statutory deadline reminder. */
+    COMPLIANCE_DEADLINE,
+    /** Phase 32.6: Practitioner follow-up on overdue or blocked action. */
+    PRACTITIONER_FOLLOW_UP
 }

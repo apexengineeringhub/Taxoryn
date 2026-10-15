@@ -21,6 +21,8 @@ public interface ClientApprovalRequestRepository extends JpaRepository<ClientApp
 
     List<ClientApprovalRequestEntity> findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(UUID organizationId, UUID clientId);
 
+    List<ClientApprovalRequestEntity> findAllByOrganizationIdAndStatusOrderByCreatedAtDesc(UUID organizationId, ClientApprovalStatus status);
+
     List<ClientApprovalRequestEntity> findAllByOrganizationIdAndClientIdAndStatusOrderByCreatedAtDesc(
             UUID organizationId, UUID clientId, ClientApprovalStatus status);
 
