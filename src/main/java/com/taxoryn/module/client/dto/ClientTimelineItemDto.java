@@ -63,4 +63,17 @@ public class ClientTimelineItemDto {
 
     @Schema(description = "Additional context or payload details")
     private Map<String, Object> metadata;
+
+    @Schema(description = "Direct deep-link action URL in Taxoryn UI")
+    private String actionUrl;
+
+    @Schema(description = "Whether this timeline event is safely visible to client portal users")
+    @Builder.Default
+    private boolean clientVisible = false;
+
+    @Schema(description = "Coarse context category (e.g. DOCUMENT_REQUEST, APPROVAL, COMMUNICATION, COMPLIANCE)")
+    private String contextType;
+
+    @Schema(description = "Target context entity ID string")
+    private String contextId;
 }

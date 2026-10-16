@@ -28,6 +28,15 @@ public class ClientTimelineFilterRequest {
     @Schema(description = "Filter events occurred on or before this timestamp")
     private Instant to;
 
+    @Schema(description = "Filter by coarse context type (e.g. DOCUMENT_REQUEST, APPROVAL, COMMUNICATION, COMPLIANCE)")
+    private String contextType;
+
+    @Schema(description = "Filter by specific context entity ID")
+    private String contextId;
+
+    @Schema(description = "Filter only events that are safely visible to client portal users")
+    private Boolean clientVisibleOnly;
+
     @Schema(description = "Page number (0-indexed, default 0)")
     @Builder.Default
     private Integer page = 0;

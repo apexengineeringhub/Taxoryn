@@ -28,4 +28,7 @@ public class ClientDocumentRequestDto {
     private String assessmentYear;
     private RequestStatus status;
     private UUID uploadedDocumentId;
+    private String rejectionReason;
+    private UUID requestId;
+    private String requestNumber;
 }

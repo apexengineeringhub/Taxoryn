@@ -62,4 +62,21 @@ public class CreateInvoiceRequest {
 
     @Schema(description = "Payment terms and bank details", example = "Payment due within 15 days of invoice. Bank transfer details: Apex CA, HDFC Bank, A/C: 50200012345678, IFSC: HDFC0001234")
     private String terms;
+
+    @Schema(description = "Place of Supply State Name (e.g. Maharashtra, Delhi)")
+    private String placeOfSupplyState;
+
+    @Schema(description = "Place of Supply 2-digit GST State Code (e.g. 27, 07)")
+    private String placeOfSupplyStateCode;
+
+    @Schema(description = "Whether tax is payable under Reverse Charge Mechanism (RCM)")
+    @Builder.Default
+    private Boolean isRcm = false;
+
+    @Schema(description = "Configurable invoice numbering series prefix", example = "INV")
+    @Builder.Default
+    private String seriesPrefix = "INV";
+
+    @Schema(description = "Financial year override (defaults to current Indian FY e.g. 2026-27)", example = "2026-27")
+    private String financialYear;
 }

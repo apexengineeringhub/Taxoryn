@@ -14,5 +14,7 @@ public interface ClientTimelineService {
 
     PagedResponse<ClientTimelineItemDto> getClientTimeline(UUID clientId, ClientTimelineFilterRequest filter);
 
+    PagedResponse<ClientTimelineItemDto> getPortalClientTimeline(UUID clientId, ClientTimelineFilterRequest filter);
+
     List<ClientTimelineItemDto> getRecentTimeline(UUID organizationId, UUID clientId, int limit);
 }

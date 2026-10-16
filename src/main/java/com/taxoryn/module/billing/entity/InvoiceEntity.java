@@ -65,6 +65,41 @@ public class InvoiceEntity extends TenantAuditableEntity {
     @Builder.Default
     private BigDecimal tax = BigDecimal.ZERO;
 
+    @Column(name = "cgst_amount", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal cgstAmount = BigDecimal.ZERO;
+
+    @Column(name = "sgst_amount", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal sgstAmount = BigDecimal.ZERO;
+
+    @Column(name = "igst_amount", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal igstAmount = BigDecimal.ZERO;
+
+    @Column(name = "place_of_supply_state", length = 100)
+    private String placeOfSupplyState;
+
+    @Column(name = "place_of_supply_state_code", length = 10)
+    private String placeOfSupplyStateCode;
+
+    @Column(name = "supplier_state", length = 100)
+    private String supplierState;
+
+    @Column(name = "supplier_state_code", length = 10)
+    private String supplierStateCode;
+
+    @Column(name = "is_rcm", nullable = false)
+    @Builder.Default
+    private Boolean isRcm = false;
+
+    @Column(name = "financial_year", length = 20)
+    private String financialYear;
+
+    @Column(name = "series_prefix", length = 50)
+    @Builder.Default
+    private String seriesPrefix = "INV";
+
     @Column(name = "total", nullable = false, precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal total = BigDecimal.ZERO;

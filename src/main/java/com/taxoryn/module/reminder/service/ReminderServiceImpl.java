@@ -78,6 +78,7 @@ public class ReminderServiceImpl implements ReminderService {
     private final TaskRepository taskRepository;
     private final EngagementRepository engagementRepository;
     private final WorkInstanceRepository workInstanceRepository;
+    private final com.taxoryn.module.client.repository.ClientRepository clientRepository;
 
     // =========================================================================
     // CRUD — Manual Reminders (REST API)
@@ -542,11 +543,26 @@ public class ReminderServiceImpl implements ReminderService {
         return switch (reminder.getReminderType()) {
             case TASK_DUE -> NotificationType.REMINDER_DUE;
             case TASK_OVERDUE -> NotificationType.REMINDER_OVERDUE;
+            case CLIENT_APPROVAL -> NotificationType.CLIENT_APPROVAL_REMINDER;
+            case DOCUMENT_REQUEST, DOCUMENT_COLLECTION -> NotificationType.DOCUMENT_REQUEST_REMINDER;
+            case PRACTITIONER_FOLLOW_UP, FOLLOW_UP -> NotificationType.FOLLOW_UP_NUDGE;
             default -> NotificationType.REMINDER_TRIGGERED;
         };
     }
 
     private String buildActionUrl(ReminderEntity reminder) {
+        if ("CLIENT_APPROVAL".equals(reminder.getReferenceType())) {
+            return "/portal/management?tab=approvals&approvalId=" + reminder.getReferenceId();
+        }
+        if ("DOCUMENT_REQUEST".equals(reminder.getReferenceType())) {
+            return "/portal/management?tab=requests&requestId=" + reminder.getReferenceId();
+        }
+        if ("PORTAL_MESSAGE".equals(reminder.getReferenceType())) {
+            return "/portal/management?tab=messages&messageId=" + reminder.getReferenceId();
+        }
+        if ("COMPLIANCE_OBLIGATION".equals(reminder.getReferenceType())) {
+            return "/compliance/workbench?obligationId=" + reminder.getReferenceId();
+        }
         if (reminder.getTaskId() != null) {
             return "/tasks/" + reminder.getTaskId();
         }
@@ -644,6 +660,11 @@ public class ReminderServiceImpl implements ReminderService {
         if (entity.getTaskId() != null) {
             taskRepository.findById(entity.getTaskId())
                     .ifPresent(t -> dto.setTaskTitle(t.getTitle()));
+        }
+
+        if (entity.getClientId() != null) {
+            clientRepository.findById(entity.getClientId())
+                    .ifPresent(c -> dto.setClientName(c.getDisplayName()));
         }
 
         return dto;

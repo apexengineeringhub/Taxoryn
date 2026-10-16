@@ -713,10 +713,10 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional
     public DocumentRequestDto createClientAcknowledgementRequest(CreateClientAcknowledgementRequest request) {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        ClientEntity client = clientRepository.findById(clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        ClientEntity client = clientRepository.findByIdAndOrganizationId(clientId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", "id", clientId));
 
-        UUID organizationId = client.getOrganizationId();
         String requestNumber = generateRequestNumber();
 
         DocumentRequestEntity entity = DocumentRequestEntity.builder()
@@ -994,7 +994,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional(readOnly = true)
     public List<DocumentRequestDto> getClientPortalRequests() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        return docRequestRepository.findAllByClientIdOrderByCreatedAtDesc(clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        return docRequestRepository.findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(organizationId, clientId)
                 .stream().map(this::toDto).toList();
     }
 
@@ -1002,7 +1003,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional(readOnly = true)
     public List<DocumentRequestDto> getClientPortalDeliveredDocuments() {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        return docRequestRepository.findDeliveredDocumentsForClient(clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        return docRequestRepository.findDeliveredDocumentsForClient(organizationId, clientId)
                 .stream().map(this::toDto).toList();
     }
 
@@ -1010,7 +1012,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional(readOnly = true)
     public DocumentRequestDto getClientPortalRequestById(UUID requestId) {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        DocumentRequestEntity request = docRequestRepository.findByIdAndClientId(requestId, clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentRequestEntity request = docRequestRepository.findByIdAndOrganizationIdAndClientId(requestId, organizationId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
         return toDto(request);
     }
@@ -1019,17 +1022,19 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional
     public DocumentRequestDto uploadClientPortalItemDocument(UUID itemId, MultipartFile file) {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        DocumentRequestItemEntity item = docRequestItemRepository.findByIdAndClientId(itemId, clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentRequestItemEntity item = docRequestItemRepository.findByIdAndOrganizationIdAndClientId(itemId, organizationId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequestItem", "id", itemId));
 
-        return processItemUpload(item, file, item.getOrganizationId());
+        return processItemUpload(item, file, organizationId);
     }
 
     @Override
     @Transactional
     public void recordClientDocumentViewed(UUID requestId) {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        DocumentRequestEntity request = docRequestRepository.findByIdAndClientId(requestId, clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentRequestEntity request = docRequestRepository.findByIdAndOrganizationIdAndClientId(requestId, organizationId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
 
         if (request.getStatus() == RequestStatus.SENT) {
@@ -1041,7 +1046,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 "DOCUMENT_VIEWED",
                 "DOCUMENT_REQUEST",
                 request.getId().toString(),
-                request.getOrganizationId(),
+                organizationId,
                 "Client viewed delivered document for request " + request.getRequestNumber()
         );
     }
@@ -1050,7 +1055,8 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
     @Transactional
     public void recordClientDocumentDownloaded(UUID requestId) {
         UUID clientId = SecurityUtils.requireCurrentClientId();
-        DocumentRequestEntity request = docRequestRepository.findByIdAndClientId(requestId, clientId)
+        UUID organizationId = SecurityUtils.getCurrentOrganizationId();
+        DocumentRequestEntity request = docRequestRepository.findByIdAndOrganizationIdAndClientId(requestId, organizationId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("DocumentRequest", "id", requestId));
 
         if (request.getStatus() == RequestStatus.SENT || request.getStatus() == RequestStatus.VIEWED) {
@@ -1062,7 +1068,7 @@ public class DocumentRequestServiceImpl implements DocumentRequestService {
                 "DOCUMENT_DOWNLOADED",
                 "DOCUMENT_REQUEST",
                 request.getId().toString(),
-                request.getOrganizationId(),
+                organizationId,
                 "Client downloaded delivered document for request " + request.getRequestNumber()
         );
     }

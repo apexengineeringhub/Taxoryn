@@ -39,6 +39,16 @@ public class InvoiceDto {
     private BigDecimal subtotal;
     private BigDecimal discount;
     private BigDecimal tax;
+    private BigDecimal cgstAmount;
+    private BigDecimal sgstAmount;
+    private BigDecimal igstAmount;
+    private String placeOfSupplyState;
+    private String placeOfSupplyStateCode;
+    private String supplierState;
+    private String supplierStateCode;
+    private Boolean isRcm;
+    private String financialYear;
+    private String seriesPrefix;
     private BigDecimal total;
     private BigDecimal paidAmount;
     private BigDecimal balanceDue;

@@ -56,4 +56,18 @@ public class ClientPortalMessageEntity extends TenantAuditableEntity {
 
     @Column(name = "read_at")
     private Instant readAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "context_type", nullable = false, length = 50)
+    @Builder.Default
+    private MessageContextType contextType = MessageContextType.GENERAL;
+
+    @Column(name = "context_id")
+    private UUID contextId;
+
+    @Column(name = "context_title", length = 255)
+    private String contextTitle;
+
+    @Column(name = "parent_message_id")
+    private UUID parentMessageId;
 }

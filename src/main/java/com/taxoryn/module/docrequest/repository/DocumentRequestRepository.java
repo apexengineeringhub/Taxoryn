@@ -22,6 +22,8 @@ public interface DocumentRequestRepository extends JpaRepository<DocumentRequest
 
     Optional<DocumentRequestEntity> findByIdAndClientId(UUID id, UUID clientId);
 
+    Optional<DocumentRequestEntity> findByIdAndOrganizationIdAndClientId(UUID id, UUID organizationId, UUID clientId);
+
     List<DocumentRequestEntity> findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(UUID organizationId, UUID clientId);
 
     List<DocumentRequestEntity> findAllByOrganizationIdAndWorkflowId(UUID organizationId, UUID workflowId);
@@ -37,6 +39,9 @@ public interface DocumentRequestRepository extends JpaRepository<DocumentRequest
     List<DocumentRequestEntity> findAllByClientIdOrderByCreatedAtDesc(UUID clientId);
 
     List<DocumentRequestEntity> findAllByClientIdAndDeliveredDocumentIdIsNotNullOrderByDeliveredAtDesc(UUID clientId);
+
+    @Query("SELECT d FROM DocumentRequestEntity d WHERE d.organizationId = :organizationId AND d.clientId = :clientId AND (d.deliveredDocumentId IS NOT NULL OR d.exchangeType = 'DOCUMENT_DELIVERY') ORDER BY COALESCE(d.deliveredAt, d.createdAt) DESC")
+    List<DocumentRequestEntity> findDeliveredDocumentsForClient(@Param("organizationId") UUID organizationId, @Param("clientId") UUID clientId);
 
     @Query("SELECT d FROM DocumentRequestEntity d WHERE d.clientId = :clientId AND (d.deliveredDocumentId IS NOT NULL OR d.exchangeType = 'DOCUMENT_DELIVERY') ORDER BY COALESCE(d.deliveredAt, d.createdAt) DESC")
     List<DocumentRequestEntity> findDeliveredDocumentsForClient(@Param("clientId") UUID clientId);

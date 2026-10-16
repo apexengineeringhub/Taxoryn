@@ -103,6 +103,15 @@ public interface ReminderRepository extends JpaRepository<ReminderEntity, UUID>,
 
     boolean existsByIdempotencyKey(String idempotencyKey);
 
+    boolean existsByOrganizationIdAndReferenceTypeAndReferenceIdAndStatusIn(
+            UUID organizationId, String referenceType, String referenceId, java.util.Set<ReminderStatus> statuses);
+
+    List<ReminderEntity> findAllByOrganizationIdAndReferenceTypeAndReferenceId(
+            UUID organizationId, String referenceType, String referenceId);
+
+    Optional<ReminderEntity> findTopByOrganizationIdAndReferenceTypeAndReferenceIdOrderByCreatedAtDesc(
+            UUID organizationId, String referenceType, String referenceId);
+
     // -------------------------------------------------------------------------
     // Task association
     // -------------------------------------------------------------------------
@@ -146,4 +155,6 @@ public interface ReminderRepository extends JpaRepository<ReminderEntity, UUID>,
 
     long countByOrganizationIdAndStatusAndScheduledAtBetween(
             UUID organizationId, ReminderStatus status, Instant start, Instant end);
+
+    List<ReminderEntity> findAllByOrganizationIdAndClientIdOrderByCreatedAtDesc(UUID organizationId, UUID clientId);
 }

@@ -24,6 +24,9 @@ import {
   FileText,
   ArrowLeft,
   Menu,
+  ChevronDown,
+  PanelLeft,
+  PanelLeftClose,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -33,6 +36,7 @@ import {
   EmployeeChatMessage
 } from '../api/employeeChatApi';
 import { useEmployeeChat } from '../hooks/useEmployeeChat';
+import { useSmartChatScroll } from '../hooks/useSmartChatScroll';
 
 type ChatMode = 'CHANNEL' | 'DIRECT';
 
@@ -46,6 +50,7 @@ export const TeamChatPage: React.FC = () => {
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [mobileConversationOpen, setMobileConversationOpen] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
 
   // Data State
   const [channels, setChannels] = useState<EmployeeChatChannel[]>([]);
@@ -66,9 +71,21 @@ export const TeamChatPage: React.FC = () => {
   const [attachmentName, setAttachmentName] = useState<string>('');
   const [attachmentUrl, setAttachmentUrl] = useState<string>('');
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const chatContainerRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Smart responsive scrolling hook
+  const {
+    scrollContainerRef,
+    messagesEndRef,
+    isNearBottom,
+    unreadBelowCount,
+    scrollToBottom,
+    handleScroll,
+  } = useSmartChatScroll({
+    dependency: messages,
+    nearBottomThreshold: 120,
+    smooth: true,
+  });
 
   // Active Target Information
   const activeChannel = channels.find((c) => c.id === selectedChannelId);
@@ -212,11 +229,6 @@ export const TeamChatPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadMessages, isSolo]);
 
-  // Scroll to bottom on message update
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typingMap]);
-
   // Handle Typing indicator triggers
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setMessageInput(e.target.value);
@@ -271,6 +283,7 @@ export const TeamChatPage: React.FC = () => {
         if (prev.some((m) => m.id === sent.id)) return prev;
         return [...prev, sent];
       });
+      setTimeout(() => scrollToBottom(), 50);
 
       setMessageInput('');
       setAttachmentName('');
@@ -328,28 +341,39 @@ export const TeamChatPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="-m-4 sm:m-0 h-[calc(100dvh-5rem)] sm:h-[calc(100dvh-7.5rem)] min-h-[500px] rounded-none sm:rounded-2xl border-0 sm:border border-slate-800 flex flex-col bg-slate-950 text-slate-100 overflow-hidden shadow-2xl">
       {/* Top Banner Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <MessageSquare className="w-5 h-5 text-slate-950" />
+      <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Tablet/Desktop Sidebar Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            title={sidebarCollapsed ? "Expand team directory" : "Collapse team directory"}
+            aria-label={sidebarCollapsed ? "Expand team directory" : "Collapse team directory"}
+          >
+            {sidebarCollapsed ? <PanelLeft className="w-4 h-4 text-emerald-400" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
+
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+            <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-white tracking-tight">Organization Team Chat</h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <h1 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">Team Chat</h1>
+              <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 ABAC Scoped
               </span>
             </div>
-            <p className="text-xs text-slate-400">Internal collaboration following firm security & departmental visibility policies</p>
+            <p className="hidden sm:block text-xs text-slate-400 truncate">Internal collaboration following firm security & departmental visibility policies</p>
           </div>
         </div>
 
         {/* Real-time Status Badge */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-medium transition-all ${
               isConnected
                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                 : isConnecting
@@ -363,12 +387,14 @@ export const TeamChatPage: React.FC = () => {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span>Live Socket</span>
+                <span className="hidden sm:inline">Live Socket</span>
+                <span className="sm:hidden">Live</span>
               </>
             ) : (
               <>
                 <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
-                <span>Auto-Syncing</span>
+                <span className="hidden sm:inline">Auto-Syncing</span>
+                <span className="sm:hidden">Sync</span>
               </>
             )}
           </div>
@@ -378,7 +404,7 @@ export const TeamChatPage: React.FC = () => {
       {/* Main Split Layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* Left Sidebar: Channels & Colleagues */}
-        <div className={`w-full md:w-80 border-r border-slate-800/80 bg-slate-900/60 flex flex-col shrink-0 ${
+        <div className={`w-full ${sidebarCollapsed ? 'hidden' : 'md:w-64 lg:w-80'} border-r border-slate-800/80 bg-slate-900/60 flex flex-col shrink-0 ${
           mobileConversationOpen ? 'hidden md:flex' : 'flex'
         }`}>
           {/* Search Box */}
@@ -420,7 +446,7 @@ export const TeamChatPage: React.FC = () => {
                         setSelectedContactId(null);
                         setMobileConversationOpen(true);
                       }}
-                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left text-xs transition-all ${
+                      className={`w-full flex items-center justify-between px-3 py-2.5 min-h-[42px] rounded-lg text-left text-xs transition-all ${
                         isSelected
                           ? 'bg-emerald-500/15 text-emerald-300 font-semibold border border-emerald-500/30'
                           : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
@@ -428,7 +454,7 @@ export const TeamChatPage: React.FC = () => {
                     >
                       <div className="flex items-center gap-2 truncate">
                         <Hash className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-emerald-400' : 'text-slate-500'}`} />
-                        <span className="truncate">{ch.displayName}</span>
+                        <span className="truncate font-medium">{ch.displayName}</span>
                       </div>
                       {ch.department && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
@@ -468,7 +494,7 @@ export const TeamChatPage: React.FC = () => {
                           setSelectedChannelId(null);
                           setMobileConversationOpen(true);
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all ${
+                        className={`w-full flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-lg text-left transition-all ${
                           isSelected
                             ? 'bg-emerald-500/15 text-emerald-300 font-semibold border border-emerald-500/30'
                             : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
@@ -533,26 +559,39 @@ export const TeamChatPage: React.FC = () => {
         </div>
 
         {/* Right Pane: Active Chat Room */}
-        <div className={`flex-1 flex flex-col min-w-0 bg-slate-950 ${
+        <div className={`flex-1 flex flex-col min-w-0 bg-slate-950 relative ${
           !mobileConversationOpen ? 'hidden md:flex' : 'flex'
         }`}>
           {/* Room Header */}
-          <div className="px-4 sm:px-6 py-3.5 border-b border-slate-800/80 bg-slate-900/50 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="px-3 sm:px-6 py-2.5 sm:py-3.5 border-b border-slate-800/80 bg-slate-900/50 flex items-center justify-between shrink-0 gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* Mobile Back Button */}
               <button
                 onClick={() => setMobileConversationOpen(false)}
-                className="md:hidden p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors shrink-0 min-w-[42px] min-h-[42px] flex items-center justify-center"
                 title="Back to channels"
                 aria-label="Back to channels"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
 
+              {/* Tablet/Desktop Re-expand Sidebar Button if collapsed */}
+              {sidebarCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed(false)}
+                  className="hidden md:flex p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+                  title="Show team directory"
+                  aria-label="Show team directory"
+                >
+                  <PanelLeft className="w-4 h-4 text-emerald-400" />
+                </button>
+              )}
+
               {mode === 'CHANNEL' && activeChannel ? (
                 <>
-                  <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                    <Hash className="w-5 h-5 text-emerald-400" />
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                    <Hash className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -573,10 +612,10 @@ export const TeamChatPage: React.FC = () => {
                       <img
                         src={activeContact.avatarUrl}
                         alt={activeContact.name}
-                        className="w-9 h-9 rounded-full object-cover border border-slate-700"
+                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-slate-700"
                       />
                     ) : (
-                      <div className="w-9 h-9 rounded-full bg-slate-800 text-emerald-400 flex items-center justify-center font-bold text-sm border border-slate-700">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800 text-emerald-400 flex items-center justify-center font-bold text-sm border border-slate-700">
                         {activeContact.name.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -599,8 +638,8 @@ export const TeamChatPage: React.FC = () => {
                       )}
                       {activeContact.email && (
                         <>
-                          <span>•</span>
-                          <span className="text-slate-500">{activeContact.email}</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span className="hidden sm:inline text-slate-500 truncate">{activeContact.email}</span>
                         </>
                       )}
                     </div>
@@ -612,7 +651,7 @@ export const TeamChatPage: React.FC = () => {
             </div>
 
             {/* In-Chat Message Search */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
                 <input
@@ -620,7 +659,7 @@ export const TeamChatPage: React.FC = () => {
                   placeholder="Filter messages..."
                   value={messageSearchQuery}
                   onChange={(e) => setMessageSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1 bg-slate-900 border border-slate-800 rounded-md text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 w-44 transition-all"
+                  className="pl-8 pr-3 py-1 bg-slate-900 border border-slate-800 rounded-md text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 w-28 sm:w-44 focus:w-36 sm:focus:w-56 transition-all"
                 />
               </div>
             </div>
@@ -628,8 +667,9 @@ export const TeamChatPage: React.FC = () => {
 
           {/* Messages Stream */}
           <div
-            ref={chatContainerRef}
-            className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-800"
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4 scrollbar-thin scrollbar-thumb-slate-800 relative"
           >
             {isLoadingMessages ? (
               <div className="h-full flex items-center justify-center">
@@ -663,7 +703,7 @@ export const TeamChatPage: React.FC = () => {
                 return (
                   <div
                     key={msg.id || idx}
-                    className={`flex items-start gap-3 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
+                    className={`flex items-start gap-2.5 sm:gap-3 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
                   >
                     {/* Avatar */}
                     {!isOwn && (
@@ -672,17 +712,17 @@ export const TeamChatPage: React.FC = () => {
                           <img
                             src={msg.senderAvatarUrl}
                             alt={msg.senderName}
-                            className="w-8 h-8 rounded-full object-cover border border-slate-700"
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-slate-700"
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-slate-800 text-emerald-400 flex items-center justify-center font-bold text-xs border border-slate-700">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-800 text-emerald-400 flex items-center justify-center font-bold text-xs border border-slate-700">
                             {msg.senderName?.charAt(0).toUpperCase()}
                           </div>
                         )}
                       </div>
                     )}
 
-                    <div className={`max-w-[70%] space-y-1 ${isOwn ? 'items-end' : 'items-start'}`}>
+                    <div className={`max-w-[88%] sm:max-w-[78%] md:max-w-[70%] space-y-1 ${isOwn ? 'items-end' : 'items-start'}`}>
                       {/* Sender Info & Time */}
                       <div className={`flex items-center gap-2 text-[11px] ${isOwn ? 'justify-end text-slate-400' : 'text-slate-400'}`}>
                         {!isOwn && <span className="font-semibold text-slate-200">{msg.senderName}</span>}
@@ -696,7 +736,7 @@ export const TeamChatPage: React.FC = () => {
 
                       {/* Bubble */}
                       <div
-                        className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-md ${
+                        className={`p-3 sm:p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-md [overflow-wrap:anywhere] ${
                           isOwn
                             ? 'bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-tr-none'
                             : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none'
@@ -764,8 +804,24 @@ export const TeamChatPage: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Scroll to bottom button when scrolled up */}
+          {!isNearBottom && (
+            <div className="sticky bottom-20 right-4 flex justify-end px-4 z-30 pointer-events-none">
+              <button
+                type="button"
+                onClick={() => scrollToBottom()}
+                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-xl transition-all transform hover:scale-105 active:scale-95 animate-fade-in"
+                title="Scroll to latest messages"
+                aria-label="Scroll to latest messages"
+              >
+                <ChevronDown className="w-4 h-4" />
+                <span>{unreadBelowCount > 0 ? `${unreadBelowCount} new` : 'Latest'}</span>
+              </button>
+            </div>
+          )}
+
           {/* Message Input Box */}
-          <div className="p-4 border-t border-slate-800 bg-slate-900/60">
+          <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/60 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
             {attachmentUrl && (
               <div className="mb-2 p-2 rounded-lg bg-slate-800 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300">
                 <div className="flex items-center gap-2 truncate">
@@ -778,25 +834,27 @@ export const TeamChatPage: React.FC = () => {
                     setAttachmentName('');
                     setAttachmentUrl('');
                   }}
-                  className="text-slate-400 hover:text-white"
+                  className="text-slate-400 hover:text-white p-1"
+                  aria-label="Remove attachment"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             )}
 
-            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+            <form onSubmit={handleSendMessage} className="flex items-end gap-2">
               <button
                 type="button"
                 onClick={() => setIsAttachmentModalOpen(true)}
                 title="Attach Document or Link"
-                className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
+                aria-label="Attach Document or Link"
+                className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all shrink-0 flex items-center justify-center min-w-[40px] min-h-[40px]"
               >
                 <Paperclip className="w-4 h-4" />
               </button>
 
-              <input
-                type="text"
+              <textarea
+                rows={1}
                 placeholder={
                   mode === 'CHANNEL'
                     ? `Message #${activeChannel?.name || 'channel'}...`
@@ -804,19 +862,26 @@ export const TeamChatPage: React.FC = () => {
                 }
                 value={messageInput}
                 onChange={handleInputChange}
-                className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                className="flex-1 max-h-32 min-h-[42px] px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 transition-colors resize-none leading-relaxed"
               />
 
               <button
                 type="submit"
                 disabled={isSending || (!messageInput.trim() && !attachmentUrl)}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40 disabled:pointer-events-none text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all"
+                aria-label="Send message"
+                className="h-10 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40 disabled:pointer-events-none text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all shrink-0 min-h-[40px]"
               >
                 {isSending ? (
                   <div className="w-4 h-4 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
                 ) : (
                   <>
-                    <span>Send</span>
+                    <span className="hidden sm:inline">Send</span>
                     <Send className="w-3.5 h-3.5" />
                   </>
                 )}

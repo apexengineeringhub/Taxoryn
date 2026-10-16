@@ -1051,6 +1051,159 @@ export interface ClientContact {
   isPrimary: boolean;
 }
 
+export type MessageContextType = 'GENERAL' | 'DOCUMENT_REQUEST' | 'DOCUMENT_ITEM' | 'COMPLIANCE_WORKFLOW' | 'NOTICE' | 'ENGAGEMENT';
+
+export type ClientApprovalType =
+  | 'TAX_COMPUTATION_APPROVAL'
+  | 'FILING_CONSENT'
+  | 'DOCUMENT_SIGN_OFF'
+  | 'ENGAGEMENT_TERMS'
+  | 'INFORMATION_CONFIRMATION'
+  | 'GENERAL_APPROVAL';
+
+export type ClientApprovalStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'REVOKED';
+
+export type ClientApprovalDecision = 'APPROVE' | 'REJECT';
+
+export interface ClientApproval {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  title: string;
+  description?: string;
+  approvalType: ClientApprovalType;
+  status: ClientApprovalStatus;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  documentId?: string;
+  documentName?: string;
+  documentDownloadUrl?: string;
+  contentVersion?: string;
+  contentHash?: string;
+  requestedByUserId?: string;
+  requestedByName?: string;
+  requestedAt?: string;
+  expiresAt?: string;
+  isExpired?: boolean;
+  respondedByUserId?: string;
+  respondedByName?: string;
+  respondedByEmail?: string;
+  respondedAt?: string;
+  decisionNotes?: string;
+  rejectionReason?: string;
+  revokedByUserId?: string;
+  revokedByName?: string;
+  revokedAt?: string;
+  revocationReason?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CreateClientApprovalRequest {
+  title: string;
+  description?: string;
+  approvalType: ClientApprovalType;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  documentId?: string;
+  contentVersion?: string;
+  contentHash?: string;
+  expiresAt?: string;
+}
+
+export interface DecideClientApprovalRequest {
+  decision: ClientApprovalDecision;
+  expectedContentVersion?: string;
+  notes?: string;
+  rejectionReason?: string;
+}
+
+export interface RevokeClientApprovalRequest {
+  reason?: string;
+}
+
+// Phase 32.6: Follow-up & Reminder Engine Types
+export type ReminderType =
+  | 'TASK_DUE'
+  | 'TASK_OVERDUE'
+  | 'FOLLOW_UP'
+  | 'DOCUMENT_COLLECTION'
+  | 'GENERAL'
+  | 'CLIENT_APPROVAL'
+  | 'DOCUMENT_REQUEST'
+  | 'UNANSWERED_COMMUNICATION'
+  | 'COMPLIANCE_DEADLINE'
+  | 'PRACTITIONER_FOLLOW_UP';
+
+export type ReminderStatus = 'PENDING' | 'TRIGGERED' | 'COMPLETED' | 'CANCELLED';
+
+export type ReminderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export interface FollowUpItem {
+  id: string;
+  organizationId: string;
+  clientId?: string;
+  clientName?: string;
+  category: ReminderType;
+  title: string;
+  description?: string;
+  priority: ReminderPriority;
+  status: ReminderStatus;
+  overdue: boolean;
+  referenceType?: string;
+  referenceId?: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  actionUrl?: string;
+  scheduledAt: string;
+  triggeredAt?: string;
+  lastAttemptAt?: string;
+  notificationAttempts?: number;
+  lastError?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface FollowUpFilterRequest {
+  clientId?: string;
+  category?: ReminderType;
+  status?: ReminderStatus;
+  priority?: ReminderPriority;
+  overdueOnly?: boolean;
+  page?: number;
+  size?: number;
+}
+
+export interface SendFollowUpNudgeRequest {
+  customMessage?: string;
+}
+
+export interface FollowUpEvaluationResult {
+  organizationId: string;
+  approvalsEvaluated: number;
+  documentRequestsEvaluated: number;
+  communicationsEvaluated: number;
+  complianceObligationsEvaluated: number;
+  totalRemindersCreated: number;
+  evaluatedAt: string;
+}
+
+
+export interface PortalMessageAttachment {
+  documentId: string;
+  fileName: string;
+  fileSize?: number;
+  contentType?: string;
+  downloadUrl?: string;
+}
+
 export interface ClientPortalMessage {
   id: string;
   organizationId: string;
@@ -1060,6 +1213,11 @@ export interface ClientPortalMessage {
   senderName: string;
   senderEmail?: string;
   messageBody: string;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  parentMessageId?: string;
+  attachments?: PortalMessageAttachment[];
   attachmentsJson?: string;
   isReadByClient: boolean;
   readByClient?: boolean;
@@ -1072,6 +1230,11 @@ export interface ClientPortalMessage {
 
 export interface SendClientPortalMessageRequest {
   messageBody: string;
+  contextType?: MessageContextType;
+  contextId?: string;
+  contextTitle?: string;
+  parentMessageId?: string;
+  attachments?: PortalMessageAttachment[];
   attachmentsJson?: string;
 }
 
@@ -1436,6 +1599,7 @@ export interface DocumentItem {
 // 9. Billing & Invoices
 export interface Invoice {
   id: string;
+  organizationId?: string;
   invoiceNumber: string;
   clientId: string;
   clientName?: string;
@@ -1446,12 +1610,22 @@ export interface Invoice {
   currency?: string;
   subtotal: number;
   tax: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  placeOfSupplyState?: string;
+  placeOfSupplyStateCode?: string;
+  supplierState?: string;
+  supplierStateCode?: string;
+  isRcm?: boolean;
+  financialYear?: string;
+  seriesPrefix?: string;
   discount?: number;
   total: number;
   totalAmount?: number;
   paidAmount: number;
   balanceDue: number;
-  status: 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED' | 'OVERDUE';
+  status: 'DRAFT' | 'ISSUED' | 'SENT' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED' | 'OVERDUE';
   notes?: string;
   terms?: string;
   items?: InvoiceLineItem[];
@@ -1465,10 +1639,17 @@ export interface InvoiceLineItem {
   serviceCode?: string;
   description: string;
   hsnSacCode?: string;
+  sacHsnCode?: string;
   quantity: number;
   unitPrice: number;
   taxRate: number;
   tax?: number;
+  cgstRate?: number;
+  cgstAmount?: number;
+  sgstRate?: number;
+  sgstAmount?: number;
+  igstRate?: number;
+  igstAmount?: number;
   amount?: number;
 }
 
@@ -1716,6 +1897,9 @@ export interface ClientDocumentRequest {
   requestedAt: string;
   uploadedDocumentId?: string;
   uploadedDocumentName?: string;
+  rejectionReason?: string;
+  requestId?: string;
+  requestNumber?: string;
 }
 
 // Multi-Item Document Requests & Document Exchange
@@ -1931,6 +2115,8 @@ export interface ClientPortalDashboard {
   latestItrReturns: ClientItrStatus[];
   pendingDocumentRequests: ClientDocumentRequest[];
   activeMultiItemRequests?: DocumentRequest[];
+  pendingApprovalsCount?: number;
+  pendingApprovals?: ClientApproval[];
   pendingTasks: any[];
   recentNotifications: any[];
   latestInvoices: Invoice[];
@@ -6215,6 +6401,7 @@ export type TimelineEventCategory =
   | 'WORK'
   | 'DOCUMENT'
   | 'COMPLIANCE'
+  | 'APPROVAL'
   | 'BILLING'
   | 'PAYMENT'
   | 'GOVERNMENT'
@@ -6261,12 +6448,19 @@ export interface ClientTimelineItemDto {
   severity: TimelineEventSeverity;
   relatedEntityId?: string;
   relatedEntityType?: string;
+  actionUrl?: string;
+  clientVisible?: boolean;
+  contextType?: string;
+  contextId?: string;
   metadata?: Record<string, any>;
 }
 
 export interface ClientTimelineFilterParams {
   category?: TimelineEventCategory;
   eventType?: string;
+  contextType?: string;
+  contextId?: string;
+  clientVisibleOnly?: boolean;
   from?: string;
   to?: string;
   page?: number;

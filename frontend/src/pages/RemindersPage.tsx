@@ -1,15 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Bell, Clock, CheckCircle, XCircle, Plus, AlertTriangle, Filter, Users, ChevronDown } from 'lucide-react';
+import {
+  Bell,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Plus,
+  AlertTriangle,
+  Filter,
+  Users,
+  Send,
+  ExternalLink,
+  RefreshCw,
+  MessageSquare,
+  ShieldAlert,
+  FileText,
+  Scale,
+  Check,
+} from 'lucide-react';
 import { reminderApi } from '../api/endpoints';
-
-type ReminderStatus = 'PENDING' | 'TRIGGERED' | 'COMPLETED' | 'CANCELLED';
-type ReminderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+import { ReminderType, ReminderStatus, ReminderPriority, FollowUpItem } from '../types';
 
 interface Reminder {
   id: string;
   title: string;
   description?: string;
-  reminderType: string;
+  reminderType: ReminderType | string;
   status: ReminderStatus;
   priority: ReminderPriority;
   targetUserName?: string;
@@ -17,11 +32,17 @@ interface Reminder {
   taskTitle?: string;
   scheduledAt: string;
   overdue: boolean;
+  actionUrl?: string;
+  referenceType?: string;
+  referenceId?: string;
   triggeredAt?: string;
   completedAt?: string;
   cancelledAt?: string;
   notes?: string;
   createdAt: string;
+  notificationAttempts?: number;
+  lastAttemptAt?: string;
+  lastError?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -44,15 +65,25 @@ const TYPE_LABELS: Record<string, string> = {
   FOLLOW_UP: 'Follow-up',
   DOCUMENT_COLLECTION: 'Document Collection',
   GENERAL: 'General',
+  CLIENT_APPROVAL: 'Client Approval',
+  DOCUMENT_REQUEST: 'Document Request',
+  UNANSWERED_COMMUNICATION: 'Unanswered Query',
+  COMPLIANCE_DEADLINE: 'Compliance Deadline',
+  PRACTITIONER_FOLLOW_UP: 'Practitioner Follow-up',
 };
 
 export function RemindersPage() {
-  const [tab, setTab] = useState<'my' | 'team'>('my');
+  const [tab, setTab] = useState<'my' | 'team' | 'follow-ups'>('my');
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [overdueCount, setOverdueCount] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showNudgeModal, setShowNudgeModal] = useState<Reminder | null>(null);
+  const [nudgeMessage, setNudgeMessage] = useState('');
+  const [isNudging, setIsNudging] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
   const [totalElements, setTotalElements] = useState(0);
   const [page, setPage] = useState(0);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -62,9 +93,17 @@ export function RemindersPage() {
     try {
       const params: Record<string, any> = { page, size: 20 };
       if (statusFilter) params.status = statusFilter;
-      const data = tab === 'my'
-        ? await reminderApi.getMyReminders(params)
-        : await reminderApi.getTeamReminders(params);
+      if (categoryFilter) params.category = categoryFilter;
+
+      let data: any;
+      if (tab === 'my') {
+        data = await reminderApi.getMyReminders(params);
+      } else if (tab === 'team') {
+        data = await reminderApi.getTeamReminders(params);
+      } else {
+        data = await reminderApi.getFollowUps(params);
+      }
+
       setReminders(data?.content || []);
       setTotalElements(data?.totalElements || 0);
     } catch {
@@ -72,7 +111,7 @@ export function RemindersPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, statusFilter, page]);
+  }, [tab, statusFilter, categoryFilter, page]);
 
   const fetchOverdueCount = useCallback(async () => {
     try {
@@ -86,8 +125,12 @@ export function RemindersPage() {
 
   const handleComplete = async (id: string) => {
     try {
-      await reminderApi.complete(id);
-      setFeedback({ type: 'success', message: 'Reminder completed' });
+      if (tab === 'follow-ups') {
+        await reminderApi.resolveFollowUp(id, 'Resolved from reminders cockpit');
+      } else {
+        await reminderApi.complete(id);
+      }
+      setFeedback({ type: 'success', message: 'Reminder marked as completed' });
       fetchReminders();
       fetchOverdueCount();
     } catch {
@@ -117,6 +160,41 @@ export function RemindersPage() {
     }
   };
 
+  const handleEvaluate = async () => {
+    setIsEvaluating(true);
+    try {
+      const result = await reminderApi.evaluateFollowUps();
+      setFeedback({
+        type: 'success',
+        message: `Evaluation completed: ${result.totalRemindersCreated} new action(s) identified.`,
+      });
+      fetchReminders();
+    } catch {
+      setFeedback({ type: 'error', message: 'Failed to evaluate follow-ups' });
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  const handleSendNudge = async () => {
+    if (!showNudgeModal) return;
+    setIsNudging(true);
+    try {
+      await reminderApi.sendFollowUpNudge(showNudgeModal.id, {
+        customMessage: nudgeMessage.trim() || undefined,
+      });
+      setFeedback({ type: 'success', message: 'Follow-up nudge sent successfully to client' });
+      setShowNudgeModal(null);
+      setNudgeMessage('');
+      fetchReminders();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Failed to send follow-up nudge';
+      setFeedback({ type: 'error', message: msg });
+    } finally {
+      setIsNudging(false);
+    }
+  };
+
   const formatDate = (iso: string) => {
     if (!iso) return '—';
     return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -128,7 +206,7 @@ export function RemindersPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Bell className="w-7 h-7 text-indigo-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Reminders</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Reminders & Follow-ups</h1>
           {overdueCount > 0 && (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -136,13 +214,25 @@ export function RemindersPage() {
             </span>
           )}
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
-        >
-          <Plus className="w-4 h-4" />
-          New Reminder
-        </button>
+        <div className="flex items-center gap-2">
+          {tab === 'follow-ups' && (
+            <button
+              onClick={handleEvaluate}
+              disabled={isEvaluating}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isEvaluating ? 'animate-spin' : ''}`} />
+              {isEvaluating ? 'Evaluating...' : 'Evaluate Actions'}
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
+          >
+            <Plus className="w-4 h-4" />
+            New Reminder
+          </button>
+        </div>
       </div>
 
       {feedback && (
@@ -170,10 +260,17 @@ export function RemindersPage() {
           <Users className="w-4 h-4 inline mr-1.5" />
           Team Reminders
         </button>
+        <button
+          onClick={() => { setTab('follow-ups'); setPage(0); }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${tab === 'follow-ups' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+        >
+          <Clock className="w-4 h-4 inline mr-1.5" />
+          Collaboration Follow-ups
+        </button>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <Filter className="w-4 h-4 text-gray-400" />
         <select
           value={statusFilter}
@@ -182,23 +279,45 @@ export function RemindersPage() {
         >
           <option value="">All Statuses</option>
           <option value="PENDING">Pending</option>
-          <option value="TRIGGERED">Triggered</option>
+          <option value="TRIGGERED">Triggered / Nudged</option>
           <option value="COMPLETED">Completed</option>
           <option value="CANCELLED">Cancelled</option>
         </select>
-        <span className="text-sm text-gray-500">{totalElements} reminder{totalElements !== 1 ? 's' : ''}</span>
+
+        {tab === 'follow-ups' && (
+          <select
+            value={categoryFilter}
+            onChange={(e) => { setCategoryFilter(e.target.value); setPage(0); }}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="">All Categories</option>
+            <option value="CLIENT_APPROVAL">Client Approvals</option>
+            <option value="DOCUMENT_REQUEST">Document Requests</option>
+            <option value="UNANSWERED_COMMUNICATION">Unanswered Queries</option>
+            <option value="COMPLIANCE_DEADLINE">Compliance Deadlines</option>
+            <option value="PRACTITIONER_FOLLOW_UP">Practitioner Follow-ups</option>
+          </select>
+        )}
+
+        <span className="text-sm text-gray-500">{totalElements} item{totalElements !== 1 ? 's' : ''}</span>
       </div>
 
       {/* Reminder List */}
       {loading ? (
-        <div className="text-center py-16 text-gray-500">Loading reminders...</div>
+        <div className="text-center py-16 text-gray-500">Loading items...</div>
       ) : reminders.length === 0 ? (
         <div className="text-center py-16">
           <Bell className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">No reminders found</p>
-          <button onClick={() => setShowCreateModal(true)} className="mt-3 text-indigo-600 text-sm font-medium hover:underline">
-            Create your first reminder
-          </button>
+          <p className="text-gray-500">No {tab === 'follow-ups' ? 'pending follow-ups' : 'reminders'} found</p>
+          {tab === 'follow-ups' ? (
+            <button onClick={handleEvaluate} className="mt-3 text-emerald-600 text-sm font-medium hover:underline">
+              Run follow-up scan now
+            </button>
+          ) : (
+            <button onClick={() => setShowCreateModal(true)} className="mt-3 text-indigo-600 text-sm font-medium hover:underline">
+              Create your first reminder
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -220,35 +339,69 @@ export function RemindersPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                  <div className="flex items-center gap-4 text-xs text-gray-500 mt-1 flex-wrap">
                     <span className="inline-flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" />
                       {formatDate(r.scheduledAt)}
                     </span>
+                    {r.clientName && <span className="font-medium text-gray-700">👤 Client: {r.clientName}</span>}
                     {r.targetUserName && <span>→ {r.targetUserName}</span>}
                     {r.taskTitle && <span className="text-indigo-600">📋 {r.taskTitle}</span>}
-                    {r.clientName && <span>👤 {r.clientName}</span>}
+                    {r.notificationAttempts !== undefined && r.notificationAttempts > 0 && (
+                      <span className="text-gray-400">Attempts: {r.notificationAttempts}</span>
+                    )}
+                    {r.lastAttemptAt && (
+                      <span className="text-gray-400">Last attempt: {formatDate(r.lastAttemptAt)}</span>
+                    )}
                   </div>
-                  {r.description && <p className="text-xs text-gray-500 mt-1 line-clamp-1">{r.description}</p>}
+                  {r.description && <p className="text-xs text-gray-600 mt-1.5">{r.description}</p>}
+                  {r.lastError && (
+                    <p className="text-xs text-rose-600 mt-1">⚠️ Error: {r.lastError}</p>
+                  )}
                 </div>
-                {(r.status === 'PENDING' || r.status === 'TRIGGERED') && (
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={() => handleComplete(r.id)}
-                      className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition"
-                      title="Complete"
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {r.actionUrl && (
+                    <a
+                      href={r.actionUrl}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition"
+                      title="Open source action"
                     >
-                      <CheckCircle className="w-5 h-5" />
-                    </button>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open
+                    </a>
+                  )}
+
+                  {tab === 'follow-ups' && (r.status === 'PENDING' || r.status === 'TRIGGERED') && (
                     <button
-                      onClick={() => handleCancel(r.id)}
-                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition"
-                      title="Cancel"
+                      onClick={() => setShowNudgeModal(r)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition"
+                      title="Nudge client"
                     >
-                      <XCircle className="w-5 h-5" />
+                      <Send className="w-3.5 h-3.5" />
+                      Nudge Client
                     </button>
-                  </div>
-                )}
+                  )}
+
+                  {(r.status === 'PENDING' || r.status === 'TRIGGERED') && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleComplete(r.id)}
+                        className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition"
+                        title="Mark Completed"
+                      >
+                        <CheckCircle className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleCancel(r.id)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition"
+                        title="Cancel"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -282,6 +435,62 @@ export function RemindersPage() {
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreate}
         />
+      )}
+
+      {/* Nudge Client Modal */}
+      {showNudgeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-5 space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <Send className="w-5 h-5 text-emerald-600" />
+                <h2 className="text-base font-semibold text-gray-900">Send Follow-up Nudge</h2>
+              </div>
+              <button onClick={() => setShowNudgeModal(null)} className="p-1 rounded-lg hover:bg-gray-100">
+                <XCircle className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">{showNudgeModal.title}</p>
+              {showNudgeModal.clientName && (
+                <p className="text-xs text-gray-500 mt-0.5">Recipient: {showNudgeModal.clientName}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Custom Message (optional)
+              </label>
+              <textarea
+                value={nudgeMessage}
+                onChange={(e) => setNudgeMessage(e.target.value)}
+                rows={3}
+                placeholder="e.g. Please upload the requested documents at your earliest convenience."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                An in-app alert and email notification will be dispatched. Rate-limited to once per 12 hours.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowNudgeModal(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendNudge}
+                disabled={isNudging}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                {isNudging ? 'Sending...' : 'Send Nudge'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -365,6 +574,11 @@ function CreateReminderModal({ onClose, onCreate }: { onClose: () => void; onCre
                 <option value="FOLLOW_UP">Follow-up</option>
                 <option value="DOCUMENT_COLLECTION">Document Collection</option>
                 <option value="TASK_DUE">Task Due</option>
+                <option value="CLIENT_APPROVAL">Client Approval</option>
+                <option value="DOCUMENT_REQUEST">Document Request</option>
+                <option value="UNANSWERED_COMMUNICATION">Unanswered Query</option>
+                <option value="COMPLIANCE_DEADLINE">Compliance Deadline</option>
+                <option value="PRACTITIONER_FOLLOW_UP">Practitioner Follow-up</option>
               </select>
             </div>
           </div>

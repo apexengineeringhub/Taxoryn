@@ -30,14 +30,24 @@ import {
   WifiOff,
   Sparkles,
   UserCheck,
+  Paperclip,
+  X,
+  File,
+  Download,
+  Filter,
+  Scale,
+  ThumbsUp,
+  ThumbsDown,
+  ChevronDown,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { DataTable } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
 import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
-import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi } from '../api/endpoints';
+import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi, clientPortalApi } from '../api/endpoints';
 import { usePortalChat } from '../hooks/usePortalChat';
+import { useSmartChatScroll } from '../hooks/useSmartChatScroll';
 import { formatCurrency } from '../utils/currencyUtils';
 import {
   Client,
@@ -54,9 +64,18 @@ import {
   ClientPortalMessage,
   ClientCommunication,
   ProductModuleCode,
+  MessageContextType,
+  PortalMessageAttachment,
+  SendClientPortalMessageRequest,
+  ClientApproval,
+  ClientApprovalType,
+  ClientApprovalStatus,
+  CreateClientApprovalRequest,
+  RevokeClientApprovalRequest,
 } from '../types';
 import { PortalDocumentRequestsView } from '../components/docrequest/PortalDocumentRequestsView';
 import { ClientContextBar } from '../components/common/ClientContextBar';
+import { ClientActionCenter } from '../components/portal/ClientActionCenter';
 import clsx from 'clsx';
 
 export const ClientPortalManagementPage: React.FC = () => {
@@ -97,6 +116,19 @@ export const ClientPortalManagementPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Client Approvals State (Phase 32.5)
+  const [approvals, setApprovals] = useState<ClientApproval[]>([]);
+  const [isCreateApprovalModalOpen, setIsCreateApprovalModalOpen] = useState<boolean>(false);
+  const [approvalFilterStatus, setApprovalFilterStatus] = useState<string>('ALL');
+  const [createApprovalForm, setCreateApprovalForm] = useState<CreateClientApprovalRequest>({
+    title: '',
+    description: '',
+    approvalType: 'TAX_COMPUTATION_APPROVAL',
+    contentVersion: 'v1.0',
+    contextType: 'GENERAL',
+  });
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState<boolean>(false);
+
   // Active Request Counter to prevent race conditions on rapid switching
   const activeRequestIdRef = useRef<number>(0);
 
@@ -128,6 +160,12 @@ export const ClientPortalManagementPage: React.FC = () => {
     }
     return dashboard?.pendingDocumentsCount ?? pendingDocRequests.length;
   }, [activeRequestsList, dashboard?.pendingDocumentsCount, pendingDocRequests]);
+
+  // Pending Approvals Count (Phase 32.5)
+  const pendingApprovalsCount = useMemo(() => {
+    const list = approvals.filter((a) => a.status === 'PENDING');
+    return list.length > 0 ? list.length : dashboard?.pendingApprovalsCount || 0;
+  }, [approvals, dashboard?.pendingApprovalsCount]);
 
   // Derived selected client
   const selectedClient = useMemo(() => {
@@ -183,7 +221,31 @@ export const ClientPortalManagementPage: React.FC = () => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
   const [newMessageText, setNewMessageText] = useState<string>('');
   const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Smart responsive scroll management for portal chat
+  const {
+    scrollContainerRef: portalScrollContainerRef,
+    messagesEndRef: portalMessagesEndRef,
+    isNearBottom: isPortalNearBottom,
+    unreadBelowCount: portalUnreadBelowCount,
+    scrollToBottom: scrollPortalToBottom,
+    handleScroll: handlePortalScroll,
+  } = useSmartChatScroll({
+    dependency: messages,
+    nearBottomThreshold: 120,
+    smooth: true,
+  });
+
+  // Contextual Messaging & Attachment State
+  const [selectedContext, setSelectedContext] = useState<{
+    contextType: MessageContextType;
+    contextId?: string;
+    contextTitle: string;
+  } | null>(null);
+  const [messageFilter, setMessageFilter] = useState<MessageContextType | 'ALL'>('ALL');
+  const [pendingAttachments, setPendingAttachments] = useState<PortalMessageAttachment[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState<boolean>(false);
+  const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // WebSocket Live Consultation Hook
   const { isConnected: isWsConnected, isTyping: isPeerTyping, sendTyping } = usePortalChat({
@@ -262,31 +324,96 @@ export const ClientPortalManagementPage: React.FC = () => {
     };
   }, [activeTab, isPracticeUser, selectedClientId]);
 
-  // Scroll to bottom when new messages arrive
+  // Capture context from search params if present
   useEffect(() => {
-    if (activeTab === 'messages') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const cType = searchParams.get('contextType') as MessageContextType | null;
+    const cId = searchParams.get('contextId') || undefined;
+    const cTitle = searchParams.get('contextTitle') || undefined;
+    if (cType && cTitle) {
+      setSelectedContext({
+        contextType: cType,
+        contextId: cId,
+        contextTitle: cTitle,
+      });
     }
-  }, [messages, activeTab, isPeerTyping]);
+  }, [searchParams]);
+
+  const handleInitiateContextualMessage = (context: {
+    contextType: MessageContextType;
+    contextId?: string;
+    contextTitle: string;
+  }) => {
+    setSelectedContext(context);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', 'messages');
+    nextParams.set('contextType', context.contextType);
+    if (context.contextId) nextParams.set('contextId', context.contextId);
+    nextParams.set('contextTitle', context.contextTitle);
+    if (isPracticeUser && selectedClientId) {
+      nextParams.set('clientId', selectedClientId);
+    }
+    setSearchParams(nextParams);
+  };
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (file.size > 25 * 1024 * 1024) {
+      alert('File size exceeds the 25MB limit.');
+      return;
+    }
+
+    setIsUploadingAttachment(true);
+    try {
+      const attachment = isPracticeUser && selectedClientId
+        ? await portalApi.uploadPracticeMessageAttachment(selectedClientId, file)
+        : await portalApi.uploadMessageAttachment(file);
+
+      setPendingAttachments((prev) => [...prev, attachment]);
+    } catch (err: any) {
+      console.error('Failed to upload message attachment', err);
+      alert(`Failed to upload attachment: ${err?.response?.data?.message || err.message}`);
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const filteredMessages = useMemo(() => {
+    if (messageFilter === 'ALL') return messages;
+    return messages.filter((m) => (m.contextType || 'GENERAL') === messageFilter);
+  }, [messages, messageFilter]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = newMessageText.trim();
-    if (!text || isSendingMessage) return;
+    if ((!text && pendingAttachments.length === 0) || isSendingMessage) return;
     if (isPracticeUser && !selectedClientId) return;
 
     setIsSendingMessage(true);
     sendTyping(false);
     try {
+      const payload: SendClientPortalMessageRequest = {
+        messageBody: text || (pendingAttachments.length > 0 ? 'Sent attachment(s)' : ''),
+        contextType: selectedContext?.contextType || 'GENERAL',
+        contextId: selectedContext?.contextId,
+        contextTitle: selectedContext?.contextTitle,
+        attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
+      };
+
       const sent = isPracticeUser
-        ? await portalApi.sendPracticeClientMessage(selectedClientId, { messageBody: text })
-        : await portalApi.sendClientMessage({ messageBody: text });
+        ? await portalApi.sendPracticeClientMessage(selectedClientId, payload)
+        : await portalApi.sendClientMessage(payload);
 
       setMessages((prev) => {
         if (prev.some((m) => m.id === sent.id)) return prev;
         return [...prev, sent];
       });
+      setTimeout(() => scrollPortalToBottom(), 50);
       setNewMessageText('');
+      setPendingAttachments([]);
+      setSelectedContext(null);
     } catch (err: any) {
       console.error('Failed to send consultation message', err);
       alert(`Failed to send message: ${err?.response?.data?.message || err.message}`);
@@ -371,11 +498,12 @@ export const ClientPortalManagementPage: React.FC = () => {
     setPendingDocRequests([]);
     setActiveDocRequests([]);
     setClientUsers([]);
+    setApprovals([]);
 
     try {
       if (isClientUser) {
         // Logged-in Customer View
-        const [dash, gst, itr, invs, docs, pending, docRequests, msgsRes, unreadRes] = await Promise.allSettled([
+        const [dash, gst, itr, invs, docs, pending, docRequests, msgsRes, unreadRes, apprRes] = await Promise.allSettled([
           portalApi.getDashboard(),
           portalApi.getGstStatus(),
           portalApi.getItrStatus(),
@@ -385,6 +513,7 @@ export const ClientPortalManagementPage: React.FC = () => {
           documentRequestApi.getPortalRequests(),
           portalApi.getClientMessages(),
           portalApi.getClientMessagesUnreadCount(),
+          clientPortalApi.getClientApprovals(),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -407,9 +536,12 @@ export const ClientPortalManagementPage: React.FC = () => {
         if (unreadRes.status === 'fulfilled' && typeof unreadRes.value === 'number') {
           setUnreadMessagesCount(unreadRes.value);
         }
+        if (apprRes.status === 'fulfilled' && apprRes.value) {
+          setApprovals(apprRes.value);
+        }
       } else if (clientIdToLoad) {
         // Practice Preview View
-        const [dash, usersRes, docsRes, tdsRes, docRequests, msgsRes, unreadRes] = await Promise.allSettled([
+        const [dash, usersRes, docsRes, tdsRes, docRequests, msgsRes, unreadRes, apprRes] = await Promise.allSettled([
           portalApi.getDashboardPreview(clientIdToLoad),
           portalApi.getClientPortalUsers(clientIdToLoad),
           documentApi.getByClientId ? documentApi.getByClientId(clientIdToLoad) : documentApi.getAll({ clientId: clientIdToLoad }),
@@ -417,6 +549,7 @@ export const ClientPortalManagementPage: React.FC = () => {
           documentRequestApi.getByClient(clientIdToLoad),
           portalApi.getPracticeClientMessages(clientIdToLoad),
           portalApi.getPracticeClientMessagesUnreadCount(clientIdToLoad),
+          clientPortalApi.getPracticeClientApprovals(clientIdToLoad),
         ]);
 
         if (activeRequestIdRef.current !== requestId) return;
@@ -459,6 +592,9 @@ export const ClientPortalManagementPage: React.FC = () => {
         }
         if (unreadRes.status === 'fulfilled' && typeof unreadRes.value === 'number') {
           setUnreadMessagesCount(unreadRes.value);
+        }
+        if (apprRes.status === 'fulfilled' && apprRes.value) {
+          setApprovals(apprRes.value);
         }
       }
     } catch (err) {
@@ -695,7 +831,11 @@ export const ClientPortalManagementPage: React.FC = () => {
       {/* Compact Secondary Navigation Tabs */}
       <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200/90 pb-2 overflow-x-auto scrollbar-none select-none">
         {[
-          { id: 'overview', label: 'Overview', icon: Globe },
+          {
+            id: 'overview',
+            label: totalPendingDocItems > 0 ? `Action Center (${totalPendingDocItems})` : 'Action Center',
+            icon: ShieldCheck,
+          },
           { id: 'gst', label: `GST (${gstFilings.length})`, icon: Building2, moduleCode: 'GST' as ProductModuleCode },
           { id: 'itr', label: `ITR (${itrReturns.length})`, icon: FileSpreadsheet, moduleCode: 'ITR' as ProductModuleCode },
           { id: 'tds', label: `TDS (${tdsReturns.length})`, icon: Percent, moduleCode: 'TDS' as ProductModuleCode },
@@ -707,6 +847,12 @@ export const ClientPortalManagementPage: React.FC = () => {
             icon: MessageSquare,
             badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
             moduleCode: 'CLIENT_PORTAL' as ProductModuleCode,
+          },
+          {
+            id: 'approvals',
+            label: pendingApprovalsCount > 0 ? `Approvals (${pendingApprovalsCount})` : 'Approvals & Consent',
+            icon: Scale,
+            badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
           },
           ...(!isPracticeUser ? [{ id: 'communications', label: 'Communications', icon: MessageSquareText }] : []),
           ...(isPracticeUser ? [{ id: 'users', label: `Logins (${clientUsers.length})`, icon: KeyRound }] : []),
@@ -733,10 +879,36 @@ export const ClientPortalManagementPage: React.FC = () => {
           })}
       </div>
 
-      {/* TAB 1: Overview & Summary */}
-      {activeTab === 'overview' && (
+      {/* TAB 1: Action Center & Overview */}
+      {(activeTab === 'overview' || activeTab === 'actions') && (
         <div className="space-y-6">
-          {/* Quick Metrics */}
+          {/* Client Action Center: Unified Collaboration & Document Actions */}
+          <ClientActionCenter
+            dashboard={dashboard}
+            activeRequests={activeRequestsList}
+            pendingDocRequests={pendingDocRequests}
+            invoices={invoices}
+            approvals={approvals}
+            isLoading={isLoading}
+            onRefresh={() => loadPortalData(selectedClientId)}
+            onNavigateTab={setActiveTab}
+            onOpenUploadModal={(req) => {
+              if (req) {
+                setSelectedDocRequest(req as ClientDocumentRequest);
+                setUploadForm({
+                  file: null,
+                  title: (req as any).title || (req as any).purpose || 'Document',
+                  category: 'CLIENT_UPLOAD',
+                  description: `Fulfilling request: ${(req as any).title || (req as any).purpose || ''}`,
+                });
+              }
+              setIsUploadModalOpen(true);
+            }}
+            onInitiateContextualMessage={handleInitiateContextualMessage}
+            isPracticeUser={isPracticeUser}
+          />
+
+          {/* Quick Filing Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {isModuleAvailable('GST') && (
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -773,101 +945,6 @@ export const ClientPortalManagementPage: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* Action Required: Multi-Item Document Requests & Legacy Requests */}
-          {(activeRequestsList.length > 0 || pendingDocRequests.length > 0) && (
-            <Card
-              title="🚨 Action Required: Pending Document Uploads"
-              subtitle="Please upload required tax and compliance documents to avoid delays"
-              className="border-amber-200 bg-amber-50/20 shadow-2xs"
-            >
-              <div className="space-y-3">
-                {activeRequestsList.map((req) => (
-                  <div
-                    key={req.id}
-                    className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">{req.purpose}</span>
-                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-                          {req.requestNumber}
-                        </span>
-                        {req.isOverdue && (
-                          <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded">
-                            OVERDUE
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        {((req.pendingItems || 0) + (req.rejectedItems || 0)) > 0
-                          ? `${(req.pendingItems || 0) + (req.rejectedItems || 0)} items remaining to upload`
-                          : req.items
-                          ? `${req.items.filter((i) => i.status === 'PENDING' || i.status === 'REJECTED').length} items remaining to upload`
-                          : 'Pending documents required'}
-                      </p>
-                      {req.dueDate && (
-                        <span className="text-[11px] text-amber-700 font-semibold block">
-                          Due Date: {req.dueDate}
-                        </span>
-                      )}
-                    </div>
-
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setActiveTab('documents')}
-                      leftIcon={<UploadCloud className="w-4 h-4" />}
-                    >
-                      Open Checklist & Upload
-                    </Button>
-                  </div>
-                ))}
-
-                {pendingDocRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">{req.title}</span>
-                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-                          {req.documentType}
-                        </span>
-                      </div>
-                      {req.description && (
-                        <p className="text-xs text-slate-500">{req.description}</p>
-                      )}
-                      {req.dueDate && (
-                        <span className="text-[11px] text-rose-600 font-semibold block">
-                          Due Date: {req.dueDate}
-                        </span>
-                      )}
-                    </div>
-
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedDocRequest(req);
-                        setUploadForm({
-                          file: null,
-                          title: req.title,
-                          category: 'CLIENT_UPLOAD',
-                          description: `Fulfilling request: ${req.title}`,
-                        });
-                        setIsUploadModalOpen(true);
-                      }}
-                      leftIcon={<UploadCloud className="w-4 h-4" />}
-                    >
-                      Upload Now
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
 
           {/* Dual Grid: Recent GST & ITR */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1324,269 +1401,515 @@ export const ClientPortalManagementPage: React.FC = () => {
 
       {/* TAB: Messages / Consultation Chat */}
       {activeTab === 'messages' && (
-        <div className="space-y-6">
-          <Card
-            title={isPracticeUser ? `Consultation Chat: ${activeClientName}` : 'Direct Consultation & Messages'}
-            subtitle={
-              isPracticeUser
-                ? `Direct real-time consultation channel with ${activeClientName} (${activeClientPan})`
-                : `Direct secure communication channel with ${dashboard?.assignedPractitionerName || 'your assigned Tax Consultant'}`
-            }
-          >
-            <div className="space-y-4">
-              {/* Channel & Consultant / Client Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div
+        <div className="-m-4 sm:m-0 h-[calc(100dvh-5.5rem)] sm:h-[calc(100dvh-8rem)] min-h-[500px] rounded-none sm:rounded-2xl border-0 sm:border border-slate-200 bg-white flex flex-col overflow-hidden shadow-xs relative">
+          {/* Channel & Consultant / Client Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-slate-50/90 backdrop-blur border-b border-slate-200 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={clsx(
+                  'w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-xs shrink-0',
+                  isPracticeUser ? 'bg-indigo-600 text-white' : 'bg-brand-600 text-white'
+                )}
+              >
+                {isPracticeUser
+                  ? (activeClientName || 'C').charAt(0)
+                  : (dashboard?.assignedPractitionerName || 'CA').charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-900 block text-sm truncate">
+                    {isPracticeUser
+                      ? activeClientName
+                      : dashboard?.assignedPractitionerName || 'Assigned Tax Consultant'}
+                  </span>
+                  <span
                     className={clsx(
-                      'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-xs',
-                      isPracticeUser ? 'bg-indigo-600 text-white' : 'bg-brand-600 text-white'
+                      'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0',
+                      isPracticeUser
+                        ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                        : 'bg-brand-50 text-brand-700 border border-brand-200'
                     )}
                   >
-                    {isPracticeUser
-                      ? (activeClientName || 'C').charAt(0)
-                      : (dashboard?.assignedPractitionerName || 'CA').charAt(0)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 block text-sm">
-                        {isPracticeUser
-                          ? activeClientName
-                          : dashboard?.assignedPractitionerName || 'Assigned Tax Consultant'}
-                      </span>
-                      <span
-                        className={clsx(
-                          'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider',
-                          isPracticeUser
-                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                            : 'bg-brand-50 text-brand-700 border border-brand-200'
-                        )}
-                      >
-                        {isPracticeUser ? 'Client' : 'Tax Practitioner'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {isWsConnected ? (
-                        <span className="text-xs text-emerald-600 flex items-center gap-1.5 font-medium">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                          </span>
-                          <Wifi className="w-3 h-3 text-emerald-500" />
-                          Live Consultation Channel Active
-                        </span>
-                      ) : (
-                        <span className="text-xs text-amber-600 flex items-center gap-1.5 font-medium">
-                          <WifiOff className="w-3 h-3 text-amber-500" />
-                          Reconnecting real-time socket (syncing)...
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    {isPracticeUser ? 'Client' : 'Tax Practitioner'}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-center">
-                  {!isPracticeUser && dashboard?.assignedPractitionerPhone && (
-                    <a
-                      href={`tel:${dashboard.assignedPractitionerPhone}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      Call Consultant
-                    </a>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {isWsConnected ? (
+                    <span className="text-xs text-emerald-600 flex items-center gap-1.5 font-medium truncate">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <Wifi className="w-3 h-3 text-emerald-500 shrink-0" />
+                      <span className="hidden sm:inline">Live Consultation Channel Active</span>
+                      <span className="sm:hidden">Live Active</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-amber-600 flex items-center gap-1.5 font-medium truncate">
+                      <WifiOff className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span className="hidden sm:inline">Reconnecting real-time socket (syncing)...</span>
+                      <span className="sm:hidden">Syncing...</span>
+                    </span>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (isPracticeUser && selectedClientId) {
-                        portalApi.getPracticeClientMessages(selectedClientId).then(setMessages).catch(() => {});
-                      } else if (!isPracticeUser) {
-                        portalApi.getClientMessages().then(setMessages).catch(() => {});
-                      }
-                    }}
-                    leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                  >
-                    Refresh
-                  </Button>
                 </div>
               </div>
+            </div>
 
-              {/* Quick Query Templates (For Client View) */}
-              {!isPracticeUser && messages.length === 0 && (
-                <div className="p-3.5 bg-brand-50/50 border border-brand-100 rounded-xl space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-brand-900">
-                    <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-                    <span>Quick Consultation Starters:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      'When will my GST return be filed for this month?',
-                      'I have uploaded the requested bank statements and invoices.',
-                      'Please share the draft ITR computation sheet.',
-                      'Can we schedule a quick call regarding our quarterly TDS?',
-                    ].map((promptText, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setNewMessageText(promptText)}
-                        className="text-[11px] font-medium bg-white hover:bg-brand-50 text-slate-700 hover:text-brand-800 border border-slate-200 hover:border-brand-300 px-2.5 py-1.5 rounded-lg transition-all text-left shadow-2xs"
-                      >
-                        {promptText}
-                      </button>
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              {/* Practice User Client Switcher Quick Dropdown */}
+              {isPracticeUser && clients.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="portal-chat-client-select" className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+                    Client:
+                  </label>
+                  <select
+                    id="portal-chat-client-select"
+                    value={selectedClientId}
+                    onChange={(e) => handleClientChange(e.target.value)}
+                    className="text-xs bg-white border border-slate-300 rounded-lg py-1 px-2 text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[160px] sm:max-w-[200px] truncate"
+                    aria-label="Switch active client consultation"
+                  >
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.displayName || c.legalName || 'Client'} {c.pan ? `(${c.pan})` : ''}
+                      </option>
                     ))}
-                  </div>
+                  </select>
                 </div>
               )}
 
-              {/* Chat Thread */}
-              <div className="border border-slate-200 rounded-xl p-4 min-h-[320px] max-h-[480px] overflow-y-auto space-y-3 bg-slate-50/40">
-                {messages.length === 0 ? (
-                  <div className="py-14 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
-                      <MessageCircle className="w-6 h-6" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-slate-800">
-                        {isPracticeUser ? 'No consultation messages yet' : 'Start your consultation'}
-                      </p>
-                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        {isPracticeUser
-                          ? `Send a message to ${activeClientName} to initiate consultation or provide status updates.`
-                          : 'Send a message to your assigned tax practitioner. Messages and status updates are synchronized in real time.'}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((msg) => {
-                    const isMe = isPracticeUser
-                      ? msg.senderType === 'PRACTICE'
-                      : msg.senderType === 'CLIENT';
-                    const isSystem = msg.senderType === 'SYSTEM';
-                    const isReadByPeer = isPracticeUser
-                      ? msg.isReadByClient || msg.readByClient
-                      : msg.isReadByPractice || msg.readByPractice;
+              {!isPracticeUser && dashboard?.assignedPractitionerPhone && (
+                <a
+                  href={`tel:${dashboard.assignedPractitionerPhone}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Call Consultant</span>
+                  <span className="sm:hidden">Call</span>
+                </a>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (isPracticeUser && selectedClientId) {
+                    portalApi.getPracticeClientMessages(selectedClientId).then(setMessages).catch(() => {});
+                  } else if (!isPracticeUser) {
+                    portalApi.getClientMessages().then(setMessages).catch(() => {});
+                  }
+                }}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                className="shrink-0"
+              >
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
+            </div>
+          </div>
 
-                    if (isSystem) {
-                      return (
-                        <div key={msg.id} className="flex justify-center my-2">
-                          <div className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1 rounded-full text-[11px] font-medium text-center max-w-md">
-                            📢 {msg.messageBody}
-                          </div>
-                        </div>
-                      );
-                    }
+          {/* Context Filter Selector (Horizontal scrolling bar) */}
+          <div className="px-3 sm:px-4 py-1.5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 text-xs">
+            <span className="text-[11px] font-bold text-slate-500 uppercase mr-1 flex items-center gap-1 shrink-0">
+              <Filter className="w-3 h-3 text-slate-400" />
+              Context:
+            </span>
+            {[
+              { label: 'All Messages', value: 'ALL' },
+              { label: 'General', value: 'GENERAL' },
+              { label: 'Doc Requests', value: 'DOCUMENT_REQUEST' },
+              { label: 'Doc Items', value: 'DOCUMENT_ITEM' },
+              { label: 'Workflows', value: 'COMPLIANCE_WORKFLOW' },
+              { label: 'Notices', value: 'NOTICE' },
+            ].map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setMessageFilter(f.value as any)}
+                className={clsx(
+                  'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer shrink-0 min-h-[32px] flex items-center',
+                  messageFilter === f.value
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
-                    return (
-                      <div
-                        key={msg.id}
-                        className={clsx('flex flex-col', isMe ? 'items-end' : 'items-start')}
+          {/* Messages Stream */}
+          <div
+            ref={portalScrollContainerRef}
+            onScroll={handlePortalScroll}
+            className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 min-h-0 bg-slate-50/40 relative"
+          >
+            {/* Quick Query Templates (For Client View when empty) */}
+            {!isPracticeUser && messages.length === 0 && (
+              <div className="p-3.5 bg-brand-50/50 border border-brand-100 rounded-xl space-y-2 mb-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-brand-900">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Quick Consultation Starters:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'When will my GST return be filed for this month?',
+                    'I have uploaded the requested bank statements and invoices.',
+                    'Please share the draft ITR computation sheet.',
+                    'Can we schedule a quick call regarding our quarterly TDS?',
+                  ].map((promptText, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setNewMessageText(promptText)}
+                      className="text-[11px] font-medium bg-white hover:bg-brand-50 text-slate-700 hover:text-brand-800 border border-slate-200 hover:border-brand-300 px-2.5 py-1.5 rounded-lg transition-all text-left shadow-2xs"
+                    >
+                      {promptText}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {filteredMessages.length === 0 ? (
+              <div className="py-14 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-slate-800">
+                    {messageFilter !== 'ALL'
+                      ? `No messages matching context "${messageFilter}"`
+                      : isPracticeUser
+                      ? 'No consultation messages yet'
+                      : 'Start your consultation'}
+                  </p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    {messageFilter !== 'ALL'
+                      ? 'Switch to "All Messages" to view the complete communication history.'
+                      : isPracticeUser
+                      ? `Send a message to ${activeClientName} to initiate consultation or provide status updates.`
+                      : 'Send a message to your assigned tax practitioner. Messages and status updates are synchronized in real time.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              filteredMessages.map((msg) => {
+                const isMe = isPracticeUser
+                  ? msg.senderType === 'PRACTICE'
+                  : msg.senderType === 'CLIENT';
+                const isSystem = msg.senderType === 'SYSTEM';
+                const isReadByPeer = isPracticeUser
+                  ? msg.isReadByClient || msg.readByClient
+                  : msg.isReadByPractice || msg.readByPractice;
+
+                if (isSystem) {
+                  return (
+                    <div key={msg.id} className="flex justify-center my-2">
+                      <div className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1 rounded-full text-[11px] font-medium text-center max-w-md">
+                        📢 {msg.messageBody}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={clsx('flex flex-col', isMe ? 'items-end' : 'items-start')}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1 px-1">
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {isMe ? 'You' : msg.senderName}
+                      </span>
+                      <span
+                        className={clsx(
+                          'text-[9px] px-1.5 py-0.2 rounded font-bold uppercase',
+                          msg.senderType === 'PRACTICE'
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-emerald-50 text-emerald-700'
+                        )}
                       >
-                        <div className="flex items-center gap-1.5 mb-1 px-1">
-                          <span className="text-[10px] font-semibold text-slate-500">
-                            {isMe ? 'You' : msg.senderName}
-                          </span>
-                          <span
-                            className={clsx(
-                              'text-[9px] px-1.5 py-0.2 rounded font-bold uppercase',
-                              msg.senderType === 'PRACTICE'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-emerald-50 text-emerald-700'
-                            )}
-                          >
-                            {msg.senderType === 'PRACTICE' ? 'Tax Consultant' : 'Client'}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            {msg.createdAt
-                              ? new Date(msg.createdAt).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })
-                              : 'Just now'}
-                          </span>
-                        </div>
+                        {msg.senderType === 'PRACTICE' ? 'Tax Consultant' : 'Client'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {msg.createdAt
+                          ? new Date(msg.createdAt).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'Just now'}
+                      </span>
+                    </div>
 
+                    <div
+                      className={clsx(
+                        'max-w-[88%] sm:max-w-[78%] md:max-w-[65%] p-3 sm:p-3.5 rounded-2xl text-xs leading-relaxed shadow-2xs break-words [overflow-wrap:anywhere]',
+                        isMe
+                          ? 'bg-brand-600 text-white rounded-br-none'
+                          : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                      )}
+                    >
+                      {/* Contextual Badge on Message */}
+                      {msg.contextType && msg.contextType !== 'GENERAL' && (
                         <div
                           className={clsx(
-                            'max-w-md p-3.5 rounded-2xl text-xs leading-relaxed shadow-2xs break-words',
+                            'text-[10px] font-bold px-2 py-0.5 rounded-md mb-2 inline-flex items-center gap-1 max-w-full truncate',
                             isMe
-                              ? 'bg-brand-600 text-white rounded-br-none'
-                              : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                              ? 'bg-brand-700 text-brand-100'
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                           )}
                         >
-                          <p className="whitespace-pre-wrap">{msg.messageBody}</p>
+                          <span className="uppercase text-[9px] opacity-80">
+                            {msg.contextType.replace(/_/g, ' ')}:
+                          </span>
+                          <span className="truncate">{msg.contextTitle || msg.contextId}</span>
+                        </div>
+                      )}
 
-                          {isMe && (
-                            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-85">
-                              {isReadByPeer ? (
-                                <span className="flex items-center gap-0.5 text-cyan-200 font-medium">
-                                  <CheckCheck className="w-3.5 h-3.5" />
-                                  <span>Read</span>
-                                </span>
+                      <p className="whitespace-pre-wrap">{msg.messageBody}</p>
+
+                      {/* Message Attachments */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5 pt-2 border-t border-black/10">
+                          {msg.attachments.map((att, idx) => (
+                            <div
+                              key={idx}
+                              className={clsx(
+                                'flex items-center justify-between gap-2 p-2 rounded-lg text-xs',
+                                isMe
+                                  ? 'bg-white/10 text-white'
+                                  : 'bg-slate-50 border border-slate-200 text-slate-800'
+                              )}
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <File className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                <span className="truncate font-medium">{att.fileName}</span>
+                                {att.fileSize !== undefined && (
+                                  <span className="text-[10px] opacity-60">
+                                    ({(att.fileSize / 1024).toFixed(0)} KB)
+                                  </span>
+                                )}
+                              </div>
+                              {att.downloadUrl ? (
+                                <a
+                                  href={att.downloadUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download={att.fileName}
+                                  className={clsx(
+                                    'p-1.5 rounded hover:bg-black/10 transition-colors shrink-0 min-w-[32px] min-h-[32px] flex items-center justify-center',
+                                    isMe ? 'text-white' : 'text-brand-600'
+                                  )}
+                                  title="Download attachment"
+                                  aria-label={`Download ${att.fileName}`}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </a>
                               ) : (
-                                <span className="flex items-center gap-0.5 text-slate-200">
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>Sent</span>
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const blob = await documentApi.download(att.documentId);
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = att.fileName;
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      window.URL.revokeObjectURL(url);
+                                      document.body.removeChild(a);
+                                    } catch (e) {
+                                      console.error('Download failed', e);
+                                    }
+                                  }}
+                                  className={clsx(
+                                    'p-1.5 rounded hover:bg-black/10 transition-colors shrink-0 min-w-[32px] min-h-[32px] flex items-center justify-center',
+                                    isMe ? 'text-white' : 'text-brand-600'
+                                  )}
+                                  title="Download attachment"
+                                  aria-label={`Download ${att.fileName}`}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
                               )}
                             </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {isMe && (
+                        <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-85">
+                          {isReadByPeer ? (
+                            <span className="flex items-center gap-0.5 text-cyan-200 font-medium">
+                              <CheckCheck className="w-3.5 h-3.5" />
+                              <span>Read</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-0.5 text-slate-200">
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Sent</span>
+                            </span>
                           )}
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-
-                {/* Peer Typing Indicator */}
-                {isPeerTyping && (
-                  <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl w-fit animate-pulse">
-                    <span className="font-semibold">
-                      {isPracticeUser ? activeClientName : dashboard?.assignedPractitionerName || 'Tax Consultant'}{' '}
-                      is typing...
-                    </span>
-                    <span className="flex gap-0.5">
-                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></span>
-                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                    </span>
+                      )}
+                    </div>
                   </div>
-                )}
+                );
+              })
+            )}
 
-                <div ref={messagesEndRef} />
+            {/* Peer Typing Indicator */}
+            {isPeerTyping && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl w-fit animate-pulse">
+                <span className="font-semibold">
+                  {isPracticeUser ? activeClientName : dashboard?.assignedPractitionerName || 'Tax Consultant'}{' '}
+                  is typing...
+                </span>
+                <span className="flex gap-0.5">
+                  <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></span>
+                  <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                  <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                </span>
               </div>
+            )}
 
-              {/* Message Composer */}
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <input
-                  type="text"
-                  value={newMessageText}
-                  onChange={(e) => {
-                    setNewMessageText(e.target.value);
-                    sendTyping(e.target.value.length > 0);
-                  }}
-                  onBlur={() => sendTyping(false)}
-                  placeholder={
-                    isPracticeUser
-                      ? `Type a consultation reply or filing update to ${activeClientName}...`
-                      : `Type your tax query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`
-                  }
-                  disabled={isPracticeUser && !selectedClientId}
-                  className="flex-1 px-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-slate-100"
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  isLoading={isSendingMessage}
-                  disabled={!newMessageText.trim() || (isPracticeUser && !selectedClientId)}
-                  leftIcon={<Send className="w-4 h-4" />}
-                >
-                  Send
-                </Button>
-              </form>
+            <div ref={portalMessagesEndRef} />
+          </div>
+
+          {/* Scroll to bottom floating button when scrolled up */}
+          {!isPortalNearBottom && (
+            <div className="sticky bottom-20 right-4 flex justify-end px-4 z-20 pointer-events-none">
+              <button
+                type="button"
+                onClick={() => scrollPortalToBottom()}
+                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 animate-fade-in"
+                title="Scroll to latest messages"
+                aria-label="Scroll to latest messages"
+              >
+                <ChevronDown className="w-4 h-4" />
+                <span>{portalUnreadBelowCount > 0 ? `${portalUnreadBelowCount} new` : 'Latest'}</span>
+              </button>
             </div>
-          </Card>
+          )}
+
+          {/* Pinned Bottom Message Composer */}
+          <div className="p-3 sm:p-4 border-t border-slate-200 bg-white shrink-0 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] space-y-2">
+            {/* Active Context Banner Above Composer */}
+            {selectedContext && (
+              <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 shadow-2xs animate-in fade-in">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="font-bold text-[10px] bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded uppercase shrink-0">
+                    Context: {selectedContext.contextType.replace(/_/g, ' ')}
+                  </span>
+                  <span className="truncate font-semibold text-indigo-950">{selectedContext.contextTitle}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedContext(null)}
+                  className="text-indigo-600 hover:text-indigo-900 p-1 rounded-md hover:bg-indigo-100 transition-colors shrink-0"
+                  title="Clear context and send as general consultation"
+                  aria-label="Clear context"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Pending Attachments List Above Composer */}
+            {pendingAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                {pendingAttachments.map((att, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 shadow-2xs"
+                  >
+                    <Paperclip className="w-3 h-3 text-slate-500 shrink-0" />
+                    <span className="truncate max-w-[160px] font-medium">{att.fileName}</span>
+                    {att.fileSize !== undefined && (
+                      <span className="text-[10px] text-slate-400">
+                        ({(att.fileSize / 1024).toFixed(0)} KB)
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                      className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded hover:bg-slate-100"
+                      title="Remove attachment"
+                      aria-label={`Remove attachment ${att.fileName}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Message Composer Form */}
+            <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
+              <input
+                type="file"
+                ref={attachmentFileInputRef}
+                className="hidden"
+                onChange={handleAttachmentUpload}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => attachmentFileInputRef.current?.click()}
+                disabled={isUploadingAttachment || (isPracticeUser && !selectedClientId)}
+                isLoading={isUploadingAttachment}
+                leftIcon={<Paperclip className="w-4 h-4 text-slate-500" />}
+                className="shrink-0 min-h-[42px] px-3 flex items-center justify-center"
+                title="Attach file (up to 25MB)"
+                aria-label="Attach file"
+              >
+                <span className="hidden sm:inline">Attach</span>
+              </Button>
+              <textarea
+                rows={1}
+                value={newMessageText}
+                onChange={(e) => {
+                  setNewMessageText(e.target.value);
+                  sendTyping(e.target.value.length > 0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e);
+                  }
+                }}
+                onBlur={() => sendTyping(false)}
+                placeholder={
+                  selectedContext
+                    ? `Type inquiry about ${selectedContext.contextTitle}...`
+                    : isPracticeUser
+                    ? `Type a consultation reply or filing update to ${activeClientName}...`
+                    : `Type your tax query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`
+                }
+                disabled={isPracticeUser && !selectedClientId}
+                className="flex-1 max-h-32 min-h-[42px] px-3.5 py-2.5 text-xs bg-slate-50/60 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-slate-100 resize-none leading-relaxed"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isSendingMessage}
+                disabled={
+                  (!newMessageText.trim() && pendingAttachments.length === 0) ||
+                  (isPracticeUser && !selectedClientId)
+                }
+                leftIcon={<Send className="w-4 h-4" />}
+                className="shrink-0 min-h-[42px] px-4"
+                aria-label="Send message"
+              >
+                <span className="hidden sm:inline">Send</span>
+              </Button>
+            </form>
+          </div>
         </div>
       )}
 
@@ -1622,6 +1945,209 @@ export const ClientPortalManagementPage: React.FC = () => {
             </>
           )}
         </section>
+      )}
+
+      {/* TAB: Client Approvals & Formal Consent (Phase 32.5) */}
+      {activeTab === 'approvals' && (
+        <Card
+          title="⚖️ Client Approvals & Formal Consent"
+          subtitle="Audit log of statutory filing consents, computation approvals, and document sign-offs"
+          action={
+            isPracticeUser ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setCreateApprovalForm({
+                    title: '',
+                    description: '',
+                    approvalType: 'TAX_COMPUTATION_APPROVAL',
+                    contentVersion: 'v1.0',
+                    contextType: 'GENERAL',
+                  });
+                  setIsCreateApprovalModalOpen(true);
+                }}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                Request Approval
+              </Button>
+            ) : undefined
+          }
+        >
+          {/* Status Filter Tabs */}
+          <div className="flex items-center gap-2 pb-4 border-b border-slate-100 overflow-x-auto">
+            {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'REVOKED'].map((st) => {
+              const count =
+                st === 'ALL'
+                  ? approvals.length
+                  : approvals.filter((a) => a.status === st).length;
+              return (
+                <button
+                  key={st}
+                  onClick={() => setApprovalFilterStatus(st)}
+                  className={clsx(
+                    'px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer',
+                    approvalFilterStatus === st
+                      ? 'bg-brand-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  )}
+                >
+                  {st.charAt(0) + st.slice(1).toLowerCase()} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Approvals Listing */}
+          <div className="mt-4 space-y-3">
+            {approvals.filter((a) => approvalFilterStatus === 'ALL' || a.status === approvalFilterStatus).length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                No approvals found in this category.
+              </div>
+            ) : (
+              approvals
+                .filter((a) => approvalFilterStatus === 'ALL' || a.status === approvalFilterStatus)
+                .map((approval) => {
+                  const statusColors = {
+                    PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
+                    APPROVED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                    REJECTED: 'bg-rose-100 text-rose-800 border-rose-200',
+                    REVOKED: 'bg-slate-100 text-slate-700 border-slate-200',
+                    EXPIRED: 'bg-gray-100 text-gray-700 border-gray-200',
+                  }[approval.status] || 'bg-slate-100 text-slate-700 border-slate-200';
+
+                  return (
+                    <div
+                      key={approval.id}
+                      className="p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-all space-y-2.5"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={clsx('px-2.5 py-0.5 rounded-full text-[11px] font-bold border', statusColors)}>
+                            {approval.status}
+                          </span>
+                          <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">
+                            {approval.approvalType}
+                          </span>
+                          <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                            v{approval.contentVersion || '1.0'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          Created {new Date(approval.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">{approval.title}</h4>
+                        {approval.description && (
+                          <p className="text-xs text-slate-600 mt-0.5">{approval.description}</p>
+                        )}
+                      </div>
+
+                      {approval.documentName && (
+                        <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs text-slate-800">
+                          <FileText className="w-3.5 h-3.5 text-brand-600" />
+                          <span className="font-medium font-mono">{approval.documentName}</span>
+                          {approval.documentDownloadUrl && (
+                            <a
+                              href={approval.documentDownloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand-600 hover:underline text-[11px] font-bold ml-2"
+                            >
+                              Download
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Audit Provenance Details */}
+                      <div className="pt-2 border-t border-slate-100 text-xs space-y-1">
+                        <div className="text-slate-500">
+                          Requested by: <strong className="text-slate-700">{approval.requestedByName || 'Practice'}</strong>
+                          {approval.expiresAt && (
+                            <span> • Deadline: {new Date(approval.expiresAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+
+                        {approval.status === 'APPROVED' && (
+                          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-xs">
+                            <span className="font-bold">Approved by:</span> {approval.respondedByName} ({approval.respondedByEmail}) on{' '}
+                            {approval.respondedAt ? new Date(approval.respondedAt).toLocaleString() : ''}
+                            {approval.decisionNotes && (
+                              <p className="mt-0.5 italic">Client remarks: "{approval.decisionNotes}"</p>
+                            )}
+                          </div>
+                        )}
+
+                        {approval.status === 'REJECTED' && (
+                          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-900 text-xs">
+                            <span className="font-bold">Declined by:</span> {approval.respondedByName} on{' '}
+                            {approval.respondedAt ? new Date(approval.respondedAt).toLocaleString() : ''}
+                            {approval.rejectionReason && (
+                              <p className="mt-0.5 font-medium">Rejection Reason: {approval.rejectionReason}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {approval.status === 'REVOKED' && (
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-xs">
+                            <span className="font-bold">Revoked by:</span> {approval.revokedByName} on{' '}
+                            {approval.revokedAt ? new Date(approval.revokedAt).toLocaleString() : ''}
+                            {approval.revocationReason && (
+                              <p className="mt-0.5">Reason: {approval.revocationReason}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 pt-2">
+                        {isPracticeUser && approval.status === 'PENDING' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const reason = window.prompt('Enter reason for revoking this approval request:');
+                              if (reason !== null) {
+                                try {
+                                  await clientPortalApi.revokePracticeClientApproval(selectedClientId, approval.id, {
+                                    reason: reason.trim() || 'Revoked by practice',
+                                  });
+                                  loadPortalData(selectedClientId);
+                                } catch (err: any) {
+                                  alert(err?.response?.data?.message || 'Failed to revoke approval request');
+                                }
+                              }
+                            }}
+                            className="text-xs font-bold border-rose-200 text-rose-700 hover:bg-rose-50"
+                          >
+                            Revoke Request
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            handleInitiateContextualMessage({
+                              contextType: approval.contextType || 'GENERAL',
+                              contextId: approval.contextId,
+                              contextTitle: `Approval: ${approval.title}`,
+                            });
+                          }}
+                          leftIcon={<MessageSquare className="w-3.5 h-3.5" />}
+                          className="text-xs font-bold text-slate-600"
+                        >
+                          Message About This
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </Card>
       )}
 
       {/* TAB 6: Portal Users & Logins (For Practice Admins) */}
@@ -2099,6 +2625,149 @@ export const ClientPortalManagementPage: React.FC = () => {
                 </Button>
                 <Button variant="primary" size="sm" type="submit">
                   Send Request to Client
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Create Client Approval Request (Phase 32.5) */}
+      {isCreateApprovalModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90dvh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Scale className="w-5 h-5 text-brand-600" />
+                Request Client Approval & Formal Consent
+              </h3>
+              <button
+                onClick={() => setIsCreateApprovalModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!selectedClientId) {
+                  alert('Please select a client first');
+                  return;
+                }
+                try {
+                  setIsSubmittingApproval(true);
+                  await clientPortalApi.createPracticeClientApproval(selectedClientId, createApprovalForm);
+                  setIsCreateApprovalModalOpen(false);
+                  loadPortalData(selectedClientId);
+                } catch (err: any) {
+                  alert(err?.response?.data?.message || 'Failed to create approval request');
+                } finally {
+                  setIsSubmittingApproval(false);
+                }
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Approval Title *</label>
+                <input
+                  type="text"
+                  value={createApprovalForm.title}
+                  onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, title: e.target.value })}
+                  placeholder="e.g. Approve AY 2024-25 Income Tax Computation"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Approval Type *</label>
+                <select
+                  value={createApprovalForm.approvalType}
+                  onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, approvalType: e.target.value as ClientApprovalType })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  required
+                >
+                  <option value="TAX_COMPUTATION_APPROVAL">Tax Computation Approval</option>
+                  <option value="FILING_CONSENT">Statutory Filing Consent</option>
+                  <option value="DOCUMENT_SIGN_OFF">Document Sign-off</option>
+                  <option value="ENGAGEMENT_TERMS">Engagement Terms & Scope</option>
+                  <option value="INFORMATION_CONFIRMATION">Information Confirmation</option>
+                  <option value="GENERAL_APPROVAL">General Approval</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Description / Instructions for Client</label>
+                <textarea
+                  value={createApprovalForm.description || ''}
+                  onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, description: e.target.value })}
+                  placeholder="e.g. Please verify the total computed income, Advance Tax credits, and Section 80C deductions before we file ITR-6."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Terms / Content Version</label>
+                  <input
+                    type="text"
+                    value={createApprovalForm.contentVersion || ''}
+                    onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, contentVersion: e.target.value })}
+                    placeholder="v1.0"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Response Deadline (Optional)</label>
+                  <input
+                    type="date"
+                    value={createApprovalForm.expiresAt ? createApprovalForm.expiresAt.substring(0, 10) : ''}
+                    onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, expiresAt: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono"
+                  />
+                </div>
+              </div>
+
+              {documents.length > 0 && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Attach Supporting Document (Optional)</label>
+                  <select
+                    value={createApprovalForm.documentId || ''}
+                    onChange={(e) => setCreateApprovalForm({ ...createApprovalForm, documentId: e.target.value || undefined })}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium"
+                  >
+                    <option value="">-- No Attached Document --</option>
+                    {documents.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title || d.fileName} ({d.documentType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => setIsCreateApprovalModalOpen(false)}
+                  disabled={isSubmittingApproval}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  type="submit"
+                  disabled={isSubmittingApproval || !createApprovalForm.title}
+                  leftIcon={<Check className="w-4 h-4" />}
+                >
+                  {isSubmittingApproval ? 'Sending...' : 'Send Request to Client'}
                 </Button>
               </div>
             </form>

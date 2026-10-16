@@ -1,4 +1,4 @@
-import { Invoice } from '../types';
+import { Invoice, InvoiceLineItem } from '../types';
 import { formatCurrency } from './currencyUtils';
 
 function numberToWordsINR(num: number): string {
@@ -48,10 +48,11 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
     ? Math.round((Number(invoice.tax) / Number(invoice.subtotal)) * 1000) / 10
     : (invoice.tax === 0 ? 0 : 18);
 
-  const items = (invoice.items && invoice.items.length > 0) ? invoice.items : [
+  const items: InvoiceLineItem[] = (invoice.items && invoice.items.length > 0) ? invoice.items : [
     {
       service: 'TAX_ADVISORY' as any,
       description: 'Professional Legal & Tax Practice Services Rendered',
+      sacHsnCode: '998231',
       hsnSacCode: '998231',
       quantity: 1,
       unitPrice: invoice.subtotal || invoice.total,
@@ -67,7 +68,7 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
         <div style="font-weight: 700; font-size: 12px; color: #0f172a;">${it.service || 'PROFESSIONAL_SERVICE'}</div>
         <div style="font-size: 11px; color: #475569; margin-top: 2px;">${it.description || 'Tax and compliance consulting services'}</div>
       </td>
-      <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-size: 11px; color: #475569; border-right: 1px solid #cbd5e1;">${it.hsnSacCode || '998231'}</td>
+      <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-size: 11px; color: #475569; border-right: 1px solid #cbd5e1;">${it.sacHsnCode || it.hsnSacCode || '998231'}</td>
       <td style="padding: 8px 10px; text-align: center; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${it.quantity || 1}</td>
       <td style="padding: 8px 10px; text-align: right; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${currencyFmt(it.unitPrice)}</td>
       <td style="padding: 8px 10px; text-align: right; font-family: monospace; font-size: 11px; border-right: 1px solid #cbd5e1;">${currencyFmt(Number(it.quantity || 1) * Number(it.unitPrice || 0))}</td>
@@ -243,7 +244,7 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
                   <div><strong>Invoice No:</strong> ${invoice.invoiceNumber}</div>
                   <div><strong>Date:</strong> ${invoice.invoiceDate}</div>
                   <div><strong>Due Date:</strong> ${invoice.dueDate || 'Immediate'}</div>
-                  <div><strong>State Code:</strong> 27 (Maharashtra)</div>
+                  <div><strong>Supplier State:</strong> ${invoice.supplierState ? `${invoice.supplierState} (${invoice.supplierStateCode || ''})` : 'Maharashtra (27)'}</div>
                 </div>
               </td>
             </tr>
@@ -267,8 +268,9 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
                 <div class="section-box" style="margin-bottom: 0;">
                   <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 4px;">SUPPLY DETAILS & STATUS:</div>
                   <div style="font-size: 11px; color: #1e293b; line-height: 1.5;">
-                    <div><strong>Place of Supply:</strong> Maharashtra (27)</div>
+                    <div><strong>Place of Supply:</strong> ${invoice.placeOfSupplyState ? `${invoice.placeOfSupplyState} (${invoice.placeOfSupplyStateCode || ''})` : 'Maharashtra (27)'}</div>
                     <div><strong>Service Category:</strong> Legal & Tax Advisory (SAC 998231)</div>
+                    <div><strong>Reverse Charge (RCM):</strong> ${invoice.isRcm ? 'Yes' : 'No'}</div>
                     <div><strong>Status:</strong> <span style="font-weight: 700; color: ${invoice.status === 'PAID' ? '#166534' : '#b45309'};">${invoice.status}</span></div>
                   </div>
                 </div>
@@ -328,14 +330,21 @@ export function printTaxInvoice(invoice: Invoice, practiceName: string = 'APEX T
                     <td style="color: #475569; font-weight: 600;">Taxable Amount:</td>
                     <td style="text-align: right; font-family: monospace; font-weight: 700; color: #0f172a;">${currencyFmt(invoice.subtotal)}</td>
                   </tr>
+                  ${(invoice.igstAmount != null && Number(invoice.igstAmount) > 0) ? `
+                  <tr>
+                    <td style="color: #475569;">Integrated GST (IGST):</td>
+                    <td style="text-align: right; font-family: monospace; color: #334155;">${currencyFmt(invoice.igstAmount)}</td>
+                  </tr>
+                  ` : `
                   <tr>
                     <td style="color: #475569;">${taxLabels.cgst}:</td>
-                    <td style="text-align: right; font-family: monospace; color: #334155;">${currencyFmt(Number(invoice.tax || 0) / 2)}</td>
+                    <td style="text-align: right; font-family: monospace; color: #334155;">${currencyFmt(invoice.cgstAmount != null ? invoice.cgstAmount : Number(invoice.tax || 0) / 2)}</td>
                   </tr>
                   <tr>
                     <td style="color: #475569;">${taxLabels.sgst}:</td>
-                    <td style="text-align: right; font-family: monospace; color: #334155;">${currencyFmt(Number(invoice.tax || 0) / 2)}</td>
+                    <td style="text-align: right; font-family: monospace; color: #334155;">${currencyFmt(invoice.sgstAmount != null ? invoice.sgstAmount : Number(invoice.tax || 0) / 2)}</td>
                   </tr>
+                  `}
                   ${Number(invoice.discount || 0) > 0 ? `
                   <tr style="background-color: #fffbeb; color: #b45309; font-weight: 600;">
                     <td>Discount / Concession:</td>

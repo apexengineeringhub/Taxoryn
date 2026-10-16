@@ -139,6 +139,18 @@ import {
   RegisterClientPortalUserRequest,
   ClientPortalMessage,
   SendClientPortalMessageRequest,
+  MessageContextType,
+  PortalMessageAttachment,
+  ClientApprovalType,
+  ClientApprovalStatus,
+  ClientApprovalDecision,
+  ClientApproval,
+  CreateClientApprovalRequest,
+  DecideClientApprovalRequest,
+  RevokeClientApprovalRequest,
+  FollowUpItem,
+  FollowUpEvaluationResult,
+  SendFollowUpNudgeRequest,
   TdsProfile,
   TdsReturn,
   TdsChallan,
@@ -1937,12 +1949,20 @@ export const portalApi = {
   },
 
   // Consultation Messages & Chat
-  getClientMessages: async () => {
-    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>('/v1/portal/messages');
+  getClientMessages: async (params?: { contextType?: MessageContextType; contextId?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>('/v1/portal/messages', { params });
     return res.data.data;
   },
   sendClientMessage: async (payload: SendClientPortalMessageRequest) => {
     const res = await apiClient.post<ApiResponse<ClientPortalMessage>>('/v1/portal/messages', payload);
+    return res.data.data;
+  },
+  uploadMessageAttachment: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<PortalMessageAttachment>>('/v1/portal/messages/attachments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data.data;
   },
   markClientMessagesRead: async () => {
@@ -1953,12 +1973,20 @@ export const portalApi = {
     const res = await apiClient.get<ApiResponse<number>>('/v1/portal/messages/unread-count');
     return res.data.data;
   },
-  getPracticeClientMessages: async (clientId: string) => {
-    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>(`/v1/portal/clients/${clientId}/messages`);
+  getPracticeClientMessages: async (clientId: string, params?: { contextType?: MessageContextType; contextId?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientPortalMessage[]>>(`/v1/portal/clients/${clientId}/messages`, { params });
     return res.data.data;
   },
   sendPracticeClientMessage: async (clientId: string, payload: SendClientPortalMessageRequest) => {
     const res = await apiClient.post<ApiResponse<ClientPortalMessage>>(`/v1/portal/clients/${clientId}/messages`, payload);
+    return res.data.data;
+  },
+  uploadPracticeMessageAttachment: async (clientId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<PortalMessageAttachment>>(`/v1/portal/clients/${clientId}/messages/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data.data;
   },
   markPracticeClientMessagesRead: async (clientId: string) => {
@@ -1969,7 +1997,39 @@ export const portalApi = {
     const res = await apiClient.get<ApiResponse<number>>(`/v1/portal/clients/${clientId}/messages/unread-count`);
     return res.data.data;
   },
+
+  // Approvals & Consent (Phase 32.5)
+  getClientApprovals: async (params?: { status?: ClientApprovalStatus }) => {
+    const res = await apiClient.get<ApiResponse<ClientApproval[]>>('/v1/portal/approvals', { params });
+    return res.data.data;
+  },
+  getClientApprovalById: async (approvalId: string) => {
+    const res = await apiClient.get<ApiResponse<ClientApproval>>(`/v1/portal/approvals/${approvalId}`);
+    return res.data.data;
+  },
+  decideClientApproval: async (approvalId: string, payload: DecideClientApprovalRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientApproval>>(`/v1/portal/approvals/${approvalId}/decide`, payload);
+    return res.data.data;
+  },
+  getPracticeClientApprovals: async (clientId: string, params?: { status?: ClientApprovalStatus; contextType?: MessageContextType; contextId?: string }) => {
+    const res = await apiClient.get<ApiResponse<ClientApproval[]>>(`/v1/portal/clients/${clientId}/approvals`, { params });
+    return res.data.data;
+  },
+  createPracticeClientApproval: async (clientId: string, payload: CreateClientApprovalRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientApproval>>(`/v1/portal/clients/${clientId}/approvals`, payload);
+    return res.data.data;
+  },
+  revokePracticeClientApproval: async (clientId: string, approvalId: string, payload?: RevokeClientApprovalRequest) => {
+    const res = await apiClient.post<ApiResponse<ClientApproval>>(`/v1/portal/clients/${clientId}/approvals/${approvalId}/revoke`, payload || {});
+    return res.data.data;
+  },
+  getTimeline: async (clientId: string, params?: ClientTimelineFilterParams) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<ClientTimelineItemDto>>>(`/v1/portal/clients/${clientId}/timeline`, { params });
+    return res.data.data;
+  },
 };
+
+export const clientPortalApi = portalApi;
 
 // --- 13. Multi-Item Document Requests V1 ---
 export const documentRequestApi = {
@@ -3848,6 +3908,25 @@ export const reminderApi = {
   },
   getOverdueCount: async () => {
     const res = await apiClient.get<ApiResponse<number>>('/v1/reminders/overdue/count');
+    return res.data.data;
+  },
+  // Phase 32.6: Collaboration Follow-up & Reminder Engine APIs
+  getFollowUps: async (params?: Record<string, any>) => {
+    const res = await apiClient.get<ApiResponse<PagedResponse<FollowUpItem>>>('/v1/reminders/follow-ups', { params });
+    return res.data.data;
+  },
+  evaluateFollowUps: async () => {
+    const res = await apiClient.post<ApiResponse<FollowUpEvaluationResult>>('/v1/reminders/follow-ups/evaluate');
+    return res.data.data;
+  },
+  sendFollowUpNudge: async (id: string, data?: SendFollowUpNudgeRequest) => {
+    const res = await apiClient.post<ApiResponse<FollowUpItem>>(`/v1/reminders/follow-ups/${id}/nudge`, data || {});
+    return res.data.data;
+  },
+  resolveFollowUp: async (id: string, notes?: string) => {
+    const res = await apiClient.post<ApiResponse<FollowUpItem>>(`/v1/reminders/follow-ups/${id}/resolve`, null, {
+      params: notes ? { notes } : undefined,
+    });
     return res.data.data;
   },
 };

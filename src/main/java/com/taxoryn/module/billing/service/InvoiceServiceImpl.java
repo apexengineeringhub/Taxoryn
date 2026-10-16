@@ -48,6 +48,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.taxoryn.module.billing.entity.PracticeInvoiceSeriesEntity;
+import com.taxoryn.module.billing.repository.PracticeInvoiceSeriesRepository;
+import com.taxoryn.module.billing.util.IndianGstUtils;
+import com.taxoryn.module.organization.entity.OrganizationEntity;
+import com.taxoryn.module.organization.entity.LocationEntity;
 
 @Slf4j
 @Service
@@ -68,6 +73,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final com.taxoryn.module.timetracking.repository.TimeEntryRepository timeEntryRepository;
     private final com.taxoryn.module.user.repository.UserRepository userRepository;
     private final PromotionService promotionService;
+    private final PracticeInvoiceSeriesRepository practiceInvoiceSeriesRepository;
+    private final PracticeInvoiceSeriesService practiceInvoiceSeriesService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public InvoiceServiceImpl(
@@ -85,7 +92,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.engagement.repository.EngagementRepository engagementRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.timetracking.repository.TimeEntryRepository timeEntryRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.taxoryn.module.user.repository.UserRepository userRepository,
-            @org.springframework.beans.factory.annotation.Autowired(required = false) PromotionService promotionService
+            @org.springframework.beans.factory.annotation.Autowired(required = false) PromotionService promotionService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) PracticeInvoiceSeriesRepository practiceInvoiceSeriesRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) PracticeInvoiceSeriesService practiceInvoiceSeriesService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceItemRepository = invoiceItemRepository;
@@ -102,6 +111,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.timeEntryRepository = timeEntryRepository;
         this.userRepository = userRepository;
         this.promotionService = promotionService;
+        this.practiceInvoiceSeriesRepository = practiceInvoiceSeriesRepository;
+        this.practiceInvoiceSeriesService = practiceInvoiceSeriesService;
     }
 
     public InvoiceServiceImpl(
@@ -119,7 +130,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this(invoiceRepository, invoiceItemRepository, invoicePaymentRepository,
                 clientRepository, notificationRepository, invoiceMapper,
                 auditService, eventPublisher, securityScopeEvaluator, organizationRepository,
-                null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     @Override
@@ -134,6 +145,19 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
 
+        ResolvedGstContext gstContext = resolveGstContext(
+                organizationId,
+                locationId,
+                client,
+                request.getPlaceOfSupplyStateCode(),
+                request.getPlaceOfSupplyState()
+        );
+
+        String seriesPrefix = StringUtils.hasText(request.getSeriesPrefix())
+                ? request.getSeriesPrefix().trim().toUpperCase()
+                : "INV";
+        String fy = IndianGstUtils.computeFinancialYear(request.getInvoiceDate());
+
         String invoiceNumber = request.getInvoiceNumber();
         if (StringUtils.hasText(invoiceNumber)) {
             invoiceNumber = invoiceNumber.trim().toUpperCase();
@@ -141,7 +165,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 throw new DuplicateResourceException("Invoice", "invoiceNumber", invoiceNumber);
             }
         } else {
-            invoiceNumber = generateInvoiceNumber(organizationId);
+            invoiceNumber = allocateInvoiceNumber(organizationId, seriesPrefix, request.getInvoiceDate());
         }
 
         InvoiceEntity.InvoiceStatus initialStatus = request.getStatus() != null ? request.getStatus() : InvoiceStatus.DRAFT;
@@ -158,11 +182,21 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .notes(request.getNotes())
                 .terms(request.getTerms())
                 .discount(request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO)
+                .placeOfSupplyState(gstContext.posState())
+                .placeOfSupplyStateCode(gstContext.posStateCode())
+                .supplierState(gstContext.supplierState())
+                .supplierStateCode(gstContext.supplierStateCode())
+                .isRcm(Boolean.TRUE.equals(request.getIsRcm()))
+                .financialYear(fy)
+                .seriesPrefix(seriesPrefix)
                 .build();
         invoice.setOrganizationId(organizationId);
 
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal totalTax = BigDecimal.ZERO;
+        BigDecimal totalCgst = BigDecimal.ZERO;
+        BigDecimal totalSgst = BigDecimal.ZERO;
+        BigDecimal totalIgst = BigDecimal.ZERO;
 
         for (CreateInvoiceItemRequest itemReq : request.getItems()) {
             BigDecimal qty = itemReq.getQuantity() != null ? itemReq.getQuantity() : BigDecimal.ONE;
@@ -181,11 +215,20 @@ public class InvoiceServiceImpl implements InvoiceService {
 
             BigDecimal price = resolution != null ? resolution.getUnitPrice() : itemReq.getEffectiveUnitPrice();
             BigDecimal lineSubtotal = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+            IndianGstUtils.GstBreakdown gstBreakdown = IndianGstUtils.calculateGstBreakdown(lineSubtotal, taxRate, gstContext.isIntraState());
+            BigDecimal lineTax = gstBreakdown.totalTax();
             BigDecimal lineAmount = lineSubtotal.add(lineTax);
+
+            String sacCode = StringUtils.hasText(itemReq.getSacHsnCode())
+                    ? itemReq.getSacHsnCode().trim()
+                    : IndianGstUtils.defaultSacCode(svc);
 
             subtotal = subtotal.add(lineSubtotal);
             totalTax = totalTax.add(lineTax);
+            totalCgst = totalCgst.add(gstBreakdown.cgstAmount());
+            totalSgst = totalSgst.add(gstBreakdown.sgstAmount());
+            totalIgst = totalIgst.add(gstBreakdown.igstAmount());
 
             InvoiceItemEntity item = InvoiceItemEntity.builder()
                     .service(svc)
@@ -196,8 +239,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .description(itemReq.getDescription())
                     .quantity(qty)
                     .unitPrice(price)
+                    .sacHsnCode(sacCode)
                     .taxRate(taxRate)
                     .tax(lineTax)
+                    .cgstRate(gstBreakdown.cgstRate())
+                    .cgstAmount(gstBreakdown.cgstAmount())
+                    .sgstRate(gstBreakdown.sgstRate())
+                    .sgstAmount(gstBreakdown.sgstAmount())
+                    .igstRate(gstBreakdown.igstRate())
+                    .igstAmount(gstBreakdown.igstAmount())
                     .amount(lineAmount)
                     .promotionId(resolution != null ? resolution.getPromotionId() : null)
                     .promotionName(resolution != null ? resolution.getPromotionName() : null)
@@ -223,6 +273,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         invoice.setSubtotal(subtotal);
         invoice.setTax(totalTax);
+        invoice.setCgstAmount(totalCgst);
+        invoice.setSgstAmount(totalSgst);
+        invoice.setIgstAmount(totalIgst);
         invoice.setDiscount(discount);
         invoice.setTotal(total);
         invoice.setPaidAmount(BigDecimal.ZERO);
@@ -329,28 +382,56 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (invoice.getStatus() == InvoiceStatus.DRAFT && request.getItems() != null && !request.getItems().isEmpty()) {
             invoice.getItems().clear();
 
+            ClientEntity client = clientRepository.findByIdAndOrganizationId(invoice.getClientId(), organizationId).orElse(null);
+            ResolvedGstContext gstContext = resolveGstContext(
+                    organizationId,
+                    invoice.getLocationId(),
+                    client,
+                    invoice.getPlaceOfSupplyStateCode(),
+                    invoice.getPlaceOfSupplyState()
+            );
+
             BigDecimal subtotal = BigDecimal.ZERO;
             BigDecimal totalTax = BigDecimal.ZERO;
+            BigDecimal totalCgst = BigDecimal.ZERO;
+            BigDecimal totalSgst = BigDecimal.ZERO;
+            BigDecimal totalIgst = BigDecimal.ZERO;
 
             for (CreateInvoiceItemRequest itemReq : request.getItems()) {
                 BigDecimal qty = itemReq.getQuantity() != null ? itemReq.getQuantity() : BigDecimal.ONE;
                 BigDecimal price = itemReq.getUnitPrice() != null ? itemReq.getUnitPrice() : BigDecimal.ZERO;
                 BigDecimal taxRate = itemReq.getTaxRate() != null ? itemReq.getTaxRate() : new BigDecimal("18.00");
+                InvoiceItemEntity.BillingServiceType svc = itemReq.getService() != null ? itemReq.getService() : InvoiceItemEntity.BillingServiceType.CONSULTING;
 
                 BigDecimal lineSubtotal = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
-                BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+                IndianGstUtils.GstBreakdown gstBreakdown = IndianGstUtils.calculateGstBreakdown(lineSubtotal, taxRate, gstContext.isIntraState());
+                BigDecimal lineTax = gstBreakdown.totalTax();
                 BigDecimal lineAmount = lineSubtotal.add(lineTax);
+
+                String sacCode = StringUtils.hasText(itemReq.getSacHsnCode())
+                        ? itemReq.getSacHsnCode().trim()
+                        : IndianGstUtils.defaultSacCode(svc);
 
                 subtotal = subtotal.add(lineSubtotal);
                 totalTax = totalTax.add(lineTax);
+                totalCgst = totalCgst.add(gstBreakdown.cgstAmount());
+                totalSgst = totalSgst.add(gstBreakdown.sgstAmount());
+                totalIgst = totalIgst.add(gstBreakdown.igstAmount());
 
                 InvoiceItemEntity item = InvoiceItemEntity.builder()
-                        .service(itemReq.getService())
+                        .service(svc)
                         .description(itemReq.getDescription())
                         .quantity(qty)
                         .unitPrice(price)
+                        .sacHsnCode(sacCode)
                         .taxRate(taxRate)
                         .tax(lineTax)
+                        .cgstRate(gstBreakdown.cgstRate())
+                        .cgstAmount(gstBreakdown.cgstAmount())
+                        .sgstRate(gstBreakdown.sgstRate())
+                        .sgstAmount(gstBreakdown.sgstAmount())
+                        .igstRate(gstBreakdown.igstRate())
+                        .igstAmount(gstBreakdown.igstAmount())
                         .amount(lineAmount)
                         .build();
 
@@ -360,6 +441,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             BigDecimal total = subtotal.add(totalTax);
             invoice.setSubtotal(subtotal);
             invoice.setTax(totalTax);
+            invoice.setCgstAmount(totalCgst);
+            invoice.setSgstAmount(totalSgst);
+            invoice.setIgstAmount(totalIgst);
             invoice.setTotal(total);
             invoice.setBalanceDue(total.subtract(invoice.getPaidAmount()));
         }
@@ -770,42 +854,71 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         for (ClientEntity client : targetClients) {
             try {
-                String invoiceNumber = generateInvoiceNumber(organizationId);
+                ResolvedGstContext gstContext = resolveGstContext(organizationId, client.getLocationId(), client, null, null);
+                String fy = IndianGstUtils.computeFinancialYear(request.getInvoiceDate());
+                String invoiceNumber = allocateInvoiceNumber(organizationId, "INV", request.getInvoiceDate());
                 InvoiceEntity invoice = InvoiceEntity.builder()
                         .clientId(client.getId())
+                        .locationId(client.getLocationId())
                         .invoiceNumber(invoiceNumber)
+                        .currency("INR")
                         .invoiceDate(request.getInvoiceDate())
                         .dueDate(request.getDueDate())
                         .status(request.isAutoIssue() ? InvoiceStatus.ISSUED : InvoiceStatus.DRAFT)
                         .notes(request.getNotes())
                         .terms(request.getTerms())
+                        .supplierState(gstContext.supplierState())
+                        .supplierStateCode(gstContext.supplierStateCode())
+                        .placeOfSupplyState(gstContext.posState())
+                        .placeOfSupplyStateCode(gstContext.posStateCode())
+                        .financialYear(fy)
+                        .seriesPrefix("INV")
                         .build();
                 invoice.setOrganizationId(organizationId);
 
                 BigDecimal subtotal = BigDecimal.ZERO;
                 BigDecimal totalTax = BigDecimal.ZERO;
+                BigDecimal totalCgst = BigDecimal.ZERO;
+                BigDecimal totalSgst = BigDecimal.ZERO;
+                BigDecimal totalIgst = BigDecimal.ZERO;
                 List<InvoiceItemEntity> items = new ArrayList<>();
 
                 for (CreateInvoiceItemRequest itemReq : request.getItems()) {
                     BigDecimal qty = itemReq.getQuantity() != null ? itemReq.getQuantity() : BigDecimal.ONE;
                     BigDecimal price = itemReq.getUnitPrice() != null ? itemReq.getUnitPrice() : BigDecimal.ZERO;
                     BigDecimal taxRate = itemReq.getTaxRate() != null ? itemReq.getTaxRate() : new BigDecimal("18.00");
+                    InvoiceItemEntity.BillingServiceType svc = itemReq.getService() != null ? itemReq.getService() : InvoiceItemEntity.BillingServiceType.CONSULTING;
 
                     BigDecimal lineSubtotal = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
-                    BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+                    IndianGstUtils.GstBreakdown gstBreakdown = IndianGstUtils.calculateGstBreakdown(lineSubtotal, taxRate, gstContext.isIntraState());
+                    BigDecimal lineTax = gstBreakdown.totalTax();
                     BigDecimal lineAmount = lineSubtotal.add(lineTax);
+
+                    String sacCode = StringUtils.hasText(itemReq.getSacHsnCode())
+                            ? itemReq.getSacHsnCode().trim()
+                            : IndianGstUtils.defaultSacCode(svc);
 
                     subtotal = subtotal.add(lineSubtotal);
                     totalTax = totalTax.add(lineTax);
+                    totalCgst = totalCgst.add(gstBreakdown.cgstAmount());
+                    totalSgst = totalSgst.add(gstBreakdown.sgstAmount());
+                    totalIgst = totalIgst.add(gstBreakdown.igstAmount());
 
                     InvoiceItemEntity item = InvoiceItemEntity.builder()
                             .invoice(invoice)
-                            .service(itemReq.getService())
+                            .service(svc)
                             .description(itemReq.getDescription())
                             .quantity(qty)
                             .unitPrice(price)
+                            .sacHsnCode(sacCode)
                             .taxRate(taxRate)
                             .tax(lineTax)
+                            .cgstRate(gstBreakdown.cgstRate())
+                            .cgstAmount(gstBreakdown.cgstAmount())
+                            .sgstRate(gstBreakdown.sgstRate())
+                            .sgstAmount(gstBreakdown.sgstAmount())
+                            .igstRate(gstBreakdown.igstRate())
+                            .igstAmount(gstBreakdown.igstAmount())
                             .amount(lineAmount)
                             .build();
                     items.add(item);
@@ -814,6 +927,9 @@ public class InvoiceServiceImpl implements InvoiceService {
                 BigDecimal grandTotal = subtotal.add(totalTax);
                 invoice.setSubtotal(subtotal);
                 invoice.setTax(totalTax);
+                invoice.setCgstAmount(totalCgst);
+                invoice.setSgstAmount(totalSgst);
+                invoice.setIgstAmount(totalIgst);
                 invoice.setTotal(grandTotal);
                 invoice.setPaidAmount(BigDecimal.ZERO);
                 invoice.setBalanceDue(grandTotal);
@@ -857,17 +973,32 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceItemEntity.BillingServiceType svc = (i == 0) ? InvoiceItemEntity.BillingServiceType.GST_FILING : (i == 1) ? InvoiceItemEntity.BillingServiceType.ITR_FILING : (i == 2) ? InvoiceItemEntity.BillingServiceType.ACCOUNTING : InvoiceItemEntity.BillingServiceType.AUDIT;
             String desc = (i == 0) ? "Monthly GST Filing (GSTR-1 & 3B) & Reconciliation" : (i == 1) ? "Annual Income Tax Return Computation & CPC Filing" : (i == 2) ? "Monthly Bookkeeping & Financial Statement Preparation" : "Statutory Tax Audit & Form 3CD Certification";
 
+            ResolvedGstContext gstContext = resolveGstContext(organizationId, client.getLocationId(), client, null, null);
             BigDecimal taxRate = new BigDecimal("18.00");
-            BigDecimal lineTax = fee.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            IndianGstUtils.GstBreakdown gst = IndianGstUtils.calculateGstBreakdown(fee, taxRate, gstContext.isIntraState());
+            BigDecimal lineTax = gst.totalTax();
             BigDecimal total = fee.add(lineTax);
+            String sac = IndianGstUtils.defaultSacCode(svc);
+            String fy = IndianGstUtils.computeFinancialYear(invoiceDate);
 
             InvoiceEntity inv = InvoiceEntity.builder()
                     .clientId(client.getId())
+                    .locationId(client.getLocationId())
                     .invoiceNumber(invNum)
+                    .currency("INR")
                     .invoiceDate(invoiceDate)
                     .dueDate(dueDate)
                     .subtotal(fee)
                     .tax(lineTax)
+                    .cgstAmount(gst.cgstAmount())
+                    .sgstAmount(gst.sgstAmount())
+                    .igstAmount(gst.igstAmount())
+                    .supplierState(gstContext.supplierState())
+                    .supplierStateCode(gstContext.supplierStateCode())
+                    .placeOfSupplyState(gstContext.posState())
+                    .placeOfSupplyStateCode(gstContext.posStateCode())
+                    .financialYear(fy)
+                    .seriesPrefix("INV")
                     .total(total)
                     .paidAmount(status == InvoiceStatus.PAID ? total : BigDecimal.ZERO)
                     .balanceDue(status == InvoiceStatus.PAID ? BigDecimal.ZERO : total)
@@ -883,8 +1014,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .description(desc)
                     .quantity(BigDecimal.ONE)
                     .unitPrice(fee)
+                    .sacHsnCode(sac)
                     .taxRate(taxRate)
                     .tax(lineTax)
+                    .cgstRate(gst.cgstRate())
+                    .cgstAmount(gst.cgstAmount())
+                    .sgstRate(gst.sgstRate())
+                    .sgstAmount(gst.sgstAmount())
+                    .igstRate(gst.igstRate())
+                    .igstAmount(gst.igstAmount())
                     .amount(total)
                     .build();
             inv.setItems(List.of(item));
@@ -980,7 +1118,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
 
         UUID locationId = request.getLocationId() != null ? request.getLocationId() : client.getLocationId();
-        String invoiceNumber = generateInvoiceNumber(organizationId);
+        ResolvedGstContext gstContext = resolveGstContext(organizationId, locationId, client, null, null);
+        String fy = IndianGstUtils.computeFinancialYear(request.getInvoiceDate());
+        String invoiceNumber = allocateInvoiceNumber(organizationId, "INV", request.getInvoiceDate());
 
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .clientId(client.getId())
@@ -994,11 +1134,20 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .notes(request.getNotes())
                 .terms(request.getTerms())
                 .discount(request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO)
+                .placeOfSupplyState(gstContext.posState())
+                .placeOfSupplyStateCode(gstContext.posStateCode())
+                .supplierState(gstContext.supplierState())
+                .supplierStateCode(gstContext.supplierStateCode())
+                .financialYear(fy)
+                .seriesPrefix("INV")
                 .build();
         invoice.setOrganizationId(organizationId);
 
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal totalTax = BigDecimal.ZERO;
+        BigDecimal totalCgst = BigDecimal.ZERO;
+        BigDecimal totalSgst = BigDecimal.ZERO;
+        BigDecimal totalIgst = BigDecimal.ZERO;
         BigDecimal taxRate = request.getTaxRate() != null ? request.getTaxRate() : new BigDecimal("18.00");
 
         for (com.taxoryn.module.timetracking.entity.TimeEntryEntity entry : timeEntries) {
@@ -1007,11 +1156,17 @@ public class InvoiceServiceImpl implements InvoiceService {
             BigDecimal rate = entry.getBillingRate() != null ? entry.getBillingRate() : BigDecimal.ZERO;
 
             BigDecimal lineSubtotal = hours.multiply(rate).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal lineTax = lineSubtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            IndianGstUtils.GstBreakdown gstBreakdown = IndianGstUtils.calculateGstBreakdown(lineSubtotal, taxRate, gstContext.isIntraState());
+            BigDecimal lineTax = gstBreakdown.totalTax();
             BigDecimal lineAmount = lineSubtotal.add(lineTax);
+
+            String sacCode = IndianGstUtils.defaultSacCode(InvoiceItemEntity.BillingServiceType.CONSULTING);
 
             subtotal = subtotal.add(lineSubtotal);
             totalTax = totalTax.add(lineTax);
+            totalCgst = totalCgst.add(gstBreakdown.cgstAmount());
+            totalSgst = totalSgst.add(gstBreakdown.sgstAmount());
+            totalIgst = totalIgst.add(gstBreakdown.igstAmount());
 
             String desc = StringUtils.hasText(entry.getDescription())
                     ? entry.getDescription()
@@ -1024,8 +1179,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .description(desc)
                     .quantity(hours)
                     .unitPrice(rate)
+                    .sacHsnCode(sacCode)
                     .taxRate(taxRate)
                     .tax(lineTax)
+                    .cgstRate(gstBreakdown.cgstRate())
+                    .cgstAmount(gstBreakdown.cgstAmount())
+                    .sgstRate(gstBreakdown.sgstRate())
+                    .sgstAmount(gstBreakdown.sgstAmount())
+                    .igstRate(gstBreakdown.igstRate())
+                    .igstAmount(gstBreakdown.igstAmount())
                     .amount(lineAmount)
                     .build();
 
@@ -1041,6 +1203,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         invoice.setSubtotal(subtotal);
         invoice.setTax(totalTax);
+        invoice.setCgstAmount(totalCgst);
+        invoice.setSgstAmount(totalSgst);
+        invoice.setIgstAmount(totalIgst);
         invoice.setDiscount(discount);
         invoice.setTotal(total);
         invoice.setPaidAmount(BigDecimal.ZERO);
@@ -1296,13 +1461,153 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private String generateInvoiceNumber(UUID organizationId) {
-        int year = LocalDate.now().getYear();
-        long count = invoiceRepository.countByOrganizationId(organizationId) + 1;
-        String number;
-        do {
-            number = String.format("INV-%d-%04d", year, count++);
-        } while (invoiceRepository.existsByOrganizationIdAndInvoiceNumber(organizationId, number));
+        return allocateInvoiceNumber(organizationId, "INV", LocalDate.now());
+    }
+
+    private String allocateInvoiceNumber(UUID organizationId, String seriesPrefix, LocalDate invoiceDate) {
+        String cleanPrefix = StringUtils.hasText(seriesPrefix) ? seriesPrefix.trim().toUpperCase() : "INV";
+        String fy = IndianGstUtils.computeFinancialYear(invoiceDate);
+        String fyShort = IndianGstUtils.computeFinancialYearShort(invoiceDate);
+
+        if (practiceInvoiceSeriesRepository == null) {
+            int year = (invoiceDate != null ? invoiceDate : LocalDate.now()).getYear();
+            long count = invoiceRepository.countByOrganizationId(organizationId) + 1;
+            String number;
+            do {
+                number = String.format("%s-%d-%04d", cleanPrefix, year, count++);
+            } while (invoiceRepository.existsByOrganizationIdAndInvoiceNumber(organizationId, number));
+            return number;
+        }
+
+        PracticeInvoiceSeriesEntity series = null;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            if (practiceInvoiceSeriesService != null) {
+                try {
+                    practiceInvoiceSeriesService.ensureSeriesExists(organizationId, fy, cleanPrefix);
+                } catch (Exception ignored) {
+                }
+            }
+
+            var opt = practiceInvoiceSeriesRepository.findByOrgFyAndPrefixForUpdate(organizationId, fy, cleanPrefix);
+            if (opt.isPresent()) {
+                series = opt.get();
+                break;
+            }
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        if (series == null) {
+            PracticeInvoiceSeriesEntity newSeries = PracticeInvoiceSeriesEntity.builder()
+                    .financialYear(fy)
+                    .seriesPrefix(cleanPrefix)
+                    .delimiter("-")
+                    .currentSequence(0L)
+                    .build();
+            newSeries.setOrganizationId(organizationId);
+            series = practiceInvoiceSeriesRepository.saveAndFlush(newSeries);
+        }
+
+        long nextSeq = series.getCurrentSequence() + 1;
+        series.setCurrentSequence(nextSeq);
+        practiceInvoiceSeriesRepository.saveAndFlush(series);
+
+        String delimiter = StringUtils.hasText(series.getDelimiter()) ? series.getDelimiter() : "-";
+        String number = String.format("%s%s%s%s%04d", cleanPrefix, delimiter, fyShort, delimiter, nextSeq);
+
+        while (invoiceRepository.existsByOrganizationIdAndInvoiceNumber(organizationId, number)) {
+            nextSeq++;
+            series.setCurrentSequence(nextSeq);
+            practiceInvoiceSeriesRepository.saveAndFlush(series);
+            number = String.format("%s%s%s%s%04d", cleanPrefix, delimiter, fyShort, delimiter, nextSeq);
+        }
+
         return number;
+    }
+
+    private record ResolvedGstContext(
+            String supplierState,
+            String supplierStateCode,
+            String posState,
+            String posStateCode,
+            boolean isIntraState
+    ) {}
+
+    private ResolvedGstContext resolveGstContext(UUID organizationId, UUID locationId, ClientEntity client, String requestedPosCode, String requestedPosState) {
+        String supplierState = null;
+        String supplierStateCode = null;
+
+        if (locationId != null && locationRepository != null) {
+            supplierState = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                    .map(LocationEntity::getState)
+                    .orElse(null);
+            if (supplierState != null) {
+                supplierStateCode = IndianGstUtils.getStateCode(supplierState);
+            }
+        }
+
+        if (supplierStateCode == null) {
+            OrganizationEntity org = organizationRepository.findById(organizationId).orElse(null);
+            if (org != null) {
+                if (StringUtils.hasText(org.getGstin())) {
+                    supplierStateCode = IndianGstUtils.extractStateCodeFromGstin(org.getGstin());
+                    supplierState = IndianGstUtils.getStateName(supplierStateCode);
+                }
+                if (supplierStateCode == null && StringUtils.hasText(org.getState())) {
+                    supplierStateCode = IndianGstUtils.getStateCode(org.getState());
+                    supplierState = IndianGstUtils.getStateName(org.getState());
+                }
+            }
+        }
+
+        if (supplierStateCode == null) {
+            supplierStateCode = "27";
+            supplierState = "Maharashtra";
+        }
+        if (supplierState == null) {
+            supplierState = IndianGstUtils.getStateName(supplierStateCode);
+        }
+
+        String posCode = null;
+        String posName = null;
+
+        if (StringUtils.hasText(requestedPosCode)) {
+            posCode = IndianGstUtils.getStateCode(requestedPosCode);
+            posName = IndianGstUtils.getStateName(posCode != null ? posCode : requestedPosCode);
+        } else if (StringUtils.hasText(requestedPosState)) {
+            posCode = IndianGstUtils.getStateCode(requestedPosState);
+            posName = IndianGstUtils.getStateName(requestedPosState);
+        }
+
+        if (posCode == null && client != null) {
+            if (StringUtils.hasText(client.getGstin())) {
+                posCode = IndianGstUtils.extractStateCodeFromGstin(client.getGstin());
+                posName = IndianGstUtils.getStateName(posCode);
+            }
+            if (posCode == null && StringUtils.hasText(client.getStateCode())) {
+                posCode = IndianGstUtils.getStateCode(client.getStateCode());
+                posName = IndianGstUtils.getStateName(posCode != null ? posCode : client.getStateCode());
+            }
+            if (posCode == null && StringUtils.hasText(client.getState())) {
+                posCode = IndianGstUtils.getStateCode(client.getState());
+                posName = IndianGstUtils.getStateName(client.getState());
+            }
+        }
+
+        if (posCode == null) {
+            posCode = supplierStateCode;
+            posName = supplierState;
+        }
+        if (posName == null) {
+            posName = IndianGstUtils.getStateName(posCode);
+        }
+
+        boolean isIntraState = supplierStateCode.equals(posCode);
+        return new ResolvedGstContext(supplierState, supplierStateCode, posName, posCode, isIntraState);
     }
 
     private String generateReceiptNumber(UUID organizationId) {

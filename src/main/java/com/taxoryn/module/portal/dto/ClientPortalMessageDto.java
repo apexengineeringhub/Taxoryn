@@ -1,5 +1,6 @@
 package com.taxoryn.module.portal.dto;
 
+import com.taxoryn.module.portal.entity.MessageContextType;
 import com.taxoryn.module.portal.entity.PortalMessageSenderType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -23,6 +25,11 @@ public class ClientPortalMessageDto {
     private String senderName;
     private String senderEmail;
     private String messageBody;
+    private MessageContextType contextType;
+    private UUID contextId;
+    private String contextTitle;
+    private UUID parentMessageId;
+    private List<PortalMessageAttachmentDto> attachments;
     private String attachmentsJson;
     private boolean isReadByClient;
     private boolean isReadByPractice;

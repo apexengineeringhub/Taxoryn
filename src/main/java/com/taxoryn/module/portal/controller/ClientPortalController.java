@@ -3,7 +3,11 @@ package com.taxoryn.module.portal.controller;
 import com.taxoryn.core.response.ApiResponse;
 import com.taxoryn.core.response.PagedResponse;
 import com.taxoryn.module.client.dto.ClientCommunicationDto;
+import com.taxoryn.module.client.dto.ClientTimelineFilterRequest;
+import com.taxoryn.module.client.dto.ClientTimelineItemDto;
+import com.taxoryn.module.client.entity.TimelineEventCategory;
 import com.taxoryn.module.client.service.ClientCommunicationTimelineService;
+import com.taxoryn.module.client.service.ClientTimelineService;
 import com.taxoryn.module.document.dto.DocumentDownloadDto;
 import com.taxoryn.module.document.dto.DocumentDto;
 import com.taxoryn.module.document.dto.PresignedUrlResponse;
@@ -28,6 +32,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -49,6 +54,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.taxoryn.module.moduleconfig.annotation.RequiresModule;
 import com.taxoryn.module.moduleconfig.model.ProductModuleCode;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,6 +70,7 @@ public class ClientPortalController {
     private final com.taxoryn.module.docrequest.service.DocumentRequestService documentRequestService;
     private final com.taxoryn.module.notice.service.TaxNoticeService taxNoticeService;
     private final ClientCommunicationTimelineService communicationTimelineService;
+    private final ClientTimelineService clientTimelineService;
 
     // =========================================================================
     // 1. User Management & Onboarding
@@ -324,7 +331,7 @@ public class ClientPortalController {
     // 8. Client Portal Multi-Item Document Requests V1
     // =========================================================================
 
-    @GetMapping("/document-requests/v1")
+    @GetMapping({"/document-requests", "/document-requests/v1"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "List client document requests V1", description = "Retrieves all multi-item document requests for the authenticated client.")
     public ResponseEntity<ApiResponse<List<com.taxoryn.module.docrequest.dto.DocumentRequestDto>>> getPortalDocumentRequests() {
@@ -332,7 +339,7 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("Document requests retrieved successfully", list));
     }
 
-    @GetMapping("/document-requests/v1/{id}")
+    @GetMapping({"/document-requests/{id}", "/document-requests/v1/{id}"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Get client document request detail V1", description = "Retrieves details and checklist items for a specific document request.")
     public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> getPortalDocumentRequestById(@PathVariable UUID id) {
@@ -340,7 +347,7 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("Document request retrieved successfully", req));
     }
 
-    @PostMapping(value = "/document-requests/v1/items/{itemId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = {"/document-requests/items/{itemId}/upload", "/document-requests/v1/items/{itemId}/upload"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_UPLOAD') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Upload document for request item via Client Portal", description = "Authenticated client uploads a document to fulfill a specific request checklist item.")
     public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> uploadPortalItemDocument(
@@ -351,7 +358,7 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("Document uploaded successfully", result));
     }
 
-    @PostMapping("/document-requests/v1/request-acknowledgement")
+    @PostMapping({"/document-requests/request-acknowledgement", "/document-requests/v1/request-acknowledgement"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_UPLOAD') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Client requests acknowledgement or document from practitioner", description = "Authenticated client requests an ITR/GST acknowledgement, computation, certificate, or tax document from their practitioner.")
     public ResponseEntity<ApiResponse<com.taxoryn.module.docrequest.dto.DocumentRequestDto>> requestAcknowledgement(
@@ -361,7 +368,7 @@ public class ClientPortalController {
                 .body(ApiResponse.created("Acknowledgement request submitted successfully", result));
     }
 
-    @GetMapping("/document-requests/v1/delivered")
+    @GetMapping({"/document-requests/delivered", "/document-requests/v1/delivered"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "List documents delivered to client", description = "Retrieves all acknowledgements and tax documents delivered by the practitioner.")
     public ResponseEntity<ApiResponse<List<com.taxoryn.module.docrequest.dto.DocumentRequestDto>>> getDeliveredDocuments() {
@@ -369,7 +376,7 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("Delivered documents retrieved successfully", list));
     }
 
-    @PostMapping("/document-requests/v1/{id}/viewed")
+    @PostMapping({"/document-requests/{id}/viewed", "/document-requests/v1/{id}/viewed"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Record delivered document viewed", description = "Transitions status to VIEWED and records audit trail.")
     public ResponseEntity<ApiResponse<Void>> recordDocumentViewed(@PathVariable UUID id) {
@@ -377,7 +384,7 @@ public class ClientPortalController {
         return ResponseEntity.ok(ApiResponse.success("Document view recorded", null));
     }
 
-    @PostMapping("/document-requests/v1/{id}/downloaded")
+    @PostMapping({"/document-requests/{id}/downloaded", "/document-requests/v1/{id}/downloaded"})
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_DOCUMENT_VIEW') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
     @Operation(summary = "Record delivered document downloaded", description = "Transitions status to DOWNLOADED and records audit trail.")
     public ResponseEntity<ApiResponse<Void>> recordDocumentDownloaded(@PathVariable UUID id) {
@@ -405,9 +412,11 @@ public class ClientPortalController {
 
     @GetMapping("/messages")
     @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
-    @Operation(summary = "Client consultation messages", description = "Retrieves chronological message history between the authenticated client and their assigned tax practitioner.")
-    public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getClientMessages() {
-        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getClientMessages();
+    @Operation(summary = "Client consultation messages", description = "Retrieves chronological message history between the authenticated client and their assigned tax practitioner, optionally filtered by context.")
+    public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getClientMessages(
+            @RequestParam(required = false) com.taxoryn.module.portal.entity.MessageContextType contextType,
+            @RequestParam(required = false) UUID contextId) {
+        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getClientMessages(contextType, contextId);
         return ResponseEntity.ok(ApiResponse.success("Messages retrieved successfully", list));
     }
 
@@ -419,6 +428,16 @@ public class ClientPortalController {
         com.taxoryn.module.portal.dto.ClientPortalMessageDto message = clientPortalService.sendClientMessage(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Message sent successfully", message));
+    }
+
+    @PostMapping(value = "/messages/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Upload client consultation message attachment", description = "Uploads and scans an attachment for a consultation message.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.portal.dto.PortalMessageAttachmentDto>> uploadClientMessageAttachment(
+            @RequestParam("file") MultipartFile file) {
+        com.taxoryn.module.portal.dto.PortalMessageAttachmentDto attachment = clientPortalService.uploadMessageAttachment(file, null);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Attachment uploaded successfully", attachment));
     }
 
     @PostMapping("/messages/read")
@@ -439,10 +458,12 @@ public class ClientPortalController {
 
     @GetMapping("/clients/{clientId}/messages")
     @PreAuthorize("hasAuthority('CLIENT_VIEW') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
-    @Operation(summary = "Practitioner gets client consultation messages", description = "Retrieves message history for a specific client under ABAC scope.")
+    @Operation(summary = "Practitioner gets client consultation messages", description = "Retrieves message history for a specific client under ABAC scope, optionally filtered by context.")
     public ResponseEntity<ApiResponse<List<com.taxoryn.module.portal.dto.ClientPortalMessageDto>>> getMessagesForClient(
-            @PathVariable UUID clientId) {
-        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getMessagesForClient(clientId);
+            @PathVariable UUID clientId,
+            @RequestParam(required = false) com.taxoryn.module.portal.entity.MessageContextType contextType,
+            @RequestParam(required = false) UUID contextId) {
+        List<com.taxoryn.module.portal.dto.ClientPortalMessageDto> list = clientPortalService.getMessagesForClient(clientId, contextType, contextId);
         return ResponseEntity.ok(ApiResponse.success("Client messages retrieved successfully", list));
     }
 
@@ -455,6 +476,17 @@ public class ClientPortalController {
         com.taxoryn.module.portal.dto.ClientPortalMessageDto message = clientPortalService.sendPracticeMessageToClient(clientId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Message sent successfully", message));
+    }
+
+    @PostMapping(value = "/clients/{clientId}/messages/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('CLIENT_UPDATE') or hasRole('ORG_ADMIN') or hasRole('SUPER_ADMIN') or hasRole('PRACTITIONER') or hasRole('STAFF')")
+    @Operation(summary = "Upload practice consultation message attachment", description = "Uploads and scans an attachment from practitioner for a client message.")
+    public ResponseEntity<ApiResponse<com.taxoryn.module.portal.dto.PortalMessageAttachmentDto>> uploadPracticeMessageAttachment(
+            @PathVariable UUID clientId,
+            @RequestParam("file") MultipartFile file) {
+        com.taxoryn.module.portal.dto.PortalMessageAttachmentDto attachment = clientPortalService.uploadMessageAttachment(file, clientId);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Attachment uploaded successfully", attachment));
     }
 
     @PostMapping("/clients/{clientId}/messages/read")
@@ -484,5 +516,35 @@ public class ClientPortalController {
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success("Client communications retrieved",
                 communicationTimelineService.listClientVisibleEntries(clientId, page, size)));
+    }
+
+    @GetMapping("/clients/{clientId}/timeline")
+    @PreAuthorize("hasAuthority('CLIENT_PORTAL_ACCESS') or hasRole('CLIENT_ADMIN') or hasRole('CLIENT_USER')")
+    @Operation(summary = "Get client collaboration timeline", description = "Returns sanitized, client-visible collaboration events, document requests, approvals, and communication milestones.")
+    public ResponseEntity<ApiResponse<PagedResponse<ClientTimelineItemDto>>> getClientPortalTimeline(
+            @PathVariable UUID clientId,
+            @RequestParam(required = false) TimelineEventCategory category,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String contextType,
+            @RequestParam(required = false) String contextId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        ClientTimelineFilterRequest filter = ClientTimelineFilterRequest.builder()
+                .category(category)
+                .eventType(eventType)
+                .contextType(contextType)
+                .contextId(contextId)
+                .from(from)
+                .to(to)
+                .page(page)
+                .size(size)
+                .clientVisibleOnly(true)
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success("Client timeline retrieved",
+                clientTimelineService.getPortalClientTimeline(clientId, filter)));
     }
 }

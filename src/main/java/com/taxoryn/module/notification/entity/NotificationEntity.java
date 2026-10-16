@@ -157,7 +157,11 @@ public class NotificationEntity extends AuditableEntity {
         // P0.5 — Reminder / Automation
         REMINDER_TRIGGERED,
         REMINDER_DUE,
-        REMINDER_OVERDUE
+        REMINDER_OVERDUE,
+        // Phase 32.6 — Follow-up & Reminder Engine
+        CLIENT_APPROVAL_REMINDER,
+        DOCUMENT_REQUEST_REMINDER,
+        FOLLOW_UP_NUDGE
     }
 
     public enum NotificationChannel {
