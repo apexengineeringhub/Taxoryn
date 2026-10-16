@@ -38,6 +38,7 @@ import {
   Scale,
   ThumbsUp,
   ThumbsDown,
+  ChevronDown,
 } from 'lucide-react';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -46,6 +47,7 @@ import { useAuth } from '../context/AuthContext';
 import { useModuleEntitlement } from '../context/ModuleEntitlementContext';
 import { portalApi, clientApi, documentApi, tdsApi, documentRequestApi, clientPortalApi } from '../api/endpoints';
 import { usePortalChat } from '../hooks/usePortalChat';
+import { useSmartChatScroll } from '../hooks/useSmartChatScroll';
 import { formatCurrency } from '../utils/currencyUtils';
 import {
   Client,
@@ -219,7 +221,20 @@ export const ClientPortalManagementPage: React.FC = () => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
   const [newMessageText, setNewMessageText] = useState<string>('');
   const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Smart responsive scroll management for portal chat
+  const {
+    scrollContainerRef: portalScrollContainerRef,
+    messagesEndRef: portalMessagesEndRef,
+    isNearBottom: isPortalNearBottom,
+    unreadBelowCount: portalUnreadBelowCount,
+    scrollToBottom: scrollPortalToBottom,
+    handleScroll: handlePortalScroll,
+  } = useSmartChatScroll({
+    dependency: messages,
+    nearBottomThreshold: 120,
+    smooth: true,
+  });
 
   // Contextual Messaging & Attachment State
   const [selectedContext, setSelectedContext] = useState<{
@@ -309,13 +324,6 @@ export const ClientPortalManagementPage: React.FC = () => {
     };
   }, [activeTab, isPracticeUser, selectedClientId]);
 
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (activeTab === 'messages') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, activeTab, isPeerTyping]);
-
   // Capture context from search params if present
   useEffect(() => {
     const cType = searchParams.get('contextType') as MessageContextType | null;
@@ -402,6 +410,7 @@ export const ClientPortalManagementPage: React.FC = () => {
         if (prev.some((m) => m.id === sent.id)) return prev;
         return [...prev, sent];
       });
+      setTimeout(() => scrollPortalToBottom(), 50);
       setNewMessageText('');
       setPendingAttachments([]);
       setSelectedContext(null);
@@ -1392,464 +1401,515 @@ export const ClientPortalManagementPage: React.FC = () => {
 
       {/* TAB: Messages / Consultation Chat */}
       {activeTab === 'messages' && (
-        <div className="space-y-6">
-          <Card
-            title={isPracticeUser ? `Consultation Chat: ${activeClientName}` : 'Direct Consultation & Messages'}
-            subtitle={
-              isPracticeUser
-                ? `Direct real-time consultation channel with ${activeClientName} (${activeClientPan})`
-                : `Direct secure communication channel with ${dashboard?.assignedPractitionerName || 'your assigned Tax Consultant'}`
-            }
-          >
-            <div className="space-y-4">
-              {/* Channel & Consultant / Client Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div
+        <div className="-m-4 sm:m-0 h-[calc(100dvh-5.5rem)] sm:h-[calc(100dvh-8rem)] min-h-[500px] rounded-none sm:rounded-2xl border-0 sm:border border-slate-200 bg-white flex flex-col overflow-hidden shadow-xs relative">
+          {/* Channel & Consultant / Client Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-slate-50/90 backdrop-blur border-b border-slate-200 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={clsx(
+                  'w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-xs shrink-0',
+                  isPracticeUser ? 'bg-indigo-600 text-white' : 'bg-brand-600 text-white'
+                )}
+              >
+                {isPracticeUser
+                  ? (activeClientName || 'C').charAt(0)
+                  : (dashboard?.assignedPractitionerName || 'CA').charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-900 block text-sm truncate">
+                    {isPracticeUser
+                      ? activeClientName
+                      : dashboard?.assignedPractitionerName || 'Assigned Tax Consultant'}
+                  </span>
+                  <span
                     className={clsx(
-                      'w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-xs',
-                      isPracticeUser ? 'bg-indigo-600 text-white' : 'bg-brand-600 text-white'
+                      'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0',
+                      isPracticeUser
+                        ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                        : 'bg-brand-50 text-brand-700 border border-brand-200'
                     )}
                   >
-                    {isPracticeUser
-                      ? (activeClientName || 'C').charAt(0)
-                      : (dashboard?.assignedPractitionerName || 'CA').charAt(0)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 block text-sm">
-                        {isPracticeUser
-                          ? activeClientName
-                          : dashboard?.assignedPractitionerName || 'Assigned Tax Consultant'}
+                    {isPracticeUser ? 'Client' : 'Tax Practitioner'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 mt-0.5">
+                  {isWsConnected ? (
+                    <span className="text-xs text-emerald-600 flex items-center gap-1.5 font-medium truncate">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <Wifi className="w-3 h-3 text-emerald-500 shrink-0" />
+                      <span className="hidden sm:inline">Live Consultation Channel Active</span>
+                      <span className="sm:hidden">Live Active</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-amber-600 flex items-center gap-1.5 font-medium truncate">
+                      <WifiOff className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span className="hidden sm:inline">Reconnecting real-time socket (syncing)...</span>
+                      <span className="sm:hidden">Syncing...</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              {/* Practice User Client Switcher Quick Dropdown */}
+              {isPracticeUser && clients.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="portal-chat-client-select" className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+                    Client:
+                  </label>
+                  <select
+                    id="portal-chat-client-select"
+                    value={selectedClientId}
+                    onChange={(e) => handleClientChange(e.target.value)}
+                    className="text-xs bg-white border border-slate-300 rounded-lg py-1 px-2 text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 max-w-[160px] sm:max-w-[200px] truncate"
+                    aria-label="Switch active client consultation"
+                  >
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.displayName || c.legalName || 'Client'} {c.pan ? `(${c.pan})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!isPracticeUser && dashboard?.assignedPractitionerPhone && (
+                <a
+                  href={`tel:${dashboard.assignedPractitionerPhone}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Call Consultant</span>
+                  <span className="sm:hidden">Call</span>
+                </a>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (isPracticeUser && selectedClientId) {
+                    portalApi.getPracticeClientMessages(selectedClientId).then(setMessages).catch(() => {});
+                  } else if (!isPracticeUser) {
+                    portalApi.getClientMessages().then(setMessages).catch(() => {});
+                  }
+                }}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                className="shrink-0"
+              >
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Context Filter Selector (Horizontal scrolling bar) */}
+          <div className="px-3 sm:px-4 py-1.5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 text-xs">
+            <span className="text-[11px] font-bold text-slate-500 uppercase mr-1 flex items-center gap-1 shrink-0">
+              <Filter className="w-3 h-3 text-slate-400" />
+              Context:
+            </span>
+            {[
+              { label: 'All Messages', value: 'ALL' },
+              { label: 'General', value: 'GENERAL' },
+              { label: 'Doc Requests', value: 'DOCUMENT_REQUEST' },
+              { label: 'Doc Items', value: 'DOCUMENT_ITEM' },
+              { label: 'Workflows', value: 'COMPLIANCE_WORKFLOW' },
+              { label: 'Notices', value: 'NOTICE' },
+            ].map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setMessageFilter(f.value as any)}
+                className={clsx(
+                  'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer shrink-0 min-h-[32px] flex items-center',
+                  messageFilter === f.value
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Messages Stream */}
+          <div
+            ref={portalScrollContainerRef}
+            onScroll={handlePortalScroll}
+            className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 min-h-0 bg-slate-50/40 relative"
+          >
+            {/* Quick Query Templates (For Client View when empty) */}
+            {!isPracticeUser && messages.length === 0 && (
+              <div className="p-3.5 bg-brand-50/50 border border-brand-100 rounded-xl space-y-2 mb-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-brand-900">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Quick Consultation Starters:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'When will my GST return be filed for this month?',
+                    'I have uploaded the requested bank statements and invoices.',
+                    'Please share the draft ITR computation sheet.',
+                    'Can we schedule a quick call regarding our quarterly TDS?',
+                  ].map((promptText, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setNewMessageText(promptText)}
+                      className="text-[11px] font-medium bg-white hover:bg-brand-50 text-slate-700 hover:text-brand-800 border border-slate-200 hover:border-brand-300 px-2.5 py-1.5 rounded-lg transition-all text-left shadow-2xs"
+                    >
+                      {promptText}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {filteredMessages.length === 0 ? (
+              <div className="py-14 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-slate-800">
+                    {messageFilter !== 'ALL'
+                      ? `No messages matching context "${messageFilter}"`
+                      : isPracticeUser
+                      ? 'No consultation messages yet'
+                      : 'Start your consultation'}
+                  </p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    {messageFilter !== 'ALL'
+                      ? 'Switch to "All Messages" to view the complete communication history.'
+                      : isPracticeUser
+                      ? `Send a message to ${activeClientName} to initiate consultation or provide status updates.`
+                      : 'Send a message to your assigned tax practitioner. Messages and status updates are synchronized in real time.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              filteredMessages.map((msg) => {
+                const isMe = isPracticeUser
+                  ? msg.senderType === 'PRACTICE'
+                  : msg.senderType === 'CLIENT';
+                const isSystem = msg.senderType === 'SYSTEM';
+                const isReadByPeer = isPracticeUser
+                  ? msg.isReadByClient || msg.readByClient
+                  : msg.isReadByPractice || msg.readByPractice;
+
+                if (isSystem) {
+                  return (
+                    <div key={msg.id} className="flex justify-center my-2">
+                      <div className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1 rounded-full text-[11px] font-medium text-center max-w-md">
+                        📢 {msg.messageBody}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={clsx('flex flex-col', isMe ? 'items-end' : 'items-start')}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1 px-1">
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {isMe ? 'You' : msg.senderName}
                       </span>
                       <span
                         className={clsx(
-                          'text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider',
-                          isPracticeUser
-                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                            : 'bg-brand-50 text-brand-700 border border-brand-200'
+                          'text-[9px] px-1.5 py-0.2 rounded font-bold uppercase',
+                          msg.senderType === 'PRACTICE'
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-emerald-50 text-emerald-700'
                         )}
                       >
-                        {isPracticeUser ? 'Client' : 'Tax Practitioner'}
+                        {msg.senderType === 'PRACTICE' ? 'Tax Consultant' : 'Client'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {msg.createdAt
+                          ? new Date(msg.createdAt).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'Just now'}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {isWsConnected ? (
-                        <span className="text-xs text-emerald-600 flex items-center gap-1.5 font-medium">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                          </span>
-                          <Wifi className="w-3 h-3 text-emerald-500" />
-                          Live Consultation Channel Active
-                        </span>
-                      ) : (
-                        <span className="text-xs text-amber-600 flex items-center gap-1.5 font-medium">
-                          <WifiOff className="w-3 h-3 text-amber-500" />
-                          Reconnecting real-time socket (syncing)...
-                        </span>
+                    <div
+                      className={clsx(
+                        'max-w-[88%] sm:max-w-[78%] md:max-w-[65%] p-3 sm:p-3.5 rounded-2xl text-xs leading-relaxed shadow-2xs break-words [overflow-wrap:anywhere]',
+                        isMe
+                          ? 'bg-brand-600 text-white rounded-br-none'
+                          : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
                       )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-start sm:self-center">
-                  {!isPracticeUser && dashboard?.assignedPractitionerPhone && (
-                    <a
-                      href={`tel:${dashboard.assignedPractitionerPhone}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
                     >
-                      <Phone className="w-3.5 h-3.5" />
-                      Call Consultant
-                    </a>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (isPracticeUser && selectedClientId) {
-                        portalApi.getPracticeClientMessages(selectedClientId).then(setMessages).catch(() => {});
-                      } else if (!isPracticeUser) {
-                        portalApi.getClientMessages().then(setMessages).catch(() => {});
-                      }
-                    }}
-                    leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                  >
-                    Refresh
-                  </Button>
-                </div>
-              </div>
-
-              {/* Context Filter Selector */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="text-[11px] font-bold text-slate-500 uppercase mr-1 flex items-center gap-1">
-                  <Filter className="w-3 h-3 text-slate-400" />
-                  Context Filter:
-                </span>
-                {[
-                  { label: 'All Messages', value: 'ALL' },
-                  { label: 'General', value: 'GENERAL' },
-                  { label: 'Doc Requests', value: 'DOCUMENT_REQUEST' },
-                  { label: 'Doc Items', value: 'DOCUMENT_ITEM' },
-                  { label: 'Workflows', value: 'COMPLIANCE_WORKFLOW' },
-                  { label: 'Notices', value: 'NOTICE' },
-                ].map((f) => (
-                  <button
-                    key={f.value}
-                    type="button"
-                    onClick={() => setMessageFilter(f.value as any)}
-                    className={clsx(
-                      'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer',
-                      messageFilter === f.value
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    )}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Quick Query Templates (For Client View) */}
-              {!isPracticeUser && messages.length === 0 && (
-                <div className="p-3.5 bg-brand-50/50 border border-brand-100 rounded-xl space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-brand-900">
-                    <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-                    <span>Quick Consultation Starters:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      'When will my GST return be filed for this month?',
-                      'I have uploaded the requested bank statements and invoices.',
-                      'Please share the draft ITR computation sheet.',
-                      'Can we schedule a quick call regarding our quarterly TDS?',
-                    ].map((promptText, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setNewMessageText(promptText)}
-                        className="text-[11px] font-medium bg-white hover:bg-brand-50 text-slate-700 hover:text-brand-800 border border-slate-200 hover:border-brand-300 px-2.5 py-1.5 rounded-lg transition-all text-left shadow-2xs"
-                      >
-                        {promptText}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Chat Thread */}
-              <div className="border border-slate-200 rounded-xl p-4 min-h-[320px] max-h-[480px] overflow-y-auto space-y-3 bg-slate-50/40">
-                {filteredMessages.length === 0 ? (
-                  <div className="py-14 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
-                      <MessageCircle className="w-6 h-6" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-slate-800">
-                        {messageFilter !== 'ALL'
-                          ? `No messages matching context "${messageFilter}"`
-                          : isPracticeUser
-                          ? 'No consultation messages yet'
-                          : 'Start your consultation'}
-                      </p>
-                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        {messageFilter !== 'ALL'
-                          ? 'Switch to "All Messages" to view the complete communication history.'
-                          : isPracticeUser
-                          ? `Send a message to ${activeClientName} to initiate consultation or provide status updates.`
-                          : 'Send a message to your assigned tax practitioner. Messages and status updates are synchronized in real time.'}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  filteredMessages.map((msg) => {
-                    const isMe = isPracticeUser
-                      ? msg.senderType === 'PRACTICE'
-                      : msg.senderType === 'CLIENT';
-                    const isSystem = msg.senderType === 'SYSTEM';
-                    const isReadByPeer = isPracticeUser
-                      ? msg.isReadByClient || msg.readByClient
-                      : msg.isReadByPractice || msg.readByPractice;
-
-                    if (isSystem) {
-                      return (
-                        <div key={msg.id} className="flex justify-center my-2">
-                          <div className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1 rounded-full text-[11px] font-medium text-center max-w-md">
-                            📢 {msg.messageBody}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div
-                        key={msg.id}
-                        className={clsx('flex flex-col', isMe ? 'items-end' : 'items-start')}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1 px-1">
-                          <span className="text-[10px] font-semibold text-slate-500">
-                            {isMe ? 'You' : msg.senderName}
-                          </span>
-                          <span
-                            className={clsx(
-                              'text-[9px] px-1.5 py-0.2 rounded font-bold uppercase',
-                              msg.senderType === 'PRACTICE'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-emerald-50 text-emerald-700'
-                            )}
-                          >
-                            {msg.senderType === 'PRACTICE' ? 'Tax Consultant' : 'Client'}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            {msg.createdAt
-                              ? new Date(msg.createdAt).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })
-                              : 'Just now'}
-                          </span>
-                        </div>
-
+                      {/* Contextual Badge on Message */}
+                      {msg.contextType && msg.contextType !== 'GENERAL' && (
                         <div
                           className={clsx(
-                            'max-w-md p-3.5 rounded-2xl text-xs leading-relaxed shadow-2xs break-words',
+                            'text-[10px] font-bold px-2 py-0.5 rounded-md mb-2 inline-flex items-center gap-1 max-w-full truncate',
                             isMe
-                              ? 'bg-brand-600 text-white rounded-br-none'
-                              : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                              ? 'bg-brand-700 text-brand-100'
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                           )}
                         >
-                          {/* Contextual Badge on Message */}
-                          {msg.contextType && msg.contextType !== 'GENERAL' && (
+                          <span className="uppercase text-[9px] opacity-80">
+                            {msg.contextType.replace(/_/g, ' ')}:
+                          </span>
+                          <span className="truncate">{msg.contextTitle || msg.contextId}</span>
+                        </div>
+                      )}
+
+                      <p className="whitespace-pre-wrap">{msg.messageBody}</p>
+
+                      {/* Message Attachments */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="mt-2.5 space-y-1.5 pt-2 border-t border-black/10">
+                          {msg.attachments.map((att, idx) => (
                             <div
+                              key={idx}
                               className={clsx(
-                                'text-[10px] font-bold px-2 py-0.5 rounded-md mb-2 inline-flex items-center gap-1 max-w-full truncate',
+                                'flex items-center justify-between gap-2 p-2 rounded-lg text-xs',
                                 isMe
-                                  ? 'bg-brand-700 text-brand-100'
-                                  : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                  ? 'bg-white/10 text-white'
+                                  : 'bg-slate-50 border border-slate-200 text-slate-800'
                               )}
                             >
-                              <span className="uppercase text-[9px] opacity-80">
-                                {msg.contextType.replace(/_/g, ' ')}:
-                              </span>
-                              <span className="truncate">{msg.contextTitle || msg.contextId}</span>
-                            </div>
-                          )}
-
-                          <p className="whitespace-pre-wrap">{msg.messageBody}</p>
-
-                          {/* Message Attachments */}
-                          {msg.attachments && msg.attachments.length > 0 && (
-                            <div className="mt-2.5 space-y-1.5 pt-2 border-t border-black/10">
-                              {msg.attachments.map((att, idx) => (
-                                <div
-                                  key={idx}
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <File className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                <span className="truncate font-medium">{att.fileName}</span>
+                                {att.fileSize !== undefined && (
+                                  <span className="text-[10px] opacity-60">
+                                    ({(att.fileSize / 1024).toFixed(0)} KB)
+                                  </span>
+                                )}
+                              </div>
+                              {att.downloadUrl ? (
+                                <a
+                                  href={att.downloadUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download={att.fileName}
                                   className={clsx(
-                                    'flex items-center justify-between gap-2 p-2 rounded-lg text-xs',
-                                    isMe
-                                      ? 'bg-white/10 text-white'
-                                      : 'bg-slate-50 border border-slate-200 text-slate-800'
+                                    'p-1.5 rounded hover:bg-black/10 transition-colors shrink-0 min-w-[32px] min-h-[32px] flex items-center justify-center',
+                                    isMe ? 'text-white' : 'text-brand-600'
                                   )}
+                                  title="Download attachment"
+                                  aria-label={`Download ${att.fileName}`}
                                 >
-                                  <div className="flex items-center gap-2 overflow-hidden">
-                                    <File className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                                    <span className="truncate font-medium">{att.fileName}</span>
-                                    {att.fileSize !== undefined && (
-                                      <span className="text-[10px] opacity-60">
-                                        ({(att.fileSize / 1024).toFixed(0)} KB)
-                                      </span>
-                                    )}
-                                  </div>
-                                  {att.downloadUrl ? (
-                                    <a
-                                      href={att.downloadUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      download={att.fileName}
-                                      className={clsx(
-                                        'p-1 rounded hover:bg-black/10 transition-colors shrink-0',
-                                        isMe ? 'text-white' : 'text-brand-600'
-                                      )}
-                                      title="Download attachment"
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                    </a>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        try {
-                                          const blob = await documentApi.download(att.documentId);
-                                          const url = window.URL.createObjectURL(blob);
-                                          const a = document.createElement('a');
-                                          a.href = url;
-                                          a.download = att.fileName;
-                                          document.body.appendChild(a);
-                                          a.click();
-                                          window.URL.revokeObjectURL(url);
-                                          document.body.removeChild(a);
-                                        } catch (e) {
-                                          console.error('Download failed', e);
-                                        }
-                                      }}
-                                      className={clsx(
-                                        'p-1 rounded hover:bg-black/10 transition-colors shrink-0',
-                                        isMe ? 'text-white' : 'text-brand-600'
-                                      )}
-                                      title="Download attachment"
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {isMe && (
-                            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-85">
-                              {isReadByPeer ? (
-                                <span className="flex items-center gap-0.5 text-cyan-200 font-medium">
-                                  <CheckCheck className="w-3.5 h-3.5" />
-                                  <span>Read</span>
-                                </span>
+                                  <Download className="w-3.5 h-3.5" />
+                                </a>
                               ) : (
-                                <span className="flex items-center gap-0.5 text-slate-200">
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>Sent</span>
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const blob = await documentApi.download(att.documentId);
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = att.fileName;
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      window.URL.revokeObjectURL(url);
+                                      document.body.removeChild(a);
+                                    } catch (e) {
+                                      console.error('Download failed', e);
+                                    }
+                                  }}
+                                  className={clsx(
+                                    'p-1.5 rounded hover:bg-black/10 transition-colors shrink-0 min-w-[32px] min-h-[32px] flex items-center justify-center',
+                                    isMe ? 'text-white' : 'text-brand-600'
+                                  )}
+                                  title="Download attachment"
+                                  aria-label={`Download ${att.fileName}`}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
                               )}
                             </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {isMe && (
+                        <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-85">
+                          {isReadByPeer ? (
+                            <span className="flex items-center gap-0.5 text-cyan-200 font-medium">
+                              <CheckCheck className="w-3.5 h-3.5" />
+                              <span>Read</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-0.5 text-slate-200">
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Sent</span>
+                            </span>
                           )}
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-
-                {/* Peer Typing Indicator */}
-                {isPeerTyping && (
-                  <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl w-fit animate-pulse">
-                    <span className="font-semibold">
-                      {isPracticeUser ? activeClientName : dashboard?.assignedPractitionerName || 'Tax Consultant'}{' '}
-                      is typing...
-                    </span>
-                    <span className="flex gap-0.5">
-                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></span>
-                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                      <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                    </span>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Active Context Banner Above Composer */}
-              {selectedContext && (
-                <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 shadow-2xs animate-in fade-in">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <span className="font-bold text-[10px] bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded uppercase shrink-0">
-                      Context: {selectedContext.contextType.replace(/_/g, ' ')}
-                    </span>
-                    <span className="truncate font-semibold text-indigo-950">{selectedContext.contextTitle}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedContext(null)}
-                    className="text-indigo-600 hover:text-indigo-900 p-1 rounded-md hover:bg-indigo-100 transition-colors shrink-0"
-                    title="Clear context and send as general consultation"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Pending Attachments List Above Composer */}
-              {pendingAttachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                  {pendingAttachments.map((att, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 shadow-2xs"
-                    >
-                      <Paperclip className="w-3 h-3 text-slate-500 shrink-0" />
-                      <span className="truncate max-w-[160px] font-medium">{att.fileName}</span>
-                      {att.fileSize !== undefined && (
-                        <span className="text-[10px] text-slate-400">
-                          ({(att.fileSize / 1024).toFixed(0)} KB)
-                        </span>
                       )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
-                        }
-                        className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded hover:bg-slate-100"
-                        title="Remove attachment"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                );
+              })
+            )}
 
-              {/* Message Composer */}
-              <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-                <input
-                  type="file"
-                  ref={attachmentFileInputRef}
-                  className="hidden"
-                  onChange={handleAttachmentUpload}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => attachmentFileInputRef.current?.click()}
-                  disabled={isUploadingAttachment || (isPracticeUser && !selectedClientId)}
-                  isLoading={isUploadingAttachment}
-                  leftIcon={<Paperclip className="w-4 h-4 text-slate-500" />}
-                  className="shrink-0"
-                  title="Attach file (up to 25MB)"
-                >
-                  Attach
-                </Button>
-                <input
-                  type="text"
-                  value={newMessageText}
-                  onChange={(e) => {
-                    setNewMessageText(e.target.value);
-                    sendTyping(e.target.value.length > 0);
-                  }}
-                  onBlur={() => sendTyping(false)}
-                  placeholder={
-                    selectedContext
-                      ? `Type inquiry about ${selectedContext.contextTitle}...`
-                      : isPracticeUser
-                      ? `Type a consultation reply or filing update to ${activeClientName}...`
-                      : `Type your tax query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`
-                  }
-                  disabled={isPracticeUser && !selectedClientId}
-                  className="flex-1 px-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-slate-100"
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  isLoading={isSendingMessage}
-                  disabled={
-                    (!newMessageText.trim() && pendingAttachments.length === 0) ||
-                    (isPracticeUser && !selectedClientId)
-                  }
-                  leftIcon={<Send className="w-4 h-4" />}
-                >
-                  Send
-                </Button>
-              </form>
+            {/* Peer Typing Indicator */}
+            {isPeerTyping && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-xl w-fit animate-pulse">
+                <span className="font-semibold">
+                  {isPracticeUser ? activeClientName : dashboard?.assignedPractitionerName || 'Tax Consultant'}{' '}
+                  is typing...
+                </span>
+                <span className="flex gap-0.5">
+                  <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></span>
+                  <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                  <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                </span>
+              </div>
+            )}
+
+            <div ref={portalMessagesEndRef} />
+          </div>
+
+          {/* Scroll to bottom floating button when scrolled up */}
+          {!isPortalNearBottom && (
+            <div className="sticky bottom-20 right-4 flex justify-end px-4 z-20 pointer-events-none">
+              <button
+                type="button"
+                onClick={() => scrollPortalToBottom()}
+                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 animate-fade-in"
+                title="Scroll to latest messages"
+                aria-label="Scroll to latest messages"
+              >
+                <ChevronDown className="w-4 h-4" />
+                <span>{portalUnreadBelowCount > 0 ? `${portalUnreadBelowCount} new` : 'Latest'}</span>
+              </button>
             </div>
-          </Card>
+          )}
+
+          {/* Pinned Bottom Message Composer */}
+          <div className="p-3 sm:p-4 border-t border-slate-200 bg-white shrink-0 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] space-y-2">
+            {/* Active Context Banner Above Composer */}
+            {selectedContext && (
+              <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 shadow-2xs animate-in fade-in">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="font-bold text-[10px] bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded uppercase shrink-0">
+                    Context: {selectedContext.contextType.replace(/_/g, ' ')}
+                  </span>
+                  <span className="truncate font-semibold text-indigo-950">{selectedContext.contextTitle}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedContext(null)}
+                  className="text-indigo-600 hover:text-indigo-900 p-1 rounded-md hover:bg-indigo-100 transition-colors shrink-0"
+                  title="Clear context and send as general consultation"
+                  aria-label="Clear context"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Pending Attachments List Above Composer */}
+            {pendingAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                {pendingAttachments.map((att, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 shadow-2xs"
+                  >
+                    <Paperclip className="w-3 h-3 text-slate-500 shrink-0" />
+                    <span className="truncate max-w-[160px] font-medium">{att.fileName}</span>
+                    {att.fileSize !== undefined && (
+                      <span className="text-[10px] text-slate-400">
+                        ({(att.fileSize / 1024).toFixed(0)} KB)
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                      className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded hover:bg-slate-100"
+                      title="Remove attachment"
+                      aria-label={`Remove attachment ${att.fileName}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Message Composer Form */}
+            <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
+              <input
+                type="file"
+                ref={attachmentFileInputRef}
+                className="hidden"
+                onChange={handleAttachmentUpload}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => attachmentFileInputRef.current?.click()}
+                disabled={isUploadingAttachment || (isPracticeUser && !selectedClientId)}
+                isLoading={isUploadingAttachment}
+                leftIcon={<Paperclip className="w-4 h-4 text-slate-500" />}
+                className="shrink-0 min-h-[42px] px-3 flex items-center justify-center"
+                title="Attach file (up to 25MB)"
+                aria-label="Attach file"
+              >
+                <span className="hidden sm:inline">Attach</span>
+              </Button>
+              <textarea
+                rows={1}
+                value={newMessageText}
+                onChange={(e) => {
+                  setNewMessageText(e.target.value);
+                  sendTyping(e.target.value.length > 0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e);
+                  }
+                }}
+                onBlur={() => sendTyping(false)}
+                placeholder={
+                  selectedContext
+                    ? `Type inquiry about ${selectedContext.contextTitle}...`
+                    : isPracticeUser
+                    ? `Type a consultation reply or filing update to ${activeClientName}...`
+                    : `Type your tax query to ${dashboard?.assignedPractitionerName || 'your tax consultant'}...`
+                }
+                disabled={isPracticeUser && !selectedClientId}
+                className="flex-1 max-h-32 min-h-[42px] px-3.5 py-2.5 text-xs bg-slate-50/60 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-slate-100 resize-none leading-relaxed"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isSendingMessage}
+                disabled={
+                  (!newMessageText.trim() && pendingAttachments.length === 0) ||
+                  (isPracticeUser && !selectedClientId)
+                }
+                leftIcon={<Send className="w-4 h-4" />}
+                className="shrink-0 min-h-[42px] px-4"
+                aria-label="Send message"
+              >
+                <span className="hidden sm:inline">Send</span>
+              </Button>
+            </form>
+          </div>
         </div>
       )}
 
